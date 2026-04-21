@@ -1,13 +1,13 @@
-import { formatCompactCurrency, formatCurrency } from "../utils/formatters.js";
+import { escapeHtml, formatCompactCurrency, formatCurrency } from "../utils/formatters.js";
 
 function renderComparisonRows(rows) {
   return rows
     .map(
       (row) => `
         <div class="comparison-row">
-          <div class="comparison-label">${row.label}</div>
-          <div class="comparison-cell comparison-cell-muted">${row.legacy}</div>
-          <div class="comparison-cell comparison-cell-accent">${row.pam}</div>
+          <div class="comparison-label">${escapeHtml(row.label)}</div>
+          <div class="comparison-cell comparison-cell-muted">${escapeHtml(row.legacy)}</div>
+          <div class="comparison-cell comparison-cell-accent">${escapeHtml(row.pam)}</div>
         </div>
       `
     )
@@ -19,9 +19,9 @@ function renderFeatureCards(features) {
     .map(
       (feature) => `
         <article class="feature-card surface-card">
-          <p class="eyebrow">${feature.eyebrow}</p>
-          <h3>${feature.title}</h3>
-          <p>${feature.copy}</p>
+          <p class="eyebrow">${escapeHtml(feature.eyebrow)}</p>
+          <h3>${escapeHtml(feature.title)}</h3>
+          <p>${escapeHtml(feature.copy)}</p>
         </article>
       `
     )
@@ -33,82 +33,157 @@ function renderHowItWorks(steps) {
     .map(
       (step) => `
         <article class="step-card surface-card">
-          <span class="step-index">${step.step}</span>
-          <h3>${step.title}</h3>
-          <p>${step.copy}</p>
+          <span class="step-index">${escapeHtml(step.step)}</span>
+          <h3>${escapeHtml(step.title)}</h3>
+          <p>${escapeHtml(step.copy)}</p>
         </article>
       `
     )
     .join("");
 }
 
-function renderScenarioExamples(examples) {
+function renderTrustHighlights(highlights) {
+  return highlights
+    .map(
+      (highlight) => `
+        <article class="trust-highlight-card surface-card">
+          <p class="eyebrow">${escapeHtml(highlight.eyebrow)}</p>
+          <h3>${escapeHtml(highlight.title)}</h3>
+          <p>${escapeHtml(highlight.copy)}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderMarketSignals() {
+  const signals = [
+    {
+      title: "Turns vague stress into a plan",
+      copy: "Users do not need a perfect prompt. PAM takes a messy life decision and gives it a structure they can act on."
+    },
+    {
+      title: "Makes the hidden cost obvious",
+      copy: "The product shows what a decision really costs in cash runway, delayed goals, and long-term wealth drag."
+    },
+    {
+      title: "Feels like a financial second opinion",
+      copy: "Instead of generic advice, people get a comparison, a risk call, and the one lever most likely to improve the outcome."
+    }
+  ];
+
+  return signals
+    .map(
+      (signal) => `
+        <article class="market-signal-card surface-card">
+          <h3>${escapeHtml(signal.title)}</h3>
+          <p>${escapeHtml(signal.copy)}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderGoalPreview(goals) {
+  return goals
+    .slice(0, 3)
+    .map((goal) => {
+      const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
+      return `
+        <article class="goal-preview-card surface-card">
+          <div class="goal-preview-header">
+            <span>${escapeHtml(goal.category)}</span>
+            <strong>${escapeHtml(goal.priority)}</strong>
+          </div>
+          <h3>${escapeHtml(goal.title)}</h3>
+          <p>${formatCurrency(goal.currentAmount)} of ${formatCurrency(goal.targetAmount)}</p>
+          <div class="goal-preview-track"><i style="width:${progress}%"></i></div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderExamples(examples) {
   return examples
     .map(
       (example) => `
-        <button class="scenario-example-card surface-card" data-prompt="${example.prompt}">
-          <span class="scenario-chip">Scenario example</span>
-          <h3>${example.title}</h3>
-          <p>${example.teaser}</p>
-          <span class="link-arrow">Model this decision</span>
+        <button class="example-card surface-card" data-example-prompt="${escapeHtml(example.prompt)}">
+          <span class="scenario-chip">Input</span>
+          <h3>${escapeHtml(example.title)}</h3>
+          <p class="example-prompt">${escapeHtml(example.prompt)}</p>
+          <div class="example-metrics">
+            <div>
+              <span>Monthly buffer</span>
+              <strong>${formatCurrency(example.monthlyBufferBefore)} -> ${formatCurrency(example.monthlyBufferAfter)}</strong>
+            </div>
+            <div>
+              <span>Most impacted goal</span>
+              <strong>${escapeHtml(example.goalTitle)}</strong>
+            </div>
+            <div>
+              <span>Goal delay</span>
+              <strong>${example.goalDelayMonths > 0 ? `${Math.round(example.goalDelayMonths)} mo` : "On track"}</strong>
+            </div>
+            <div>
+              <span>Risk</span>
+              <strong>${escapeHtml(example.risk)}</strong>
+            </div>
+          </div>
+          <p class="example-highlight">${escapeHtml(example.highlight)}</p>
+          <span class="link-arrow">Run this scenario</span>
         </button>
       `
     )
     .join("");
 }
 
-function renderMockup(metrics, activeScenario) {
+function renderMockup(metrics, session) {
+  const result = session.result;
+  const goal = result.goalsSummary.mostImpactedGoal;
+
   return `
     <div class="hero-mockup surface-panel">
-      <div class="mockup-window">
-        <div class="mockup-toolbar">
-          <span></span><span></span><span></span>
+      <div class="mockup-shell">
+        <div class="mockup-shell-header">
+          <span>Guided scenario engine</span>
+          <strong>${escapeHtml(result.scenario.title)}</strong>
         </div>
-        <div class="mockup-header">
-          <div>
-            <p class="mockup-kicker">Scenario preview</p>
-            <h3>${activeScenario.scenario.title}</h3>
-          </div>
-          <div class="mockup-badge">${activeScenario.risk.label} risk</div>
+        <div class="mockup-input">
+          <span class="mockup-chip">Lose my job</span>
+          <span class="mockup-chip">Buy a car</span>
+          <span class="mockup-chip">Big emergency expense</span>
         </div>
-        <div class="mockup-stats">
+        <div class="mockup-card-grid">
           <div class="mockup-stat">
             <span>Net worth</span>
             <strong>${formatCompactCurrency(metrics.currentNetWorth)}</strong>
           </div>
           <div class="mockup-stat">
-            <span>5Y path</span>
-            <strong>${formatCompactCurrency(activeScenario.scenarioPath.projectedNetWorth)}</strong>
+            <span>Monthly buffer</span>
+            <strong>${formatCurrency(result.scenarioPath.monthlyFreeCash)}</strong>
           </div>
           <div class="mockup-stat">
-            <span>Flex cash</span>
-            <strong>${formatCurrency(activeScenario.scenarioPath.monthlyFreeCash)}</strong>
+            <span>Runway</span>
+            <strong>${result.scenarioPath.runwayMonths.toFixed(1)} mo</strong>
+          </div>
+          <div class="mockup-stat">
+            <span>Risk</span>
+            <strong>${escapeHtml(result.risk.label)}</strong>
           </div>
         </div>
-        <div class="mockup-compare">
-          <div class="mockup-compare-card">
-            <span>Current path</span>
-            <strong>${formatCurrency(activeScenario.currentPath.projectedNetWorth)}</strong>
-            <small>${activeScenario.currentPath.runwayMonths.toFixed(1)} months runway</small>
-          </div>
-          <div class="mockup-compare-card mockup-compare-card-mint">
-            <span>Scenario path</span>
-            <strong>${formatCurrency(activeScenario.scenarioPath.projectedNetWorth)}</strong>
-            <small>${activeScenario.scenarioPath.runwayMonths.toFixed(1)} months runway</small>
-          </div>
+        <div class="mockup-highlight">
+          <span>Aha moment</span>
+          <p>${escapeHtml(result.ahaMoment)}</p>
         </div>
-        <div class="mockup-bars">
-          <div class="mockup-bar">
-            <span>Liquidity</span>
-            <div><i style="width:${Math.min((activeScenario.scenarioPath.liquidAssets / metrics.liquidAssets) * 100, 100)}%"></i></div>
+        <div class="mockup-goal-row">
+          <div>
+            <span>Most impacted goal</span>
+            <strong>${escapeHtml(goal?.title || "No critical delay")}</strong>
           </div>
-          <div class="mockup-bar">
-            <span>Health score</span>
-            <div><i style="width:${activeScenario.scenarioPath.healthScore}%"></i></div>
-          </div>
-          <div class="mockup-bar">
-            <span>Confidence</span>
-            <div><i style="width:${activeScenario.confidenceScore}%"></i></div>
+          <div>
+            <span>Delay</span>
+            <strong>${goal?.deltaMonths > 0 ? `${Math.round(goal.deltaMonths)} mo` : "0 mo"}</strong>
           </div>
         </div>
       </div>
@@ -116,97 +191,108 @@ function renderMockup(metrics, activeScenario) {
   `;
 }
 
-export function renderLanding({ comparisonRows, featureList, howItWorks, scenarioExamples, metrics, activeScenario }) {
+export function renderLanding({
+  comparisonRows,
+  featureList,
+  howItWorks,
+  trustHighlights,
+  metrics,
+  session,
+  goals,
+  landingExamples
+}) {
   return `
     <section class="hero-section" id="top">
       <div class="hero-copy">
         <p class="eyebrow">PAM AI • Personal Asset Manager</p>
         <h1>Test your financial future before you live it.</h1>
         <p class="hero-subtitle">
-          Don’t just track your money. Model your decisions. PAM AI is a what-if engine for money that turns
-          real finances into forward-looking scenarios, projections, and tradeoff analysis.
+          PAM is a financial decision simulator for adult-money choices. It structures scenarios, models tradeoffs, and
+          shows what each move does to your cash, timeline, and life goals before you commit.
         </p>
         <div class="hero-cta-row">
-          <a class="button button-primary" href="#workspace">Launch Scenario Lab</a>
-          <a class="button button-secondary" href="#showcase">See the product flow</a>
+          <a class="button button-primary" href="#workspace">Try the simulator</a>
+          <a class="button button-secondary" href="#examples">See real outputs</a>
         </div>
         <div class="hero-proof">
           <div class="hero-proof-card surface-card">
-            <span>Why it stands out</span>
-            <strong>Future modeling, not expense policing</strong>
+            <span>Core promise</span>
+            <strong>Don't just track your money. Model your decisions.</strong>
           </div>
           <div class="hero-proof-card surface-card">
-            <span>North star</span>
-            <strong>See the ripple effects of every financial move.</strong>
+            <span>Why it feels different</span>
+            <strong>Structured guidance instead of a blank chatbot.</strong>
           </div>
         </div>
       </div>
-      ${renderMockup(metrics, activeScenario)}
+      ${renderMockup(metrics, session)}
     </section>
 
     <section class="comparison-section" id="showcase">
       <div class="section-heading">
         <p class="eyebrow">Different by design</p>
         <h2>Built for decisions, not backward-looking categorization</h2>
-        <p>
-          Budgeting apps help explain the past. PAM AI exists to reduce uncertainty before the decision becomes real.
-        </p>
+        <p>Traditional finance tools tell you where money went. PAM shows what happens before a life decision becomes expensive.</p>
       </div>
       <div class="comparison-table surface-card">
         <div class="comparison-row comparison-row-header">
           <div></div>
-          <div class="comparison-cell comparison-cell-muted">Traditional finance apps</div>
+          <div class="comparison-cell comparison-cell-muted">Budgeting apps</div>
           <div class="comparison-cell comparison-cell-accent">PAM AI</div>
         </div>
         ${renderComparisonRows(comparisonRows)}
       </div>
     </section>
 
+    <section class="market-signal-section">
+      <div class="section-heading">
+        <p class="eyebrow">Why it lands</p>
+        <h2>Marketable because the value is obvious in under a minute</h2>
+        <p>PAM wins when someone can feel the product in one scenario: what changes now, what gets delayed, and what to do next.</p>
+      </div>
+      <div class="market-signal-grid">
+        ${renderMarketSignals()}
+      </div>
+      <div class="market-quote surface-card">
+        <strong>Instead of asking “can I afford it?”, PAM tells you what the decision costs in time.</strong>
+      </div>
+    </section>
+
     <section class="showcase-section">
       <div class="section-heading">
-        <p class="eyebrow">Product mockup</p>
-        <h2>A premium command center for financial hypotheticals</h2>
-        <p>
-          The interface is visual, calm, and decision-first. Snapshot context stays nearby, but the scenario engine is
-          always the star.
-        </p>
+        <p class="eyebrow">Why it works</p>
+        <h2>The app structures the decision so the user does not have to</h2>
+        <p>Starter chips, one-question follow-ups, editable assumptions, and goal-aware projections make the scenario engine feel instant instead of brittle.</p>
       </div>
       <div class="showcase-grid">
         <div class="showcase-panel surface-panel">
-          <div class="showcase-stack">
-            <div class="showcase-shell">
-              <div class="showcase-shell-header">
-                <span>Decision Lab</span>
-                <strong>${activeScenario.scenario.title}</strong>
-              </div>
-              <div class="showcase-shell-grid">
-                <div class="showcase-insight-card">
-                  <span>Short-term impact</span>
-                  <strong>${formatCurrency(activeScenario.shortTermLiquidityDelta)}</strong>
-                </div>
-                <div class="showcase-insight-card">
-                  <span>Long-term path</span>
-                  <strong>${formatCurrency(activeScenario.scenarioPath.projectedNetWorth)}</strong>
-                </div>
-                <div class="showcase-insight-card wide">
-                  <span>Recommended next step</span>
-                  <p>${activeScenario.nextStep}</p>
-                </div>
-              </div>
+          <div class="showcase-shell">
+            <div class="showcase-shell-header">
+              <span>Guided flow</span>
+              <strong>Input -> follow-up -> answer</strong>
             </div>
-            <div class="showcase-float-card surface-card">
-              <p class="eyebrow">Financial snapshot</p>
-              <strong>${formatCurrency(metrics.currentNetWorth)}</strong>
-              <p>${formatCurrency(metrics.liquidAssets)} liquid • ${metrics.runwayMonths.toFixed(1)} months runway</p>
+            <div class="showcase-flow">
+              <div class="showcase-flow-card">
+                <span>User says</span>
+                <strong>"What if I get fired and sued?"</strong>
+              </div>
+              <div class="showcase-flow-card">
+                <span>PAM asks</span>
+                <strong>"What should I model first: lost income, legal costs, or both?"</strong>
+              </div>
+              <div class="showcase-flow-card">
+                <span>PAM returns</span>
+                <strong>Monthly cash impact, savings runway, goal delay, and next step.</strong>
+              </div>
             </div>
           </div>
         </div>
         <div class="showcase-copy surface-card">
-          <p class="eyebrow">Product philosophy</p>
-          <h3>Every financial move deserves a before-state and after-state.</h3>
+          <p class="eyebrow">The aha moment</p>
+          <h3>Every scenario should make the consequence obvious.</h3>
           <p>
-            The product frames decisions as reversible simulations. You see what changes now, what compounds later, how
-            much uncertainty sits in the assumptions, and what to do next if the answer is “not yet.”
+            The product is strongest when it says something concrete like “you would run out of cash in 7 months” or
+            “this delays your move-out goal by 4 months.” The interface is built around those moments.
           </p>
         </div>
       </div>
@@ -215,7 +301,7 @@ export function renderLanding({ comparisonRows, featureList, howItWorks, scenari
     <section class="features-section">
       <div class="section-heading">
         <p class="eyebrow">Core capabilities</p>
-        <h2>Decision modeling that feels trustworthy and fast</h2>
+        <h2>Decision modeling that feels premium, specific, and useful</h2>
       </div>
       <div class="feature-grid">
         ${renderFeatureCards(featureList)}
@@ -225,7 +311,7 @@ export function renderLanding({ comparisonRows, featureList, howItWorks, scenari
     <section class="how-it-works-section">
       <div class="section-heading">
         <p class="eyebrow">How it works</p>
-        <h2>Three moves from question to clarity</h2>
+        <h2>A faster path from question to clarity</h2>
       </div>
       <div class="step-grid">
         ${renderHowItWorks(howItWorks)}
@@ -235,10 +321,36 @@ export function renderLanding({ comparisonRows, featureList, howItWorks, scenari
     <section class="examples-section" id="examples">
       <div class="section-heading">
         <p class="eyebrow">Scenario examples</p>
-        <h2>Start with the financial decisions people actually wrestle with</h2>
+        <h2>Visual examples that show the consequence immediately</h2>
+        <p>Every example is a real output pattern: input scenario, concrete result, and the goal that moves the most.</p>
       </div>
-      <div class="examples-grid">
-        ${renderScenarioExamples(scenarioExamples)}
+      <div class="example-grid">
+        ${renderExamples(landingExamples)}
+      </div>
+    </section>
+
+    <section class="goals-highlight-section">
+      <div class="section-heading">
+        <p class="eyebrow">Life goals layer</p>
+        <h2>Goals are the scoreboard, not an add-on</h2>
+        <p>
+          PAM turns abstract choices into personal consequences by showing what each scenario does to moving out, buying a
+          house, building emergency savings, and long-term wealth goals.
+        </p>
+      </div>
+      <div class="goal-preview-grid">
+        ${renderGoalPreview(goals)}
+      </div>
+    </section>
+
+    <section class="trust-section">
+      <div class="section-heading">
+        <p class="eyebrow">Trust layer</p>
+        <h2>Privacy, 2FA, and connected-finance readiness are part of the product surface</h2>
+        <p>The engine can become Plaid-backed later without turning the app into a raw-data sink.</p>
+      </div>
+      <div class="trust-highlight-grid">
+        ${renderTrustHighlights(trustHighlights)}
       </div>
     </section>
   `;
