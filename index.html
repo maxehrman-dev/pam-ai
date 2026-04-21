@@ -12,38 +12,8 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <div id="app">
-      <h1>PAM AI</h1>
-      <p>Loading the simulator…</p>
-    </div>
-
-    <noscript>
-      PAM AI needs JavaScript enabled to render the scenario simulator.
-    </noscript>
-
-    <script>
-      // If /src/main.js crashes, don't leave the page blank.
-      function showBlankFallback() {
-        const el = document.getElementById("app");
-        if (el) {
-          el.innerHTML = "<h1>PAM AI</h1><p>Something went wrong loading the app.</p>";
-        }
-      }
-
-      window.addEventListener("error", showBlankFallback);
-      window.addEventListener("unhandledrejection", showBlankFallback);
-
-      // If the app loads but doesn't render anything, show a fallback.
-      setTimeout(() => {
-        const el = document.getElementById("app");
-        if (!el) return;
-        const text = el.textContent || "";
-        if (!text.trim()) {
-          el.innerHTML = "<h1>PAM AI</h1><p>Something went wrong loading the app.</p>";
-        }
-      }, 500);
-    </script>
-
-    <script type="module" src="/src/main.js"></script>
+    <div id="app"></div>
+    <noscript>PAM AI needs JavaScript enabled to render the scenario simulator.</noscript>
+    <script type="module" src="/src/bootstrap.js"></script>
   </body>
-</html>
+  </html>
