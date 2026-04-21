@@ -1,3 +1,5 @@
+import { escapeHtml } from "../utils/formatters.js";
+
 export function renderInsights(insights) {
   return `
     <section class="panel-section">
@@ -13,9 +15,9 @@ export function renderInsights(insights) {
           .map(
             (insight) => `
               <article class="insight-card surface-card">
-                <span class="insight-kind">${insight.kind}</span>
-                <h3>${insight.title}</h3>
-                <p>${insight.body}</p>
+                <span class="insight-kind">${escapeHtml(insight.kind)}</span>
+                <h3>${escapeHtml(insight.title)}</h3>
+                <p>${escapeHtml(insight.body)}</p>
               </article>
             `
           )

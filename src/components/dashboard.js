@@ -1,4 +1,4 @@
-import { formatCurrency, formatMonths, formatPercent } from "../utils/formatters.js";
+import { escapeHtml, formatCurrency, formatMonths, formatPercent } from "../utils/formatters.js";
 
 function renderMetricCards(metrics) {
   const cards = [
@@ -29,7 +29,7 @@ function renderAllocationRows(entries, total, key) {
       return `
         <div class="allocation-row">
           <div class="allocation-row-copy">
-            <span>${entry.label}</span>
+            <span>${escapeHtml(entry.label)}</span>
             <strong>${formatCurrency(value)}</strong>
           </div>
           <div class="allocation-track"><i style="width:${width}%"></i></div>
@@ -53,7 +53,7 @@ export function renderDashboard(profile, metrics) {
           <p class="eyebrow">Dashboard</p>
           <h2>Financial snapshot</h2>
         </div>
-        <p>${profile.user.name} • ${profile.user.archetype}</p>
+        <p>${escapeHtml(profile.user.name)} • ${escapeHtml(profile.user.archetype)}</p>
       </div>
       <div class="metric-grid">
         ${renderMetricCards(metrics)}
@@ -146,7 +146,7 @@ export function renderDashboard(profile, metrics) {
           </div>
         </div>
         <div class="signal-list">
-          ${profile.healthSignals.map((signal) => `<span>${signal}</span>`).join("")}
+          ${profile.healthSignals.map((signal) => `<span>${escapeHtml(signal)}</span>`).join("")}
         </div>
       </article>
     </section>

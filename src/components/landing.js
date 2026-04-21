@@ -1,4 +1,4 @@
-import { formatCompactCurrency, formatCurrency } from "../utils/formatters.js";
+import { escapeHtml, formatCompactCurrency, formatCurrency } from "../utils/formatters.js";
 
 function renderComparisonRows(rows) {
   return rows
@@ -42,14 +42,28 @@ function renderHowItWorks(steps) {
     .join("");
 }
 
+function renderTrustHighlights(trustHighlights) {
+  return trustHighlights
+    .map(
+      (highlight) => `
+        <article class="trust-highlight-card surface-card">
+          <p class="eyebrow">${escapeHtml(highlight.eyebrow)}</p>
+          <h3>${escapeHtml(highlight.title)}</h3>
+          <p>${escapeHtml(highlight.copy)}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
 function renderScenarioExamples(examples) {
   return examples
     .map(
       (example) => `
-        <button class="scenario-example-card surface-card" data-prompt="${example.prompt}">
+        <button class="scenario-example-card surface-card" data-prompt="${escapeHtml(example.prompt)}">
           <span class="scenario-chip">Scenario example</span>
-          <h3>${example.title}</h3>
-          <p>${example.teaser}</p>
+          <h3>${escapeHtml(example.title)}</h3>
+          <p>${escapeHtml(example.teaser)}</p>
           <span class="link-arrow">Model this decision</span>
         </button>
       `
@@ -67,9 +81,9 @@ function renderMockup(metrics, activeScenario) {
         <div class="mockup-header">
           <div>
             <p class="mockup-kicker">Scenario preview</p>
-            <h3>${activeScenario.scenario.title}</h3>
+            <h3>${escapeHtml(activeScenario.scenario.title)}</h3>
           </div>
-          <div class="mockup-badge">${activeScenario.risk.label} risk</div>
+          <div class="mockup-badge">${escapeHtml(activeScenario.risk.label)} risk</div>
         </div>
         <div class="mockup-stats">
           <div class="mockup-stat">
@@ -116,7 +130,7 @@ function renderMockup(metrics, activeScenario) {
   `;
 }
 
-export function renderLanding({ comparisonRows, featureList, howItWorks, scenarioExamples, metrics, activeScenario }) {
+export function renderLanding({ comparisonRows, featureList, howItWorks, scenarioExamples, trustHighlights, metrics, activeScenario }) {
   return `
     <section class="hero-section" id="top">
       <div class="hero-copy">
@@ -177,7 +191,7 @@ export function renderLanding({ comparisonRows, featureList, howItWorks, scenari
             <div class="showcase-shell">
               <div class="showcase-shell-header">
                 <span>Decision Lab</span>
-                <strong>${activeScenario.scenario.title}</strong>
+                <strong>${escapeHtml(activeScenario.scenario.title)}</strong>
               </div>
               <div class="showcase-shell-grid">
                 <div class="showcase-insight-card">
@@ -190,7 +204,7 @@ export function renderLanding({ comparisonRows, featureList, howItWorks, scenari
                 </div>
                 <div class="showcase-insight-card wide">
                   <span>Recommended next step</span>
-                  <p>${activeScenario.nextStep}</p>
+                  <p>${escapeHtml(activeScenario.nextStep)}</p>
                 </div>
               </div>
             </div>
@@ -229,6 +243,19 @@ export function renderLanding({ comparisonRows, featureList, howItWorks, scenari
       </div>
       <div class="step-grid">
         ${renderHowItWorks(howItWorks)}
+      </div>
+    </section>
+
+    <section class="trust-section">
+      <div class="section-heading">
+        <p class="eyebrow">Trust layer</p>
+        <h2>Security and privacy belong in the core product, not the fine print</h2>
+        <p>
+          PAM AI is designed to support connected finance in the future without turning the simulator into a raw data sink.
+        </p>
+      </div>
+      <div class="trust-highlight-grid">
+        ${renderTrustHighlights(trustHighlights)}
       </div>
     </section>
 

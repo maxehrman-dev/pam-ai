@@ -83,6 +83,91 @@ export const featureList = [
   }
 ];
 
+export const trustHighlights = [
+  {
+    eyebrow: "Privacy by design",
+    title: "Scenario math stays separate from raw account credentials",
+    copy:
+      "PAM AI is structured to model decisions from a normalized financial profile, so future bank-link data can be scoped and minimized before it ever reaches the simulator."
+  },
+  {
+    eyebrow: "Security posture",
+    title: "2FA, session controls, and recovery paths are part of the core product",
+    copy:
+      "Trust is not a footer link. The MVP now includes a dedicated Trust Center with two-factor authentication status, recovery codes, device controls, and login alerts."
+  },
+  {
+    eyebrow: "Plaid-ready boundary",
+    title: "Prepared for Plaid without turning the app into a credential sink",
+    copy:
+      "When Plaid is added, the intended flow is tokenized account linking through Plaid with PAM AI storing only the normalized balances and liabilities needed for decision modeling."
+  }
+];
+
+export const privacyPolicy = {
+  version: "1.0",
+  effectiveDate: "April 21, 2026",
+  summary:
+    "PAM AI exists to help users simulate financial decisions. The product is designed to minimize raw financial data exposure, explain how projections are produced, and keep future bank connectivity isolated behind scoped integrations.",
+  sections: [
+    {
+      title: "What PAM AI collects",
+      paragraphs: [
+        "PAM AI uses the financial profile a user provides or links in order to generate scenario projections, comparison views, and tailored insights.",
+        "In the current MVP, the product runs on seeded mock data unless a future connected source is normalized into the profile store."
+      ],
+      bullets: [
+        "Account balances, assets, liabilities, and monthly cash flow inputs",
+        "Scenario prompts, modeled outputs, and product interactions",
+        "Security settings such as two-factor status, trusted device count, and recovery code metadata"
+      ]
+    },
+    {
+      title: "How scenario modeling works",
+      paragraphs: [
+        "PAM AI turns a financial profile into a structured baseline and compares hypothetical choices against that baseline over time.",
+        "The simulator is designed to use normalized financial data rather than direct bank credentials, which keeps the decision engine decoupled from the connection layer."
+      ]
+    },
+    {
+      title: "Future Plaid connectivity",
+      paragraphs: [
+        "If Plaid is added, Plaid would handle account authentication and token exchange. PAM AI’s intended role is to receive scoped account and liability data, transform it into a normalized profile snapshot, and store only what is necessary for decision modeling.",
+        "PAM AI is not intended to store end-user bank usernames or passwords."
+      ]
+    },
+    {
+      title: "How PAM AI uses data",
+      paragraphs: [
+        "Financial data is used to generate projections, compare current and hypothetical paths, and improve the clarity of scenario analysis inside the product.",
+        "Security telemetry is used to protect account access, surface suspicious activity, and support recovery workflows."
+      ]
+    },
+    {
+      title: "User controls",
+      paragraphs: [
+        "Users should be able to review their data source, enable two-factor authentication, manage trusted devices, rotate recovery codes, and request deletion or export of their financial profile.",
+        "These controls are surfaced in the Trust Center so privacy and security remain visible alongside the decision engine."
+      ]
+    },
+    {
+      title: "Retention and deletion",
+      paragraphs: [
+        "PAM AI should retain only the profile, scenario history, and security metadata required to deliver the product experience and protect user accounts.",
+        "When a user disconnects a future linked account, the intended behavior is to remove or refresh outdated snapshots rather than keeping stale raw account data indefinitely."
+      ]
+    },
+    {
+      title: "Contact and policy updates",
+      paragraphs: [
+        "Material policy changes should be communicated inside the product before they apply to newly processed financial data.",
+        "Questions about privacy or connected-account handling should be routed to the product’s support and privacy contact channels."
+      ],
+      bullets: ["privacy@pamai.app", "support@pamai.app"]
+    }
+  ]
+};
+
 export const howItWorks = [
   {
     step: "01",
@@ -201,9 +286,10 @@ export const scenarioExamples = scenarioCatalog.map((scenario) => ({
 }));
 
 export const samplePrompts = [
-  "What if I buy a $20,000 car?",
-  "What if I move to a more expensive apartment?",
-  "What if I lose my job for 3 months?",
-  "What if I invest $500 per month for 5 years?",
-  "What if I take a vacation that costs $3,000?"
+  "Can I afford a $20,000 car right now?",
+  "What happens if my rent jumps by $650?",
+  "How bad is a three month layoff?",
+  "Would investing $500 a month for 5 years be smart?",
+  "Can I swing a $3,000 vacation this summer?",
+  "What if I get a 10% raise and invest the difference?"
 ];
