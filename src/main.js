@@ -1,45 +1,50 @@
 import {
   comparisonRows,
   featureList,
+  goalTemplates,
   howItWorks,
+  plaidQuickstart,
   privacyPolicy,
-  samplePrompts,
-  scenarioCatalog,
-  scenarioExamples,
+  starterScenarios,
   trustHighlights
 } from "./data/mockData.js";
 import { renderLanding } from "./components/landing.js";
 import { renderDashboard } from "./components/dashboard.js";
-import { renderScenarioLab } from "./components/scenarioLab.js";
-import { renderChat } from "./components/chat.js";
+import { renderGoals } from "./components/goals.js";
 import { renderInsights } from "./components/insights.js";
+import { renderScenarioLab } from "./components/scenarioLab.js";
 import { renderPrivacyPolicyModal, renderTrustCenter } from "./components/trustCenter.js";
-import { createScenarioFromPreset, evaluateScenario, finalizeScenarioResult, generateInsights, getProfileMetrics } from "./utils/scenarioEngine.js";
 import { escapeHtml, formatCurrency, formatMonths } from "./utils/formatters.js";
-import { getDecisionEngineMeta, resolveScenarioQuery } from "./services/scenarioClient.js";
-import { loadProfileBundle, loadTrustState, saveTrustState } from "./services/profileStore.js";
+import { createLandingExamples, generateInsights, getProfileMetrics } from "./utils/scenarioEngine.js";
+import {
+  getDecisionEngineMeta,
+  resolveDecisionPrompt,
+  resolveDraftScenario,
+  resolveStarterScenario
+} from "./services/scenarioClient.js";
+import { loadGoalsState, loadProfileBundle, loadTrustState, saveGoalsState, saveTrustState } from "./services/profileStore.js";
 
 const app = document.querySelector("#app");
 
 const state = {
   activeTab: "scenario",
-  activeScenario: null,
-  chatMessages: [],
-  isResolving: false,
+  session: null,
   engine: getDecisionEngineMeta(),
   profileBundle: null,
+  goals: [],
   trustState: null,
+  isResolving: false,
   showPrivacyPolicy: false
 };
 
 let isStarted = false;
 
-function getActiveProfile() {
-  return state.profileBundle?.profile;
-}
-
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function getActiveProfile() {
+  return state.profileBundle?.profile;
 }
 
 function getProfileSource() {
@@ -55,46 +60,46 @@ function getTrustState() {
   return state.trustState;
 }
 
-function prepareScenario(scenario, profile = getActiveProfile()) {
-  return finalizeScenarioResult(evaluateScenario(profile, scenario));
+function slugify(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
-function createInitialChatMessages(initialScenario) {
-  return [
-    {
-      role: "assistant",
-      text:
-        "Ask me a financial what-if question and I’ll turn it into projected outcomes, risk, assumptions, and the most sensible next step."
-    },
-    {
-      role: "assistant",
-      text: [
-        `Interpretation: ${initialScenario.interpretationNarrative}`,
-        `Current baseline: ${formatCurrency(initialScenario.currentPath.projectedNetWorth)} projected net worth and ${formatMonths(
-          initialScenario.currentPath.runwayMonths
-        )} of runway.`,
-        `Start with a question like “Can I afford a $20,000 car right now?” or “What happens if my rent jumps by $400?”`
-      ].join("\n\n")
-    }
-  ];
+function getLandingExamples() {
+  return createLandingExamples(getActiveProfile(), state.goals, starterScenarios);
 }
 
-async function initializeProfileState() {
-  if (state.profileBundle && state.trustState) return;
+async function initializeState() {
+  if (state.profileBundle && state.goals.length && state.trustState) return;
 
-  const [profileBundle, trustState] = await Promise.all([loadProfileBundle(), loadTrustState()]);
+  const [profileBundle, goals, trustState] = await Promise.all([
+    loadProfileBundle(),
+    loadGoalsState(),
+    loadTrustState()
+  ]);
+
   state.profileBundle = profileBundle;
+  state.goals = goals;
   state.trustState = trustState;
-  const initialScenario = prepareScenario(createScenarioFromPreset(scenarioCatalog[0]), getActiveProfile());
-  state.activeScenario = initialScenario;
-  state.chatMessages = createInitialChatMessages(initialScenario);
+
+  const resolution = await resolveStarterScenario({
+    starterId: "buy-car",
+    profile: getActiveProfile(),
+    goals: state.goals,
+    catalog: starterScenarios
+  });
+
+  state.engine = resolution.engine;
+  state.session = resolution.session;
 }
 
 function renderWorkspaceTabs() {
   const tabs = [
-    { id: "scenario", label: "Scenario Lab" },
+    { id: "scenario", label: "Scenario Engine" },
+    { id: "goals", label: "Life Goals" },
     { id: "dashboard", label: "Dashboard" },
-    { id: "chat", label: "AI Chat" },
     { id: "insights", label: "Insights" },
     { id: "trust", label: "Trust Center" }
   ];
@@ -103,7 +108,7 @@ function renderWorkspaceTabs() {
     .map(
       (tab) => `
         <button class="workspace-tab ${state.activeTab === tab.id ? "active" : ""}" data-tab="${tab.id}">
-          ${tab.label}
+          ${escapeHtml(tab.label)}
         </button>
       `
     )
@@ -112,11 +117,9 @@ function renderWorkspaceTabs() {
 
 function renderProfileRail(metrics) {
   const profile = getActiveProfile();
-  const profileSource = getProfileSource();
-  const trustState = getTrustState();
-  const securitySummary = trustState?.security?.twoFactorEnabled
-    ? `${trustState.security.twoFactorMethod} active with ${trustState.security.recoveryCodesRemaining} recovery codes remaining.`
-    : "Two-factor authentication is currently off for this session.";
+  const source = getProfileSource();
+  const security = getTrustState().security;
+  const mostImpactedGoal = state.session.result.goalsSummary.mostImpactedGoal;
 
   return `
     <aside class="profile-rail surface-panel">
@@ -135,17 +138,17 @@ function renderProfileRail(metrics) {
           <strong>${formatCurrency(metrics.liquidAssets)}</strong>
         </div>
         <div class="profile-tile">
+          <span>Monthly buffer</span>
+          <strong>${formatCurrency(metrics.monthlyFreeCash)}</strong>
+        </div>
+        <div class="profile-tile">
           <span>Runway</span>
           <strong>${formatMonths(metrics.runwayMonths)}</strong>
         </div>
-        <div class="profile-tile">
-          <span>Health score</span>
-          <strong>${metrics.healthScore}/100</strong>
-        </div>
       </div>
       <div class="profile-note">
-        <span>Baseline posture</span>
-        <p>Decision-ready, but still sensitive to choices that eat into liquid cash or recurring flexibility.</p>
+        <span>Decision posture</span>
+        <p>${escapeHtml(state.session.result.ahaMoment)}</p>
       </div>
       <div class="profile-system-grid">
         <div class="profile-system-card">
@@ -154,67 +157,68 @@ function renderProfileRail(metrics) {
           <p>${escapeHtml(state.engine.mode)}</p>
         </div>
         <div class="profile-system-card">
-          <span>Data source</span>
-          <strong>${escapeHtml(profileSource.status)}</strong>
-          <p>${escapeHtml(profileSource.label)}</p>
+          <span>Most impacted goal</span>
+          <strong>${escapeHtml(mostImpactedGoal?.title || "None")}</strong>
+          <p>${mostImpactedGoal?.deltaMonths > 0 ? `${Math.round(mostImpactedGoal.deltaMonths)} month delay` : "No major delay"}</p>
         </div>
       </div>
       <div class="profile-source-note">
+        <span>Data source</span>
+        <p>${escapeHtml(source.label)} • ${escapeHtml(source.status)}</p>
+      </div>
+      <div class="profile-source-note">
         <span>Plaid integration path</span>
-        <p>${escapeHtml(profileSource.nextStep)}</p>
+        <p>${escapeHtml(source.nextStep)}</p>
       </div>
       <div class="profile-source-note">
         <span>Account protection</span>
-        <p>${escapeHtml(securitySummary)}</p>
+        <p>
+          ${
+            security.twoFactorEnabled
+              ? `${escapeHtml(security.twoFactorMethod)} active with ${security.recoveryCodesRemaining} recovery codes remaining.`
+              : "Two-factor authentication is currently off."
+          }
+        </p>
       </div>
     </aside>
   `;
 }
 
 function renderActivePanel(metrics) {
-  const profile = getActiveProfile();
-  const profileSource = getProfileSource();
-
   if (state.activeTab === "dashboard") {
-    return renderDashboard(profile, metrics);
+    return renderDashboard(getActiveProfile(), metrics);
   }
 
-  if (state.activeTab === "chat") {
-    return renderChat(state.chatMessages, samplePrompts, state.activeScenario, {
-      engine: state.engine,
-      profileSource,
-      isResolving: state.isResolving
-    });
+  if (state.activeTab === "goals") {
+    return renderGoals(state.goals, state.session, goalTemplates);
   }
 
   if (state.activeTab === "insights") {
-    return renderInsights(generateInsights(profile, state.activeScenario));
+    return renderInsights(generateInsights(getActiveProfile(), state.goals, state.session));
   }
 
   if (state.activeTab === "trust") {
-    return renderTrustCenter(getTrustState(), privacyPolicy, trustHighlights);
+    return renderTrustCenter(getTrustState(), privacyPolicy, trustHighlights, plaidQuickstart);
   }
 
-  return renderScenarioLab(state.activeScenario, scenarioCatalog, {
+  return renderScenarioLab(state.session, starterScenarios, {
     isResolving: state.isResolving,
     engine: state.engine,
-    profileSource
+    profileSource: getProfileSource()
   });
 }
 
 function renderSiteFooter() {
-  const trustState = getTrustState();
+  const source = getProfileSource();
 
   return `
     <footer class="site-footer surface-panel">
       <div class="site-footer-copy">
         <p class="eyebrow">Trust & transparency</p>
-        <strong>PAM AI is designed to model decisions, not monetize transaction trails.</strong>
+        <strong>PAM AI is designed to model decisions, not to behave like a spreadsheet with a chatbot attached.</strong>
         <p>
           ${escapeHtml(
-            trustState.security.twoFactorEnabled
-              ? `${trustState.security.twoFactorMethod} is active, privacy policy v${privacyPolicy.version} is available in-product, and future Plaid access is scoped to normalized profile snapshots.`
-              : `Privacy policy v${privacyPolicy.version} is available in-product, and future Plaid access is scoped to normalized profile snapshots.`
+            `${source.label} is active today. Privacy policy v${privacyPolicy.version}, two-factor controls, and a Plaid-ready normalization layer are available in-product.`
           )}
         </p>
       </div>
@@ -229,7 +233,7 @@ function renderSiteFooter() {
 function render() {
   const profile = getActiveProfile();
   const trustState = getTrustState();
-  if (!profile || !state.activeScenario || !trustState) return;
+  if (!profile || !trustState || !state.session) return;
 
   const metrics = getProfileMetrics(profile);
 
@@ -256,19 +260,20 @@ function render() {
           comparisonRows,
           featureList,
           howItWorks,
-          scenarioExamples,
           trustHighlights,
           metrics,
-          activeScenario: state.activeScenario
+          session: state.session,
+          goals: state.goals,
+          landingExamples: getLandingExamples()
         })}
 
         <section class="workspace-section" id="workspace">
           <div class="workspace-heading">
             <div>
               <p class="eyebrow">Application workspace</p>
-              <h2>Don’t just track your money. Model your decisions.</h2>
+              <h2>See the ripple effects of every financial move.</h2>
             </div>
-            <p>The Scenario Lab leads the experience. Snapshot context, chat, and insights exist to help you decide faster.</p>
+            <p>The scenario engine leads. Goals, insights, and trust controls stay close enough to support the decision without stealing focus.</p>
           </div>
 
           <div class="workspace-layout">
@@ -296,42 +301,104 @@ function updateTrustState(mutator) {
   state.trustState = saveTrustState(nextState);
 }
 
-async function runScenario(prompt, { switchToScenario = true, addToChat = false } = {}) {
+async function resolvePrompt(prompt, nextTab = "scenario") {
   const trimmedPrompt = String(prompt || "").trim();
   if (!trimmedPrompt || state.isResolving) return;
-
-  if (addToChat) {
-    state.chatMessages = [...state.chatMessages, { role: "user", text: trimmedPrompt }];
-  }
 
   state.isResolving = true;
   render();
 
-  const resolution = await resolveScenarioQuery({
+  const resolution = await resolveDecisionPrompt({
     prompt: trimmedPrompt,
     profile: getActiveProfile(),
-    catalog: scenarioCatalog
+    goals: state.goals,
+    catalog: starterScenarios
   });
 
   state.engine = resolution.engine;
+  state.session = resolution.session;
+  state.activeTab = nextTab;
   state.isResolving = false;
-
-  if (resolution.kind === "fallback") {
-    if (addToChat) {
-      state.chatMessages = [...state.chatMessages, { role: "assistant", text: resolution.reply }];
-    }
-    render();
-    return;
-  }
-
-  state.activeScenario = resolution.result;
-  if (switchToScenario) state.activeTab = "scenario";
-
-  if (addToChat) {
-    state.chatMessages = [...state.chatMessages, { role: "assistant", text: resolution.reply }];
-  }
-
   render();
+}
+
+async function resolveStarter(starterId) {
+  if (state.isResolving) return;
+  state.isResolving = true;
+  render();
+
+  const resolution = await resolveStarterScenario({
+    starterId,
+    profile: getActiveProfile(),
+    goals: state.goals,
+    catalog: starterScenarios
+  });
+
+  state.engine = resolution.engine;
+  state.session = resolution.session;
+  state.activeTab = "scenario";
+  state.isResolving = false;
+  render();
+}
+
+async function resolveDraft(draft, nextTab = state.activeTab) {
+  if (state.isResolving) return;
+  state.isResolving = true;
+  render();
+
+  const resolution = await resolveDraftScenario({
+    draft,
+    profile: getActiveProfile(),
+    goals: state.goals,
+    catalog: starterScenarios
+  });
+
+  state.engine = resolution.engine;
+  state.session = resolution.session;
+  state.activeTab = nextTab;
+  state.isResolving = false;
+  render();
+}
+
+function buildDraftFromForm(formData) {
+  const baseDraft = cloneValue(state.session.draft);
+  const nextDraft = {
+    ...baseDraft,
+    type: String(formData.get("type") || baseDraft.type),
+    starterId: String(formData.get("starterId") || baseDraft.starterId || ""),
+    prompt: String(formData.get("prompt") || baseDraft.prompt || "")
+  };
+
+  for (const field of state.session.editableFields) {
+    const raw = formData.get(field.key);
+    if (raw === null || raw === "") continue;
+    nextDraft[field.key] = Number(raw);
+  }
+
+  return nextDraft;
+}
+
+function addGoal(goal) {
+  state.goals = saveGoalsState([...state.goals, goal]);
+}
+
+function removeGoal(goalId) {
+  state.goals = saveGoalsState(state.goals.filter((goal) => goal.id !== goalId));
+}
+
+function addGoalFromTemplate(templateId) {
+  const template = goalTemplates.find((item) => item.id === templateId);
+  if (!template) return;
+
+  const goal = {
+    ...template,
+    id: `${template.id}-${Date.now()}`,
+    currentAmount: 0,
+    targetTimelineMonths: template.targetTimelineMonths || 48
+  };
+
+  addGoal(goal);
+  void resolveDraft(state.session.draft, "goals");
 }
 
 function handleClick(event) {
@@ -400,56 +467,83 @@ function handleClick(event) {
     return;
   }
 
-  const presetButton = event.target.closest("[data-preset-id]");
-  if (presetButton) {
-    if (state.isResolving) return;
-    const preset = scenarioCatalog.find((item) => item.id === presetButton.dataset.presetId);
-    if (!preset) return;
-    state.activeScenario = prepareScenario(createScenarioFromPreset(preset), getActiveProfile());
-    state.activeTab = "scenario";
-    render();
+  const starterButton = event.target.closest("[data-starter-id]");
+  if (starterButton) {
+    void resolveStarter(starterButton.dataset.starterId);
     return;
   }
 
-  const exampleButton = event.target.closest("[data-prompt]");
+  const followUpButton = event.target.closest("[data-followup-choice]");
+  if (followUpButton && state.session.followUp) {
+    const patch = state.session.followUp.choices[Number(followUpButton.dataset.followupChoice)]?.patch;
+    if (!patch) return;
+    void resolveDraft({ ...cloneValue(state.session.draft), ...patch }, "scenario");
+    return;
+  }
+
+  const exampleButton = event.target.closest("[data-example-prompt]");
   if (exampleButton) {
-    void runScenario(exampleButton.dataset.prompt, { switchToScenario: true, addToChat: false });
+    void resolvePrompt(exampleButton.dataset.examplePrompt, "scenario");
     document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    return;
-  }
-
-  const samplePromptButton = event.target.closest("[data-chat-prompt]");
-  if (samplePromptButton) {
-    state.activeTab = "chat";
-    void runScenario(samplePromptButton.dataset.chatPrompt, { switchToScenario: false, addToChat: true });
     return;
   }
 
   const openTabButton = event.target.closest("[data-open-tab]");
   if (openTabButton) {
     state.activeTab = openTabButton.dataset.openTab;
-    if (openTabButton.dataset.openTab === "trust") {
-      state.showPrivacyPolicy = false;
-    }
     render();
+    return;
+  }
+
+  const templateButton = event.target.closest("[data-goal-template]");
+  if (templateButton) {
+    addGoalFromTemplate(templateButton.dataset.goalTemplate);
+    return;
+  }
+
+  const removeGoalButton = event.target.closest("[data-remove-goal-id]");
+  if (removeGoalButton) {
+    removeGoal(removeGoalButton.dataset.removeGoalId);
+    void resolveDraft(state.session.draft, "goals");
   }
 }
 
 function handleSubmit(event) {
-  if (event.target.matches("[data-scenario-form]")) {
+  if (event.target.matches("[data-decision-form]")) {
     event.preventDefault();
     const formData = new FormData(event.target);
-    void runScenario(String(formData.get("prompt") || ""), { switchToScenario: true, addToChat: false });
+    void resolvePrompt(String(formData.get("prompt") || ""), "scenario");
     return;
   }
 
-  if (event.target.matches("[data-chat-form]")) {
+  if (event.target.matches("[data-draft-form]")) {
     event.preventDefault();
     const formData = new FormData(event.target);
-    const prompt = String(formData.get("prompt") || "");
-    if (!prompt.trim()) return;
-    state.activeTab = "chat";
-    void runScenario(prompt, { switchToScenario: false, addToChat: true });
+    void resolveDraft(buildDraftFromForm(formData), "scenario");
+    return;
+  }
+
+  if (event.target.matches("[data-goal-form]")) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const title = String(formData.get("title") || "").trim();
+    if (!title) return;
+
+    addGoal({
+      id: `${slugify(title)}-${Date.now()}`,
+      title,
+      category: title,
+      targetAmount: Number(formData.get("targetAmount") || 0),
+      currentAmount: Number(formData.get("currentAmount") || 0),
+      monthlyContribution: Number(formData.get("monthlyContribution") || 0),
+      priority: String(formData.get("priority") || "medium"),
+      fundingSource: String(formData.get("fundingSource") || "cash"),
+      targetTimelineMonths: Number(formData.get("targetTimelineMonths") || 0),
+      annualReturn: String(formData.get("fundingSource") || "cash") === "invest" ? 0.06 : 0.024
+    });
+
+    event.target.reset();
+    void resolveDraft(state.session.draft, "goals");
   }
 }
 
@@ -458,7 +552,7 @@ export async function startApp() {
     throw new Error("Missing #app root element.");
   }
 
-  await initializeProfileState();
+  await initializeState();
 
   if (isStarted) {
     render();

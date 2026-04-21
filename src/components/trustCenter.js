@@ -66,7 +66,41 @@ function renderPolicySection(section) {
   `;
 }
 
-export function renderTrustCenter(trustState, privacyPolicy, trustHighlights) {
+function renderPlaidQuickstart(plaidQuickstart) {
+  return `
+    <article class="surface-panel">
+      <div class="card-heading">
+        <div>
+          <p class="eyebrow">Plaid quickstart</p>
+          <h3>${escapeHtml(plaidQuickstart.title)}</h3>
+        </div>
+        <a class="button button-secondary trust-inline-button" href="${escapeHtml(plaidQuickstart.sourceUrl)}" target="_blank" rel="noreferrer">Open docs</a>
+      </div>
+      <p class="trust-lead">${escapeHtml(plaidQuickstart.summary)}</p>
+      <div class="plaid-step-list">
+        ${plaidQuickstart.steps
+          .map(
+            (step, index) => `
+              <div class="plaid-step-row">
+                <span>${String(index + 1).padStart(2, "0")}</span>
+                <div>
+                  <strong>${escapeHtml(step.title)}</strong>
+                  <p>${escapeHtml(step.detail)}</p>
+                </div>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+      <div class="trust-policy-preview">
+        <h3>${escapeHtml(plaidQuickstart.sandbox.environment)} testing</h3>
+        <p>${escapeHtml(plaidQuickstart.sandbox.credentialHint)}</p>
+      </div>
+    </article>
+  `;
+}
+
+export function renderTrustCenter(trustState, privacyPolicy, trustHighlights, plaidQuickstart) {
   const posture = getSecurityPosture(trustState.security);
 
   return `
@@ -191,6 +225,10 @@ export function renderTrustCenter(trustState, privacyPolicy, trustHighlights) {
           <button class="button button-primary" type="button" data-security-action="review-privacy-policy">Mark policy reviewed</button>
         </div>
       </article>
+    </section>
+
+    <section class="panel-section">
+      ${renderPlaidQuickstart(plaidQuickstart)}
     </section>
   `;
 }

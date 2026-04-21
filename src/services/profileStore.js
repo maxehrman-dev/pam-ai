@@ -1,7 +1,8 @@
-import { financialProfile } from "../data/mockData.js";
+import { defaultGoals, financialProfile } from "../data/mockData.js";
 
-const PROFILE_STORAGE_KEY = "pam-ai-profile-bundle-v1";
-const TRUST_STORAGE_KEY = "pam-ai-trust-state-v1";
+const PROFILE_STORAGE_KEY = "pam-ai-profile-bundle-v2";
+const GOALS_STORAGE_KEY = "pam-ai-goals-v1";
+const TRUST_STORAGE_KEY = "pam-ai-trust-state-v2";
 
 const DEFAULT_TRUST_STATE = {
   security: {
@@ -15,7 +16,7 @@ const DEFAULT_TRUST_STATE = {
     lastUpdated: "2026-04-21T09:00:00.000Z"
   },
   privacy: {
-    policyVersion: "1.0",
+    policyVersion: "1.1",
     reviewedAt: "2026-04-21T09:00:00.000Z",
     dataExportAvailable: true,
     deleteAccessAvailable: true,
@@ -24,12 +25,31 @@ const DEFAULT_TRUST_STATE = {
   }
 };
 
-function cloneProfile(profile) {
-  return JSON.parse(JSON.stringify(profile));
-}
-
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function readStorage(key) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function writeStorage(key, value) {
+  if (typeof window === "undefined") return value;
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (_error) {
+    return value;
+  }
+
+  return value;
 }
 
 function buildDefaultSource() {
@@ -37,8 +57,8 @@ function buildDefaultSource() {
     kind: "mock",
     label: "Mock financial snapshot",
     status: "Plaid-ready",
-    detail: "Using seeded balances and cash flow today. The simulator can swap this source for Plaid account data without changing the scenario engine.",
-    nextStep: "Add a Plaid link flow and persist a normalized account snapshot into the profile store."
+    detail: "Using seeded balances and cash flow today. The simulator can switch to a Plaid-backed snapshot without rewriting the scenario engine.",
+    nextStep: "Create a link token on the server, exchange the public token securely, then normalize accounts into this profile store."
   };
 }
 
@@ -62,17 +82,19 @@ function mapPlaidAccountToAsset(account) {
 }
 
 function mapPlaidLiabilityToEntry(liability) {
+  const monthlyPayment = Number(liability.monthlyPayment ?? liability.minimumPayment ?? 0);
+
   return {
     label: liability.name || liability.type || "Linked liability",
     balance: Number(liability.balance ?? liability.current ?? 0),
     rate: Number(liability.rate ?? 0),
-    monthlyPayment: Number(liability.monthlyPayment ?? liability.minimumPayment ?? 0),
-    principalShare: Number(liability.principalShare ?? liability.minimumPayment ?? 0) * 0.65
+    monthlyPayment,
+    principalShare: monthlyPayment * 0.65
   };
 }
 
 export function applyPlaidSnapshotToProfile(baseProfile, snapshot = {}) {
-  const profile = cloneProfile(baseProfile);
+  const profile = cloneValue(baseProfile);
 
   if (Array.isArray(snapshot.accounts) && snapshot.accounts.length > 0) {
     profile.assets = snapshot.accounts.map(mapPlaidAccountToAsset);
@@ -101,32 +123,8 @@ export function applyPlaidSnapshotToProfile(baseProfile, snapshot = {}) {
   return profile;
 }
 
-function readStoredProfileBundle() {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (_error) {
-    return null;
-  }
-}
-
-function readStoredTrustState() {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(TRUST_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (_error) {
-    return null;
-  }
-}
-
 export async function loadProfileBundle() {
-  const stored = readStoredProfileBundle();
+  const stored = readStorage(PROFILE_STORAGE_KEY);
 
   if (stored?.snapshot) {
     return {
@@ -137,22 +135,31 @@ export async function loadProfileBundle() {
         status: "Connected",
         detail:
           stored?.source?.detail ||
-          "Connected balances are shaping the simulator while recurring cash flow continues to use the normalized profile structure.",
+          "Linked balances are shaping the simulator while cash-flow logic continues to use the normalized PAM profile schema.",
         nextStep:
           stored?.source?.nextStep ||
-          "Keep the normalized schema stable so Plaid refreshes and scenario math stay decoupled."
+          "Refresh the normalized snapshot on each Plaid update so account connectivity stays isolated from decision logic."
       }
     };
   }
 
   return {
-    profile: cloneProfile(financialProfile),
+    profile: cloneValue(financialProfile),
     source: buildDefaultSource()
   };
 }
 
+export async function loadGoalsState() {
+  const stored = readStorage(GOALS_STORAGE_KEY);
+  return stored?.length ? cloneValue(stored) : cloneValue(defaultGoals);
+}
+
+export function saveGoalsState(goals) {
+  return writeStorage(GOALS_STORAGE_KEY, cloneValue(goals));
+}
+
 export async function loadTrustState() {
-  const stored = readStoredTrustState();
+  const stored = readStorage(TRUST_STORAGE_KEY);
 
   if (!stored) {
     return cloneValue(DEFAULT_TRUST_STATE);
@@ -182,13 +189,5 @@ export function saveTrustState(trustState) {
     }
   };
 
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(TRUST_STORAGE_KEY, JSON.stringify(nextState));
-    } catch (_error) {
-      return nextState;
-    }
-  }
-
-  return nextState;
+  return writeStorage(TRUST_STORAGE_KEY, nextState);
 }
