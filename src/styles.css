@@ -159,6 +159,12 @@ textarea:focus {
   color: var(--ink-3);
 }
 
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .site-nav a:hover {
   color: var(--ink-5);
 }
@@ -199,6 +205,11 @@ textarea:focus {
   gap: 34px;
   align-items: center;
   padding: 36px 0 64px;
+}
+
+.hero-stack {
+  display: grid;
+  gap: 18px;
 }
 
 .hero-copy h1,
@@ -247,6 +258,13 @@ textarea:focus {
   margin-top: 22px;
 }
 
+.hero-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+
 .hero-proof-card,
 .surface-card,
 .surface-panel {
@@ -260,6 +278,12 @@ textarea:focus {
 .hero-proof-card {
   padding: 1rem 1.15rem;
   min-width: 220px;
+}
+
+.hero-proof-card small {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink-2);
 }
 
 .hero-proof-card span,
@@ -307,6 +331,69 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.live-demo-panel,
+.hero-account-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.hero-subtitle.compact {
+  max-width: none;
+  font-size: 1rem;
+}
+
+.demo-stat-grid,
+.account-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.demo-stat-card,
+.linked-account-row {
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+}
+
+.demo-stat-card span,
+.demo-aha-card span,
+.demo-comparison-strip span,
+.linked-account-row p,
+.account-meta-note span {
+  display: block;
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+
+.demo-aha-card {
+  padding: 18px;
+  border-radius: 22px;
+  background: linear-gradient(140deg, rgba(216, 243, 229, 0.72), rgba(255, 255, 255, 0.9));
+}
+
+.demo-aha-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.15rem;
+  line-height: 1.45;
+}
+
+.demo-comparison-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.demo-comparison-strip > div,
+.account-meta-note {
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 138, 102, 0.1);
 }
 
 .mockup-window {
@@ -1785,6 +1872,35 @@ select:focus {
   margin: 0 0 14px;
 }
 
+.builder-field-full {
+  grid-column: 1 / -1;
+}
+
+.account-panel-grid {
+  align-items: start;
+}
+
+.linked-account-list {
+  display: grid;
+  gap: 12px;
+}
+
+.linked-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.linked-account-row strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.linked-account-row p {
+  margin: 0;
+}
+
 .plaid-step-list {
   margin-top: 18px;
 }
@@ -1812,7 +1928,11 @@ select:focus {
   .example-grid,
   .market-signal-grid,
   .showcase-flow,
-  .goal-card-grid {
+  .goal-card-grid,
+  .hero-proof-grid,
+  .demo-comparison-strip,
+  .demo-stat-grid,
+  .account-overview-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1821,11 +1941,31 @@ select:focus {
   .workspace-heading,
   .mockup-card-grid,
   .builder-grid,
-  .example-metrics {
+  .example-metrics,
+  .hero-section,
+  .site-header {
     grid-template-columns: 1fr;
   }
 
   .workspace-heading {
     display: grid;
+  }
+
+  .site-header,
+  .header-actions,
+  .site-nav {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .site-nav,
+  .header-actions {
+    gap: 10px;
+  }
+
+  .header-button,
+  .site-nav a,
+  .site-nav button {
+    width: 100%;
   }
 }

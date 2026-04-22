@@ -9,6 +9,7 @@ import {
   trustHighlights
 } from "./data/mockData.js";
 import { renderLanding } from "./components/landing.js";
+import { renderAccount } from "./components/account.js";
 import { renderDashboard } from "./components/dashboard.js";
 import { renderGoals } from "./components/goals.js";
 import { renderInsights } from "./components/insights.js";
@@ -22,7 +23,20 @@ import {
   resolveDraftScenario,
   resolveStarterScenario
 } from "./services/scenarioClient.js";
-import { loadGoalsState, loadProfileBundle, loadTrustState, saveGoalsState, saveTrustState } from "./services/profileStore.js";
+import {
+  connectPlaidSandbox,
+  createAccountProfile,
+  disconnectPlaidSnapshot,
+  loadAccountState,
+  loadGoalsState,
+  loadProfileBundle,
+  loadTrustState,
+  personalizeProfile,
+  saveAccountState,
+  saveGoalsState,
+  saveProfileBundle,
+  saveTrustState
+} from "./services/profileStore.js";
 
 const app = document.querySelector("#app");
 
@@ -31,6 +45,7 @@ const state = {
   session: null,
   engine: getDecisionEngineMeta(),
   profileBundle: null,
+  accountState: null,
   goals: [],
   trustState: null,
   isResolving: false,
@@ -60,6 +75,10 @@ function getTrustState() {
   return state.trustState;
 }
 
+function getAccountState() {
+  return state.accountState;
+}
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
@@ -72,15 +91,17 @@ function getLandingExamples() {
 }
 
 async function initializeState() {
-  if (state.profileBundle && state.goals.length && state.trustState) return;
+  if (state.profileBundle && state.accountState && state.goals.length && state.trustState) return;
 
-  const [profileBundle, goals, trustState] = await Promise.all([
+  const [profileBundle, accountState, goals, trustState] = await Promise.all([
     loadProfileBundle(),
+    loadAccountState(),
     loadGoalsState(),
     loadTrustState()
   ]);
 
   state.profileBundle = profileBundle;
+  state.accountState = accountState;
   state.goals = goals;
   state.trustState = trustState;
 
@@ -99,6 +120,7 @@ function renderWorkspaceTabs() {
   const tabs = [
     { id: "scenario", label: "Scenario Engine" },
     { id: "goals", label: "Life Goals" },
+    { id: "account", label: "Account" },
     { id: "dashboard", label: "Dashboard" },
     { id: "insights", label: "Insights" },
     { id: "trust", label: "Trust Center" }
@@ -119,6 +141,7 @@ function renderProfileRail(metrics) {
   const profile = getActiveProfile();
   const source = getProfileSource();
   const security = getTrustState().security;
+  const account = getAccountState();
   const mostImpactedGoal = state.session.result.goalsSummary.mostImpactedGoal;
 
   return `
@@ -152,9 +175,9 @@ function renderProfileRail(metrics) {
       </div>
       <div class="profile-system-grid">
         <div class="profile-system-card">
-          <span>Engine</span>
-          <strong>${escapeHtml(state.engine.provider)}</strong>
-          <p>${escapeHtml(state.engine.mode)}</p>
+          <span>Account</span>
+          <strong>${account?.isCreated ? "Created" : "Demo mode"}</strong>
+          <p>${escapeHtml(account?.email || "Account setup pending")}</p>
         </div>
         <div class="profile-system-card">
           <span>Most impacted goal</span>
@@ -165,6 +188,10 @@ function renderProfileRail(metrics) {
       <div class="profile-source-note">
         <span>Data source</span>
         <p>${escapeHtml(source.label)} • ${escapeHtml(source.status)}</p>
+      </div>
+      <div class="profile-source-note">
+        <span>Plaid</span>
+        <p>${account?.plaidLinked ? `Connected to ${escapeHtml(account.plaidInstitution)}` : "Not connected yet"}</p>
       </div>
       <div class="profile-source-note">
         <span>Plaid integration path</span>
@@ -191,6 +218,10 @@ function renderActivePanel(metrics) {
 
   if (state.activeTab === "goals") {
     return renderGoals(state.goals, state.session, goalTemplates);
+  }
+
+  if (state.activeTab === "account") {
+    return renderAccount(getActiveProfile(), getAccountState(), getProfileSource(), getTrustState());
   }
 
   if (state.activeTab === "insights") {
@@ -233,7 +264,8 @@ function renderSiteFooter() {
 function render() {
   const profile = getActiveProfile();
   const trustState = getTrustState();
-  if (!profile || !trustState || !state.session) return;
+  const accountState = getAccountState();
+  if (!profile || !trustState || !accountState || !state.session) return;
 
   const metrics = getProfileMetrics(profile);
 
@@ -248,23 +280,26 @@ function render() {
           </div>
         </a>
         <nav class="site-nav">
-          <a href="#showcase">Product</a>
+          <a href="#top">Demo</a>
+          <a href="#workspace">Simulator</a>
           <a href="#examples">Examples</a>
-          <a href="#workspace">App</a>
+          <a href="#workspace" data-open-tab="trust">Security</a>
         </nav>
-        <a class="button button-secondary header-button" href="#workspace">Open app</a>
+        <div class="header-actions">
+          <button class="button button-secondary header-button" type="button" data-open-tab="account">Create account</button>
+          <a class="button button-primary header-button" href="#workspace">Open simulator</a>
+        </div>
       </header>
 
       <main>
         ${renderLanding({
-          comparisonRows,
-          featureList,
-          howItWorks,
-          trustHighlights,
           metrics,
           session: state.session,
           goals: state.goals,
-          landingExamples: getLandingExamples()
+          landingExamples: getLandingExamples(),
+          accountState,
+          profileSource: getProfileSource(),
+          trustState
         })}
 
         <section class="workspace-section" id="workspace">
@@ -299,6 +334,16 @@ function updateTrustState(mutator) {
   const draft = cloneValue(getTrustState());
   const nextState = mutator(draft) || draft;
   state.trustState = saveTrustState(nextState);
+}
+
+function updateAccountState(mutator) {
+  const draft = cloneValue(getAccountState());
+  const nextState = mutator(draft) || draft;
+  state.accountState = saveAccountState(nextState);
+}
+
+function updateProfileBundle(bundle) {
+  state.profileBundle = saveProfileBundle(bundle);
 }
 
 async function resolvePrompt(prompt, nextTab = "scenario") {
@@ -492,6 +537,37 @@ function handleClick(event) {
   if (openTabButton) {
     state.activeTab = openTabButton.dataset.openTab;
     render();
+    document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  const plaidActionButton = event.target.closest("[data-plaid-action]");
+  if (plaidActionButton) {
+    const action = plaidActionButton.dataset.plaidAction;
+
+    if (action === "connect" || action === "refresh") {
+      updateProfileBundle(connectPlaidSandbox(getActiveProfile()));
+      updateAccountState((draft) => {
+        draft.plaidLinked = true;
+        draft.plaidInstitution = "Plaid Sandbox Bank";
+        draft.profileCompletion = 96;
+        draft.onboardingStep = "Profile connected";
+        return draft;
+      });
+    }
+
+    if (action === "disconnect") {
+      updateProfileBundle(disconnectPlaidSnapshot(state.profileBundle));
+      updateAccountState((draft) => {
+        draft.plaidLinked = false;
+        draft.plaidInstitution = "Not connected";
+        draft.profileCompletion = Math.min(draft.profileCompletion, 84);
+        draft.onboardingStep = "Connect accounts when ready";
+        return draft;
+      });
+    }
+
+    void resolveDraft(state.session.draft, "account");
     return;
   }
 
@@ -544,6 +620,65 @@ function handleSubmit(event) {
 
     event.target.reset();
     void resolveDraft(state.session.draft, "goals");
+    return;
+  }
+
+  if (event.target.matches("[data-account-form]")) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const now = new Date().toISOString();
+    const accountDraft = {
+      name: String(formData.get("name") || "").trim(),
+      email: String(formData.get("email") || "").trim(),
+      city: String(formData.get("city") || "").trim(),
+      objective: String(formData.get("objective") || "").trim()
+    };
+
+    updateProfileBundle({
+      ...state.profileBundle,
+      profile: createAccountProfile(getActiveProfile(), accountDraft)
+    });
+
+    updateAccountState((draft) => {
+      draft.isCreated = true;
+      draft.email = accountDraft.email || draft.email;
+      draft.createdAt = draft.createdAt || now;
+      draft.lastLoginAt = now;
+      draft.profileCompletion = Math.max(draft.profileCompletion, 84);
+      draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Customize your profile";
+      return draft;
+    });
+
+    void resolveDraft(state.session.draft, "account");
+    return;
+  }
+
+  if (event.target.matches("[data-profile-form]")) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+
+    updateProfileBundle({
+      ...state.profileBundle,
+      profile: personalizeProfile(getActiveProfile(), {
+        name: getActiveProfile().user.name,
+        city: getActiveProfile().user.city,
+        objective: getActiveProfile().user.objective,
+        salaryIncome: Number(formData.get("salaryIncome") || 0),
+        sideIncome: Number(formData.get("sideIncome") || 0),
+        rentAmount: Number(formData.get("rentAmount") || 0),
+        lifestyleSpend: Number(formData.get("lifestyleSpend") || 0),
+        liquidCash: Number(formData.get("liquidCash") || 0),
+        investmentsBalance: Number(formData.get("investmentsBalance") || 0)
+      })
+    });
+
+    updateAccountState((draft) => {
+      draft.profileCompletion = Math.max(draft.profileCompletion, 90);
+      draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Scenario-ready";
+      return draft;
+    });
+
+    void resolveDraft(state.session.draft, "account");
   }
 }
 
