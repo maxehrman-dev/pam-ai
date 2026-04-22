@@ -26,9 +26,32 @@ export function formatMonths(value) {
   return `${value.toFixed(1)} mo`;
 }
 
+export function formatDateLabel(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(date);
+}
+
 export function formatSignedNumber(value, digits = 1) {
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${value.toFixed(digits)}`;
+}
+
+export function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => {
+    return {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    }[character];
+  });
 }
 
 export function clamp(value, min, max) {
