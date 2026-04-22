@@ -1,6 +1,6 @@
 export const financialProfile = {
   user: {
-    name: "Avery Chen",
+    name: "Demo User",
     archetype: "Measured Builder",
     city: "Seattle, WA",
     objective: "Stay liquid enough for real life decisions without sacrificing long-term wealth."
@@ -521,6 +521,81 @@ export const plaidQuickstart = {
   sandbox: {
     environment: "Sandbox",
     credentialHint: "Use Plaid sandbox credentials during the first connection test, including the test 2FA step if prompted."
+  }
+};
+
+export const plaidSandboxSnapshot = {
+  accounts: [
+    {
+      name: "Plaid Checking",
+      official_name: "Plaid Gold Standard 0% Interest Checking",
+      type: "depository",
+      subtype: "checking",
+      balances: {
+        available: 12840,
+        current: 12840
+      }
+    },
+    {
+      name: "Plaid High Yield Savings",
+      official_name: "Plaid Emergency Reserve Savings",
+      type: "depository",
+      subtype: "savings",
+      balances: {
+        available: 21450,
+        current: 21450
+      }
+    },
+    {
+      name: "Plaid Brokerage",
+      official_name: "Plaid Personal Investment Account",
+      type: "investment",
+      subtype: "brokerage",
+      balances: {
+        current: 74100
+      }
+    }
+  ],
+  liabilities: [
+    {
+      name: "Student loans",
+      type: "student",
+      balance: 17200,
+      rate: 4.6,
+      monthlyPayment: 300
+    },
+    {
+      name: "Credit card",
+      type: "credit",
+      balance: 1260,
+      rate: 17.9,
+      minimumPayment: 65
+    }
+  ],
+  monthly: {
+    income: [
+      { label: "Take-home salary", amount: 9200 },
+      { label: "Freelance income", amount: 650 }
+    ],
+    fixed: [
+      { label: "Rent", amount: 2480, essential: true },
+      { label: "Utilities & internet", amount: 320, essential: true },
+      { label: "Insurance", amount: 410, essential: true },
+      { label: "Debt payments", amount: 430, essential: true }
+    ],
+    variable: [
+      { label: "Groceries", amount: 620, essential: true },
+      { label: "Transportation", amount: 470, essential: true },
+      { label: "Lifestyle", amount: 760, essential: false },
+      { label: "Travel sinking fund", amount: 140, essential: false }
+    ],
+    contributions: [
+      { label: "Emergency reserve", amount: 500, bucket: "cash" },
+      { label: "House down payment", amount: 600, bucket: "cash" },
+      { label: "Move-out fund", amount: 220, bucket: "cash" },
+      { label: "Brokerage auto-invest", amount: 420, bucket: "invest" },
+      { label: "Retirement boost", amount: 560, bucket: "invest" }
+    ]
   }
 };
 
