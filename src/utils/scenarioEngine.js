@@ -21,6 +21,16 @@ const INTENT_KEYWORDS = {
   incomeReduction: ["reduce income", "pay cut", "income drops", "salary cut", "earn less", "income down"]
 };
 
+const INTENT_TO_STARTER = {
+  jobLoss: "job-loss",
+  car: "buy-car",
+  move: "move-apartments",
+  rentIncrease: "increase-rent",
+  invest: "start-investing",
+  emergency: "emergency-expense",
+  incomeReduction: "reduce-income"
+};
+
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -112,6 +122,37 @@ function parseMonths(prompt) {
 
 function hasAny(text, keywords) {
   return keywords.some((keyword) => text.includes(keyword));
+}
+
+function getIntentFlags(prompt) {
+  const normalized = normalizePrompt(prompt);
+
+  return {
+    normalized,
+    hasJobLoss: hasAny(normalized, INTENT_KEYWORDS.jobLoss),
+    hasLegal: hasAny(normalized, INTENT_KEYWORDS.legal),
+    hasCar: hasAny(normalized, INTENT_KEYWORDS.car),
+    hasMove: hasAny(normalized, INTENT_KEYWORDS.move),
+    hasRentIncrease: hasAny(normalized, INTENT_KEYWORDS.rentIncrease),
+    hasInvest: hasAny(normalized, INTENT_KEYWORDS.invest),
+    hasEmergency: hasAny(normalized, INTENT_KEYWORDS.emergency),
+    hasIncomeReduction: hasAny(normalized, INTENT_KEYWORDS.incomeReduction)
+  };
+}
+
+function listDetectedIntents(flags) {
+  return Object.entries(INTENT_TO_STARTER)
+    .filter(([key]) => {
+      if (key === "rentIncrease") return flags.hasRentIncrease;
+      if (key === "incomeReduction") return flags.hasIncomeReduction;
+      if (key === "jobLoss") return flags.hasJobLoss;
+      if (key === "car") return flags.hasCar;
+      if (key === "move") return flags.hasMove;
+      if (key === "invest") return flags.hasInvest;
+      if (key === "emergency") return flags.hasEmergency;
+      return false;
+    })
+    .map(([key]) => key);
 }
 
 function titleCase(value) {
@@ -210,20 +251,20 @@ export function getProfileMetrics(profile) {
 }
 
 function detectScenarioId(prompt, catalog) {
-  const normalized = normalizePrompt(prompt);
-  const hasJobLoss = hasAny(normalized, INTENT_KEYWORDS.jobLoss);
-  const hasLegal = hasAny(normalized, INTENT_KEYWORDS.legal);
+  const flags = getIntentFlags(prompt);
+  const intents = listDetectedIntents(flags);
 
-  if (hasJobLoss && hasLegal) return "compound-shock";
-  if (hasAny(normalized, INTENT_KEYWORDS.rentIncrease)) return "increase-rent";
-  if (hasAny(normalized, INTENT_KEYWORDS.jobLoss)) return "job-loss";
-  if (hasAny(normalized, INTENT_KEYWORDS.car)) return "buy-car";
-  if (hasAny(normalized, INTENT_KEYWORDS.move)) return "move-apartments";
-  if (hasAny(normalized, INTENT_KEYWORDS.invest)) return "start-investing";
-  if (hasAny(normalized, INTENT_KEYWORDS.incomeReduction)) return "reduce-income";
-  if (hasAny(normalized, INTENT_KEYWORDS.emergency)) return "emergency-expense";
+  if (flags.hasJobLoss && flags.hasLegal) return "compound-shock";
+  if (flags.hasRentIncrease) return "increase-rent";
+  if (flags.hasJobLoss) return "job-loss";
+  if (flags.hasCar) return "buy-car";
+  if (flags.hasMove) return "move-apartments";
+  if (flags.hasInvest) return "start-investing";
+  if (flags.hasIncomeReduction) return "reduce-income";
+  if (flags.hasEmergency) return "emergency-expense";
 
   const hasMoney = collectMoneyCandidates(prompt).length > 0;
+  if (intents.length > 1) return INTENT_TO_STARTER[intents[0]] || "job-loss";
   if (hasMoney) return "emergency-expense";
 
   return findStarter(catalog, "job-loss") ? "job-loss" : catalog[0]?.id;
@@ -375,11 +416,17 @@ function reconcileDraft(draft, profile) {
 
 function hydrateDraftFromPrompt(draft, prompt, profile) {
   const normalized = normalizePrompt(prompt);
+  const flags = getIntentFlags(prompt);
   const values = collectMoneyCandidates(prompt);
   const firstAmount = values[0]?.value || null;
   const recurringAmount = parseRecurringAmount(prompt);
   const parsedMonths = parseMonths(prompt);
   const percent = parsePercent(prompt);
+
+  draft.userSpecifiedDuration = Boolean(parsedMonths);
+  draft.userSpecifiedRecurringAmount = Boolean(recurringAmount);
+  draft.userSpecifiedOneTimeCost = Boolean(firstAmount);
+  draft.userSpecifiedPercent = Boolean(percent);
 
   if (parsedMonths) draft.durationMonths = parsedMonths;
 
@@ -419,8 +466,19 @@ function hydrateDraftFromPrompt(draft, prompt, profile) {
       break;
     case "compound":
       if (firstAmount) draft.legalCost = firstAmount;
-      if (normalized.includes("legal only")) draft.focusMode = "legalOnly";
-      if (normalized.includes("income only")) draft.focusMode = "incomeOnly";
+      draft.userSpecifiedLegalCost = Boolean(firstAmount && flags.hasLegal);
+      if (normalized.includes("legal only")) {
+        draft.focusMode = "legalOnly";
+        draft.compoundFocusResolved = true;
+      }
+      if (normalized.includes("income only")) {
+        draft.focusMode = "incomeOnly";
+        draft.compoundFocusResolved = true;
+      }
+      if (flags.hasJobLoss && flags.hasLegal && (normalized.includes("both") || (firstAmount && parsedMonths))) {
+        draft.focusMode = "both";
+        draft.compoundFocusResolved = true;
+      }
       break;
     default:
       if (firstAmount) draft.oneTimeCost = firstAmount;
@@ -433,24 +491,63 @@ function buildFollowUp(draft, starter, prompt, profile) {
   const moneyCandidates = collectMoneyCandidates(prompt);
   const recurringAmount = parseRecurringAmount(prompt);
   const parsedMonths = parseMonths(prompt);
-  const normalized = normalizePrompt(prompt);
+  const flags = getIntentFlags(prompt);
+  const normalized = flags.normalized;
+  const detectedIntents = listDetectedIntents(flags);
 
   if (draft.type === "compound") {
+    if (!draft.compoundFocusResolved) {
+      return {
+        prompt: "Got it. Let's break that down. What should I model first?",
+        choices: [
+          {
+            label: "Lost income",
+            patch: { focusMode: "incomeOnly", legalCost: 0, oneTimeCost: 0, compoundFocusResolved: true }
+          },
+          {
+            label: "Legal costs",
+            patch: { focusMode: "legalOnly", monthlyIncomeDelta: 0, monthlyInvestingDelta: 0, compoundFocusResolved: true }
+          },
+          {
+            label: "Both",
+            patch: { focusMode: "both", compoundFocusResolved: true }
+          }
+        ]
+      };
+    }
+
+    if ((draft.focusMode === "incomeOnly" || draft.focusMode === "both") && !draft.userSpecifiedDuration) {
+      return {
+        prompt: "How long should I model the income loss?",
+        choices: [
+          { label: "1 month", patch: { durationMonths: 1, userSpecifiedDuration: true } },
+          { label: "3 months", patch: { durationMonths: 3, userSpecifiedDuration: true } },
+          { label: "6 months", patch: { durationMonths: 6, userSpecifiedDuration: true } }
+        ]
+      };
+    }
+
+    if ((draft.focusMode === "legalOnly" || draft.focusMode === "both") && !draft.userSpecifiedLegalCost) {
+      return {
+        prompt: "What legal-cost range should I use?",
+        choices: [
+          { label: "$5k", patch: { legalCost: 5000, userSpecifiedLegalCost: true } },
+          { label: "$15k", patch: { legalCost: 15000, userSpecifiedLegalCost: true } },
+          { label: "$30k", patch: { legalCost: 30000, userSpecifiedLegalCost: true } }
+        ]
+      };
+    }
+
+    return null;
+  }
+
+  if (detectedIntents.length > 1) {
     return {
-      prompt: "Got it. Let's break that down. What should I model first?",
+      prompt: "I spotted more than one moving piece. Which one should I tighten first?",
       choices: [
-        {
-          label: "Lost income",
-          patch: { focusMode: "incomeOnly", legalCost: 0, oneTimeCost: 0 }
-        },
-        {
-          label: "Legal costs",
-          patch: { focusMode: "legalOnly", monthlyIncomeDelta: 0, monthlyInvestingDelta: 0 }
-        },
-        {
-          label: "Both",
-          patch: { focusMode: "both" }
-        }
+        { label: "Income", patch: { type: "incomeReduction", monthlyIncomeDelta: -1200 } },
+        { label: "Expense", patch: { type: "rentIncrease", monthlyExpenseDelta: recurringAmount || 400 } },
+        { label: "Upfront cost", patch: { type: "emergency", oneTimeCost: moneyCandidates[0]?.value || 3000 } }
       ]
     };
   }
@@ -479,6 +576,72 @@ function buildFollowUp(draft, starter, prompt, profile) {
         { label: "One-time expense", patch: { type: "emergency", oneTimeCost: 3000 } },
         { label: "Monthly cost change", patch: { type: "rentIncrease", monthlyExpenseDelta: 400 } },
         { label: "Income shock", patch: { type: "jobLoss", durationMonths: 3 } }
+      ]
+    };
+  }
+
+  if (draft.type === "jobLoss" && !parsedMonths) {
+    return {
+      prompt: "How long should I assume the income gap lasts?",
+      choices: [
+        { label: "1 month", patch: { durationMonths: 1, userSpecifiedDuration: true } },
+        { label: "3 months", patch: { durationMonths: 3, userSpecifiedDuration: true } },
+        { label: "6 months", patch: { durationMonths: 6, userSpecifiedDuration: true } }
+      ]
+    };
+  }
+
+  if (draft.type === "car" && !moneyCandidates.length && !recurringAmount) {
+    return {
+      prompt: "Should I model a starter car, something mid-range, or a stretch purchase?",
+      choices: [
+        { label: "$12k used", patch: { purchaseAmount: 12000, userSpecifiedOneTimeCost: true } },
+        { label: "$20k practical", patch: { purchaseAmount: 20000, userSpecifiedOneTimeCost: true } },
+        { label: "$35k stretch", patch: { purchaseAmount: 35000, userSpecifiedOneTimeCost: true } }
+      ]
+    };
+  }
+
+  if (draft.type === "move" && !recurringAmount && !moneyCandidates.length) {
+    return {
+      prompt: "What kind of housing jump should I use?",
+      choices: [
+        { label: "+$300/mo", patch: { monthlyExpenseDelta: 300, userSpecifiedRecurringAmount: true } },
+        { label: "+$700/mo", patch: { monthlyExpenseDelta: 700, userSpecifiedRecurringAmount: true } },
+        { label: "+$1,200/mo", patch: { monthlyExpenseDelta: 1200, userSpecifiedRecurringAmount: true } }
+      ]
+    };
+  }
+
+  if (draft.type === "rentIncrease" && !recurringAmount && !moneyCandidates.length) {
+    return {
+      prompt: "How much higher should I make the monthly rent?",
+      choices: [
+        { label: "+$150/mo", patch: { monthlyExpenseDelta: 150, userSpecifiedRecurringAmount: true } },
+        { label: "+$400/mo", patch: { monthlyExpenseDelta: 400, userSpecifiedRecurringAmount: true } },
+        { label: "+$900/mo", patch: { monthlyExpenseDelta: 900, userSpecifiedRecurringAmount: true } }
+      ]
+    };
+  }
+
+  if (draft.type === "invest" && !recurringAmount && !moneyCandidates.length) {
+    return {
+      prompt: "How much do you want PAM to invest each month?",
+      choices: [
+        { label: "$250/mo", patch: { monthlyInvestingDelta: 250, userSpecifiedRecurringAmount: true } },
+        { label: "$500/mo", patch: { monthlyInvestingDelta: 500, userSpecifiedRecurringAmount: true } },
+        { label: "$1,000/mo", patch: { monthlyInvestingDelta: 1000, userSpecifiedRecurringAmount: true } }
+      ]
+    };
+  }
+
+  if (draft.type === "incomeReduction" && !draft.userSpecifiedRecurringAmount && !draft.userSpecifiedPercent) {
+    return {
+      prompt: "What income drop should I model?",
+      choices: [
+        { label: "-10%", patch: { monthlyIncomeDelta: -Math.round(getProfileMetrics(profile).monthlyIncome * 0.1), userSpecifiedPercent: true } },
+        { label: "-$1,500/mo", patch: { monthlyIncomeDelta: -1500, userSpecifiedRecurringAmount: true } },
+        { label: "-$3,000/mo", patch: { monthlyIncomeDelta: -3000, userSpecifiedRecurringAmount: true } }
       ]
     };
   }
@@ -954,20 +1117,40 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
 }
 
 function buildAssistantMessage(draft, result, followUp) {
+  const scenarioTitle = result.scenario.title.toLowerCase();
+
   if (draft.type === "compound") {
     return {
-      headline: "I can model that. I started with lost income plus legal costs.",
+      headline: followUp
+        ? "I split that into separate shocks so we can tighten one at a time."
+        : "I modeled the income hit and legal drag together.",
       body: followUp
-        ? "You do not need a perfect prompt here. I modeled the combined shock with default assumptions and left one question to tighten next."
-        : "I modeled both the income loss and the legal hit so you can see the tradeoff immediately."
+        ? `You already have a usable first-pass model. Answer the next question and I'll sharpen the parts that matter most.`
+        : `${result.ahaMoment} ${result.nextStep}`
+    };
+  }
+
+  if (followUp) {
+    const followUpLead = {
+      jobLoss: "I started with an income interruption and left one question to size the gap.",
+      car: "I started with a car purchase and left one question to pin down the budget.",
+      move: "I started with a housing move and left one question to size the rent jump.",
+      invest: "I started with a monthly investing plan and left one question to set the contribution.",
+      incomeReduction: "I started with an income drop and left one question to size the cut.",
+      emergency: "I treated this like a cash shock first and left one question to refine the shape."
+    };
+
+    return {
+      headline: `I can model that. I started with ${scenarioTitle}.`,
+      body:
+        followUpLead[draft.type] ||
+        "I translated the prompt into a first-pass model and left one follow-up so we can tighten the scenario without slowing you down."
     };
   }
 
   return {
     headline: `I can model that. I started with ${result.scenario.title.toLowerCase()}.`,
-    body: followUp
-      ? "I filled in the missing structure with defaults so you still get a usable answer now, then added one follow-up to sharpen it."
-      : "The numbers below show the immediate cash impact, the goal tradeoff, and the longer-term path."
+    body: `${result.ahaMoment} ${result.nextStep}`
   };
 }
 
@@ -993,6 +1176,7 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
   const followUp = buildFollowUp(sessionDraft, starter, prompt, profile);
   const result = evaluateScenario(profile, goals, sessionDraft, prompt);
   const confidence = getConfidence(sessionDraft, followUp, prompt);
+  const detectedIntents = listDetectedIntents(getIntentFlags(prompt));
 
   return {
     prompt,
@@ -1010,6 +1194,8 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
       summary:
         sessionDraft.type === "compound"
           ? "PAM detected a combined shock and modeled both pieces together before asking which one to tighten first."
+          : detectedIntents.length > 1
+            ? `PAM detected multiple moving pieces (${detectedIntents.join(", ")}) and chose the closest first-pass model before narrowing with a follow-up.`
           : `PAM treated this as a ${sessionDraft.type} scenario and translated it into cash flow, timeline, and goal effects.`
     }
   };
