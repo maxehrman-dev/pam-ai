@@ -121,7 +121,10 @@ function parseMonths(prompt) {
 }
 
 function hasAny(text, keywords) {
-  return keywords.some((keyword) => text.includes(keyword));
+  return keywords.some((keyword) => {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|\\s)${escaped}(?=\\s|$)`, "i").test(text);
+  });
 }
 
 function getIntentFlags(prompt) {
@@ -267,7 +270,7 @@ function detectScenarioId(prompt, catalog) {
   if (intents.length > 1) return INTENT_TO_STARTER[intents[0]] || "job-loss";
   if (hasMoney) return "emergency-expense";
 
-  return findStarter(catalog, "job-loss") ? "job-loss" : catalog[0]?.id;
+  return "custom-decision";
 }
 
 function buildCompoundStarter(metrics) {
@@ -293,6 +296,30 @@ function buildCompoundStarter(metrics) {
   };
 }
 
+function buildCustomStarter() {
+  return {
+    id: "custom-decision",
+    label: "Custom decision",
+    title: "Model a custom financial decision",
+    type: "custom",
+    prompt: "What should I model?",
+    defaults: {
+      oneTimeCost: 0,
+      monthlyExpenseDelta: 0,
+      monthlyIncomeDelta: 0,
+      monthlyInvestingDelta: 0,
+      durationMonths: 12,
+      moveCost: 0,
+      legalCost: 0,
+      purchaseAmount: 0,
+      upfrontCost: 0,
+      residualValueAtHorizon: 0,
+      customFocus: "unknown",
+      customDirection: "negative"
+    }
+  };
+}
+
 function buildDraftFromStarter(starter, profile, prompt) {
   const draft = {
     id: starter.id,
@@ -308,6 +335,15 @@ function buildDraftFromStarter(starter, profile, prompt) {
   }
 
   return draft;
+}
+
+function inferCustomFocus(normalized) {
+  if (!normalized) return "unknown";
+  if (/\b(bonus|raise|promotion|windfall|inherit|sell|sold|profit|commission|side hustle)\b/i.test(normalized)) return "income";
+  if (/\b(tuition|wedding|divorce|baby|kids|child|pet|vet|insurance claim|medical|tax|lawsuit|settlement)\b/i.test(normalized)) return "oneTime";
+  if (/\b(subscription|gym|daycare|mortgage|rent|lease|utilities|payment|costs me)\b/i.test(normalized)) return "expense";
+  if (/\b(invest|save|contribute|brokerage|401k|roth|retirement)\b/i.test(normalized)) return "invest";
+  return "unknown";
 }
 
 function deriveCarValues(draft) {
@@ -480,6 +516,30 @@ function hydrateDraftFromPrompt(draft, prompt, profile) {
         draft.compoundFocusResolved = true;
       }
       break;
+    case "custom":
+      draft.customFocus = inferCustomFocus(normalized);
+      draft.customDirection = /\braise|bonus|promotion|windfall|profit|sell|sold|inherit|commission\b/i.test(normalized)
+        ? "positive"
+        : "negative";
+      if (firstAmount) {
+        if (draft.customFocus === "income") {
+          draft.monthlyIncomeDelta = draft.customDirection === "positive" ? firstAmount : -Math.abs(firstAmount);
+        } else if (draft.customFocus === "invest") {
+          draft.monthlyInvestingDelta = Math.abs(recurringAmount || firstAmount);
+        } else if (draft.customFocus === "expense" && recurringAmount) {
+          draft.monthlyExpenseDelta = Math.abs(recurringAmount);
+        } else if (draft.customFocus === "oneTime" || !recurringAmount) {
+          draft.oneTimeCost = draft.customDirection === "positive" ? -Math.abs(firstAmount) : Math.abs(firstAmount);
+        }
+      }
+      if (recurringAmount && draft.customFocus !== "invest") {
+        if (draft.customFocus === "income") {
+          draft.monthlyIncomeDelta = draft.customDirection === "positive" ? Math.abs(recurringAmount) : -Math.abs(recurringAmount);
+        } else {
+          draft.monthlyExpenseDelta = draft.customDirection === "positive" ? -Math.abs(recurringAmount) : Math.abs(recurringAmount);
+        }
+      }
+      break;
     default:
       if (firstAmount) draft.oneTimeCost = firstAmount;
       if (recurringAmount) draft.monthlyExpenseDelta = recurringAmount;
@@ -578,6 +638,69 @@ function buildFollowUp(draft, starter, prompt, profile) {
         { label: "Income shock", patch: { type: "jobLoss", durationMonths: 3 } }
       ]
     };
+  }
+
+  if (draft.type === "custom") {
+    if (draft.customFocus === "unknown") {
+      return {
+        prompt: "What kind of financial change is this closest to?",
+        choices: [
+          { label: "One-time cash hit", patch: { customFocus: "oneTime", oneTimeCost: moneyCandidates[0]?.value || 3000 } },
+          { label: "Monthly cash change", patch: { customFocus: "expense", monthlyExpenseDelta: recurringAmount || 400 } },
+          { label: "Income or savings change", patch: { customFocus: "income", monthlyIncomeDelta: -1200 } }
+        ]
+      };
+    }
+
+    if (draft.customFocus === "oneTime" && !moneyCandidates.length) {
+      return {
+        prompt: "How big should I make the one-time impact?",
+        choices: [
+          { label: "$1k", patch: { oneTimeCost: 1000, userSpecifiedOneTimeCost: true } },
+          { label: "$5k", patch: { oneTimeCost: 5000, userSpecifiedOneTimeCost: true } },
+          { label: "$15k", patch: { oneTimeCost: 15000, userSpecifiedOneTimeCost: true } }
+        ]
+      };
+    }
+
+    if (draft.customFocus === "expense" && !recurringAmount) {
+      return {
+        prompt: "What monthly change should I use?",
+        choices: [
+          { label: "+$200/mo", patch: { monthlyExpenseDelta: 200, userSpecifiedRecurringAmount: true } },
+          { label: "+$600/mo", patch: { monthlyExpenseDelta: 600, userSpecifiedRecurringAmount: true } },
+          { label: "+$1,500/mo", patch: { monthlyExpenseDelta: 1500, userSpecifiedRecurringAmount: true } }
+        ]
+      };
+    }
+
+    if (draft.customFocus === "income" && !draft.userSpecifiedRecurringAmount && !draft.userSpecifiedPercent) {
+      return {
+        prompt: draft.customDirection === "positive" ? "How much monthly upside should I use?" : "How much monthly income loss should I use?",
+        choices: draft.customDirection === "positive"
+          ? [
+              { label: "+$500/mo", patch: { monthlyIncomeDelta: 500, userSpecifiedRecurringAmount: true } },
+              { label: "+$1,500/mo", patch: { monthlyIncomeDelta: 1500, userSpecifiedRecurringAmount: true } },
+              { label: "+$3,000/mo", patch: { monthlyIncomeDelta: 3000, userSpecifiedRecurringAmount: true } }
+            ]
+          : [
+              { label: "-$500/mo", patch: { monthlyIncomeDelta: -500, userSpecifiedRecurringAmount: true } },
+              { label: "-$1,500/mo", patch: { monthlyIncomeDelta: -1500, userSpecifiedRecurringAmount: true } },
+              { label: "-$3,000/mo", patch: { monthlyIncomeDelta: -3000, userSpecifiedRecurringAmount: true } }
+            ]
+      };
+    }
+
+    if (draft.customFocus === "invest" && !recurringAmount && !moneyCandidates.length) {
+      return {
+        prompt: "What monthly save-or-invest amount should I model?",
+        choices: [
+          { label: "$250/mo", patch: { monthlyInvestingDelta: 250, userSpecifiedRecurringAmount: true } },
+          { label: "$750/mo", patch: { monthlyInvestingDelta: 750, userSpecifiedRecurringAmount: true } },
+          { label: "$1,500/mo", patch: { monthlyInvestingDelta: 1500, userSpecifiedRecurringAmount: true } }
+        ]
+      };
+    }
   }
 
   if (draft.type === "jobLoss" && !parsedMonths) {
@@ -690,6 +813,8 @@ function buildScenarioTitle(draft) {
       return `Reduce income by ${formatCurrency(Math.abs(draft.monthlyIncomeDelta))} per month`;
     case "emergency":
       return `Absorb a ${formatCurrency(draft.oneTimeCost)} cash shock`;
+    case "custom":
+      return draft.prompt ? titleCase(draft.prompt) : "Model a custom financial decision";
     default:
       return draft.prompt ? titleCase(draft.prompt) : "Custom decision";
   }
@@ -724,6 +849,14 @@ function buildScenarioAssumptions(draft, metrics) {
 
   if (draft.type === "incomeReduction") {
     assumptions.push(`Models a paycheck drop of ${formatCurrency(Math.abs(draft.monthlyIncomeDelta))} per month.`);
+  }
+
+  if (draft.type === "custom") {
+    assumptions.push("Uses a flexible custom scenario path so PAM can respond even when the decision does not match a preset.");
+    if (draft.oneTimeCost) assumptions.push(`Applies a one-time balance change of ${formatCurrency(draft.oneTimeCost)}.`);
+    if (draft.monthlyExpenseDelta) assumptions.push(`Applies a monthly expense change of ${formatCurrency(draft.monthlyExpenseDelta)}.`);
+    if (draft.monthlyIncomeDelta) assumptions.push(`Applies a monthly income change of ${formatCurrency(draft.monthlyIncomeDelta)}.`);
+    if (draft.monthlyInvestingDelta) assumptions.push(`Applies a monthly save-or-invest change of ${formatCurrency(draft.monthlyInvestingDelta)}.`);
   }
 
   assumptions.push(`Baseline monthly flex cash starts at ${formatCurrency(metrics.monthlyFreeCash)}.`);
@@ -791,6 +924,14 @@ function getFieldSchema(draft, profile) {
       ];
     case "emergency":
       return [field("oneTimeCost", "One-time cash hit", draft.oneTimeCost, 100, 0, "Emergency bill or discretionary spend.")];
+    case "custom":
+      return [
+        field("oneTimeCost", "One-time balance change", draft.oneTimeCost, 100, -50000, "Use negative for extra cash in, positive for cash out."),
+        field("monthlyExpenseDelta", "Monthly expense change", draft.monthlyExpenseDelta, 50, -10000, "Negative lowers expenses, positive raises them."),
+        field("monthlyIncomeDelta", "Monthly income change", draft.monthlyIncomeDelta, 50, -10000, "Negative lowers income, positive raises it."),
+        field("monthlyInvestingDelta", "Monthly saving or investing", draft.monthlyInvestingDelta, 50, -10000, "Positive adds saving, negative pauses it."),
+        field("durationMonths", "Modeled months", draft.durationMonths, 1, 1, "How long the change should last.")
+      ];
     default:
       return [
         field("oneTimeCost", "One-time cost", draft.oneTimeCost, 100, 0),
@@ -1137,7 +1278,8 @@ function buildAssistantMessage(draft, result, followUp) {
       move: "I started with a housing move and left one question to size the rent jump.",
       invest: "I started with a monthly investing plan and left one question to set the contribution.",
       incomeReduction: "I started with an income drop and left one question to size the cut.",
-      emergency: "I treated this like a cash shock first and left one question to refine the shape."
+      emergency: "I treated this like a cash shock first and left one question to refine the shape.",
+      custom: "I translated this into a custom money scenario and left one question so the model stays flexible instead of forcing a bad preset."
     };
 
     return {
@@ -1159,13 +1301,23 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
   const starter =
     starterId === "compound-shock"
       ? buildCompoundStarter(metrics)
+      : starterId === "custom-decision"
+        ? buildCustomStarter()
       : starterId
         ? findStarter(catalog, starterId)
         : null;
 
   let sessionDraft = draft
     ? cloneValue(draft)
-    : buildDraftFromStarter(starter || findStarter(catalog, detectScenarioId(prompt, catalog)) || buildCompoundStarter(metrics), profile, prompt);
+    : buildDraftFromStarter(
+        starter ||
+          (detectScenarioId(prompt, catalog) === "custom-decision"
+            ? buildCustomStarter()
+            : findStarter(catalog, detectScenarioId(prompt, catalog))) ||
+          buildCompoundStarter(metrics),
+        profile,
+        prompt
+      );
 
   if (prompt) {
     hydrateDraftFromPrompt(sessionDraft, prompt, profile);
@@ -1196,6 +1348,8 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
           ? "PAM detected a combined shock and modeled both pieces together before asking which one to tighten first."
           : detectedIntents.length > 1
             ? `PAM detected multiple moving pieces (${detectedIntents.join(", ")}) and chose the closest first-pass model before narrowing with a follow-up.`
+            : sessionDraft.type === "custom"
+              ? "PAM did not force this into a narrow preset. It opened a flexible custom scenario and is using follow-ups to learn the shape."
           : `PAM treated this as a ${sessionDraft.type} scenario and translated it into cash flow, timeline, and goal effects.`
     }
   };
