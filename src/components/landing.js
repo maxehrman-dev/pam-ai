@@ -56,15 +56,15 @@ function renderDemoSnapshot(metrics, session) {
 function renderAccountCard(accountState, profileSource, trustState) {
   return `
     <article class="surface-panel hero-account-panel">
-      <div class="card-heading">
-        <div>
-          <p class="eyebrow">Account layer</p>
-          <h3>${accountState.isCreated ? "Profile ready for personalization" : "Create an account to save your model"}</h3>
+        <div class="card-heading">
+          <div>
+            <p class="eyebrow">Account layer</p>
+            <h3>${accountState.isCreated ? "Profile linked and ready" : "Finish onboarding after linking a financial institution"}</h3>
+          </div>
         </div>
-      </div>
-      <p class="hero-subtitle compact">
-        PAM should feel secure, personal, and immediately usable. Start with the simulator, then save the profile behind it.
-      </p>
+        <p class="hero-subtitle compact">
+        PAM should feel secure, personal, and immediately useful. Start with the simulator, then complete onboarding once Plaid has linked the financial profile.
+        </p>
       <div class="hero-proof-grid">
         <div class="hero-proof-card surface-card">
           <span>Profile source</span>
@@ -82,8 +82,8 @@ function renderAccountCard(accountState, profileSource, trustState) {
           <small>${escapeHtml(accountState.plaidInstitution)}</small>
         </div>
       </div>
-      <div class="hero-cta-row">
-        <button class="button button-primary" type="button" data-open-tab="account">Create account</button>
+        <div class="hero-cta-row">
+        <button class="button button-primary" type="button" data-open-tab="account">Complete onboarding</button>
         <button class="button button-secondary" type="button" data-open-tab="trust">Review security</button>
       </div>
     </article>
@@ -151,7 +151,7 @@ export function renderLanding({ metrics, session, goals, landingExamples, accoun
         </p>
         <div class="hero-cta-row">
           <a class="button button-primary" href="#workspace">Try the live simulator</a>
-          <button class="button button-secondary" type="button" data-open-tab="account">Create account</button>
+          <button class="button button-secondary" type="button" data-open-tab="account">Complete onboarding</button>
         </div>
         <div class="hero-proof-grid">
           <div class="hero-proof-card surface-card">

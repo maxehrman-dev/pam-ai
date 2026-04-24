@@ -25,6 +25,7 @@ import {
 } from "./services/scenarioClient.js";
 import {
   connectPlaidSandbox,
+  connectPlaidSnapshot,
   createAccountProfile,
   disconnectPlaidSnapshot,
   loadAccountState,
@@ -37,6 +38,7 @@ import {
   saveProfileBundle,
   saveTrustState
 } from "./services/profileStore.js";
+import { launchPlaidLink } from "./services/plaidClient.js";
 
 const app = document.querySelector("#app");
 
@@ -176,7 +178,7 @@ function renderProfileRail(metrics) {
       <div class="profile-system-grid">
         <div class="profile-system-card">
           <span>Account</span>
-          <strong>${account?.isCreated ? "Created" : "Demo mode"}</strong>
+          <strong>${account?.isCreated ? "Onboarded" : "Awaiting link"}</strong>
           <p>${escapeHtml(account?.email || "Account setup pending")}</p>
         </div>
         <div class="profile-system-card">
@@ -292,7 +294,7 @@ function render() {
           <a href="#workspace" data-open-tab="trust">Security</a>
         </nav>
         <div class="header-actions">
-          <button class="button button-secondary header-button" type="button" data-open-tab="account">Create account</button>
+          <button class="button button-secondary header-button" type="button" data-open-tab="account">Complete onboarding</button>
           <a class="button button-primary header-button" href="#workspace">Open simulator</a>
         </div>
       </header>
@@ -552,18 +554,42 @@ function handleClick(event) {
     const action = plaidActionButton.dataset.plaidAction;
 
     if (action === "connect" || action === "refresh") {
-      const syncedProfile = connectPlaidSandbox(getActiveProfile());
-      updateProfileBundle(syncedProfile);
       updateAccountState((draft) => {
-        draft.plaidLinked = true;
-        draft.plaidInstitution = "Plaid Sandbox Bank";
-        draft.plaidConnectionStage = action === "refresh" ? "Snapshot refreshed" : "Sandbox linked";
-        draft.plaidAccountsSynced = syncedProfile.profile.assets.length;
-        draft.plaidLastSyncAt = new Date().toISOString();
-        draft.profileCompletion = 96;
-        draft.onboardingStep = "Profile connected";
+        draft.plaidConnectionStage = action === "refresh" ? "Refreshing linked accounts" : "Creating Plaid link token";
+        draft.plaidError = "";
         return draft;
       });
+      render();
+
+      launchPlaidLink({
+        name: getActiveProfile().user.name,
+        email: getAccountState().email
+      })
+        .then((linked) => {
+          const syncedProfile = connectPlaidSnapshot(getActiveProfile(), linked.snapshot, linked.institutionName);
+          updateProfileBundle(syncedProfile);
+          updateAccountState((draft) => {
+            draft.plaidLinked = true;
+            draft.plaidInstitution = linked.institutionName || "Linked institution";
+            draft.plaidConnectionStage = action === "refresh" ? "Snapshot refreshed" : "Linked with Plaid";
+            draft.plaidAccountsSynced = linked.snapshot?.accounts?.length || syncedProfile.profile.assets.length;
+            draft.plaidLastSyncAt = new Date().toISOString();
+            draft.plaidError = "";
+            draft.profileCompletion = 96;
+            draft.onboardingStep = draft.isCreated ? "Profile connected" : "Complete onboarding";
+            return draft;
+          });
+          void resolveDraft(state.session.draft, "account");
+        })
+        .catch((error) => {
+          updateAccountState((draft) => {
+            draft.plaidError = error.message || "Unable to complete the Plaid connection.";
+            draft.plaidConnectionStage = "Plaid link not completed";
+            return draft;
+          });
+          render();
+        });
+      return;
     }
 
     if (action === "disconnect") {
@@ -574,8 +600,9 @@ function handleClick(event) {
         draft.plaidConnectionStage = draft.isCreated ? "Link token ready" : "Link token not created";
         draft.plaidAccountsSynced = 0;
         draft.plaidLastSyncAt = null;
+        draft.plaidError = "";
         draft.profileCompletion = Math.min(draft.profileCompletion, 84);
-        draft.onboardingStep = "Connect accounts when ready";
+        draft.onboardingStep = draft.isCreated ? "Link Plaid again to refresh data" : "Connect Plaid to begin onboarding";
         return draft;
       });
     }
@@ -638,6 +665,15 @@ function handleSubmit(event) {
 
   if (event.target.matches("[data-account-form]")) {
     event.preventDefault();
+    if (!getAccountState().plaidLinked) {
+      updateAccountState((draft) => {
+        draft.plaidError = "Link a financial institution with Plaid before completing onboarding.";
+        draft.onboardingStep = "Plaid connection required";
+        return draft;
+      });
+      render();
+      return;
+    }
     const formData = new FormData(event.target);
     const now = new Date().toISOString();
     const accountDraft = {
@@ -657,9 +693,10 @@ function handleSubmit(event) {
       draft.email = accountDraft.email || draft.email;
       draft.createdAt = draft.createdAt || now;
       draft.lastLoginAt = now;
+      draft.plaidError = "";
       draft.profileCompletion = Math.max(draft.profileCompletion, 84);
       draft.plaidConnectionStage = draft.plaidLinked ? draft.plaidConnectionStage : "Link token ready";
-      draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Customize your profile";
+      draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Plaid connection required";
       return draft;
     });
 

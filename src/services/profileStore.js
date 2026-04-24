@@ -37,8 +37,9 @@ const DEFAULT_ACCOUNT_STATE = {
   plaidConnectionStage: "Link token not created",
   plaidAccountsSynced: 0,
   plaidLastSyncAt: null,
+  plaidError: "",
   profileCompletion: 72,
-  onboardingStep: "Create your account"
+  onboardingStep: "Connect a financial institution to begin onboarding"
 };
 
 function cloneValue(value) {
@@ -73,8 +74,8 @@ function buildDefaultSource() {
     kind: "mock",
     label: "Guided demo profile",
     status: "Demo mode",
-    detail: "Using a seeded financial profile so the homepage simulator works immediately. Users can personalize this profile or switch to a Plaid-backed snapshot without rewriting the scenario engine.",
-    nextStep: "Create an account, personalize the baseline, then replace demo balances with a tokenized Plaid snapshot."
+    detail: "Using a seeded financial profile so the simulator works immediately. Production onboarding should replace this baseline with a scoped Plaid snapshot.",
+    nextStep: "Connect Plaid, import the normalized snapshot, then complete account setup."
   };
 }
 
@@ -315,6 +316,20 @@ export function connectPlaidSandbox(profile) {
       status: "Connected",
       detail: "Sandbox balances and liabilities are now feeding the normalized PAM profile so the simulator can behave like a connected account experience.",
       nextStep: "Replace the sandbox link flow with a server-created link token, public-token exchange, and scheduled snapshot refresh."
+    }
+  });
+}
+
+export function connectPlaidSnapshot(profile, snapshot, institutionName = "Linked institution") {
+  return saveProfileBundle({
+    profile: applyPlaidSnapshotToProfile(profile, snapshot),
+    snapshot,
+    source: {
+      kind: "plaid",
+      label: `${institutionName} via Plaid`,
+      status: "Connected",
+      detail: "Linked account balances are now flowing into PAM as a normalized financial snapshot for scenario modeling.",
+      nextStep: "Refresh the linked snapshot periodically and keep user identity separate from bank authentication."
     }
   });
 }

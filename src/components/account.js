@@ -21,6 +21,7 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
   const createdLabel = accountState.createdAt ? formatDateLabel(accountState.createdAt) : "Not created yet";
   const lastSyncLabel = accountState.plaidLastSyncAt ? formatDateLabel(accountState.plaidLastSyncAt) : "Not synced yet";
   const securityStatus = trustState.security.twoFactorEnabled ? trustState.security.twoFactorMethod : "2FA off";
+  const requiresPlaid = !accountState.plaidLinked;
   const plaidSteps = [
     {
       title: "Create server link token",
@@ -49,15 +50,15 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
       <div class="panel-heading">
         <div>
           <p class="eyebrow">Account & profile</p>
-          <h2>Set up the account layer behind the simulator</h2>
+          <h2>Connect financial data before you finish onboarding</h2>
         </div>
-        <p>Create an account, personalize the baseline, and decide when to replace demo data with a connected snapshot.</p>
+        <p>PAM can preview decisions with seeded data, but account creation should only complete after a Plaid connection is linked and normalized.</p>
       </div>
 
       <div class="account-overview-grid">
         <article class="metric-card surface-card">
           <span>Account status</span>
-          <strong>${accountState.isCreated ? "Created" : "Demo mode"}</strong>
+          <strong>${accountState.isCreated ? "Onboarded" : "Awaiting Plaid link"}</strong>
           <small>${escapeHtml(accountState.onboardingStep)}</small>
         </article>
         <article class="metric-card surface-card">
@@ -72,7 +73,7 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
         </article>
         <article class="metric-card surface-card">
           <span>Plaid</span>
-          <strong>${accountState.plaidLinked ? "Linked" : "Ready"}</strong>
+          <strong>${accountState.plaidLinked ? "Linked" : "Required"}</strong>
           <small>${escapeHtml(accountState.plaidConnectionStage)}</small>
         </article>
       </div>
@@ -82,33 +83,28 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
       <article class="surface-panel">
         <div class="card-heading">
           <div>
-            <p class="eyebrow">Create account</p>
-            <h3>${accountState.isCreated ? "Account details" : "Turn the demo into a real profile"}</h3>
+            <p class="eyebrow">Account onboarding</p>
+            <h3>${accountState.isCreated ? "Profile details" : "Finish onboarding after Plaid is linked"}</h3>
           </div>
           <span class="pill">${escapeHtml(accountState.plan)}</span>
         </div>
         <p class="goal-builder-copy">
           ${accountState.isCreated
-            ? "Your account exists locally in this MVP. You can keep refining the profile and security posture before full production auth is added."
-            : "This creates the account shell the web version will need for saved scenarios, linked profiles, and user-specific goals."}
+            ? "Your profile is linked and ready for refinement. You can continue adjusting the profile and security posture from here."
+            : "Plaid should be the required financial-link step before PAM saves a personal profile, scenario history, and goal stack."}
         </p>
         <form class="goal-form" data-account-form>
           <label class="builder-field">
             <span>Full name</span>
-            <input type="text" name="name" value="${escapeHtml(profile.user.name)}" placeholder="Taylor Morgan" required />
+            <input type="text" name="name" value="${escapeHtml(profile.user.name)}" placeholder="Taylor Morgan" required ${requiresPlaid ? "disabled" : ""} />
           </label>
           <label class="builder-field">
             <span>Email</span>
-            <input type="email" name="email" value="${escapeHtml(accountState.email)}" placeholder="you@pamai.app" required />
+            <input type="email" name="email" value="${escapeHtml(accountState.email)}" placeholder="you@pamai.app" required ${requiresPlaid ? "disabled" : ""} />
           </label>
           <label class="builder-field">
             <span>City</span>
-            <input type="text" name="city" value="${escapeHtml(profile.user.city)}" placeholder="Austin, TX" />
-          </label>
-          <label class="builder-field">
-            <span>Password placeholder</span>
-            <input type="password" name="password" value="demo-password" />
-            <small>Visual scaffolding for production auth. Credentials are not persisted in this MVP.</small>
+            <input type="text" name="city" value="${escapeHtml(profile.user.city)}" placeholder="Austin, TX" ${requiresPlaid ? "disabled" : ""} />
           </label>
           <label class="builder-field builder-field-full">
             <span>Primary goal</span>
@@ -117,10 +113,15 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
               name="objective"
               value="${escapeHtml(profile.user.objective)}"
               placeholder="Keep enough optionality to move, invest, and absorb shocks."
+              ${requiresPlaid ? "disabled" : ""}
             />
           </label>
+          <div class="trust-policy-preview">
+            <h3>Onboarding rule</h3>
+            <p>${requiresPlaid ? "Link Plaid first to finish account creation." : "Plaid is linked. You can now save the profile."}</p>
+          </div>
           <div class="button-row">
-            <button class="button button-primary" type="submit">${accountState.isCreated ? "Save account" : "Create account"}</button>
+            <button class="button button-primary" type="submit" ${requiresPlaid ? "disabled" : ""}>${accountState.isCreated ? "Save profile" : "Complete onboarding"}</button>
           </div>
         </form>
         <div class="account-meta-note">
@@ -173,12 +174,13 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
       <article class="surface-panel">
         <div class="card-heading">
           <div>
-            <p class="eyebrow">Plaid path</p>
-            <h3>${accountState.plaidLinked ? "Sandbox linked and synced" : "Make account linking feel real"}</h3>
+            <p class="eyebrow">Plaid connection</p>
+            <h3>${accountState.plaidLinked ? "Linked and synced" : "Link a financial institution"}</h3>
           </div>
           <span class="trust-status-pill">${escapeHtml(profileSource.status)}</span>
         </div>
         <p class="trust-lead">${escapeHtml(profileSource.detail)}</p>
+        ${accountState.plaidError ? `<p class="scenario-summary subtle">${escapeHtml(accountState.plaidError)}</p>` : ""}
         <div class="account-overview-grid plaid-sync-grid">
           <article class="metric-card surface-card">
             <span>Institution</span>
@@ -221,7 +223,7 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
         </div>
         <div class="button-row">
           <button class="button button-primary" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}">
-            ${accountState.plaidLinked ? "Refresh sandbox snapshot" : "Connect Plaid sandbox"}
+            ${accountState.plaidLinked ? "Refresh linked accounts" : "Link with Plaid"}
           </button>
           ${
             accountState.plaidLinked

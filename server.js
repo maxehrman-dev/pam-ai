@@ -51,6 +51,48 @@ function sendFile(res, filePath) {
   }
 }
 
+function parseRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      if (!chunks.length) {
+        resolve({});
+        return;
+      }
+
+      try {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+async function invokeApiHandler(req, res, pathname, requestUrl) {
+  const apiFile = path.join(APP_DIR, `${pathname}.js`);
+  if (!apiFile.startsWith(APP_DIR) || !fs.existsSync(apiFile)) {
+    sendJson(res, 404, { error: "Not found" });
+    return true;
+  }
+
+  try {
+    req.body = await parseRequestBody(req);
+  } catch (_error) {
+    sendJson(res, 400, { error: "Invalid JSON body" });
+    return true;
+  }
+
+  req.query = Object.fromEntries(requestUrl.searchParams.entries());
+  delete require.cache[require.resolve(apiFile)];
+  const handler = require(apiFile);
+  await handler(req, res);
+  return true;
+}
+
 function safeStaticPath(requestPath) {
   const cleanPath = decodeURIComponent(requestPath.split("?")[0]);
   const normalized = path.normalize(cleanPath).replace(/^([.][.][/\\])+/, "");
@@ -72,6 +114,10 @@ const server = http.createServer((req, res) => {
         app: "PAM AI",
         message: "Local server is healthy"
       });
+    }
+
+    if (pathname.startsWith("/api/")) {
+      return invokeApiHandler(req, res, pathname, requestUrl);
     }
 
     if (req.method === "GET") {
