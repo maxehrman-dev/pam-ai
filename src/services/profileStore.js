@@ -29,11 +29,14 @@ const DEFAULT_TRUST_STATE = {
 const DEFAULT_ACCOUNT_STATE = {
   isCreated: false,
   plan: "Founding",
-  email: "avery@pamai.app",
+  email: "demo@pamai.app",
   createdAt: null,
   lastLoginAt: "2026-04-21T09:00:00.000Z",
   plaidLinked: false,
   plaidInstitution: "Not connected",
+  plaidConnectionStage: "Link token not created",
+  plaidAccountsSynced: 0,
+  plaidLastSyncAt: null,
   profileCompletion: 72,
   onboardingStep: "Create your account"
 };
@@ -231,10 +234,16 @@ export function saveTrustState(trustState) {
 
 export async function loadAccountState() {
   const stored = readStorage(ACCOUNT_STORAGE_KEY);
-  return {
+  const nextState = {
     ...DEFAULT_ACCOUNT_STATE,
     ...(stored || {})
   };
+
+  if (nextState.email === "avery@pamai.app") {
+    nextState.email = DEFAULT_ACCOUNT_STATE.email;
+  }
+
+  return nextState;
 }
 
 export function saveAccountState(accountState) {

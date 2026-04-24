@@ -19,7 +19,30 @@ function renderLinkedAccounts(profile) {
 
 export function renderAccount(profile, accountState, profileSource, trustState) {
   const createdLabel = accountState.createdAt ? formatDateLabel(accountState.createdAt) : "Not created yet";
+  const lastSyncLabel = accountState.plaidLastSyncAt ? formatDateLabel(accountState.plaidLastSyncAt) : "Not synced yet";
   const securityStatus = trustState.security.twoFactorEnabled ? trustState.security.twoFactorMethod : "2FA off";
+  const plaidSteps = [
+    {
+      title: "Create server link token",
+      detail: "Short-lived token generated for the signed-in user.",
+      complete: accountState.isCreated
+    },
+    {
+      title: "Launch Plaid Link",
+      detail: "User authenticates with Plaid instead of giving PAM raw credentials.",
+      complete: accountState.plaidLinked
+    },
+    {
+      title: "Exchange public token",
+      detail: "Backend stores access token and item id outside the client.",
+      complete: accountState.plaidLinked
+    },
+    {
+      title: "Normalize snapshot into PAM",
+      detail: "Balances and liabilities become scenario-ready profile data.",
+      complete: accountState.plaidLinked && profileSource.kind === "plaid"
+    }
+  ];
 
   return `
     <section class="panel-section">
@@ -50,7 +73,7 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
         <article class="metric-card surface-card">
           <span>Plaid</span>
           <strong>${accountState.plaidLinked ? "Linked" : "Ready"}</strong>
-          <small>${escapeHtml(accountState.plaidInstitution)}</small>
+          <small>${escapeHtml(accountState.plaidConnectionStage)}</small>
         </article>
       </div>
     </section>
@@ -151,11 +174,51 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
         <div class="card-heading">
           <div>
             <p class="eyebrow">Plaid path</p>
-            <h3>${accountState.plaidLinked ? "Sandbox linked" : "Connect Plaid sandbox"}</h3>
+            <h3>${accountState.plaidLinked ? "Sandbox linked and synced" : "Make account linking feel real"}</h3>
           </div>
           <span class="trust-status-pill">${escapeHtml(profileSource.status)}</span>
         </div>
         <p class="trust-lead">${escapeHtml(profileSource.detail)}</p>
+        <div class="account-overview-grid plaid-sync-grid">
+          <article class="metric-card surface-card">
+            <span>Institution</span>
+            <strong>${escapeHtml(accountState.plaidInstitution)}</strong>
+            <small>${accountState.plaidLinked ? "Connected through Plaid Link flow" : "Waiting for first Link session"}</small>
+          </article>
+          <article class="metric-card surface-card">
+            <span>Accounts synced</span>
+            <strong>${accountState.plaidAccountsSynced}</strong>
+            <small>Snapshot imported into the PAM profile layer</small>
+          </article>
+          <article class="metric-card surface-card">
+            <span>Last sync</span>
+            <strong>${escapeHtml(lastSyncLabel)}</strong>
+            <small>${escapeHtml(accountState.plaidConnectionStage)}</small>
+          </article>
+        </div>
+        <div class="plaid-journey-card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">Quickstart path</p>
+              <h3>What the real production flow will do</h3>
+            </div>
+          </div>
+          <div class="plaid-step-list">
+            ${plaidSteps
+              .map(
+                (step, index) => `
+                  <div class="plaid-step-row ${step.complete ? "complete" : ""}">
+                    <span>${String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <strong>${escapeHtml(step.title)}</strong>
+                      <p>${escapeHtml(step.detail)}</p>
+                    </div>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
         <div class="button-row">
           <button class="button button-primary" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}">
             ${accountState.plaidLinked ? "Refresh sandbox snapshot" : "Connect Plaid sandbox"}
@@ -171,7 +234,7 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
           <ul>
             <li>Linked accounts should personalize the simulator without turning PAM into a budgeting ledger.</li>
             <li>The simulator keeps using normalized balances and monthly cash flow, not raw bank credentials.</li>
-            <li>This creates the path for account-backed profiles, saved goals, and cleaner onboarding.</li>
+            <li>This creates the path for account-backed profiles, saved goals, cleaner onboarding, and faster re-modeling.</li>
           </ul>
         </div>
       </article>

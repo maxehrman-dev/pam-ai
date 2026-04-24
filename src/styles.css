@@ -1885,6 +1885,10 @@ select:focus {
   gap: 12px;
 }
 
+.plaid-sync-grid {
+  margin-top: 18px;
+}
+
 .linked-account-row {
   display: flex;
   align-items: center;
@@ -1905,6 +1909,14 @@ select:focus {
   margin-top: 18px;
 }
 
+.plaid-journey-card {
+  margin-top: 22px;
+  padding: 20px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(216, 243, 229, 0.34), rgba(255, 255, 255, 0.92));
+  border: 1px solid rgba(30, 138, 102, 0.12);
+}
+
 .plaid-step-row {
   align-items: flex-start;
   padding: 14px 0;
@@ -1920,6 +1932,14 @@ select:focus {
   min-width: 36px;
   font-weight: 700;
   color: var(--mint-5);
+}
+
+.plaid-step-row.complete strong::after {
+  content: " Complete";
+  color: var(--mint-5);
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-left: 6px;
 }
 
 @media (max-width: 1080px) {

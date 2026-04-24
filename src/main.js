@@ -191,7 +191,13 @@ function renderProfileRail(metrics) {
       </div>
       <div class="profile-source-note">
         <span>Plaid</span>
-        <p>${account?.plaidLinked ? `Connected to ${escapeHtml(account.plaidInstitution)}` : "Not connected yet"}</p>
+        <p>
+          ${
+            account?.plaidLinked
+              ? `Connected to ${escapeHtml(account.plaidInstitution)} • ${account.plaidAccountsSynced} accounts synced`
+              : `Not connected yet • ${escapeHtml(account?.plaidConnectionStage || "Link token not created")}`
+          }
+        </p>
       </div>
       <div class="profile-source-note">
         <span>Plaid integration path</span>
@@ -546,10 +552,14 @@ function handleClick(event) {
     const action = plaidActionButton.dataset.plaidAction;
 
     if (action === "connect" || action === "refresh") {
-      updateProfileBundle(connectPlaidSandbox(getActiveProfile()));
+      const syncedProfile = connectPlaidSandbox(getActiveProfile());
+      updateProfileBundle(syncedProfile);
       updateAccountState((draft) => {
         draft.plaidLinked = true;
         draft.plaidInstitution = "Plaid Sandbox Bank";
+        draft.plaidConnectionStage = action === "refresh" ? "Snapshot refreshed" : "Sandbox linked";
+        draft.plaidAccountsSynced = syncedProfile.profile.assets.length;
+        draft.plaidLastSyncAt = new Date().toISOString();
         draft.profileCompletion = 96;
         draft.onboardingStep = "Profile connected";
         return draft;
@@ -561,6 +571,9 @@ function handleClick(event) {
       updateAccountState((draft) => {
         draft.plaidLinked = false;
         draft.plaidInstitution = "Not connected";
+        draft.plaidConnectionStage = draft.isCreated ? "Link token ready" : "Link token not created";
+        draft.plaidAccountsSynced = 0;
+        draft.plaidLastSyncAt = null;
         draft.profileCompletion = Math.min(draft.profileCompletion, 84);
         draft.onboardingStep = "Connect accounts when ready";
         return draft;
@@ -645,6 +658,7 @@ function handleSubmit(event) {
       draft.createdAt = draft.createdAt || now;
       draft.lastLoginAt = now;
       draft.profileCompletion = Math.max(draft.profileCompletion, 84);
+      draft.plaidConnectionStage = draft.plaidLinked ? draft.plaidConnectionStage : "Link token ready";
       draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Customize your profile";
       return draft;
     });
