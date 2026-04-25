@@ -99,6 +99,22 @@ function normalizeAccountState(accountState) {
     nextState.email = DEFAULT_ACCOUNT_STATE.email;
   }
 
+  if (nextState.plaidLinked) {
+    if (/not created/i.test(String(nextState.plaidConnectionStage || ""))) {
+      nextState.plaidConnectionStage = "Linked with Plaid";
+    }
+
+    if (!nextState.plaidAccountsSynced) {
+      nextState.plaidAccountsSynced = plaidSandboxSnapshot.accounts.length;
+    }
+
+    nextState.plaidInstitution =
+      nextState.plaidInstitution === DEFAULT_ACCOUNT_STATE.plaidInstitution
+        ? "Plaid Sandbox Bank"
+        : nextState.plaidInstitution;
+    nextState.plaidLastSyncAt = nextState.plaidLastSyncAt || nextState.lastLoginAt || new Date().toISOString();
+  }
+
   return nextState;
 }
 
