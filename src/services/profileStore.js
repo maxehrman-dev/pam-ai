@@ -79,6 +79,16 @@ function buildDefaultSource() {
   };
 }
 
+function normalizeDemoIdentity(profile) {
+  const nextProfile = cloneValue(profile);
+
+  if (nextProfile.user?.name === "Avery Chen") {
+    nextProfile.user.name = financialProfile.user.name;
+  }
+
+  return nextProfile;
+}
+
 function isLiquidAccount(account) {
   return ["checking", "savings", "cash management", "money market", "depository"].includes(
     String(account.subtype || account.type || "").toLowerCase()
@@ -111,7 +121,7 @@ function mapPlaidLiabilityToEntry(liability) {
 }
 
 export function applyPlaidSnapshotToProfile(baseProfile, snapshot = {}) {
-  const profile = cloneValue(baseProfile);
+  const profile = normalizeDemoIdentity(baseProfile);
 
   if (Array.isArray(snapshot.accounts) && snapshot.accounts.length > 0) {
     profile.assets = snapshot.accounts.map(mapPlaidAccountToAsset);
@@ -145,7 +155,7 @@ export async function loadProfileBundle() {
 
   if (stored?.profile) {
     return {
-      profile: cloneValue(stored.profile),
+      profile: normalizeDemoIdentity(stored.profile),
       source: {
         ...buildDefaultSource(),
         ...(stored?.source || {}),
@@ -170,7 +180,7 @@ export async function loadProfileBundle() {
   }
 
   return {
-    profile: cloneValue(financialProfile),
+    profile: normalizeDemoIdentity(financialProfile),
     source: buildDefaultSource(),
     snapshot: null
   };
@@ -178,7 +188,7 @@ export async function loadProfileBundle() {
 
 export function saveProfileBundle(bundle) {
   const nextBundle = {
-    profile: cloneValue(bundle.profile),
+    profile: normalizeDemoIdentity(bundle.profile),
     source: {
       ...buildDefaultSource(),
       ...(bundle.source || {})

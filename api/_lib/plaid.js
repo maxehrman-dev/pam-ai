@@ -126,7 +126,8 @@ exports.createLinkToken = async ({ clientUserId, legalName, emailAddress }) => {
       legal_name: legalName || undefined,
       email_address: emailAddress || undefined
     },
-    products: ["transactions", "liabilities"],
+    products: ["transactions"],
+    optional_products: ["liabilities"],
     redirect_uri: process.env.PLAID_REDIRECT_URI || undefined
   });
 };

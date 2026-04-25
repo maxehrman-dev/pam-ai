@@ -431,6 +431,77 @@ function buildDraftFromForm(formData) {
   return nextDraft;
 }
 
+function getAccountDraftFromForm(form) {
+  const formData = form ? new FormData(form) : null;
+
+  return {
+    name: String(formData?.get("name") || getActiveProfile().user.name || "Demo User").trim(),
+    email: String(formData?.get("email") || getAccountState().email || "demo@pamai.app").trim(),
+    city: String(formData?.get("city") || getActiveProfile().user.city || "").trim(),
+    objective: String(formData?.get("objective") || getActiveProfile().user.objective || "").trim()
+  };
+}
+
+function saveAccountDraft(accountDraft) {
+  updateProfileBundle({
+    ...state.profileBundle,
+    profile: createAccountProfile(getActiveProfile(), accountDraft)
+  });
+
+  updateAccountState((draft) => {
+    draft.email = accountDraft.email || draft.email;
+    draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Plaid connection required";
+    draft.plaidError = "";
+    return draft;
+  });
+}
+
+async function connectPlaid(action = "connect", accountDraft = getAccountDraftFromForm(), completeAfterLink = false) {
+  updateAccountState((draft) => {
+    draft.plaidConnectionStage = action === "refresh" ? "Refreshing linked accounts" : "Creating Plaid link token";
+    draft.plaidError = "";
+    draft.onboardingStep = completeAfterLink ? "Opening Plaid to create account" : draft.onboardingStep;
+    return draft;
+  });
+  render();
+
+  try {
+    const linked = await launchPlaidLink({
+      name: accountDraft.name || getActiveProfile().user.name,
+      email: accountDraft.email || getAccountState().email
+    });
+    const syncedProfile = connectPlaidSnapshot(getActiveProfile(), linked.snapshot, linked.institutionName);
+    updateProfileBundle(syncedProfile);
+
+    const now = new Date().toISOString();
+    updateAccountState((draft) => {
+      draft.plaidLinked = true;
+      draft.plaidInstitution = linked.institutionName || "Linked institution";
+      draft.plaidConnectionStage = action === "refresh" ? "Snapshot refreshed" : "Linked with Plaid";
+      draft.plaidAccountsSynced = linked.snapshot?.accounts?.length || syncedProfile.profile.assets.length;
+      draft.plaidLastSyncAt = now;
+      draft.plaidError = "";
+      draft.profileCompletion = completeAfterLink ? 100 : 96;
+      draft.isCreated = completeAfterLink ? true : draft.isCreated;
+      draft.createdAt = completeAfterLink ? draft.createdAt || now : draft.createdAt;
+      draft.lastLoginAt = now;
+      draft.email = accountDraft.email || draft.email;
+      draft.onboardingStep = "Profile connected";
+      return draft;
+    });
+
+    await resolveDraft(state.session.draft, "account");
+  } catch (error) {
+    updateAccountState((draft) => {
+      draft.plaidError = error.message || "Unable to complete the Plaid connection.";
+      draft.plaidConnectionStage = "Plaid link not completed";
+      draft.onboardingStep = completeAfterLink ? "Plaid connection required" : draft.onboardingStep;
+      return draft;
+    });
+    render();
+  }
+}
+
 function addGoal(goal) {
   state.goals = saveGoalsState([...state.goals, goal]);
 }
@@ -554,41 +625,9 @@ function handleClick(event) {
     const action = plaidActionButton.dataset.plaidAction;
 
     if (action === "connect" || action === "refresh") {
-      updateAccountState((draft) => {
-        draft.plaidConnectionStage = action === "refresh" ? "Refreshing linked accounts" : "Creating Plaid link token";
-        draft.plaidError = "";
-        return draft;
-      });
-      render();
-
-      launchPlaidLink({
-        name: getActiveProfile().user.name,
-        email: getAccountState().email
-      })
-        .then((linked) => {
-          const syncedProfile = connectPlaidSnapshot(getActiveProfile(), linked.snapshot, linked.institutionName);
-          updateProfileBundle(syncedProfile);
-          updateAccountState((draft) => {
-            draft.plaidLinked = true;
-            draft.plaidInstitution = linked.institutionName || "Linked institution";
-            draft.plaidConnectionStage = action === "refresh" ? "Snapshot refreshed" : "Linked with Plaid";
-            draft.plaidAccountsSynced = linked.snapshot?.accounts?.length || syncedProfile.profile.assets.length;
-            draft.plaidLastSyncAt = new Date().toISOString();
-            draft.plaidError = "";
-            draft.profileCompletion = 96;
-            draft.onboardingStep = draft.isCreated ? "Profile connected" : "Complete onboarding";
-            return draft;
-          });
-          void resolveDraft(state.session.draft, "account");
-        })
-        .catch((error) => {
-          updateAccountState((draft) => {
-            draft.plaidError = error.message || "Unable to complete the Plaid connection.";
-            draft.plaidConnectionStage = "Plaid link not completed";
-            return draft;
-          });
-          render();
-        });
+      const accountDraft = getAccountDraftFromForm(plaidActionButton.closest("form"));
+      saveAccountDraft(accountDraft);
+      void connectPlaid(action, accountDraft, false);
       return;
     }
 
@@ -665,23 +704,14 @@ function handleSubmit(event) {
 
   if (event.target.matches("[data-account-form]")) {
     event.preventDefault();
+    const accountDraft = getAccountDraftFromForm(event.target);
+
     if (!getAccountState().plaidLinked) {
-      updateAccountState((draft) => {
-        draft.plaidError = "Link a financial institution with Plaid before completing onboarding.";
-        draft.onboardingStep = "Plaid connection required";
-        return draft;
-      });
-      render();
+      saveAccountDraft(accountDraft);
+      void connectPlaid("connect", accountDraft, true);
       return;
     }
-    const formData = new FormData(event.target);
     const now = new Date().toISOString();
-    const accountDraft = {
-      name: String(formData.get("name") || "").trim(),
-      email: String(formData.get("email") || "").trim(),
-      city: String(formData.get("city") || "").trim(),
-      objective: String(formData.get("objective") || "").trim()
-    };
 
     updateProfileBundle({
       ...state.profileBundle,
