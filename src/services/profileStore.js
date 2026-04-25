@@ -89,6 +89,19 @@ function normalizeDemoIdentity(profile) {
   return nextProfile;
 }
 
+function normalizeAccountState(accountState) {
+  const nextState = {
+    ...DEFAULT_ACCOUNT_STATE,
+    ...(accountState || {})
+  };
+
+  if (/avery/i.test(String(nextState.email || ""))) {
+    nextState.email = DEFAULT_ACCOUNT_STATE.email;
+  }
+
+  return nextState;
+}
+
 function isLiquidAccount(account) {
   return ["checking", "savings", "cash management", "money market", "depository"].includes(
     String(account.subtype || account.type || "").toLowerCase()
@@ -245,25 +258,11 @@ export function saveTrustState(trustState) {
 
 export async function loadAccountState() {
   const stored = readStorage(ACCOUNT_STORAGE_KEY);
-  const nextState = {
-    ...DEFAULT_ACCOUNT_STATE,
-    ...(stored || {})
-  };
-
-  if (nextState.email === "avery@pamai.app") {
-    nextState.email = DEFAULT_ACCOUNT_STATE.email;
-  }
-
-  return nextState;
+  return normalizeAccountState(stored);
 }
 
 export function saveAccountState(accountState) {
-  const nextState = {
-    ...DEFAULT_ACCOUNT_STATE,
-    ...(accountState || {})
-  };
-
-  return writeStorage(ACCOUNT_STORAGE_KEY, nextState);
+  return writeStorage(ACCOUNT_STORAGE_KEY, normalizeAccountState(accountState));
 }
 
 export function createAccountProfile(profile, accountDraft) {
