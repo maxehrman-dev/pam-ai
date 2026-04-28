@@ -1989,3 +1989,615 @@ select:focus {
     width: 100%;
   }
 }
+
+/* Compact premium pass */
+:root {
+  --shadow-soft: 0 14px 36px rgba(15, 41, 31, 0.07);
+  --shadow-panel: 0 24px 54px rgba(14, 41, 32, 0.1);
+  --radius-xl: 26px;
+  --radius-lg: 20px;
+  --radius-md: 15px;
+  --max-width: 1180px;
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(121, 201, 164, 0.2), transparent 28%),
+    radial-gradient(circle at 92% 14%, rgba(216, 243, 229, 0.28), transparent 24%),
+    linear-gradient(135deg, rgba(255, 253, 249, 0.94), rgba(241, 235, 222, 0.86) 46%, rgba(232, 244, 236, 0.92));
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  background-image:
+    linear-gradient(rgba(13, 101, 73, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13, 101, 73, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+}
+
+.page-shell {
+  padding: 14px clamp(14px, 2.4vw, 30px) 38px;
+}
+
+.site-header {
+  top: 10px;
+  margin-bottom: 16px;
+  padding: 11px 14px;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.92);
+}
+
+.brand-mark {
+  gap: 10px;
+}
+
+.brand-mark > span {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-size: 0.84rem;
+}
+
+.brand-mark small {
+  font-size: 0.78rem;
+}
+
+.site-nav {
+  gap: 16px;
+  font-size: 0.94rem;
+}
+
+.button {
+  padding: 0.72rem 1.05rem;
+  font-size: 0.94rem;
+}
+
+.header-button {
+  min-width: 104px;
+}
+
+.hero-section {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 22px;
+  align-items: stretch;
+  padding: 18px 0 28px;
+}
+
+.hero-copy {
+  align-self: center;
+}
+
+.hero-copy h1 {
+  max-width: 640px;
+  font-size: clamp(3.05rem, 5.8vw, 5.25rem);
+  line-height: 0.9;
+  margin-bottom: 14px;
+  letter-spacing: -0.055em;
+}
+
+.hero-subtitle {
+  max-width: 560px;
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.hero-cta-row,
+.button-row {
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.hero-proof-grid {
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.hero-stack {
+  gap: 12px;
+}
+
+.surface-panel,
+.surface-card,
+.hero-proof-card,
+.demo-stat-card,
+.demo-aha-card,
+.demo-comparison-strip > div,
+.account-meta-note,
+.profile-tile,
+.health-tile,
+.metric-card,
+.impact-card,
+.profile-system-card,
+.chat-meta-card,
+.scenario-system-card,
+.scenario-builder-note,
+.profile-source-note,
+.trust-stat-card,
+.trust-privacy-card,
+.goal-preview-card,
+.goal-card,
+.goal-impact-card,
+.example-card {
+  border-color: rgba(30, 138, 102, 0.11);
+}
+
+.surface-panel {
+  padding: 16px;
+}
+
+.surface-card,
+.hero-proof-card,
+.demo-stat-card,
+.profile-tile,
+.health-tile,
+.metric-card,
+.impact-card,
+.profile-system-card,
+.chat-meta-card,
+.scenario-system-card,
+.scenario-builder-note,
+.profile-source-note,
+.trust-stat-card,
+.trust-privacy-card,
+.goal-preview-card,
+.goal-card,
+.goal-impact-card,
+.example-card {
+  padding: 14px;
+}
+
+.live-demo-panel,
+.hero-account-panel,
+.decision-builder,
+.decision-results,
+.workspace-main,
+.workspace-panel,
+.panel-section {
+  gap: 12px;
+}
+
+.demo-stat-grid,
+.account-overview-grid,
+.impact-grid,
+.comparison-grid,
+.profile-system-grid,
+.chat-meta-grid,
+.scenario-system-strip,
+.example-metrics,
+.builder-grid,
+.goal-card-grid,
+.goal-preview-grid,
+.trust-overview-grid,
+.trust-privacy-grid,
+.trust-stat-grid {
+  gap: 10px;
+}
+
+.demo-stat-card,
+.demo-comparison-strip > div {
+  border-radius: 15px;
+}
+
+.demo-aha-card,
+.result-aha-banner {
+  padding: 15px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(216, 243, 229, 0.86), rgba(255, 255, 255, 0.88)),
+    radial-gradient(circle at right top, rgba(30, 138, 102, 0.18), transparent 38%);
+}
+
+.demo-aha-card strong {
+  font-size: 1.02rem;
+  line-height: 1.32;
+}
+
+.demo-comparison-strip {
+  gap: 8px;
+}
+
+.hero-proof-card {
+  min-width: 0;
+  border-radius: 16px;
+}
+
+.hero-proof-card span,
+.demo-stat-card span,
+.demo-aha-card span,
+.demo-comparison-strip span,
+.metric-card span,
+.comparison-metric span,
+.profile-tile span,
+.health-tile span,
+.example-metrics span,
+.goal-preview-header span,
+.goal-impact-row span {
+  font-size: 0.78rem;
+  margin-bottom: 0.22rem;
+}
+
+.hero-proof-card strong,
+.demo-stat-card strong,
+.demo-comparison-strip strong,
+.metric-card strong,
+.profile-tile strong,
+.health-tile strong {
+  font-size: 1.02rem;
+  line-height: 1.1;
+}
+
+.section-heading,
+.workspace-heading,
+.panel-heading,
+.card-heading {
+  gap: 14px;
+}
+
+.comparison-section,
+.showcase-section,
+.features-section,
+.how-it-works-section,
+.trust-section,
+.examples-section,
+.workspace-section {
+  padding: 24px 0;
+}
+
+.section-heading {
+  margin-bottom: 14px;
+}
+
+.section-heading h2,
+.workspace-heading h2,
+.panel-heading h2 {
+  font-size: clamp(1.75rem, 3.2vw, 2.55rem);
+  margin: 5px 0 6px;
+  letter-spacing: -0.035em;
+}
+
+.section-heading p,
+.workspace-heading p,
+.panel-heading p {
+  line-height: 1.45;
+}
+
+.showcase-grid {
+  grid-template-columns: 0.92fr 1.08fr;
+  gap: 12px;
+}
+
+.showcase-copy {
+  min-height: 0;
+}
+
+.showcase-copy h3,
+.card-heading h3,
+.assistant-note h3,
+.result-aha-banner h3 {
+  line-height: 1.08;
+}
+
+.showcase-bullets {
+  display: grid;
+  gap: 8px;
+}
+
+.showcase-bullets p {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(216, 243, 229, 0.42);
+}
+
+.goal-preview-grid,
+.examples-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.goal-preview-card h3,
+.example-card h3 {
+  margin: 8px 0 6px;
+  font-size: 1.02rem;
+  line-height: 1.18;
+}
+
+.goal-preview-card p,
+.example-prompt,
+.example-highlight {
+  margin-bottom: 10px;
+  line-height: 1.38;
+}
+
+.workspace-section {
+  scroll-margin-top: 92px;
+}
+
+.workspace-heading {
+  margin-bottom: 14px;
+}
+
+.workspace-layout {
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.profile-rail {
+  top: 88px;
+}
+
+.profile-intro h2 {
+  font-size: 1.28rem;
+  line-height: 1.08;
+}
+
+.profile-intro p {
+  margin: 0;
+  line-height: 1.42;
+}
+
+.profile-tiles {
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.profile-note {
+  padding: 12px;
+  border-radius: 15px;
+  font-size: 0.9rem;
+}
+
+.workspace-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 7px;
+  border-radius: 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.workspace-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-tab {
+  flex: 1 0 auto;
+  min-width: fit-content;
+  padding: 0.64rem 0.86rem;
+  font-size: 0.92rem;
+}
+
+.decision-grid {
+  grid-template-columns: minmax(330px, 0.82fr) minmax(0, 1.18fr);
+  gap: 12px;
+}
+
+.scenario-system-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.scenario-system-card p,
+.profile-system-card p,
+.chat-meta-card p,
+.chat-meta-card small {
+  line-height: 1.38;
+}
+
+textarea {
+  min-height: 88px;
+  padding: 0.82rem 0.92rem;
+  border-radius: 15px;
+}
+
+input,
+select {
+  padding: 0.72rem 0.82rem;
+  border-radius: 13px;
+}
+
+.decision-form,
+.builder-form,
+.assumption-list,
+.signal-list,
+.scenario-deltas,
+.sample-prompt-list,
+.chat-thread,
+.allocation-list,
+.flow-stack {
+  gap: 9px;
+}
+
+.starter-chip-row,
+.followup-choice-row,
+.template-chip-row {
+  gap: 7px;
+}
+
+.starter-chip,
+.template-chip,
+.followup-choice,
+.mockup-chip {
+  padding: 0.55rem 0.78rem;
+  font-size: 0.88rem;
+}
+
+.assistant-note {
+  padding: 14px;
+  border-radius: 18px;
+}
+
+.assistant-note h3,
+.result-aha-banner h3 {
+  margin: 5px 0 7px;
+  font-size: 1.18rem;
+}
+
+.assistant-note p {
+  margin: 0 0 8px;
+  line-height: 1.42;
+}
+
+.followup-card {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.followup-card p {
+  margin: 4px 0 10px;
+}
+
+.builder-field {
+  gap: 5px;
+}
+
+.builder-field span,
+.decision-form label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.builder-field small {
+  font-size: 0.78rem;
+  line-height: 1.28;
+}
+
+.impact-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.impact-card {
+  min-height: 118px;
+}
+
+.impact-card strong {
+  margin: 6px 0 5px;
+  font-size: 1.22rem;
+}
+
+.impact-card p {
+  margin: 0;
+  line-height: 1.34;
+  font-size: 0.88rem;
+}
+
+.comparison-card {
+  gap: 8px;
+}
+
+.comparison-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(30, 138, 102, 0.08);
+}
+
+.comparison-metric:first-of-type {
+  border-top: 0;
+}
+
+.comparison-footer {
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.goal-impact-preview,
+.plaid-step-list,
+.plaid-sync-grid {
+  margin-top: 12px;
+}
+
+.next-step-block,
+.plaid-journey-card,
+.trust-policy-preview,
+.privacy-policy-summary {
+  padding: 14px;
+  border-radius: 17px;
+}
+
+.site-footer {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 22px;
+}
+
+@media (max-width: 1180px) {
+  .impact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
+  .hero-section,
+  .showcase-grid,
+  .workspace-layout,
+  .decision-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-rail {
+    position: relative;
+    top: auto;
+  }
+
+  .profile-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .page-shell {
+    padding: 10px 10px 30px;
+  }
+
+  .site-header {
+    border-radius: 22px;
+  }
+
+  .brand-mark small,
+  .header-actions .button-secondary {
+    display: none;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(2.7rem, 17vw, 3.55rem);
+  }
+
+  .hero-section {
+    padding-top: 10px;
+  }
+
+  .hero-proof-grid,
+  .demo-comparison-strip,
+  .demo-stat-grid,
+  .account-overview-grid,
+  .goal-preview-grid,
+  .examples-grid,
+  .impact-grid,
+  .profile-tiles {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-tabs {
+    justify-content: flex-start;
+  }
+
+  .workspace-tab {
+    flex: 0 0 auto;
+  }
+
+  .section-heading,
+  .workspace-heading,
+  .panel-heading,
+  .card-heading {
+    display: grid;
+  }
+}
