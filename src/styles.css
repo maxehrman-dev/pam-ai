@@ -2529,6 +2529,122 @@ select {
   border-radius: 22px;
 }
 
+.plaid-first-hero {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.plaid-first-hero .hero-copy h1 {
+  max-width: 760px;
+}
+
+.button-plaid::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #d8f3e5;
+  box-shadow: 0 0 0 5px rgba(216, 243, 229, 0.2);
+}
+
+.demo-footnote {
+  max-width: 520px;
+  margin: 14px 0 0;
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.plaid-signin-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(13, 101, 73, 0.2);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(238, 251, 244, 0.72)),
+    radial-gradient(circle at right top, rgba(30, 138, 102, 0.18), transparent 38%);
+}
+
+.plaid-signin-card::after {
+  content: "PLAID SECURE";
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  padding: 0.42rem 0.62rem;
+  border-radius: 999px;
+  background: rgba(13, 101, 73, 0.08);
+  color: var(--mint-5);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.demo-footnote-card {
+  opacity: 0.86;
+}
+
+.plaid-onboarding-panel {
+  border-color: rgba(13, 101, 73, 0.22);
+}
+
+.plaid-login-visual,
+.connected-data-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.plaid-login-visual {
+  margin: 14px 0;
+}
+
+.plaid-login-visual > div {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.plaid-login-visual span {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: rgba(216, 243, 229, 0.8);
+  color: var(--mint-5);
+  font-weight: 800;
+  font-size: 0.78rem;
+}
+
+.plaid-login-visual strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.plaid-login-visual p {
+  grid-column: 2;
+  margin: 0;
+  color: var(--ink-3);
+  line-height: 1.38;
+}
+
+.connected-data-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.connected-data-panel .metric-card {
+  min-height: 118px;
+}
+
+.connected-data-panel small,
+.account-meta-note small {
+  color: var(--ink-2);
+  line-height: 1.35;
+}
+
 @media (max-width: 1180px) {
   .impact-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2579,6 +2695,7 @@ select {
   .demo-comparison-strip,
   .demo-stat-grid,
   .account-overview-grid,
+  .connected-data-grid,
   .goal-preview-grid,
   .examples-grid,
   .impact-grid,

@@ -25,10 +25,8 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
   const hasStartedPlaid = !/not created/i.test(accountState.plaidConnectionStage || "") &&
     /link token|launching|exchanging|syncing|linked|refreshed/i.test(accountState.plaidConnectionStage || "");
   const accountPrimaryCopy = accountState.plaidLinked
-    ? accountState.isCreated
-      ? "Save profile"
-      : "Complete account"
-    : "Create account with Plaid";
+    ? "Refresh Plaid data"
+    : "Sign in with Plaid";
   const plaidSteps = [
     {
       title: "Create server link token",
@@ -57,9 +55,9 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
       <div class="panel-heading">
         <div>
           <p class="eyebrow">Account & profile</p>
-          <h2>Connect financial data before you finish onboarding</h2>
+          <h2>Sign in by connecting Plaid</h2>
         </div>
-        <p>PAM can preview decisions with seeded data, but account creation should only complete after a Plaid connection is linked and normalized.</p>
+        <p>PAM should not depend on users typing fake numbers. The account starts with Plaid, then PAM turns the connected snapshot into decisions, goals, and risk analysis.</p>
       </div>
 
       <div class="account-overview-grid">
@@ -87,97 +85,84 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
     </section>
 
     <section class="panel-section split-panel account-panel-grid">
-      <article class="surface-panel">
+      <article class="surface-panel plaid-onboarding-panel">
         <div class="card-heading">
           <div>
-          <p class="eyebrow">Account onboarding</p>
-            <h3>${accountState.isCreated ? "Profile details" : "Create an account with Plaid"}</h3>
+            <p class="eyebrow">Required first step</p>
+            <h3>${accountState.plaidLinked ? "Connected account profile" : "Create your PAM profile with Plaid"}</h3>
           </div>
           <span class="pill">${escapeHtml(accountState.plan)}</span>
         </div>
         <p class="goal-builder-copy">
           ${accountState.isCreated
-            ? "Your profile is linked and ready for refinement. You can continue adjusting the profile and security posture from here."
-            : "Enter a basic profile, then PAM opens Plaid Link and imports the connected account snapshot into the simulator."}
+            ? "Your PAM profile is powered by the latest normalized Plaid snapshot. The simulator is using connected balances and liabilities instead of manual estimates."
+            : "Use Plaid Link to securely connect a financial institution. PAM receives a normalized snapshot for modeling; it never asks you to hand-type a personal balance sheet."}
         </p>
-        <form class="goal-form" data-account-form>
-          <label class="builder-field">
-            <span>Full name</span>
-            <input type="text" name="name" value="${escapeHtml(profile.user.name)}" placeholder="Taylor Morgan" required />
-          </label>
-          <label class="builder-field">
-            <span>Email</span>
-            <input type="email" name="email" value="${escapeHtml(accountState.email)}" placeholder="you@pamai.app" required />
-          </label>
-          <label class="builder-field">
-            <span>City</span>
-            <input type="text" name="city" value="${escapeHtml(profile.user.city)}" placeholder="Austin, TX" />
-          </label>
-          <label class="builder-field builder-field-full">
-            <span>Primary goal</span>
-            <input
-              type="text"
-              name="objective"
-              value="${escapeHtml(profile.user.objective)}"
-              placeholder="Keep enough optionality to move, invest, and absorb shocks."
-            />
-          </label>
-          <div class="trust-policy-preview">
-            <h3>Onboarding rule</h3>
-            <p>${accountState.plaidLinked ? "Plaid is linked. Saving this profile makes the account pitch-ready." : "Account creation starts with Plaid so the simulator can use real connected balances."}</p>
+        <div class="plaid-login-visual">
+          <div>
+            <span>01</span>
+            <strong>Plaid Link opens</strong>
+            <p>Users authenticate through Plaid, not a manual PAM spreadsheet.</p>
           </div>
-          <div class="button-row">
-            <button class="button button-primary" type="submit" ${isPlaidBusy ? "disabled" : ""}>${accountPrimaryCopy}</button>
-            ${
-              accountState.plaidLinked
-                ? '<button class="button button-secondary" type="button" data-plaid-action="refresh">Refresh Plaid snapshot</button>'
-                : '<button class="button button-secondary" type="button" data-plaid-action="connect">Link Plaid only</button>'
-            }
+          <div>
+            <span>02</span>
+            <strong>Snapshot is normalized</strong>
+            <p>Balances, liabilities, and cash-flow context become a scenario-ready profile.</p>
           </div>
-        </form>
+          <div>
+            <span>03</span>
+            <strong>PAM models decisions</strong>
+            <p>Every answer maps decisions to runway, goals, and long-term net worth.</p>
+          </div>
+        </div>
+        <div class="trust-policy-preview">
+          <h3>Account rule</h3>
+          <p>${accountState.plaidLinked ? "Plaid is linked. The demo baseline has been replaced by a connected-account profile." : "Connect Plaid to unlock the personalized product. The demo remains available only as a limited preview."}</p>
+        </div>
+        <div class="button-row">
+          <button class="button button-primary button-plaid" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}" data-plaid-complete ${isPlaidBusy ? "disabled" : ""}>${accountPrimaryCopy}</button>
+          ${
+            accountState.plaidLinked
+              ? '<button class="button button-secondary" type="button" data-plaid-action="disconnect">Disconnect Plaid</button>'
+              : '<a class="button button-secondary" href="#workspace" data-tab="scenario">View limited demo</a>'
+          }
+        </div>
         <div class="account-meta-note">
           <span>Created</span>
           <strong>${escapeHtml(createdLabel)}</strong>
         </div>
       </article>
 
-      <article class="surface-panel">
+      <article class="surface-panel connected-data-panel">
         <div class="card-heading">
           <div>
-            <p class="eyebrow">Personalize profile</p>
-            <h3>Customize the numbers PAM uses</h3>
+            <p class="eyebrow">Connected model inputs</p>
+            <h3>No manual financial entry</h3>
           </div>
         </div>
-        <p class="goal-builder-copy">This is the account-level baseline that feeds every scenario, goal, and insight.</p>
-        <form class="goal-form" data-profile-form>
-          <label class="builder-field">
-            <span>Monthly take-home pay</span>
-            <input type="number" name="salaryIncome" min="0" step="100" value="${Number(profile.monthly.income[0]?.amount || 0)}" />
-          </label>
-          <label class="builder-field">
-            <span>Other monthly income</span>
-            <input type="number" name="sideIncome" min="0" step="50" value="${Number(profile.monthly.income[1]?.amount || 0)}" />
-          </label>
-          <label class="builder-field">
-            <span>Rent / housing</span>
-            <input type="number" name="rentAmount" min="0" step="50" value="${Number(profile.monthly.fixed[0]?.amount || 0)}" />
-          </label>
-          <label class="builder-field">
-            <span>Lifestyle spend</span>
-            <input type="number" name="lifestyleSpend" min="0" step="50" value="${Number(profile.monthly.variable[2]?.amount || 0)}" />
-          </label>
-          <label class="builder-field">
+        <p class="goal-builder-copy">PAM's baseline should come from connected accounts and normalized calculations. Users can still model decisions, but they should not have to build the financial profile by hand.</p>
+        <div class="connected-data-grid">
+          <article class="metric-card surface-card">
             <span>Liquid cash</span>
-            <input type="number" name="liquidCash" min="0" step="100" value="${Number(profile.assets.find((asset) => asset.liquid)?.value || 0)}" />
-          </label>
-          <label class="builder-field">
-            <span>Investments balance</span>
-            <input type="number" name="investmentsBalance" min="0" step="100" value="${Number(profile.assets.find((asset) => asset.bucket === "invest")?.value || 0)}" />
-          </label>
-          <div class="button-row">
-            <button class="button button-secondary" type="submit">Save profile baseline</button>
-          </div>
-        </form>
+            <strong>${formatCompactCurrency(profile.assets.filter((asset) => asset.liquid).reduce((sum, asset) => sum + asset.value, 0))}</strong>
+            <small>Checking, savings, and cash-like balances.</small>
+          </article>
+          <article class="metric-card surface-card">
+            <span>Investments</span>
+            <strong>${formatCompactCurrency(profile.assets.filter((asset) => asset.bucket === "invest").reduce((sum, asset) => sum + asset.value, 0))}</strong>
+            <small>Brokerage and long-term asset balances.</small>
+          </article>
+          <article class="metric-card surface-card">
+            <span>Liabilities</span>
+            <strong>${formatCompactCurrency(profile.liabilities.reduce((sum, liability) => sum + liability.balance, 0))}</strong>
+            <small>Debt obligations included in risk modeling.</small>
+          </article>
+          <article class="metric-card surface-card">
+            <span>Monthly profile</span>
+            <strong>${accountState.plaidLinked ? "Connected" : "Preview"}</strong>
+            <small>${accountState.plaidLinked ? "Using Plaid-derived context." : "Demo numbers until Plaid is connected."}</small>
+          </article>
+        </div>
       </article>
     </section>
 

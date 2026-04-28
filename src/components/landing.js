@@ -5,10 +5,10 @@ function renderDemoSnapshot(metrics, session) {
   const mostImpactedGoal = result.goalsSummary.mostImpactedGoal;
 
   return `
-    <article class="surface-panel live-demo-panel">
+    <article class="surface-panel live-demo-panel demo-footnote-card">
       <div class="card-heading">
         <div>
-          <p class="eyebrow">Live demo</p>
+          <p class="eyebrow">Limited demo preview</p>
           <h3>${escapeHtml(result.scenario.title)}</h3>
         </div>
         <span class="pill">${escapeHtml(result.risk.label)} risk</span>
@@ -55,35 +55,37 @@ function renderDemoSnapshot(metrics, session) {
 
 function renderAccountCard(accountState, profileSource, trustState) {
   return `
-    <article class="surface-panel hero-account-panel">
+    <article class="surface-panel hero-account-panel plaid-signin-card">
         <div class="card-heading">
           <div>
-            <p class="eyebrow">Account layer</p>
-            <h3>${accountState.isCreated ? "Profile linked and ready" : "Finish onboarding after linking a financial institution"}</h3>
+            <p class="eyebrow">Secure Plaid sign-in</p>
+            <h3>${accountState.plaidLinked ? "Your connected profile is ready" : "Connect your financial picture first"}</h3>
           </div>
         </div>
         <p class="hero-subtitle compact">
-        PAM should feel secure, personal, and immediately useful. Start with the simulator, then complete onboarding once Plaid has linked the financial profile.
+          PAM starts with a Plaid connection so every scenario is built from normalized balances, liabilities, and cash-flow context instead of manual guesses.
         </p>
       <div class="hero-proof-grid">
         <div class="hero-proof-card surface-card">
-          <span>Profile source</span>
+          <span>Data source</span>
           <strong>${escapeHtml(profileSource.status)}</strong>
           <small>${escapeHtml(profileSource.label)}</small>
         </div>
         <div class="hero-proof-card surface-card">
-          <span>Account security</span>
+          <span>Account protection</span>
           <strong>${trustState.security.twoFactorEnabled ? "2FA active" : "2FA off"}</strong>
           <small>${escapeHtml(trustState.security.twoFactorMethod)}</small>
         </div>
         <div class="hero-proof-card surface-card">
           <span>Plaid</span>
-          <strong>${accountState.plaidLinked ? "Sandbox linked" : "Ready to connect"}</strong>
+          <strong>${accountState.plaidLinked ? "Connected" : "Required"}</strong>
           <small>${escapeHtml(accountState.plaidInstitution)}</small>
         </div>
       </div>
         <div class="hero-cta-row">
-        <button class="button button-primary" type="button" data-open-tab="account">Complete onboarding</button>
+        <button class="button button-primary" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}" data-plaid-complete>
+          ${accountState.plaidLinked ? "Refresh Plaid data" : "Sign in with Plaid"}
+        </button>
         <button class="button button-secondary" type="button" data-open-tab="trust">Review security</button>
       </div>
     </article>
@@ -142,52 +144,57 @@ function renderExamples(examples) {
 
 export function renderLanding({ metrics, session, goals, landingExamples, accountState, profileSource, trustState }) {
   return `
-    <section class="hero-section" id="top">
+    <section class="hero-section plaid-first-hero" id="top">
       <div class="hero-copy">
-        <p class="eyebrow">PAM AI • Personal Asset Manager</p>
-        <h1>Test your financial future before you live it.</h1>
+        <p class="eyebrow">PAM AI • Plaid-powered decision modeling</p>
+        <h1>Connect your money. Test the decision before you live it.</h1>
         <p class="hero-subtitle">
-          This homepage is the product demo. PAM starts with a structured decision, shows the numbers that move, and makes the goal tradeoff obvious before you commit.
+          PAM AI turns your connected financial picture into a secure what-if engine. Link with Plaid, then see how cars, rent, emergencies, investments, and life goals change your future path.
         </p>
         <div class="hero-cta-row">
-          <a class="button button-primary" href="#workspace">Try the live simulator</a>
-          <button class="button button-secondary" type="button" data-open-tab="account">Complete onboarding</button>
+          <button class="button button-primary button-plaid" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}" data-plaid-complete>
+            ${accountState.plaidLinked ? "Refresh Plaid connection" : "Sign in with Plaid"}
+          </button>
+          <a class="button button-secondary" href="#workspace">View limited demo</a>
         </div>
         <div class="hero-proof-grid">
           <div class="hero-proof-card surface-card">
-            <span>Current net worth</span>
-            <strong>${formatCompactCurrency(metrics.currentNetWorth)}</strong>
+            <span>Connection</span>
+            <strong>${accountState.plaidLinked ? "Plaid linked" : "Plaid required"}</strong>
           </div>
           <div class="hero-proof-card surface-card">
-            <span>Liquid buffer</span>
-            <strong>${formatCurrency(metrics.liquidAssets)}</strong>
+            <span>Model input</span>
+            <strong>Balances + cash flow</strong>
           </div>
           <div class="hero-proof-card surface-card">
-            <span>Decision engine</span>
-            <strong>Guided, not open-ended</strong>
+            <span>Security posture</span>
+            <strong>2FA + scoped data</strong>
           </div>
         </div>
+        <p class="demo-footnote">
+          Demo mode is only a preview. The real product starts after a Plaid connection creates a personalized financial baseline.
+        </p>
       </div>
       <div class="hero-stack">
-        ${renderDemoSnapshot(metrics, session)}
         ${renderAccountCard(accountState, profileSource, trustState)}
+        ${renderDemoSnapshot(metrics, session)}
       </div>
     </section>
 
     <section class="showcase-section" id="showcase">
       <div class="section-heading">
         <p class="eyebrow">Why it feels different</p>
-        <h2>The homepage behaves like the product, not a brochure</h2>
-        <p>You can start with a vague life decision, customize the assumptions, create an account, and see what happens to your goals without leaving the page.</p>
+        <h2>The homepage asks for the one thing the product needs: a secure financial baseline</h2>
+        <p>PAM should not ask users to type a fake budget. Plaid creates the account-backed snapshot, then the scenario engine does the work.</p>
       </div>
       <div class="showcase-grid">
         <article class="surface-panel showcase-copy">
-          <h3>Decisions first</h3>
-          <p>PAM is not a ledger with a chatbot bolted on. It is a what-if engine for cars, apartments, layoffs, emergencies, investing, and the goals that decision touches.</p>
+          <h3>Plaid first, decisions second</h3>
+          <p>PAM is not a ledger with a chatbot bolted on. It links financial context, normalizes it into a profile, then models the life decisions that actually matter.</p>
           <div class="showcase-bullets">
-            <p>Starter chips remove prompt anxiety.</p>
-            <p>One clarifying question keeps vague inputs moving.</p>
-            <p>The answer is specific enough to act on.</p>
+            <p>No manual budget setup before the product becomes useful.</p>
+            <p>Connected balances and obligations shape every scenario.</p>
+            <p>The answer ties back to cash runway and long-term goals.</p>
           </div>
         </article>
         <article class="surface-panel goals-preview-panel">

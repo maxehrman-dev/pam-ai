@@ -24,7 +24,6 @@ import {
   resolveStarterScenario
 } from "./services/scenarioClient.js";
 import {
-  connectPlaidSandbox,
   connectPlaidSnapshot,
   createAccountProfile,
   disconnectPlaidSnapshot,
@@ -32,7 +31,6 @@ import {
   loadGoalsState,
   loadProfileBundle,
   loadTrustState,
-  personalizeProfile,
   saveAccountState,
   saveGoalsState,
   saveProfileBundle,
@@ -294,8 +292,10 @@ function render() {
           <a href="#workspace" data-open-tab="trust">Security</a>
         </nav>
         <div class="header-actions">
-          <button class="button button-secondary header-button" type="button" data-open-tab="account">Complete onboarding</button>
-          <a class="button button-primary header-button" href="#workspace">Open simulator</a>
+          <button class="button button-primary header-button" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}" data-plaid-complete>
+            ${accountState.plaidLinked ? "Refresh Plaid" : "Sign in with Plaid"}
+          </button>
+          <a class="button button-secondary header-button" href="#workspace">View demo</a>
         </div>
       </header>
 
@@ -442,6 +442,15 @@ function getAccountDraftFromForm(form) {
   };
 }
 
+function getPlaidAccountDraft() {
+  return {
+    name: getActiveProfile().user.name || "PAM AI user",
+    email: getAccountState().email || "demo@pamai.app",
+    city: getActiveProfile().user.city || "",
+    objective: getActiveProfile().user.objective || ""
+  };
+}
+
 function saveAccountDraft(accountDraft) {
   updateProfileBundle({
     ...state.profileBundle,
@@ -450,17 +459,17 @@ function saveAccountDraft(accountDraft) {
 
   updateAccountState((draft) => {
     draft.email = accountDraft.email || draft.email;
-    draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Plaid connection required";
+    draft.onboardingStep = draft.plaidLinked ? "Plaid-connected profile active" : "Plaid sign-in required";
     draft.plaidError = "";
     return draft;
   });
 }
 
-async function connectPlaid(action = "connect", accountDraft = getAccountDraftFromForm(), completeAfterLink = false) {
+async function connectPlaid(action = "connect", accountDraft = getPlaidAccountDraft(), completeAfterLink = false) {
   updateAccountState((draft) => {
     draft.plaidConnectionStage = action === "refresh" ? "Refreshing linked accounts" : "Creating Plaid link token";
     draft.plaidError = "";
-    draft.onboardingStep = completeAfterLink ? "Opening Plaid to create account" : draft.onboardingStep;
+    draft.onboardingStep = completeAfterLink ? "Opening Plaid secure sign-in" : draft.onboardingStep;
     return draft;
   });
   render();
@@ -486,7 +495,7 @@ async function connectPlaid(action = "connect", accountDraft = getAccountDraftFr
       draft.createdAt = completeAfterLink ? draft.createdAt || now : draft.createdAt;
       draft.lastLoginAt = now;
       draft.email = accountDraft.email || draft.email;
-      draft.onboardingStep = "Profile connected";
+      draft.onboardingStep = "Plaid-connected profile active";
       return draft;
     });
 
@@ -495,7 +504,7 @@ async function connectPlaid(action = "connect", accountDraft = getAccountDraftFr
     updateAccountState((draft) => {
       draft.plaidError = error.message || "Unable to complete the Plaid connection.";
       draft.plaidConnectionStage = "Plaid link not completed";
-      draft.onboardingStep = completeAfterLink ? "Plaid connection required" : draft.onboardingStep;
+      draft.onboardingStep = completeAfterLink ? "Plaid sign-in required" : draft.onboardingStep;
       return draft;
     });
     render();
@@ -625,23 +634,27 @@ function handleClick(event) {
     const action = plaidActionButton.dataset.plaidAction;
 
     if (action === "connect" || action === "refresh") {
-      const accountDraft = getAccountDraftFromForm(plaidActionButton.closest("form"));
+      const accountDraft = plaidActionButton.closest("form")
+        ? getAccountDraftFromForm(plaidActionButton.closest("form"))
+        : getPlaidAccountDraft();
+      const completeAfterLink = plaidActionButton.hasAttribute("data-plaid-complete") || !getAccountState().isCreated;
       saveAccountDraft(accountDraft);
-      void connectPlaid(action, accountDraft, false);
+      void connectPlaid(action, accountDraft, completeAfterLink);
       return;
     }
 
     if (action === "disconnect") {
       updateProfileBundle(disconnectPlaidSnapshot(state.profileBundle));
       updateAccountState((draft) => {
+        draft.isCreated = false;
         draft.plaidLinked = false;
         draft.plaidInstitution = "Not connected";
-        draft.plaidConnectionStage = draft.isCreated ? "Link token ready" : "Link token not created";
+        draft.plaidConnectionStage = "Link token not created";
         draft.plaidAccountsSynced = 0;
         draft.plaidLastSyncAt = null;
         draft.plaidError = "";
-        draft.profileCompletion = Math.min(draft.profileCompletion, 84);
-        draft.onboardingStep = draft.isCreated ? "Link Plaid again to refresh data" : "Connect Plaid to begin onboarding";
+        draft.profileCompletion = Math.min(draft.profileCompletion, 72);
+        draft.onboardingStep = "Sign in with Plaid to begin";
         return draft;
       });
     }
@@ -704,62 +717,8 @@ function handleSubmit(event) {
 
   if (event.target.matches("[data-account-form]")) {
     event.preventDefault();
-    const accountDraft = getAccountDraftFromForm(event.target);
-
-    if (!getAccountState().plaidLinked) {
-      saveAccountDraft(accountDraft);
-      void connectPlaid("connect", accountDraft, true);
-      return;
-    }
-    const now = new Date().toISOString();
-
-    updateProfileBundle({
-      ...state.profileBundle,
-      profile: createAccountProfile(getActiveProfile(), accountDraft)
-    });
-
-    updateAccountState((draft) => {
-      draft.isCreated = true;
-      draft.email = accountDraft.email || draft.email;
-      draft.createdAt = draft.createdAt || now;
-      draft.lastLoginAt = now;
-      draft.plaidError = "";
-      draft.profileCompletion = Math.max(draft.profileCompletion, 84);
-      draft.plaidConnectionStage = draft.plaidLinked ? draft.plaidConnectionStage : "Link token ready";
-      draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Plaid connection required";
-      return draft;
-    });
-
-    void resolveDraft(state.session.draft, "account");
+    void connectPlaid("connect", getPlaidAccountDraft(), true);
     return;
-  }
-
-  if (event.target.matches("[data-profile-form]")) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-
-    updateProfileBundle({
-      ...state.profileBundle,
-      profile: personalizeProfile(getActiveProfile(), {
-        name: getActiveProfile().user.name,
-        city: getActiveProfile().user.city,
-        objective: getActiveProfile().user.objective,
-        salaryIncome: Number(formData.get("salaryIncome") || 0),
-        sideIncome: Number(formData.get("sideIncome") || 0),
-        rentAmount: Number(formData.get("rentAmount") || 0),
-        lifestyleSpend: Number(formData.get("lifestyleSpend") || 0),
-        liquidCash: Number(formData.get("liquidCash") || 0),
-        investmentsBalance: Number(formData.get("investmentsBalance") || 0)
-      })
-    });
-
-    updateAccountState((draft) => {
-      draft.profileCompletion = Math.max(draft.profileCompletion, 90);
-      draft.onboardingStep = draft.plaidLinked ? "Profile connected" : "Scenario-ready";
-      return draft;
-    });
-
-    void resolveDraft(state.session.draft, "account");
   }
 }
 
