@@ -16,7 +16,7 @@ function renderBootError(error) {
             <p class="eyebrow">PAM AI</p>
             <h2>The simulator hit a startup issue.</h2>
           </div>
-          <p>PAM AI could not finish loading the scenario engine. Refresh the page or redeploy the latest build.</p>
+          <p>PAM AI could not finish loading the decision engine. Refresh the page or redeploy the latest build.</p>
         </div>
 
         <section class="surface-panel" aria-live="polite">
@@ -44,7 +44,7 @@ async function boot() {
   if (!app) return;
 
   try {
-    const module = await import("./main.js");
+    const module = await import("./main.js?v=pam-ai-20260429");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }

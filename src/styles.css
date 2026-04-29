@@ -1,3 +1,273 @@
+/* PAM AI focused decision-tool reset */
+.foresee-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 22px 0 56px;
+}
+
+.foresee-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+  margin-bottom: 22px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.foresee-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.foresee-brand > span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 45px;
+  height: 45px;
+  padding: 0 10px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--mint-4), var(--mint-3));
+  color: white;
+  font-weight: 900;
+  font-size: 0.86rem;
+}
+
+.foresee-brand strong,
+.foresee-brand small,
+.foresee-truth strong,
+.foresee-truth span {
+  display: block;
+}
+
+.foresee-brand small,
+.foresee-truth span {
+  color: var(--ink-2);
+}
+
+.foresee-truth {
+  text-align: right;
+  font-size: 0.9rem;
+}
+
+.foresee-layout {
+  display: grid;
+  grid-template-columns: 350px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.foresee-main {
+  display: grid;
+  gap: 18px;
+}
+
+.foresee-panel {
+  padding: 22px;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(216, 243, 229, 0.65), transparent 34%),
+    rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(30, 138, 102, 0.13);
+  box-shadow: var(--shadow-soft);
+}
+
+.panel-kicker {
+  color: var(--mint-5);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.foresee-panel h1,
+.foresee-panel h2,
+.foresee-panel h3 {
+  margin: 7px 0 10px;
+}
+
+.foresee-panel h1 {
+  max-width: 720px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.5rem, 7vw, 5.3rem);
+  line-height: 0.92;
+  letter-spacing: -0.07em;
+}
+
+.foresee-panel p,
+.foresee-panel small {
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.baseline-form,
+.foresee-question-form,
+.signal-list-foresee {
+  display: grid;
+  gap: 12px;
+}
+
+.baseline-form label,
+.foresee-question-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink-3);
+  font-weight: 800;
+}
+
+.baseline-form input {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(30, 138, 102, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink-4);
+  font: inherit;
+}
+
+.plaid-sim-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.baseline-source,
+.signal-list-foresee p,
+.foresee-status {
+  padding: 13px;
+  border-radius: 16px;
+  background: rgba(216, 243, 229, 0.42);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.baseline-source {
+  margin-top: 12px;
+}
+
+.baseline-source span,
+.assumption-grid-foresee span,
+.outcome-grid span {
+  display: block;
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 900;
+}
+
+.baseline-source strong,
+.assumption-grid-foresee strong,
+.outcome-grid strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-4);
+}
+
+.quick-question-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.quick-question-row button {
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+  color: var(--mint-5);
+  font-weight: 800;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.risk-badge {
+  padding: 10px 13px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.risk-low {
+  color: #0d6549;
+  background: #d8f3e5;
+}
+
+.risk-medium {
+  color: #7a5200;
+  background: #fff1bd;
+}
+
+.risk-high {
+  color: #8f1f1f;
+  background: #ffe0dc;
+}
+
+.result-section {
+  margin-top: 18px;
+}
+
+.assumption-grid-foresee,
+.outcome-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.assumption-grid-foresee div,
+.outcome-grid div,
+.explanation-box {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(30, 138, 102, 0.09);
+}
+
+.outcome-grid strong {
+  font-size: clamp(1.45rem, 3vw, 2.3rem);
+  letter-spacing: -0.04em;
+}
+
+.explanation-box p {
+  max-width: 760px;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 900px) {
+  .foresee-layout,
+  .assumption-grid-foresee,
+  .outcome-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .foresee-header {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .foresee-shell {
+    width: min(100% - 20px, 1180px);
+  }
+
+  .foresee-header,
+  .result-header {
+    display: grid;
+  }
+
+  .foresee-truth {
+    text-align: left;
+  }
+}
+
 :root {
   --cream-0: #fffdf9;
   --cream-1: #f6efe2;
@@ -896,6 +1166,61 @@ textarea:focus {
 
 .scenario-system-strip {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.advisor-command-center {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) auto minmax(260px, 0.85fr);
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(30, 138, 102, 0.14);
+  background:
+    radial-gradient(circle at 10% 20%, rgba(216, 243, 229, 0.92), transparent 34%),
+    linear-gradient(135deg, rgba(255, 252, 242, 0.96), rgba(236, 250, 243, 0.9));
+  box-shadow: 0 20px 60px rgba(16, 64, 50, 0.08);
+}
+
+.advisor-command-center h3 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.25rem, 2vw, 1.8rem);
+}
+
+.advisor-command-center p {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.advisor-command-actions {
+  display: grid;
+  gap: 10px;
+  min-width: 190px;
+}
+
+.advisor-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.advisor-status-grid div {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(30, 138, 102, 0.1);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.advisor-status-grid span,
+.advisor-status-grid small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 0.78rem;
+}
+
+.advisor-status-grid strong {
+  display: block;
+  margin: 5px 0;
+  color: var(--ink-1);
 }
 
 .preset-grid {
@@ -2702,7 +3027,8 @@ select {
   .hero-section,
   .showcase-grid,
   .workspace-layout,
-  .decision-grid {
+  .decision-grid,
+  .advisor-command-center {
     grid-template-columns: 1fr;
   }
 
@@ -2742,6 +3068,7 @@ select {
   .demo-comparison-strip,
   .demo-stat-grid,
   .account-overview-grid,
+  .advisor-status-grid,
   .connected-data-grid,
   .goal-preview-grid,
   .examples-grid,

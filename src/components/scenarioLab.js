@@ -202,7 +202,47 @@ function renderGoalImpactPreview(goalsSummary) {
     .join("");
 }
 
-export function renderScenarioLab(session, catalog, { isResolving, engine, profileSource }) {
+function renderAdvisorConnection(accountState, profileSource, engine) {
+  const isConnected = Boolean(accountState?.plaidLinked);
+  const stage = accountState?.plaidConnectionStage || "Link token not created";
+
+  return `
+    <div class="advisor-command-center surface-panel">
+      <div>
+        <span class="eyebrow">Advisor setup</span>
+        <h3>${isConnected ? "PAM is using connected financial context" : "Connect data before pitching the prototype"}</h3>
+        <p>
+          ${isConnected
+            ? `Using ${escapeHtml(profileSource.label)}. Scenarios are modeling against imported balances and liabilities.`
+            : "Use Plaid Link for the real flow, or load Plaid sandbox data for an instant mock profile."}
+        </p>
+      </div>
+      <div class="advisor-command-actions">
+        <button class="button button-primary button-plaid" type="button" data-plaid-action="${isConnected ? "refresh" : "connect"}" data-plaid-complete>
+          ${isConnected ? "Refresh Plaid" : "Sign in with Plaid"}
+        </button>
+        <button class="button button-secondary" type="button" data-plaid-action="sandbox">
+          Load sandbox data
+        </button>
+      </div>
+      <div class="advisor-status-grid">
+        <div>
+          <span>Data status</span>
+          <strong>${isConnected ? "Connected" : "Not connected"}</strong>
+          <small>${escapeHtml(stage)}</small>
+        </div>
+        <div>
+          <span>AI status</span>
+          <strong>${engine.remoteEnabled ? "OpenAI active" : "Structured advisor mode"}</strong>
+          <small>${escapeHtml(engine.mode)}</small>
+        </div>
+      </div>
+      ${accountState?.plaidError ? `<p class="scenario-summary subtle">${escapeHtml(accountState.plaidError)}</p>` : ""}
+    </div>
+  `;
+}
+
+export function renderScenarioLab(session, catalog, { isResolving, engine, profileSource, accountState }) {
   const result = session.result;
   const mostImpactedGoal = result.goalsSummary.mostImpactedGoal;
   const goalLead = mostImpactedGoal
@@ -235,6 +275,8 @@ export function renderScenarioLab(session, catalog, { isResolving, engine, profi
           <p>${escapeHtml(profileSource.label)}</p>
         </div>
       </div>
+
+      ${renderAdvisorConnection(accountState, profileSource, engine)}
 
       <div class="decision-grid">
         <article class="surface-panel decision-builder">

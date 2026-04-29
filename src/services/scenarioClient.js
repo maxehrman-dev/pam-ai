@@ -1,11 +1,11 @@
 import { buildDecisionSession, buildDraftSession, buildStarterSession } from "../utils/scenarioEngine.js";
 
 const DEFAULT_ENGINE = {
-  provider: "PAM Decision Engine v4",
-  mode: "Guided scenario modeling with AI interpretation",
+  provider: "PAM Structured Advisor Engine",
+  mode: "Deterministic scenario modeling with advisor-style guidance. OpenAI guidance activates only when the server API key is configured.",
   remoteEnabled: false,
   remoteEndpoint: "/api/decision",
-  upgradePath: "Ready for a server-side Vercel AI endpoint and Plaid-enriched context when runtime credentials are added."
+  upgradePath: "OpenAI guidance endpoint is present, but it must return ok:true before PAM should claim live LLM responses."
 };
 
 function getEngineConfig() {

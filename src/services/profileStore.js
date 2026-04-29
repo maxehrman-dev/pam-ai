@@ -113,6 +113,9 @@ function normalizeAccountState(accountState) {
         ? "Plaid Sandbox Bank"
         : nextState.plaidInstitution;
     nextState.plaidLastSyncAt = nextState.plaidLastSyncAt || nextState.lastLoginAt || new Date().toISOString();
+  } else if (/loading|preparing|open|refreshing|creating/i.test(String(nextState.plaidConnectionStage || ""))) {
+    nextState.plaidConnectionStage = "Plaid link not completed";
+    nextState.plaidError = "Previous Plaid attempt did not complete. Try Plaid Link again or load sandbox mock data.";
   }
 
   return nextState;

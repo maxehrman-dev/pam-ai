@@ -22,14 +22,29 @@ function getAccountKey(account) {
   return `${normalized.email}:${normalized.name}`.toLowerCase();
 }
 
+function getPlaidClientUserId() {
+  if (typeof window === "undefined") return `pam-user-${Date.now()}`;
+
+  const storageKey = "pam-ai-plaid-client-user-id";
+  const existing = window.localStorage.getItem(storageKey);
+  if (existing) return existing;
+
+  const generated =
+    window.crypto?.randomUUID?.() ||
+    `pam-user-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const clientUserId = `pam-user-${generated}`;
+  window.localStorage.setItem(storageKey, clientUserId);
+  return clientUserId;
+}
+
 export async function createPlaidLinkToken(account) {
   const response = await fetch("/api/plaid-link-token", {
     method: "POST",
     headers: getJsonHeaders(),
     body: JSON.stringify({
-      clientUserId: account?.email || `pam-${Date.now()}`,
+      clientUserId: getPlaidClientUserId(),
       legalName: account?.name || "PAM AI user",
-      emailAddress: account?.email || ""
+      emailAddress: ""
     })
   });
 

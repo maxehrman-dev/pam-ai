@@ -24,6 +24,14 @@ function assertConfigured() {
   }
 }
 
+function sanitizeClientUserId(value) {
+  const candidate = String(value || "").trim();
+  if (!candidate || /@|\s/.test(candidate)) {
+    return `pam-user-${Date.now()}`;
+  }
+  return candidate.slice(0, 128);
+}
+
 async function callPlaid(path, payload) {
   assertConfigured();
 
@@ -122,7 +130,7 @@ exports.createLinkToken = async ({ clientUserId, legalName, emailAddress }) => {
     country_codes: ["US"],
     language: "en",
     user: {
-      client_user_id: String(clientUserId || `pam-${Date.now()}`),
+      client_user_id: sanitizeClientUserId(clientUserId),
       legal_name: legalName || undefined,
       email_address: emailAddress || undefined
     },
