@@ -60,6 +60,21 @@ export async function exchangePlaidPublicToken(publicToken, metadata) {
   return payload;
 }
 
+export async function loadPlaidSandboxMock(options = {}) {
+  const response = await fetch("/api/plaid-sandbox-mock", {
+    method: "POST",
+    headers: getJsonHeaders(),
+    body: JSON.stringify(options)
+  });
+
+  const payload = await readJsonSafe(response);
+  if (!response.ok || !payload?.ok || !payload.snapshot) {
+    throw new Error(payload?.error || "Unable to load Plaid sandbox mock data.");
+  }
+
+  return payload;
+}
+
 function loadPlaidScript() {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Plaid Link is only available in the browser."));

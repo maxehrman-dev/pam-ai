@@ -121,6 +121,7 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
         </div>
         <div class="button-row">
           <button class="button button-primary button-plaid" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}" data-plaid-complete ${isPlaidBusy ? "disabled" : ""}>${accountPrimaryCopy}</button>
+          <button class="button button-secondary" type="button" data-plaid-action="sandbox" ${isPlaidBusy ? "disabled" : ""}>Load sandbox mock data</button>
           ${
             accountState.plaidLinked
               ? '<button class="button button-secondary" type="button" data-plaid-action="disconnect">Disconnect Plaid</button>'
@@ -201,6 +202,9 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
               <h3>What the account flow does now</h3>
             </div>
           </div>
+          <p class="scenario-summary subtle">
+            Fastest prototype path: click <strong>Load sandbox mock data</strong>. Manual Plaid Link path: search <strong>First Platypus Bank</strong>, then enter <strong>user_good</strong> and <strong>pass_good</strong>.
+          </p>
           <div class="plaid-step-list">
             ${plaidSteps
               .map(
@@ -221,6 +225,7 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
           <button class="button button-primary" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}">
             ${accountState.plaidLinked ? "Refresh linked accounts" : "Link with Plaid"}
           </button>
+          <button class="button button-secondary" type="button" data-plaid-action="sandbox">Load sandbox mock data</button>
           ${
             accountState.plaidLinked
               ? '<button class="button button-secondary" type="button" data-plaid-action="disconnect">Disconnect Plaid</button>'

@@ -132,6 +132,21 @@ exports.createLinkToken = async ({ clientUserId, legalName, emailAddress }) => {
   });
 };
 
+exports.createSandboxPublicToken = async ({
+  institutionId = "ins_109508",
+  username = "user_good",
+  password = "pass_good"
+} = {}) => {
+  return callPlaid("/sandbox/public_token/create", {
+    institution_id: institutionId,
+    initial_products: ["transactions"],
+    options: {
+      override_username: username,
+      override_password: password
+    }
+  });
+};
+
 exports.exchangePublicToken = async ({ publicToken, institution }) => {
   const exchange = await callPlaid("/item/public_token/exchange", {
     public_token: publicToken

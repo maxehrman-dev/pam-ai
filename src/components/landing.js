@@ -155,6 +155,9 @@ export function renderLanding({ metrics, session, goals, landingExamples, accoun
           <button class="button button-primary button-plaid" type="button" data-plaid-action="${accountState.plaidLinked ? "refresh" : "connect"}" data-plaid-complete>
             ${accountState.plaidLinked ? "Refresh Plaid connection" : "Sign in with Plaid"}
           </button>
+          <button class="button button-secondary" type="button" data-plaid-action="sandbox">
+            Load Plaid sandbox data
+          </button>
           <a class="button button-secondary" href="#workspace">View limited demo</a>
         </div>
         <div class="hero-proof-grid">
@@ -172,7 +175,7 @@ export function renderLanding({ metrics, session, goals, landingExamples, accoun
           </div>
         </div>
         <p class="demo-footnote">
-          Demo mode is only a preview. The real product starts after a Plaid connection creates a personalized financial baseline.
+          Demo mode is only a preview. For testing, use Plaid sandbox credentials or load a First Platypus Bank mock profile instantly.
         </p>
       </div>
       <div class="hero-stack">

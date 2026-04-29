@@ -36,7 +36,7 @@ import {
   saveProfileBundle,
   saveTrustState
 } from "./services/profileStore.js";
-import { getReadyPlaidLink, launchPlaidLink, preloadPlaidLink } from "./services/plaidClient.js";
+import { getReadyPlaidLink, launchPlaidLink, loadPlaidSandboxMock, preloadPlaidLink } from "./services/plaidClient.js";
 
 const app = document.querySelector("#app");
 
@@ -525,6 +525,54 @@ async function connectPlaid(action = "connect", accountDraft = getPlaidAccountDr
   }
 }
 
+async function connectPlaidSandboxMock(accountDraft = getPlaidAccountDraft(), completeAfterLink = true) {
+  updateAccountState((draft) => {
+    draft.plaidConnectionStage = "Loading Plaid sandbox mock data";
+    draft.plaidError = "";
+    draft.onboardingStep = "Creating sandbox Plaid profile";
+    return draft;
+  });
+  render();
+
+  try {
+    const linked = await loadPlaidSandboxMock({
+      institutionId: "ins_109508",
+      institutionName: "First Platypus Bank",
+      username: "user_good",
+      password: "pass_good"
+    });
+    const syncedProfile = connectPlaidSnapshot(getActiveProfile(), linked.snapshot, linked.institutionName);
+    updateProfileBundle(syncedProfile);
+
+    const now = new Date().toISOString();
+    updateAccountState((draft) => {
+      draft.plaidLinked = true;
+      draft.plaidInstitution = linked.institutionName || "First Platypus Bank";
+      draft.plaidConnectionStage = "Sandbox mock data loaded";
+      draft.plaidAccountsSynced = linked.snapshot?.accounts?.length || syncedProfile.profile.assets.length;
+      draft.plaidLastSyncAt = now;
+      draft.plaidError = "";
+      draft.profileCompletion = completeAfterLink ? 100 : 96;
+      draft.isCreated = completeAfterLink ? true : draft.isCreated;
+      draft.createdAt = completeAfterLink ? draft.createdAt || now : draft.createdAt;
+      draft.lastLoginAt = now;
+      draft.email = accountDraft.email || draft.email;
+      draft.onboardingStep = "Plaid sandbox profile active";
+      return draft;
+    });
+
+    await resolveDraft(state.session.draft, "account");
+  } catch (error) {
+    updateAccountState((draft) => {
+      draft.plaidError = error.message || "Unable to load Plaid sandbox mock data.";
+      draft.plaidConnectionStage = "Sandbox mock data failed";
+      draft.onboardingStep = "Plaid sign-in required";
+      return draft;
+    });
+    render();
+  }
+}
+
 function addGoal(goal) {
   state.goals = saveGoalsState([...state.goals, goal]);
 }
@@ -646,6 +694,13 @@ function handleClick(event) {
   const plaidActionButton = event.target.closest("[data-plaid-action]");
   if (plaidActionButton) {
     const action = plaidActionButton.dataset.plaidAction;
+
+    if (action === "sandbox") {
+      const accountDraft = getPlaidAccountDraft();
+      saveAccountDraft(accountDraft);
+      void connectPlaidSandboxMock(accountDraft, true);
+      return;
+    }
 
     if (action === "connect" || action === "refresh") {
       const accountDraft = plaidActionButton.closest("form")
