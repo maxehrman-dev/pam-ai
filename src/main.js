@@ -3,6 +3,7 @@ import { escapeHtml, formatCurrency, formatSignedCurrency } from "./utils/format
 const app = document.querySelector("#app");
 const BASELINE_KEY = "pam-ai-baseline-v1";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v1";
+const PROFILE_KEY = "pam-ai-profile-v1";
 
 const DEFAULT_BASELINE = {
   source: "Manual baseline",
@@ -30,6 +31,7 @@ const PLAID_SIMULATED_BASELINE = {
 };
 
 const state = {
+  profile: loadProfile(),
   baseline: loadBaseline(),
   question: loadLastQuestion(),
   result: null,
@@ -46,6 +48,56 @@ function loadBaseline() {
     return stored ? { ...DEFAULT_BASELINE, ...JSON.parse(stored) } : { ...DEFAULT_BASELINE };
   } catch (_error) {
     return { ...DEFAULT_BASELINE };
+  }
+}
+
+function loadProfile() {
+  if (typeof window === "undefined") {
+    return {
+      isCreated: false,
+      name: "",
+      ageRange: "",
+      priority: "Build a safer financial future"
+    };
+  }
+
+  try {
+    const stored = window.localStorage.getItem(PROFILE_KEY);
+    return stored
+      ? {
+          isCreated: false,
+          name: "",
+          ageRange: "",
+          priority: "Build a safer financial future",
+          ...JSON.parse(stored)
+        }
+      : {
+          isCreated: false,
+          name: "",
+          ageRange: "",
+          priority: "Build a safer financial future"
+        };
+  } catch (_error) {
+    return {
+      isCreated: false,
+      name: "",
+      ageRange: "",
+      priority: "Build a safer financial future"
+    };
+  }
+}
+
+function saveProfile(profile) {
+  state.profile = {
+    ...state.profile,
+    ...profile,
+    isCreated: true
+  };
+
+  try {
+    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
+  } catch (_error) {
+    // Local profile persistence is helpful, not required.
   }
 }
 
@@ -288,10 +340,48 @@ function handleBaselineSubmit(event) {
   render();
 }
 
+function handleProfileSubmit(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  saveProfile({
+    name: String(formData.get("name") || "PAM AI user").trim(),
+    ageRange: String(formData.get("ageRange") || "Not specified"),
+    priority: String(formData.get("priority") || "Understand financial decisions before making them")
+  });
+  state.status = "Profile created. PAM AI is ready to analyze decisions against your baseline.";
+  state.result = analyzeQuestion(state.question);
+  render();
+}
+
 function connectSimulatedPlaid() {
   saveBaseline(PLAID_SIMULATED_BASELINE);
   state.status = "Simulated Plaid connection complete. PAM AI extracted income, expenses, and savings into a baseline.";
   if (state.question) state.result = analyzeQuestion(state.question);
+  render();
+}
+
+function createProfileWithSimulatedPlaid() {
+  saveProfile({
+    name: state.profile.name || "PAM AI user",
+    ageRange: state.profile.ageRange || "Not specified",
+    priority: state.profile.priority || "Understand financial decisions before making them"
+  });
+  connectSimulatedPlaid();
+}
+
+function resetLocalProfile() {
+  state.profile = {
+    isCreated: false,
+    name: "",
+    ageRange: "",
+    priority: "Build a safer financial future"
+  };
+  try {
+    window.localStorage.removeItem(PROFILE_KEY);
+  } catch (_error) {
+    // Reset can still update the in-memory screen.
+  }
+  state.status = "";
   render();
 }
 
@@ -310,7 +400,7 @@ function renderBaselinePanel() {
   return `
     <aside class="foresee-panel baseline-panel">
       <div class="panel-kicker">Financial baseline</div>
-      <h2>PAM AI needs three numbers.</h2>
+      <h2>${escapeHtml(state.profile.name || "Your")} baseline</h2>
       <p>This is the source of truth for every decision. Plaid is conceptually the automatic way to fill this in; manual input works for now.</p>
 
       <form class="baseline-form" data-baseline-form>
@@ -338,10 +428,111 @@ function renderBaselinePanel() {
         <strong>${escapeHtml(state.baseline.source)}</strong>
       </div>
 
+      <div class="baseline-source">
+        <span>Profile context</span>
+        <strong>${escapeHtml(state.profile.ageRange || "Age not set")}</strong>
+        <small>${escapeHtml(state.profile.priority)}</small>
+      </div>
+
       <div class="signal-list-foresee">
         ${state.baseline.extractedSignals.map((signal) => `<p>${escapeHtml(signal)}</p>`).join("")}
       </div>
     </aside>
+  `;
+}
+
+function renderHomepage() {
+  return `
+    <div class="foresee-shell">
+      <header class="foresee-header">
+        <a class="foresee-brand" href="/">
+          <span>PAM</span>
+          <div>
+            <strong>PAM AI</strong>
+            <small>Personal Asset Manager</small>
+          </div>
+        </a>
+        <div class="foresee-truth">
+          <strong>Plaid-ready architecture</strong>
+          <span>Simulated connection until live API keys are added</span>
+        </div>
+      </header>
+
+      <main class="pam-homepage">
+        <section class="pam-hero foresee-panel">
+          <div class="panel-kicker">Financial decision foresight</div>
+          <h1>Know the consequence before you commit.</h1>
+          <p>
+            PAM AI is a focused decision tool. It uses your income, expenses, savings, age range, and soon your Plaid-connected bank summary to answer one question: what happens if I do this?
+          </p>
+          <div class="pam-hero-actions">
+            <a class="button button-primary" href="#create-profile">Create profile</a>
+            <button class="button button-secondary" type="button" data-home-plaid>Connect bank simulation</button>
+          </div>
+          <div class="pam-proof-grid">
+            <div>
+              <span>Not a budget tracker</span>
+              <strong>Decision analysis first</strong>
+            </div>
+            <div>
+              <span>Baseline source</span>
+              <strong>Manual now, Plaid later</strong>
+            </div>
+            <div>
+              <span>Output</span>
+              <strong>Risk, runway, savings</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="foresee-panel profile-card" id="create-profile">
+          <div class="panel-kicker">Sign in / create profile</div>
+          <h2>Create your PAM AI profile</h2>
+          <p>This is local prototype sign-in. Real auth and real Plaid Link can be added when you provide the production keys and account setup.</p>
+          <form class="profile-form" data-profile-form>
+            <label>
+              <span>Name</span>
+              <input type="text" name="name" placeholder="Demo User" value="${escapeHtml(state.profile.name)}" />
+            </label>
+            <label>
+              <span>Age range</span>
+              <select name="ageRange">
+                ${["Under 18", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
+                  .map((range) => `<option value="${range}" ${state.profile.ageRange === range ? "selected" : ""}>${range}</option>`)
+                  .join("")}
+              </select>
+            </label>
+            <label>
+              <span>Primary priority</span>
+              <select name="priority">
+                ${[
+                  "Move out safely",
+                  "Buy a car",
+                  "Build emergency savings",
+                  "Avoid bad debt",
+                  "Invest consistently",
+                  "Understand financial decisions before making them"
+                ]
+                  .map((priority) => `<option value="${priority}" ${state.profile.priority === priority ? "selected" : ""}>${priority}</option>`)
+                  .join("")}
+              </select>
+            </label>
+            <button class="button button-primary" type="submit">Enter PAM AI</button>
+          </form>
+        </section>
+
+        <section class="foresee-panel plaid-primer-card">
+          <div class="panel-kicker">Plaid role</div>
+          <h2>Plaid is the data layer, not the product.</h2>
+          <p>When real Plaid is connected, PAM AI should summarize account balances, recurring income, recurring expenses, and transaction patterns into a baseline. It should not show raw transactions or become Mint.</p>
+          <div class="signal-list-foresee">
+            <p>Income: recurring deposits and payroll-like inflows.</p>
+            <p>Expenses: rent, bills, subscriptions, loan payments, and card spend summarized monthly.</p>
+            <p>Balances: checking/savings totals for runway and cash-risk calculations.</p>
+          </div>
+        </section>
+      </main>
+    </div>
   `;
 }
 
@@ -443,6 +634,12 @@ function renderResult() {
 function render() {
   if (!app) return;
 
+  if (!state.profile.isCreated) {
+    app.innerHTML = renderHomepage();
+    wireInteractions();
+    return;
+  }
+
   app.innerHTML = `
     <div class="foresee-shell">
       <header class="foresee-header">
@@ -454,8 +651,9 @@ function render() {
           </div>
         </a>
         <div class="foresee-truth">
-          <strong>No demo mode</strong>
-          <span>Manual baseline + simulated Plaid baseline</span>
+          <strong>${escapeHtml(state.profile.name || "PAM AI profile")}</strong>
+          <span>${escapeHtml(state.profile.ageRange || "Age not set")} • ${escapeHtml(state.baseline.source)}</span>
+          <button class="link-button" type="button" data-reset-profile>Sign out</button>
         </div>
       </header>
 
@@ -473,9 +671,12 @@ function render() {
 }
 
 function wireInteractions() {
+  document.querySelector("[data-profile-form]")?.addEventListener("submit", handleProfileSubmit);
   document.querySelector("[data-baseline-form]")?.addEventListener("submit", handleBaselineSubmit);
   document.querySelector("[data-question-form]")?.addEventListener("submit", handleQuestionSubmit);
   document.querySelector("[data-connect-plaid]")?.addEventListener("click", connectSimulatedPlaid);
+  document.querySelector("[data-home-plaid]")?.addEventListener("click", createProfileWithSimulatedPlaid);
+  document.querySelector("[data-reset-profile]")?.addEventListener("click", resetLocalProfile);
   document.querySelectorAll("[data-question-example]").forEach((button) => {
     button.addEventListener("click", () => {
       const question = button.dataset.questionExample || "";
