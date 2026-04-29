@@ -36,7 +36,7 @@ import {
   saveProfileBundle,
   saveTrustState
 } from "./services/profileStore.js";
-import { launchPlaidLink } from "./services/plaidClient.js";
+import { getReadyPlaidLink, launchPlaidLink, preloadPlaidLink } from "./services/plaidClient.js";
 
 const app = document.querySelector("#app");
 
@@ -465,9 +465,22 @@ function saveAccountDraft(accountDraft) {
   });
 }
 
-async function connectPlaid(action = "connect", accountDraft = getPlaidAccountDraft(), completeAfterLink = false) {
+function warmPlaidLink(accountDraft = getPlaidAccountDraft()) {
+  void preloadPlaidLink(accountDraft).catch(() => {
+    // Keep preload failures quiet until the user explicitly starts the Plaid flow.
+  });
+}
+
+async function connectPlaid(action = "connect", accountDraft = getPlaidAccountDraft(), completeAfterLink = false, readySession = null) {
+  const instantSession = readySession || getReadyPlaidLink(accountDraft);
+  const linkedPromise = instantSession ? launchPlaidLink(accountDraft, instantSession) : null;
+
   updateAccountState((draft) => {
-    draft.plaidConnectionStage = action === "refresh" ? "Refreshing linked accounts" : "Creating Plaid link token";
+    draft.plaidConnectionStage = instantSession
+      ? "Plaid Link is open"
+      : action === "refresh"
+        ? "Preparing Plaid refresh"
+        : "Preparing Plaid secure sign-in";
     draft.plaidError = "";
     draft.onboardingStep = completeAfterLink ? "Opening Plaid secure sign-in" : draft.onboardingStep;
     return draft;
@@ -475,10 +488,10 @@ async function connectPlaid(action = "connect", accountDraft = getPlaidAccountDr
   render();
 
   try {
-    const linked = await launchPlaidLink({
+    const linked = await (linkedPromise || launchPlaidLink({
       name: accountDraft.name || getActiveProfile().user.name,
       email: accountDraft.email || getAccountState().email
-    });
+    }));
     const syncedProfile = connectPlaidSnapshot(getActiveProfile(), linked.snapshot, linked.institutionName);
     updateProfileBundle(syncedProfile);
 
@@ -508,6 +521,7 @@ async function connectPlaid(action = "connect", accountDraft = getPlaidAccountDr
       return draft;
     });
     render();
+    warmPlaidLink(accountDraft);
   }
 }
 
@@ -731,6 +745,7 @@ export async function startApp() {
 
   if (isStarted) {
     render();
+    warmPlaidLink();
     return;
   }
 
@@ -738,4 +753,5 @@ export async function startApp() {
   document.addEventListener("click", handleClick);
   document.addEventListener("submit", handleSubmit);
   render();
+  warmPlaidLink();
 }

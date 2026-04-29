@@ -21,9 +21,9 @@ export function renderAccount(profile, accountState, profileSource, trustState) 
   const createdLabel = accountState.createdAt ? formatDateLabel(accountState.createdAt) : "Not created yet";
   const lastSyncLabel = accountState.plaidLastSyncAt ? formatDateLabel(accountState.plaidLastSyncAt) : "Not synced yet";
   const securityStatus = trustState.security.twoFactorEnabled ? trustState.security.twoFactorMethod : "2FA off";
-  const isPlaidBusy = /creating|launching|exchanging|syncing|refreshing/i.test(accountState.plaidConnectionStage || "");
+  const isPlaidBusy = /creating|preparing|launching|open|exchanging|syncing|refreshing/i.test(accountState.plaidConnectionStage || "");
   const hasStartedPlaid = !/not created/i.test(accountState.plaidConnectionStage || "") &&
-    /link token|launching|exchanging|syncing|linked|refreshed/i.test(accountState.plaidConnectionStage || "");
+    /link token|preparing|launching|open|exchanging|syncing|linked|refreshed/i.test(accountState.plaidConnectionStage || "");
   const accountPrimaryCopy = accountState.plaidLinked
     ? "Refresh Plaid data"
     : "Sign in with Plaid";

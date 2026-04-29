@@ -10,6 +10,18 @@ function readJsonSafe(response) {
     .catch(() => null);
 }
 
+function normalizeAccount(account = {}) {
+  return {
+    name: account.name || "PAM AI user",
+    email: account.email || "demo@pamai.app"
+  };
+}
+
+function getAccountKey(account) {
+  const normalized = normalizeAccount(account);
+  return `${normalized.email}:${normalized.name}`.toLowerCase();
+}
+
 export async function createPlaidLinkToken(account) {
   const response = await fetch("/api/plaid-link-token", {
     method: "POST",
@@ -75,33 +87,110 @@ function loadPlaidScript() {
   });
 }
 
-export async function launchPlaidLink(account) {
-  const [plaid, tokenPayload] = await Promise.all([loadPlaidScript(), createPlaidLinkToken(account)]);
+let preparedLink = null;
 
-  return new Promise((resolve, reject) => {
-    const handler = plaid.create({
-      token: tokenPayload.linkToken,
-      onSuccess: async (publicToken, metadata) => {
+function resetPreparedLink(session) {
+  if (!session || preparedLink?.session === session || preparedLink?.promise === session) {
+    preparedLink = null;
+  }
+}
+
+function createPreparedSession(account) {
+  const normalizedAccount = normalizeAccount(account);
+  const key = getAccountKey(normalizedAccount);
+  const session = {
+    key,
+    ready: false,
+    handler: null,
+    activeReject: null,
+    activeResolve: null,
+    open() {
+      if (!session.handler) {
+        return Promise.reject(new Error("Plaid Link is still preparing. Try again in a moment."));
+      }
+
+      return new Promise((resolve, reject) => {
+        session.activeResolve = resolve;
+        session.activeReject = reject;
+
         try {
-          const exchange = await exchangePlaidPublicToken(publicToken, metadata);
-          resolve({
-            ...exchange,
-            institutionName: metadata?.institution?.name || exchange.institutionName || "Linked institution"
-          });
+          session.handler.open();
         } catch (error) {
+          session.activeResolve = null;
+          session.activeReject = null;
           reject(error);
         }
-      },
-      onExit: (error) => {
-        if (error) {
-          reject(new Error(error.display_message || error.error_message || "Plaid Link exited before the account was connected."));
-          return;
-        }
+      });
+    }
+  };
 
-        reject(new Error("Plaid Link was closed before the account was connected."));
-      }
+  const promise = Promise.all([loadPlaidScript(), createPlaidLinkToken(normalizedAccount)])
+    .then(([plaid, tokenPayload]) => {
+      session.handler = plaid.create({
+        token: tokenPayload.linkToken,
+        onSuccess: async (publicToken, metadata) => {
+          try {
+            const exchange = await exchangePlaidPublicToken(publicToken, metadata);
+            session.activeResolve?.({
+              ...exchange,
+              institutionName: metadata?.institution?.name || exchange.institutionName || "Linked institution"
+            });
+          } catch (error) {
+            session.activeReject?.(error);
+          } finally {
+            session.activeResolve = null;
+            session.activeReject = null;
+          }
+        },
+        onExit: (error) => {
+          const reject = session.activeReject;
+          session.activeResolve = null;
+          session.activeReject = null;
+
+          if (error) {
+            reject?.(new Error(error.display_message || error.error_message || "Plaid Link exited before the account was connected."));
+            return;
+          }
+
+          reject?.(new Error("Plaid Link was closed before the account was connected."));
+        }
+      });
+      session.ready = true;
+      return session;
+    })
+    .catch((error) => {
+      resetPreparedLink(session);
+      throw error;
     });
 
-    handler.open();
-  });
+  preparedLink = { key, promise, session };
+  return promise;
+}
+
+export function preloadPlaidLink(account) {
+  const key = getAccountKey(account);
+  if (preparedLink?.key === key) {
+    return preparedLink.promise;
+  }
+
+  return createPreparedSession(account);
+}
+
+export function getReadyPlaidLink(account) {
+  const key = getAccountKey(account);
+  if (preparedLink?.key === key && preparedLink.session?.ready) {
+    return preparedLink.session;
+  }
+
+  return null;
+}
+
+export async function launchPlaidLink(account, readySession = null) {
+  const session = readySession || await preloadPlaidLink(account);
+
+  try {
+    return await session.open();
+  } finally {
+    resetPreparedLink(session);
+  }
 }
