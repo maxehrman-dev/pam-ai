@@ -69,6 +69,69 @@ function renderImpactCards(cards) {
     .join("");
 }
 
+function renderReasoningTrace(trace = []) {
+  if (!trace.length) return "";
+
+  return `
+    <div class="reasoning-panel surface-card">
+      <div class="card-heading compact">
+        <div>
+          <span class="eyebrow">AI analysis summary</span>
+          <h3>How PAM read this scenario</h3>
+        </div>
+      </div>
+      <div class="reasoning-step-list">
+        ${trace
+          .map(
+            (step) => `
+              <div class="reasoning-step">
+                <strong>${escapeHtml(step.label)}</strong>
+                <p>${escapeHtml(step.detail)}</p>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderOffsetPlan(offsetPlan) {
+  if (!offsetPlan?.actions?.length) return "";
+
+  return `
+    <div class="offset-plan surface-card">
+      <div class="card-heading compact">
+        <div>
+          <span class="eyebrow">Tradeoff plan</span>
+          <h3>What you would need to change</h3>
+        </div>
+        <span class="pill">${formatCurrency(offsetPlan.targetMonthlyOffset || 0)}/mo target</span>
+      </div>
+      <div class="offset-action-list">
+        ${offsetPlan.actions
+          .map(
+            (action) => `
+              <div class="offset-action">
+                <div>
+                  <strong>${escapeHtml(action.label)}</strong>
+                  <p>${escapeHtml(action.detail)}</p>
+                </div>
+                <span>${action.amount ? `${formatCurrency(action.amount)} ${escapeHtml(action.cadence)}` : escapeHtml(action.cadence)}</span>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+      ${
+        offsetPlan.remainingMonthlyGap > 25
+          ? `<p class="scenario-summary subtle">Even after those cuts, PAM still sees about ${formatCurrency(offsetPlan.remainingMonthlyGap)} per month uncovered.</p>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 function renderComparisonCard(label, path, delta, tone = "neutral") {
   return `
     <article class="comparison-card surface-card comparison-card-${tone}">
@@ -211,6 +274,8 @@ export function renderScenarioLab(session, catalog, { isResolving, engine, profi
             ${renderFollowUp(session.followUp)}
           </div>
 
+          ${renderReasoningTrace(result.reasoningTrace)}
+
           <form class="builder-form" data-draft-form>
             <div class="card-heading compact">
               <div>
@@ -254,6 +319,8 @@ export function renderScenarioLab(session, catalog, { isResolving, engine, profi
               result.longTermNetWorthDelta >= 0 ? "positive" : "negative"
             )}
           </div>
+
+          ${renderOffsetPlan(result.offsetPlan)}
         </article>
       </div>
     </section>

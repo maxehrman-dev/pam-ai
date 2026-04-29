@@ -969,9 +969,56 @@ textarea:focus {
 .sample-prompt-list,
 .chat-thread,
 .allocation-list,
-.flow-stack {
+.flow-stack,
+.reasoning-step-list,
+.offset-action-list {
   display: grid;
   gap: 12px;
+}
+
+.reasoning-panel,
+.offset-plan {
+  margin-top: 12px;
+  border: 1px solid rgba(30, 138, 102, 0.13);
+  background:
+    linear-gradient(135deg, rgba(216, 243, 229, 0.72), rgba(255, 252, 242, 0.82)),
+    rgba(255, 255, 255, 0.78);
+}
+
+.reasoning-step,
+.offset-action {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(30, 138, 102, 0.09);
+}
+
+.reasoning-step strong,
+.offset-action strong {
+  font-size: 0.95rem;
+}
+
+.reasoning-step p,
+.offset-action p {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.offset-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.offset-action span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(25, 110, 82, 0.1);
+  color: var(--mint-5);
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .assumption-list p,

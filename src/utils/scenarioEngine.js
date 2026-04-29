@@ -829,6 +829,9 @@ function buildScenarioAssumptions(draft, metrics) {
   }
 
   if (draft.type === "car") {
+    if (!draft.userSpecifiedOneTimeCost && !draft.userSpecifiedRecurringAmount) {
+      assumptions.push("You only said car, so PAM is using a temporary $20,000 practical-car assumption until you pick the real price.");
+    }
     assumptions.push(
       `Uses ${formatCurrency(draft.monthlyExpenseDelta)} per month for payment, insurance, and maintenance.`
     );
@@ -863,6 +866,133 @@ function buildScenarioAssumptions(draft, metrics) {
   assumptions.push("Results are directional, not tax or legal advice.");
 
   return assumptions;
+}
+
+function getPromptSignals(prompt) {
+  const flags = getIntentFlags(prompt);
+  const signals = [];
+  if (flags.hasCar) signals.push("car purchase");
+  if (flags.hasMove) signals.push("housing move");
+  if (flags.hasJobLoss) signals.push("income loss");
+  if (flags.hasLegal) signals.push("legal cost");
+  if (flags.hasInvest) signals.push("investing change");
+  if (flags.hasEmergency) signals.push("cash shock");
+  if (flags.hasIncomeReduction) signals.push("income reduction");
+  if (flags.hasRentIncrease) signals.push("rent increase");
+  return signals;
+}
+
+function buildReasoningTrace(prompt, draft, result, metrics, followUp) {
+  const signals = getPromptSignals(prompt);
+  const trace = [
+    {
+      label: "1. Read the request",
+      detail: signals.length
+        ? `Detected ${signals.join(", ")} from "${prompt || draft.prompt || "the starter scenario"}".`
+        : "No exact preset matched, so PAM opened a flexible custom model instead of failing."
+    },
+    {
+      label: "2. Fill missing numbers",
+      detail:
+        draft.type === "car" && !draft.userSpecifiedOneTimeCost && !draft.userSpecifiedRecurringAmount
+          ? `Car price was not provided, so the first pass uses ${formatCurrency(draft.purchaseAmount)} and asks you to tighten it.`
+          : `Used explicit inputs where available and defaulted the rest from the current financial profile.`
+    },
+    {
+      label: "3. Stress-test cash flow",
+      detail: `Monthly buffer changes from ${formatCurrency(metrics.monthlyFreeCash)} to ${formatCurrency(result.scenarioPath.monthlyFreeCash)}.`
+    },
+    {
+      label: "4. Connect to goals",
+      detail: result.goalsSummary.mostImpactedGoal
+        ? `${result.goalsSummary.mostImpactedGoal.title} is the most affected goal.`
+        : "No single goal takes a major hit under this scenario."
+    }
+  ];
+
+  if (followUp) {
+    trace.push({
+      label: "5. Ask the next best question",
+      detail: followUp.prompt
+    });
+  }
+
+  return trace;
+}
+
+function buildSpendingOffsetPlan(profile, draft, result) {
+  const monthlyGap = Math.max(
+    result.currentPath.monthlyFreeCash - result.scenarioPath.monthlyFreeCash,
+    result.scenarioPath.monthlyFreeCash < 800 ? 800 - result.scenarioPath.monthlyFreeCash : 0,
+    0
+  );
+  const upfrontShock =
+    draft.type === "car"
+      ? Number(draft.upfrontCost || draft.oneTimeCost || 0)
+      : draft.type === "compound"
+        ? Number(draft.legalCost || 0)
+        : draft.type === "move"
+          ? Number(draft.moveCost || 0)
+          : Number(draft.oneTimeCost || 0);
+  const upfrontGap = Math.max(upfrontShock - 3000, 0);
+  const variableCuts = [...(profile.monthly?.variable || [])]
+    .filter((entry) => !entry.essential && Number(entry.amount || 0) > 0)
+    .sort((left, right) => Number(right.amount || 0) - Number(left.amount || 0));
+  const contributionCuts = [...(profile.monthly?.contributions || [])]
+    .sort((left, right) => Number(right.amount || 0) - Number(left.amount || 0));
+
+  const actions = [];
+  let remainingMonthly = monthlyGap;
+
+  for (const entry of variableCuts) {
+    if (remainingMonthly <= 25) break;
+    const cut = Math.min(Math.ceil(remainingMonthly / 25) * 25, Math.round(Number(entry.amount || 0) * 0.45));
+    if (cut <= 0) continue;
+    actions.push({
+      label: `Cut ${entry.label}`,
+      amount: cut,
+      cadence: "per month",
+      detail: `Reduces the monthly pressure created by this scenario without touching essentials.`
+    });
+    remainingMonthly -= cut;
+  }
+
+  for (const entry of contributionCuts) {
+    if (remainingMonthly <= 25) break;
+    const cut = Math.min(Math.ceil(remainingMonthly / 25) * 25, Math.round(Number(entry.amount || 0) * 0.35));
+    if (cut <= 0) continue;
+    actions.push({
+      label: `Temporarily reduce ${entry.label}`,
+      amount: cut,
+      cadence: "per month",
+      detail: "This protects cash flow, but it is why the goal timeline moves."
+    });
+    remainingMonthly -= cut;
+  }
+
+  if (upfrontGap > 0) {
+    actions.unshift({
+      label: "Lower the upfront cash hit",
+      amount: Math.min(upfrontGap, Math.max(upfrontShock * 0.5, 1000)),
+      cadence: "one time",
+      detail: "Use a smaller down payment, cheaper option, or delay until this cash is saved separately."
+    });
+  }
+
+  if (!actions.length) {
+    actions.push({
+      label: "Keep current spending intact",
+      amount: 0,
+      cadence: "no cut needed",
+      detail: "The model does not require an immediate spending cut, but PAM still recommends stress-testing a worse case."
+    });
+  }
+
+  return {
+    targetMonthlyOffset: monthlyGap,
+    remainingMonthlyGap: Math.max(remainingMonthly, 0),
+    actions: actions.slice(0, 4)
+  };
 }
 
 function formatGoalDelay(goal) {
@@ -1210,7 +1340,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     liquidAssets: scenarioLiquidAssets
   };
 
-  return {
+  const baseResult = {
     draft: normalizedDraft,
     scenario: {
       ...normalizedDraft,
@@ -1254,6 +1384,11 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
         detail: risk.detail
       }
     ]
+  };
+
+  return {
+    ...baseResult,
+    offsetPlan: buildSpendingOffsetPlan(profile, normalizedDraft, baseResult)
   };
 }
 
@@ -1327,6 +1462,7 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
   sessionDraft = reconcileDraft(sessionDraft, profile);
   const followUp = buildFollowUp(sessionDraft, starter, prompt, profile);
   const result = evaluateScenario(profile, goals, sessionDraft, prompt);
+  const reasoningTrace = buildReasoningTrace(prompt, sessionDraft, result, metrics, followUp);
   const confidence = getConfidence(sessionDraft, followUp, prompt);
   const detectedIntents = listDetectedIntents(getIntentFlags(prompt));
 
@@ -1337,6 +1473,7 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
     followUp,
     result: {
       ...result,
+      reasoningTrace,
       confidence
     },
     assistant: buildAssistantMessage(sessionDraft, result, followUp),
