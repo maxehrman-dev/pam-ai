@@ -44,7 +44,7 @@ async function boot() {
   if (!app) return;
 
   try {
-    const module = await import("./main.js?v=pam-ai-20260429");
+    const module = await import("./main.js?v=pam-ai-20260430b");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }

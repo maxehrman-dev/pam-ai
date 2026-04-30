@@ -84,14 +84,58 @@ function normalizeLiabilities(liabilities = {}) {
   return rows;
 }
 
-function estimateMonthlySnapshot(accounts = []) {
+function normalizeTransactions(transactions = []) {
+  return transactions.slice(0, 60).map((transaction) => ({
+    name: transaction.name,
+    amount: Number(transaction.amount || 0),
+    date: transaction.date,
+    category: Array.isArray(transaction.category) ? transaction.category.join(" / ") : transaction.personal_finance_category?.primary || "Uncategorized",
+    recurring: Boolean(transaction.personal_finance_category?.detailed?.includes("RECURRING"))
+  }));
+}
+
+function estimateMonthlySnapshot(accounts = [], transactions = []) {
   const depository = accounts.filter((account) => account.type === "depository");
   const investment = accounts.filter((account) => account.type === "investment");
+  const recentTransactions = normalizeTransactions(transactions);
+  const monthlyIncome = Math.round(
+    recentTransactions
+      .filter((transaction) => transaction.amount < 0)
+      .reduce((total, transaction) => total + Math.abs(transaction.amount), 0) / 3
+  );
+  const monthlyOutflow = Math.round(
+    recentTransactions
+      .filter((transaction) => transaction.amount > 0)
+      .reduce((total, transaction) => total + transaction.amount, 0) / 3
+  );
 
   return {
-    income: [],
-    fixed: [],
-    variable: [],
+    income: monthlyIncome
+      ? [
+          {
+            label: "Plaid-estimated recurring income",
+            amount: monthlyIncome
+          }
+        ]
+      : [],
+    fixed: monthlyOutflow
+      ? [
+          {
+            label: "Plaid-estimated recurring obligations",
+            amount: Math.round(monthlyOutflow * 0.68),
+            essential: true
+          }
+        ]
+      : [],
+    variable: monthlyOutflow
+      ? [
+          {
+            label: "Plaid-estimated flexible spending",
+            amount: Math.round(monthlyOutflow * 0.32),
+            essential: false
+          }
+        ]
+      : [],
     contributions: investment.length
       ? [
           {
@@ -101,7 +145,8 @@ function estimateMonthlySnapshot(accounts = []) {
           }
         ]
       : [],
-    liquidEstimate: depository.reduce((total, account) => total + Number(account.balances?.current || 0), 0)
+    liquidEstimate: depository.reduce((total, account) => total + Number(account.balances?.current || 0), 0),
+    transactionSignals: recentTransactions.slice(0, 8)
   };
 }
 
@@ -119,6 +164,18 @@ async function getLiabilities(accessToken) {
       access_token: accessToken
     });
     return normalizeLiabilities(response.liabilities);
+  } catch (_error) {
+    return [];
+  }
+}
+
+async function getTransactions(accessToken) {
+  try {
+    const response = await callPlaid("/transactions/sync", {
+      access_token: accessToken,
+      count: 100
+    });
+    return response.added || [];
   } catch (_error) {
     return [];
   }
@@ -162,6 +219,7 @@ exports.exchangePublicToken = async ({ publicToken, institution }) => {
 
   const accounts = await getAccounts(exchange.access_token);
   const liabilities = await getLiabilities(exchange.access_token);
+  const transactions = await getTransactions(exchange.access_token);
 
   return {
     accessToken: exchange.access_token,
@@ -169,7 +227,8 @@ exports.exchangePublicToken = async ({ publicToken, institution }) => {
     snapshot: {
       accounts: normalizeAccounts(accounts),
       liabilities,
-      monthly: estimateMonthlySnapshot(accounts)
+      monthly: estimateMonthlySnapshot(accounts, transactions),
+      transactions: normalizeTransactions(transactions)
     },
     institutionName: institution?.name || "Linked institution"
   };

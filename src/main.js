@@ -1,9 +1,10 @@
 import { escapeHtml, formatCurrency, formatSignedCurrency } from "./utils/formatters.js";
 
 const app = document.querySelector("#app");
-const BASELINE_KEY = "pam-ai-baseline-v1";
+const BASELINE_KEY = "pam-ai-baseline-v2";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v1";
-const PROFILE_KEY = "pam-ai-profile-v1";
+const PROFILE_KEY = "pam-ai-profile-v2";
+const ONBOARDING_STEP_KEY = "pam-ai-onboarding-step-v2";
 
 const DEFAULT_BASELINE = {
   source: "Manual baseline",
@@ -32,9 +33,12 @@ const PLAID_SIMULATED_BASELINE = {
 
 const state = {
   profile: loadProfile(),
+  onboardingStep: loadOnboardingStep(),
   baseline: loadBaseline(),
   question: loadLastQuestion(),
   result: null,
+  aiGuidance: null,
+  aiStatus: "",
   status: ""
 };
 
@@ -52,46 +56,70 @@ function loadBaseline() {
 }
 
 function loadProfile() {
+  const defaults = getDefaultProfile();
   if (typeof window === "undefined") {
-    return {
-      isCreated: false,
-      name: "",
-      ageRange: "",
-      priority: "Build a safer financial future"
-    };
+    return defaults;
   }
 
   try {
     const stored = window.localStorage.getItem(PROFILE_KEY);
     return stored
       ? {
-          isCreated: false,
-          name: "",
-          ageRange: "",
-          priority: "Build a safer financial future",
+          ...defaults,
           ...JSON.parse(stored)
         }
-      : {
-          isCreated: false,
-          name: "",
-          ageRange: "",
-          priority: "Build a safer financial future"
-        };
+      : defaults;
   } catch (_error) {
-    return {
-      isCreated: false,
-      name: "",
-      ageRange: "",
-      priority: "Build a safer financial future"
-    };
+    return defaults;
+  }
+}
+
+function getDefaultProfile() {
+  return {
+    isCreated: false,
+    name: "",
+    ageRange: "",
+    priority: "Build a safer financial future",
+    employmentStatus: "Employed full-time",
+    grossMonthlyIncome: 5600,
+    estimatedTaxRate: 25,
+    otherMonthlyIncome: 0,
+    financialSupport: "None",
+    supportAmount: 0,
+    housingCost: 1500,
+    debtPayments: 250,
+    subscriptionsBills: 350,
+    variableSpending: 500,
+    upcomingObligations: 0,
+    obligationNote: "",
+    cashSavings: 12000,
+    investments: 3000,
+    otherAssets: 0,
+    goal: "Build emergency savings",
+    goalTarget: 15000,
+    goalTimeline: 18
+  };
+}
+
+function loadOnboardingStep() {
+  if (typeof window === "undefined") return 0;
+  const stored = Number(window.localStorage.getItem(ONBOARDING_STEP_KEY));
+  return Number.isFinite(stored) ? Math.max(0, Math.min(stored, 3)) : 0;
+}
+
+function saveOnboardingStep(step) {
+  state.onboardingStep = Math.max(0, Math.min(step, 3));
+  try {
+    window.localStorage.setItem(ONBOARDING_STEP_KEY, String(state.onboardingStep));
+  } catch (_error) {
+    // Step persistence is helpful, not required.
   }
 }
 
 function saveProfile(profile) {
   state.profile = {
     ...state.profile,
-    ...profile,
-    isCreated: true
+    ...profile
   };
 
   try {
@@ -99,6 +127,79 @@ function saveProfile(profile) {
   } catch (_error) {
     // Local profile persistence is helpful, not required.
   }
+}
+
+function calculateBaselineFromProfile(profile, source = "Onboarding cash-flow estimate") {
+  const taxMultiplier = 1 - Number(profile.estimatedTaxRate || 0) / 100;
+  const netIncome =
+    Math.max(Number(profile.grossMonthlyIncome || 0) * taxMultiplier, 0) +
+    Number(profile.otherMonthlyIncome || 0) +
+    Number(profile.supportAmount || 0);
+  const expenses =
+    Number(profile.housingCost || 0) +
+    Number(profile.debtPayments || 0) +
+    Number(profile.subscriptionsBills || 0) +
+    Number(profile.variableSpending || 0) +
+    Number(profile.upcomingObligations || 0);
+
+  return {
+    source,
+    income: Math.round(netIncome),
+    expenses: Math.round(expenses),
+    savings: Number(profile.cashSavings || 0),
+    extractedSignals: [
+      `${profile.employmentStatus || "Employment"} with estimated ${profile.estimatedTaxRate || 0}% tax set aside.`,
+      `${formatCurrency(Number(profile.housingCost || 0))}/month housing and ${formatCurrency(Number(profile.debtPayments || 0))}/month debt obligations included.`,
+      `${formatCurrency(Number(profile.investments || 0) + Number(profile.otherAssets || 0))} of investments/other assets tracked outside immediate cash.`,
+      profile.obligationNote ? `Upcoming obligation: ${profile.obligationNote}.` : "No major upcoming obligation note entered."
+    ]
+  };
+}
+
+function getProfileNumber(profile, key) {
+  const value = Number(profile[key] || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function readProfileDraft(form) {
+  const formData = new FormData(form);
+  const numericFields = [
+    "grossMonthlyIncome",
+    "estimatedTaxRate",
+    "otherMonthlyIncome",
+    "supportAmount",
+    "housingCost",
+    "debtPayments",
+    "subscriptionsBills",
+    "variableSpending",
+    "upcomingObligations",
+    "cashSavings",
+    "investments",
+    "otherAssets",
+    "goalTarget",
+    "goalTimeline"
+  ];
+  const draft = { ...state.profile };
+
+  for (const [key, value] of formData.entries()) {
+    draft[key] = numericFields.includes(key) ? Number(value || 0) : String(value || "").trim();
+  }
+
+  return draft;
+}
+
+function completeProfile(profile) {
+  const profileName = profile.name || "PAM AI user";
+  const completedProfile = {
+    ...profile,
+    name: profileName,
+    isCreated: true
+  };
+  saveProfile(completedProfile);
+  saveOnboardingStep(3);
+  saveBaseline(calculateBaselineFromProfile(completedProfile));
+  state.status = "Cash-flow estimate complete. PAM AI is now modeling decisions against your profile.";
+  state.result = analyzeQuestion(state.question);
 }
 
 function saveBaseline(baseline) {
@@ -291,6 +392,14 @@ function analyzeQuestion(question) {
   const runwayAfterDecision = state.baseline.expenses + interpretation.monthlyChange <= 0
     ? Number.POSITIVE_INFINITY
     : Math.max(state.baseline.savings - interpretation.oneTimeCost, 0) / (state.baseline.expenses + interpretation.monthlyChange);
+  const savingsDelta = interpretation.oneTimeCost + interpretation.monthlyChange * 12;
+  const goalDelayMonths = Math.max(0, Math.ceil(savingsDelta / Math.max(newMonthlyBalance, 1)));
+  const ahaMoment = risk.label === "High"
+    ? `You would run out of liquid cash in ${Number.isFinite(runwayAfterDecision) ? runwayAfterDecision.toFixed(1) : "many"} months unless you offset the cost.`
+    : `This decision would reduce your 12-month savings path by ${formatCurrency(Math.max(savingsDelta, 0))}${goalDelayMonths ? ` and delay your main goal about ${goalDelayMonths} months` : ""}.`;
+  const nextStep = risk.label === "Low"
+    ? "Proceed only if the real cost matches this estimate and your emergency cash stays intact."
+    : "Before saying yes, cut a matching monthly expense, increase income, or delay the decision.";
 
   return {
     question,
@@ -300,6 +409,8 @@ function analyzeQuestion(question) {
     projectedSavings6,
     projectedSavings12,
     runwayAfterDecision,
+    ahaMoment,
+    nextStep,
     risk,
     explanation: buildExplanation(interpretation, risk, newMonthlyBalance, projectedSavings12)
   };
@@ -342,14 +453,18 @@ function handleBaselineSubmit(event) {
 
 function handleProfileSubmit(event) {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
-  saveProfile({
-    name: String(formData.get("name") || "PAM AI user").trim(),
-    ageRange: String(formData.get("ageRange") || "Not specified"),
-    priority: String(formData.get("priority") || "Understand financial decisions before making them")
-  });
-  state.status = "Profile created. PAM AI is ready to analyze decisions against your baseline.";
-  state.result = analyzeQuestion(state.question);
+  const action = event.submitter?.dataset.onboardingAction || "next";
+  const draft = readProfileDraft(event.currentTarget);
+  saveProfile(draft);
+
+  if (action === "back") {
+    saveOnboardingStep(state.onboardingStep - 1);
+  } else if (action === "finish") {
+    completeProfile(draft);
+  } else {
+    saveOnboardingStep(state.onboardingStep + 1);
+  }
+
   render();
 }
 
@@ -362,30 +477,86 @@ function connectSimulatedPlaid() {
 
 function createProfileWithSimulatedPlaid() {
   saveProfile({
+    ...state.profile,
+    isCreated: true,
     name: state.profile.name || "PAM AI user",
     ageRange: state.profile.ageRange || "Not specified",
-    priority: state.profile.priority || "Understand financial decisions before making them"
+    priority: state.profile.priority || "Understand financial decisions before making them",
+    employmentStatus: "Plaid-derived profile",
+    grossMonthlyIncome: 5600,
+    estimatedTaxRate: 25,
+    housingCost: 1500,
+    subscriptionsBills: 700,
+    variableSpending: 400,
+    cashSavings: PLAID_SIMULATED_BASELINE.savings,
+    investments: 3000
   });
-  connectSimulatedPlaid();
+  saveOnboardingStep(3);
+  saveBaseline(PLAID_SIMULATED_BASELINE);
+  state.status = "Simulated Plaid connection complete. PAM AI extracted income, expenses, and savings into a baseline.";
+  state.result = analyzeQuestion(state.question);
+  render();
 }
 
 function resetLocalProfile() {
-  state.profile = {
-    isCreated: false,
-    name: "",
-    ageRange: "",
-    priority: "Build a safer financial future"
-  };
+  state.profile = getDefaultProfile();
+  state.onboardingStep = 0;
   try {
     window.localStorage.removeItem(PROFILE_KEY);
+    window.localStorage.removeItem(ONBOARDING_STEP_KEY);
   } catch (_error) {
     // Reset can still update the in-memory screen.
   }
   state.status = "";
+  state.aiGuidance = null;
+  state.aiStatus = "";
   render();
 }
 
-function handleQuestionSubmit(event) {
+async function requestAdvisorGuidance(question, result) {
+  state.aiStatus = "PAM AI is checking the advisor layer...";
+  state.aiGuidance = null;
+  render();
+
+  try {
+    const response = await fetch("/api/decision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt: question,
+        draft: {
+          type: result.interpretation.type,
+          title: question
+        },
+        result: {
+          ahaMoment: result.ahaMoment,
+          nextStep: result.nextStep,
+          risk: {
+            label: result.risk.label,
+            detail: result.risk.explanation
+          },
+          monthlyCashFlowImpact: result.interpretation.monthlyChange,
+          savingsRunoutMonths: result.runwayAfterDecision
+        }
+      })
+    });
+    const payload = await response.json();
+    if (!payload.ok) {
+      state.aiStatus = "Advisor layer is wired, but no live OpenAI key is configured on this deployment yet.";
+      return;
+    }
+    state.aiGuidance = payload.guidance;
+    state.aiStatus = payload.engine?.provider || "PAM AI advisor layer active.";
+  } catch (_error) {
+    state.aiStatus = "Advisor layer is unavailable, so PAM AI is using deterministic scenario math.";
+  } finally {
+    render();
+  }
+}
+
+async function handleQuestionSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const question = String(formData.get("question") || "").trim();
@@ -393,7 +564,10 @@ function handleQuestionSubmit(event) {
   saveQuestion(question);
   state.result = analyzeQuestion(question);
   state.status = "Decision analyzed against your current financial baseline.";
+  state.aiGuidance = null;
+  state.aiStatus = "";
   render();
+  await requestAdvisorGuidance(question, state.result);
 }
 
 function renderBaselinePanel() {
@@ -441,6 +615,182 @@ function renderBaselinePanel() {
   `;
 }
 
+function renderMoneyInput(name, label, value, step = 50) {
+  return `
+    <label>
+      <span>${label}</span>
+      <input type="number" name="${name}" value="${getProfileNumber(state.profile, name)}" min="0" step="${step}" />
+    </label>
+  `;
+}
+
+function renderSelect(name, label, options, value) {
+  return `
+    <label>
+      <span>${label}</span>
+      <select name="${name}">
+        ${options.map((option) => `<option value="${option}" ${value === option ? "selected" : ""}>${option}</option>`).join("")}
+      </select>
+    </label>
+  `;
+}
+
+function renderCashFlowPreview(profile = state.profile) {
+  const preview = calculateBaselineFromProfile(profile);
+  const monthlySurplus = preview.income - preview.expenses;
+  const runway = preview.expenses > 0 ? preview.savings / preview.expenses : Number.POSITIVE_INFINITY;
+
+  return `
+    <aside class="cash-flow-preview">
+      <div class="panel-kicker">Live cash-flow estimate</div>
+      <h3>Profile preview</h3>
+      <div class="cash-flow-preview-grid">
+        <div>
+          <span>Take-home income</span>
+          <strong>${formatCurrency(preview.income)}</strong>
+        </div>
+        <div>
+          <span>Monthly obligations</span>
+          <strong>${formatCurrency(preview.expenses)}</strong>
+        </div>
+        <div>
+          <span>Monthly margin</span>
+          <strong class="${monthlySurplus < 0 ? "negative-number" : "positive-number"}">${formatSignedCurrency(monthlySurplus)}</strong>
+        </div>
+        <div>
+          <span>Cash runway</span>
+          <strong>${Number.isFinite(runway) ? `${runway.toFixed(1)} mo` : "Stable"}</strong>
+        </div>
+      </div>
+      <p>PAM AI uses this summarized baseline for decisions. Plaid will eventually fill this automatically from income, balances, recurring bills, liabilities, and transaction patterns.</p>
+    </aside>
+  `;
+}
+
+function renderOnboardingFields() {
+  if (state.onboardingStep === 0) {
+    return `
+      <div class="onboarding-field-grid">
+        <label>
+          <span>Name</span>
+          <input type="text" name="name" placeholder="Demo User" value="${escapeHtml(state.profile.name)}" />
+        </label>
+        ${renderSelect("ageRange", "Age range", ["Under 18", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"], state.profile.ageRange)}
+        ${renderSelect(
+          "priority",
+          "What are you trying to protect?",
+          [
+            "Move out safely",
+            "Buy a car",
+            "Build emergency savings",
+            "Avoid bad debt",
+            "Invest consistently",
+            "Understand financial decisions before making them"
+          ],
+          state.profile.priority
+        )}
+      </div>
+    `;
+  }
+
+  if (state.onboardingStep === 1) {
+    return `
+      <div class="onboarding-field-grid">
+        ${renderSelect(
+          "employmentStatus",
+          "Employment status",
+          ["Employed full-time", "Employed part-time", "Self-employed", "Student", "Unemployed", "Retired"],
+          state.profile.employmentStatus
+        )}
+        ${renderMoneyInput("grossMonthlyIncome", "Gross monthly income", state.profile.grossMonthlyIncome, 100)}
+        <label>
+          <span>Estimated tax rate</span>
+          <input type="number" name="estimatedTaxRate" value="${getProfileNumber(state.profile, "estimatedTaxRate")}" min="0" max="60" step="1" />
+        </label>
+        ${renderMoneyInput("otherMonthlyIncome", "Other monthly income", state.profile.otherMonthlyIncome, 50)}
+        ${renderSelect("financialSupport", "Financial support", ["None", "Family support", "Partner support", "Benefits/stipend", "Other"], state.profile.financialSupport)}
+        ${renderMoneyInput("supportAmount", "Monthly support amount", state.profile.supportAmount, 50)}
+      </div>
+    `;
+  }
+
+  if (state.onboardingStep === 2) {
+    return `
+      <div class="onboarding-field-grid">
+        ${renderMoneyInput("housingCost", "Rent / housing", state.profile.housingCost, 50)}
+        ${renderMoneyInput("debtPayments", "Debt payments", state.profile.debtPayments, 25)}
+        ${renderMoneyInput("subscriptionsBills", "Bills + subscriptions", state.profile.subscriptionsBills, 25)}
+        ${renderMoneyInput("variableSpending", "Food, gas, discretionary", state.profile.variableSpending, 50)}
+        ${renderMoneyInput("upcomingObligations", "Upcoming obligations", state.profile.upcomingObligations, 50)}
+        <label>
+          <span>Upcoming obligation note</span>
+          <input type="text" name="obligationNote" placeholder="Insurance renewal, tuition, medical bill..." value="${escapeHtml(state.profile.obligationNote)}" />
+        </label>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="onboarding-field-grid">
+      ${renderMoneyInput("cashSavings", "Cash savings", state.profile.cashSavings, 100)}
+      ${renderMoneyInput("investments", "Investments", state.profile.investments, 100)}
+      ${renderMoneyInput("otherAssets", "Other assets", state.profile.otherAssets, 100)}
+      ${renderSelect(
+        "goal",
+        "Primary life goal",
+        ["Move out safely", "Buy a house", "Save for college", "Have kids", "Build emergency savings", "Reach a net worth target", "Retire early"],
+        state.profile.goal
+      )}
+      ${renderMoneyInput("goalTarget", "Goal target amount", state.profile.goalTarget, 100)}
+      <label>
+        <span>Target timeline, months</span>
+        <input type="number" name="goalTimeline" value="${getProfileNumber(state.profile, "goalTimeline")}" min="1" step="1" />
+      </label>
+    </div>
+  `;
+}
+
+function renderOnboardingCard() {
+  const stepTitles = ["Identity", "Income", "Obligations", "Assets + goal"];
+  const title = stepTitles[state.onboardingStep] || stepTitles[0];
+  const isLastStep = state.onboardingStep === stepTitles.length - 1;
+
+  return `
+    <section class="foresee-panel profile-card" id="create-profile">
+      <div class="panel-kicker">Secure account setup</div>
+      <h2>Create your PAM AI profile</h2>
+      <p>Before the simulator opens, PAM builds a real baseline: income after estimated tax, fixed obligations, liquid savings, assets, support, and the goal each decision should protect.</p>
+
+      <div class="onboarding-progress" aria-label="Account setup progress">
+        ${stepTitles
+          .map(
+            (step, index) => `
+              <span class="${index <= state.onboardingStep ? "active" : ""}">
+                <strong>${index + 1}</strong>
+                ${step}
+              </span>
+            `
+          )
+          .join("")}
+      </div>
+
+      <div class="onboarding-layout">
+        <form class="profile-form onboarding-form" data-profile-form>
+          <h3>${title}</h3>
+          ${renderOnboardingFields()}
+          <div class="onboarding-actions">
+            ${state.onboardingStep > 0 ? '<button class="button button-secondary" type="submit" data-onboarding-action="back">Back</button>' : ""}
+            <button class="button button-primary" type="submit" data-onboarding-action="${isLastStep ? "finish" : "next"}">
+              ${isLastStep ? "Enter PAM AI" : "Continue"}
+            </button>
+          </div>
+        </form>
+        ${renderCashFlowPreview()}
+      </div>
+    </section>
+  `;
+}
+
 function renderHomepage() {
   return `
     <div class="foresee-shell">
@@ -461,9 +811,9 @@ function renderHomepage() {
       <main class="pam-homepage">
         <section class="pam-hero foresee-panel">
           <div class="panel-kicker">Financial decision foresight</div>
-          <h1>Know the consequence before you commit.</h1>
+          <h1>Full financial context before every decision.</h1>
           <p>
-            PAM AI is a focused decision tool. It uses your income, expenses, savings, age range, and soon your Plaid-connected bank summary to answer one question: what happens if I do this?
+            PAM AI starts like financial software should: build the baseline first, then model the decision. Create a profile, estimate cash flow, and let every scenario answer what changes, what gets delayed, and what risk appears.
           </p>
           <div class="pam-hero-actions">
             <a class="button button-primary" href="#create-profile">Create profile</a>
@@ -476,7 +826,7 @@ function renderHomepage() {
             </div>
             <div>
               <span>Baseline source</span>
-              <strong>Manual now, Plaid later</strong>
+              <strong>Guided setup now, Plaid later</strong>
             </div>
             <div>
               <span>Output</span>
@@ -485,41 +835,7 @@ function renderHomepage() {
           </div>
         </section>
 
-        <section class="foresee-panel profile-card" id="create-profile">
-          <div class="panel-kicker">Sign in / create profile</div>
-          <h2>Create your PAM AI profile</h2>
-          <p>This is local prototype sign-in. Real auth and real Plaid Link can be added when you provide the production keys and account setup.</p>
-          <form class="profile-form" data-profile-form>
-            <label>
-              <span>Name</span>
-              <input type="text" name="name" placeholder="Demo User" value="${escapeHtml(state.profile.name)}" />
-            </label>
-            <label>
-              <span>Age range</span>
-              <select name="ageRange">
-                ${["Under 18", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
-                  .map((range) => `<option value="${range}" ${state.profile.ageRange === range ? "selected" : ""}>${range}</option>`)
-                  .join("")}
-              </select>
-            </label>
-            <label>
-              <span>Primary priority</span>
-              <select name="priority">
-                ${[
-                  "Move out safely",
-                  "Buy a car",
-                  "Build emergency savings",
-                  "Avoid bad debt",
-                  "Invest consistently",
-                  "Understand financial decisions before making them"
-                ]
-                  .map((priority) => `<option value="${priority}" ${state.profile.priority === priority ? "selected" : ""}>${priority}</option>`)
-                  .join("")}
-              </select>
-            </label>
-            <button class="button button-primary" type="submit">Enter PAM AI</button>
-          </form>
-        </section>
+        ${renderOnboardingCard()}
 
         <section class="foresee-panel plaid-primer-card">
           <div class="panel-kicker">Plaid role</div>
@@ -624,8 +940,27 @@ function renderResult() {
 
       <div class="result-section explanation-box">
         <h3>Explanation</h3>
+        <p><strong>${escapeHtml(result.ahaMoment)}</strong></p>
         <p>${escapeHtml(result.explanation)}</p>
         <p>${escapeHtml(result.risk.explanation)}</p>
+        <p>${escapeHtml(result.nextStep)}</p>
+      </div>
+
+      <div class="result-section advisor-box">
+        <h3>Advisor layer</h3>
+        ${
+          state.aiGuidance
+            ? `
+              <p><strong>${escapeHtml(state.aiGuidance.assistant.headline)}</strong></p>
+              <p>${escapeHtml(state.aiGuidance.assistant.body)}</p>
+              ${
+                state.aiGuidance.followUpPrompt
+                  ? `<p class="advisor-followup">${escapeHtml(state.aiGuidance.followUpPrompt)}</p>`
+                  : ""
+              }
+            `
+            : `<p>${escapeHtml(state.aiStatus || "PAM AI is using deterministic decision math here. The server-side AI advisor endpoint is wired for OpenAI once the deployment has a valid key.")}</p>`
+        }
       </div>
     </section>
   `;
