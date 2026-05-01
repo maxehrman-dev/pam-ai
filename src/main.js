@@ -256,6 +256,46 @@ function parseMonthlyAmount(question) {
   return 0;
 }
 
+function isSelfEmployedBaseline() {
+  return state.baseline.employmentStatus === "1099 / self-employed";
+}
+
+function inferPotentialDeduction(question, amount, cadence = "one-time") {
+  const normalized = question.toLowerCase();
+  const isWorkRelated = /business|work|client|freelance|1099|self[- ]?employ|contractor|side hustle|office|software|laptop|computer|equipment|mileage|marketing|website|course|training|professional|supplies|cowork|home office/.test(normalized);
+  const requestedDeduction = /deduct|write[ -]?off|tax break|business expense/.test(normalized);
+
+  if (!amount || (!isWorkRelated && !requestedDeduction)) {
+    return {
+      isPotentiallyDeductible: false,
+      taxSavings: 0,
+      note: "No likely deduction detected from the wording. PAM treats this as a regular cash decision."
+    };
+  }
+
+  if (!isSelfEmployedBaseline()) {
+    return {
+      isPotentiallyDeductible: false,
+      taxSavings: 0,
+      note: "This may be work-related, but PAM only models a deduction when the baseline is self-employed/1099. W-2 workers may need reimbursement or specific eligibility."
+    };
+  }
+
+  const businessUseShare = /car|auto|vehicle|truck|suv|travel|trip|mileage|home office/.test(normalized) ? 0.5 : 1;
+  const deductibleAmount = amount * businessUseShare;
+  const taxSavings = Math.round(deductibleAmount * (toNumber(state.baseline.estimatedTaxRate) / 100));
+  const useNote = businessUseShare < 1
+    ? "PAM assumes 50% business use for mixed-use costs like car, mileage, travel, or home office."
+    : "PAM assumes this is fully business-related based on the wording.";
+
+  return {
+    isPotentiallyDeductible: true,
+    deductibleAmount,
+    taxSavings,
+    note: `${useNote} Actual deductibility depends on business purpose, records, and current tax rules.`
+  };
+}
+
 function inferDecision(question) {
   const normalized = question.toLowerCase();
   const amounts = collectAmounts(question);
@@ -266,6 +306,9 @@ function inferDecision(question) {
     monthlyImpact: 0,
     oneTimeImpact: 0,
     taxImpact: "No direct change",
+    taxSavingsMonthly: 0,
+    taxSavingsOneTime: 0,
+    deductibleNote: "",
     compoundMonthlyDelta: 0,
     assumptions: []
   };
@@ -310,24 +353,51 @@ function inferDecision(question) {
 
   if (/car|auto|vehicle|truck|suv|payment/.test(normalized)) {
     decision.type = "Car purchase";
-    decision.monthlyImpact = -(monthlyAmount || firstAmount || 400);
+    const modeledMonthlyCost = monthlyAmount || firstAmount || 400;
+    const deduction = inferPotentialDeduction(question, modeledMonthlyCost, "monthly");
+    decision.monthlyImpact = -modeledMonthlyCost;
+    decision.taxSavingsMonthly = deduction.isPotentiallyDeductible ? deduction.taxSavings : 0;
+    decision.deductibleNote = deduction.note;
     decision.assumptions.push({ label: "Car payment / ownership cost", value: `${formatCurrency(Math.abs(decision.monthlyImpact))}/month` });
-    decision.taxImpact = "No direct change";
+    if (deduction.isPotentiallyDeductible) {
+      decision.assumptions.push({ label: "Possible tax offset", value: `${formatCurrency(decision.taxSavingsMonthly)}/month` });
+    }
+    decision.taxImpact = deduction.isPotentiallyDeductible
+      ? `Potential self-employed deduction detected. Estimated tax offset: ${formatCurrency(decision.taxSavingsMonthly)}/month. ${deduction.note}`
+      : deduction.note;
     return decision;
   }
 
   if (/trip|travel|vacation|emergency|repair|medical|bill|wedding|expense/.test(normalized)) {
     decision.type = /trip|travel|vacation/.test(normalized) ? "Trip / travel spend" : "One-time expense";
-    decision.oneTimeImpact = -(firstAmount || 2500);
+    const modeledCost = firstAmount || 2500;
+    const deduction = inferPotentialDeduction(question, modeledCost);
+    decision.oneTimeImpact = -modeledCost;
+    decision.taxSavingsOneTime = deduction.isPotentiallyDeductible ? deduction.taxSavings : 0;
+    decision.deductibleNote = deduction.note;
     decision.assumptions.push({ label: "One-time cost", value: formatCurrency(Math.abs(decision.oneTimeImpact)) });
-    decision.taxImpact = "No direct change";
+    if (deduction.isPotentiallyDeductible) {
+      decision.assumptions.push({ label: "Possible tax offset", value: formatCurrency(decision.taxSavingsOneTime) });
+    }
+    decision.taxImpact = deduction.isPotentiallyDeductible
+      ? `Potential self-employed deduction detected. Estimated tax offset: ${formatCurrency(decision.taxSavingsOneTime)}. ${deduction.note}`
+      : deduction.note;
     return decision;
   }
 
   if (firstAmount) {
+    const deduction = inferPotentialDeduction(question, firstAmount);
     decision.type = "One-time decision";
     decision.oneTimeImpact = -firstAmount;
+    decision.taxSavingsOneTime = deduction.isPotentiallyDeductible ? deduction.taxSavings : 0;
+    decision.deductibleNote = deduction.note;
     decision.assumptions.push({ label: "One-time cost", value: formatCurrency(firstAmount) });
+    if (deduction.isPotentiallyDeductible) {
+      decision.assumptions.push({ label: "Possible tax offset", value: formatCurrency(decision.taxSavingsOneTime) });
+    }
+    decision.taxImpact = deduction.isPotentiallyDeductible
+      ? `Potential self-employed deduction detected. Estimated tax offset: ${formatCurrency(decision.taxSavingsOneTime)}. ${deduction.note}`
+      : deduction.note;
     return decision;
   }
 
@@ -355,13 +425,15 @@ function estimateCompoundGrowth(monthlyContribution, years = 10, annualReturn = 
 function analyzeQuestion(question) {
   const decision = inferDecision(question);
   const currentBuffer = getMonthlyBuffer();
-  const newBuffer = currentBuffer + decision.monthlyImpact;
-  const projectedSavings12 = state.baseline.currentSavings + decision.oneTimeImpact + newBuffer * 12;
+  const taxAdjustedMonthlyImpact = decision.monthlyImpact + decision.taxSavingsMonthly;
+  const taxAdjustedOneTimeImpact = decision.oneTimeImpact + decision.taxSavingsOneTime;
+  const newBuffer = currentBuffer + taxAdjustedMonthlyImpact;
+  const projectedSavings12 = state.baseline.currentSavings + taxAdjustedOneTimeImpact + newBuffer * 12;
   const risk = getRisk(newBuffer);
   const monthlyGoalPace = Math.max(currentBuffer, 1);
   const newGoalPace = Math.max(newBuffer, 1);
   const currentGoalMonths = Math.max(Math.ceil(Math.max(state.baseline.goalTargetAmount - state.baseline.currentSavings, 0) / monthlyGoalPace), 0);
-  const newGoalMonths = Math.max(Math.ceil(Math.max(state.baseline.goalTargetAmount - (state.baseline.currentSavings + decision.oneTimeImpact), 0) / newGoalPace), 0);
+  const newGoalMonths = Math.max(Math.ceil(Math.max(state.baseline.goalTargetAmount - (state.baseline.currentSavings + taxAdjustedOneTimeImpact), 0) / newGoalPace), 0);
   const goalDelay = Math.max(newGoalMonths - currentGoalMonths, 0);
   const compoundGrowth = estimateCompoundGrowth(decision.compoundMonthlyDelta);
   const explanation = risk.label === "Low"
@@ -376,6 +448,8 @@ function analyzeQuestion(question) {
     currentBuffer,
     newBuffer,
     projectedSavings12,
+    taxAdjustedMonthlyImpact,
+    taxAdjustedOneTimeImpact,
     risk,
     goalDelay,
     currentGoalMonths,
@@ -674,6 +748,10 @@ function renderSetupTermGuide() {
         <strong>Goal delay</strong>
         <span>How much a decision may push back the goal you chose.</span>
       </div>
+      <div>
+        <strong>Deductible cost</strong>
+        <span>A business-related expense that may reduce taxable income, not a guaranteed refund.</span>
+      </div>
     </div>
   `;
 }
@@ -729,6 +807,7 @@ function renderDecisionPanel() {
         ${[
           "What happens if I go on a $2,500 trip?",
           "Can I buy a car with a $400/month payment?",
+          "Can I deduct a $1,200 laptop for freelance work?",
           "What if I invest $200/month?",
           "How would freelance income affect my taxes?",
           "Will this delay my emergency fund goal?",
@@ -771,6 +850,8 @@ function renderResult() {
           <div><span>Decision type</span><strong>${escapeHtml(result.decision.type)}</strong></div>
           <div><span>Monthly impact</span><strong>${formatSignedCurrency(result.decision.monthlyImpact)}</strong></div>
           <div><span>One-time impact</span><strong>${formatSignedCurrency(result.decision.oneTimeImpact)}</strong></div>
+          ${(result.decision.taxSavingsMonthly || result.decision.taxSavingsOneTime) ? `<div><span>Estimated tax offset</span><strong>${result.decision.taxSavingsMonthly ? `${formatCurrency(result.decision.taxSavingsMonthly)}/month` : formatCurrency(result.decision.taxSavingsOneTime)}</strong></div>` : ""}
+          ${(result.decision.taxSavingsMonthly || result.decision.taxSavingsOneTime) ? `<div><span>Tax-adjusted impact</span><strong>${result.decision.taxSavingsMonthly ? `${formatSignedCurrency(result.taxAdjustedMonthlyImpact)}/month` : formatSignedCurrency(result.taxAdjustedOneTimeImpact)}</strong></div>` : ""}
           ${result.decision.assumptions.map((item) => `<div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`).join("")}
         </div>
       </div>
