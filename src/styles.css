@@ -396,6 +396,10 @@ input:disabled {
   width: auto;
 }
 
+.onboarding-wide {
+  grid-column: 1 / -1;
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;
