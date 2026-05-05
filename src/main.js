@@ -5,6 +5,7 @@ const BASELINE_KEY = "pam-ai-young-adult-baseline-v2";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const SETUP_STEP_KEY = "pam-ai-account-setup-step-v1";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
+const ACCOUNT_STEPS = ["Account", "Age", "Work", "Location", "Taxes", "Spending", "Goals"];
 
 const STATE_TAX_RATES = {
   CA: 0.06,
@@ -39,7 +40,9 @@ const EMPTY_BASELINE = {
   longTermGoal: "",
   customGoalLabel: "",
   goalTargetAmount: "",
-  goalTimelineMonths: ""
+  goalTimelineMonths: "",
+  goalTargetEstimated: false,
+  goalTimelineEstimated: false
 };
 
 const state = {
@@ -84,11 +87,11 @@ function saveBaseline(baseline) {
 function loadSetupStep() {
   if (typeof window === "undefined") return 0;
   const stored = Number(window.localStorage.getItem(SETUP_STEP_KEY));
-  return Number.isFinite(stored) ? Math.max(0, Math.min(stored, 3)) : 0;
+  return Number.isFinite(stored) ? Math.max(0, Math.min(stored, ACCOUNT_STEPS.length - 1)) : 0;
 }
 
 function saveSetupStep(step) {
-  state.setupStep = Math.max(0, Math.min(step, 3));
+  state.setupStep = Math.max(0, Math.min(step, ACCOUNT_STEPS.length - 1));
   try {
     window.localStorage.setItem(SETUP_STEP_KEY, String(state.setupStep));
   } catch (_error) {
@@ -199,16 +202,22 @@ function hasCompletedBaseline(baseline = state.baseline) {
   return [
     baseline.firstName,
     baseline.emailAddress,
-    baseline.age,
     baseline.grossMonthlyIncome,
-    baseline.employmentStatus,
-    baseline.stateCode,
     baseline.monthlyExpenses,
-    baseline.monthlyObligations,
     baseline.currentSavings,
     baseline.goalTargetAmount,
     baseline.goalTimelineMonths
   ].every(hasValue) && hasGoal;
+}
+
+function estimateGoalDefaults(goalLabel) {
+  const normalized = String(goalLabel || "").toLowerCase();
+  if (normalized.includes("move out")) return { target: 18000, timeline: 18 };
+  if (normalized.includes("emergency")) return { target: 10000, timeline: 12 };
+  if (normalized.includes("car")) return { target: 8000, timeline: 14 };
+  if (normalized.includes("invest")) return { target: 6000, timeline: 12 };
+  if (normalized.includes("net worth")) return { target: 25000, timeline: 24 };
+  return { target: 12000, timeline: 18 };
 }
 
 function normalizeBaseline(baseline) {
@@ -216,6 +225,10 @@ function normalizeBaseline(baseline) {
   const combinedRate = baseline.taxRateOverride
     ? toNumber(baseline.estimatedTaxRate, taxProfile.combinedRate)
     : taxProfile.combinedRate;
+  const goalLabel = getGoalLabel(baseline);
+  const estimatedGoalDefaults = hasValue(goalLabel) ? estimateGoalDefaults(goalLabel) : null;
+  const goalTargetEstimated = !hasValue(baseline.goalTargetAmount) && Boolean(estimatedGoalDefaults);
+  const goalTimelineEstimated = !hasValue(baseline.goalTimelineMonths) && Boolean(estimatedGoalDefaults);
   return {
     ...EMPTY_BASELINE,
     ...baseline,
@@ -224,12 +237,14 @@ function normalizeBaseline(baseline) {
     takeHomeIncome: taxProfile.takeHomeIncome,
     estimatedTaxRate: hasValue(baseline.grossMonthlyIncome) ? combinedRate : "",
     monthlyExpenses: hasValue(baseline.monthlyExpenses) ? toNumber(baseline.monthlyExpenses) : "",
-    monthlyObligations: hasValue(baseline.monthlyObligations) ? toNumber(baseline.monthlyObligations) : "",
+    monthlyObligations: hasValue(baseline.monthlyObligations) ? toNumber(baseline.monthlyObligations) : 0,
     currentSavings: hasValue(baseline.currentSavings) ? toNumber(baseline.currentSavings) : "",
-    retirementContributions: hasValue(baseline.retirementContributions) ? toNumber(baseline.retirementContributions) : "",
-    deductions: hasValue(baseline.deductions) ? toNumber(baseline.deductions) : "",
-    goalTargetAmount: hasValue(baseline.goalTargetAmount) ? toNumber(baseline.goalTargetAmount) : "",
-    goalTimelineMonths: hasValue(baseline.goalTimelineMonths) ? toNumber(baseline.goalTimelineMonths) : "",
+    retirementContributions: hasValue(baseline.retirementContributions) ? toNumber(baseline.retirementContributions) : 0,
+    deductions: hasValue(baseline.deductions) ? toNumber(baseline.deductions) : 0,
+    goalTargetAmount: hasValue(baseline.goalTargetAmount) ? toNumber(baseline.goalTargetAmount) : (estimatedGoalDefaults?.target ?? ""),
+    goalTimelineMonths: hasValue(baseline.goalTimelineMonths) ? toNumber(baseline.goalTimelineMonths) : (estimatedGoalDefaults?.timeline ?? ""),
+    goalTargetEstimated,
+    goalTimelineEstimated,
     taxProfile
   };
 }
@@ -533,10 +548,39 @@ function readBaselineForm(form) {
   };
 }
 
+function applyStepEstimate(step, draft) {
+  const nextDraft = { ...draft };
+
+  if (step === 1) {
+    nextDraft.age = "";
+  }
+
+  if (step === 3) {
+    nextDraft.stateCode = nextDraft.stateCode || "OTHER";
+    nextDraft.retirementContributions = hasValue(nextDraft.retirementContributions) ? nextDraft.retirementContributions : 0;
+  }
+
+  if (step === 4) {
+    nextDraft.deductions = hasValue(nextDraft.deductions) ? nextDraft.deductions : 0;
+    nextDraft.taxRateOverride = false;
+  }
+
+  if (step === 6 && hasValue(getGoalLabel(nextDraft))) {
+    const defaults = estimateGoalDefaults(getGoalLabel(nextDraft));
+    nextDraft.goalTargetAmount = hasValue(nextDraft.goalTargetAmount) ? nextDraft.goalTargetAmount : defaults.target;
+    nextDraft.goalTimelineMonths = hasValue(nextDraft.goalTimelineMonths) ? nextDraft.goalTimelineMonths : defaults.timeline;
+  }
+
+  return nextDraft;
+}
+
 function handleBaselineSubmit(event) {
   event.preventDefault();
   const action = event.submitter?.dataset.setupAction || "save";
-  const draft = readBaselineForm(event.currentTarget);
+  const stepBeforeAction = state.setupStep;
+  const draft = action === "skip"
+    ? applyStepEstimate(stepBeforeAction, readBaselineForm(event.currentTarget))
+    : readBaselineForm(event.currentTarget);
   saveBaseline(draft);
 
   if (action === "back") {
@@ -545,8 +589,9 @@ function handleBaselineSubmit(event) {
     return;
   }
 
-  if (action === "next") {
+  if (action === "next" || action === "skip") {
     saveSetupStep(state.setupStep + 1);
+    state.status = action === "skip" ? "PAM filled a reasonable estimate for that step. You can refine it later." : "";
     render();
     return;
   }
@@ -708,29 +753,36 @@ function renderAccountSetupFields() {
   const baseline = state.baseline;
   if (state.setupStep === 0) {
     return `
-      <p class="setup-step-copy">Create your account first. PAM is built for young adults, so age helps frame runway, investing time, and independence goals.</p>
+      <p class="setup-step-copy">Start simple. First we just create the account you’ll come back to later.</p>
       <div class="onboarding-field-grid">
         <label><span>First name</span><small>Used to personalize your account preview.</small><input type="text" name="firstName" value="${escapeHtml(baseline.firstName)}" placeholder="Example: Maya" /></label>
         <label><span>Email</span><small>For your account identity in this prototype. No real auth yet.</small><input type="email" name="emailAddress" value="${escapeHtml(baseline.emailAddress)}" placeholder="you@example.com" /></label>
-        <label><span>Age</span><small>PAM uses age to estimate how much time compound growth has left to work.</small><input type="number" name="age" value="${baseline.age}" min="18" max="35" step="1" placeholder="Example: 24" /></label>
+      </div>
+    `;
+  }
+
+  if (state.setupStep === 1) {
+    return `
+      <p class="setup-step-copy">Age helps PAM frame independence timing and how much runway compound growth has left. If you do not want to answer yet, you can skip.</p>
+      <div class="onboarding-field-grid">
+        <label><span>Age</span><small>Used for long-term opportunity-cost and retirement timing estimates.</small><input type="number" name="age" value="${baseline.age}" min="18" max="35" step="1" placeholder="Example: 24" /></label>
+      </div>
+    `;
+  }
+
+  if (state.setupStep === 2) {
+    return `
+      <p class="setup-step-copy">Next, tell PAM how money comes in. This is the biggest driver of everything else.</p>
+      <div class="onboarding-field-grid">
         <label><span>Gross monthly income</span><small>What you earn before taxes, deductions, or retirement contributions.</small><input type="number" name="grossMonthlyIncome" value="${baseline.grossMonthlyIncome}" min="0" step="50" placeholder="Example: 5600" /></label>
         <label>
           <span>Employment status</span>
           <small>This changes taxes, withholding, and how PAM thinks about deductions.</small>
           <select name="employmentStatus">
             <option value="" ${baseline.employmentStatus === "" ? "selected" : ""}>Select status</option>
-            ${["W-2 employee", "1099 / self-employed", "Part-time employee", "Student worker", "Not currently employed"].map((option) => `<option value="${option}" ${baseline.employmentStatus === option ? "selected" : ""}>${option}</option>`).join("")}
+            ${["W-2 employee", "1099 / self-employed", "Part-time employee", "Student worker", "Not currently employed", "Not sure yet"].map((option) => `<option value="${option}" ${baseline.employmentStatus === option ? "selected" : ""}>${option}</option>`).join("")}
           </select>
         </label>
-        <label>
-          <span>State</span>
-          <small>State helps PAM estimate combined tax impact. You can refine later.</small>
-          <select name="stateCode">
-            <option value="" ${baseline.stateCode === "" ? "selected" : ""}>Select state</option>
-            ${["CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN", "OTHER"].map((option) => `<option value="${option}" ${baseline.stateCode === option ? "selected" : ""}>${option}</option>`).join("")}
-          </select>
-        </label>
-        <label><span>Retirement contributions</span><small>Optional monthly amount going to retirement accounts.</small><input type="number" name="retirementContributions" value="${baseline.retirementContributions}" min="0" step="25" placeholder="Optional" /></label>
       </div>
       <div class="employment-guide">
         <div><strong>W-2</strong><span>Employer withholds taxes automatically. Usually simpler cash flow.</span></div>
@@ -740,9 +792,26 @@ function renderAccountSetupFields() {
     `;
   }
 
-  if (state.setupStep === 1) {
+  if (state.setupStep === 3) {
     return `
-      <p class="setup-step-copy">PAM estimates taxes from your income, state, and work type. Override only if you already know your rate.</p>
+      <p class="setup-step-copy">If you know your state and retirement contribution, great. If not, PAM can still move forward with a general estimate.</p>
+      <div class="onboarding-field-grid">
+        <label>
+          <span>State</span>
+          <small>State helps PAM estimate combined tax impact. You can refine later.</small>
+          <select name="stateCode">
+            <option value="" ${baseline.stateCode === "" ? "selected" : ""}>I do not know yet</option>
+            ${["CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN", "OTHER"].map((option) => `<option value="${option}" ${baseline.stateCode === option ? "selected" : ""}>${option}</option>`).join("")}
+          </select>
+        </label>
+        <label><span>Retirement contributions</span><small>Optional monthly amount going to retirement accounts.</small><input type="number" name="retirementContributions" value="${baseline.retirementContributions}" min="0" step="25" placeholder="Optional" /></label>
+      </div>
+    `;
+  }
+
+  if (state.setupStep === 4) {
+    return `
+      <p class="setup-step-copy">Taxes can be messy. If you do not know these yet, PAM can estimate from your income and work type.</p>
       <div class="onboarding-field-grid">
         <label><span>Estimated combined tax rate</span><small>Federal, state, and payroll/self-employment tax estimate.</small><input type="number" name="estimatedTaxRate" value="${baseline.estimatedTaxRate}" min="0" max="50" step="1" placeholder="PAM can estimate" /></label>
         <label><span>Deductions</span><small>Optional annual deductions that may reduce taxable income.</small><input type="number" name="deductions" value="${baseline.deductions}" min="0" step="100" placeholder="Optional" /></label>
@@ -751,19 +820,19 @@ function renderAccountSetupFields() {
     `;
   }
 
-  if (state.setupStep === 2) {
+  if (state.setupStep === 5) {
     return `
-      <p class="setup-step-copy">Now add the money already spoken for. This is what turns income into a real monthly buffer.</p>
+      <p class="setup-step-copy">Now the practical part: what goes out every month, and what cushion do you already have?</p>
       <div class="onboarding-field-grid">
         <label><span>Monthly expenses</span><small>Expected everyday spending like rent, food, utilities, transport, and subscriptions.</small><input type="number" name="monthlyExpenses" value="${baseline.monthlyExpenses}" min="0" step="50" placeholder="Example: 2600" /></label>
-        <label><span>Monthly obligations</span><small>Fixed commitments like debt payments, insurance, tuition, or family support.</small><input type="number" name="monthlyObligations" value="${baseline.monthlyObligations}" min="0" step="50" placeholder="Example: 400" /></label>
+        <label><span>Monthly obligations</span><small>Optional fixed commitments like debt, insurance, tuition, or family support.</small><input type="number" name="monthlyObligations" value="${baseline.monthlyObligations}" min="0" step="50" placeholder="Optional" /></label>
         <label><span>Current savings</span><small>Cash you can actually use as a buffer if something goes wrong.</small><input type="number" name="currentSavings" value="${baseline.currentSavings}" min="0" step="100" placeholder="Example: 12000" /></label>
       </div>
     `;
   }
 
   return `
-    <p class="setup-step-copy">Choose the goal PAM should protect first, or write your own. PAM will not assume one until you give it one.</p>
+    <p class="setup-step-copy">Last step. Choose the goal PAM should protect first. If you do not know the amount or timeline yet, PAM can start with a reasonable estimate and you can tighten it later.</p>
     <div class="onboarding-field-grid">
       <label>
         <span>Long-term goal</span>
@@ -778,8 +847,8 @@ function renderAccountSetupFields() {
         <small>Optional if your goal does not fit a preset. Example: “Leave my parents’ house by next spring.”</small>
         <input type="text" name="customGoalLabel" value="${escapeHtml(baseline.customGoalLabel)}" placeholder="Write your own goal" />
       </label>
-      <label><span>Goal target amount</span><small>How much money makes this goal feel realistically funded.</small><input type="number" name="goalTargetAmount" value="${baseline.goalTargetAmount}" min="0" step="100" placeholder="Example: 18000" /></label>
-      <label><span>Goal timeline, months</span><small>When you hope to reach it. PAM checks if decisions push this out.</small><input type="number" name="goalTimelineMonths" value="${baseline.goalTimelineMonths}" min="1" step="1" placeholder="Example: 18" /></label>
+      <label><span>Goal target amount</span><small>How much money makes this goal feel realistically funded.</small><input type="number" name="goalTargetAmount" value="${baseline.goalTargetAmount}" min="0" step="100" placeholder="Leave blank and PAM will estimate" /></label>
+      <label><span>Goal timeline, months</span><small>When you hope to reach it. PAM checks if decisions push this out.</small><input type="number" name="goalTimelineMonths" value="${baseline.goalTimelineMonths}" min="1" step="1" placeholder="Leave blank and PAM will estimate" /></label>
     </div>
   `;
 }
@@ -803,7 +872,7 @@ function renderAccountPreview() {
         <div><span>Tax rate</span><strong>${hasValue(baseline.estimatedTaxRate) ? `${baseline.estimatedTaxRate}%` : "Pending"}</strong><small>Combined estimate, not advice.</small></div>
         <div><span>Monthly buffer</span><strong>${isComplete ? formatCurrency(getMonthlyBuffer()) : "Pending"}</strong><small>Take-home minus spending commitments.</small></div>
         <div><span>Savings</span><strong>${valueOrPending(baseline.currentSavings, formatCurrency)}</strong><small>Cash runway PAM can protect.</small></div>
-        <div><span>Goal</span><strong>${hasValue(goalLabel) ? escapeHtml(goalLabel) : "Not provided"}</strong><small>No assumed goal.</small></div>
+        <div><span>Goal</span><strong>${hasValue(goalLabel) ? escapeHtml(goalLabel) : "Not provided"}</strong><small>${baseline.goalTargetEstimated || baseline.goalTimelineEstimated ? "PAM estimated part of this goal." : "No assumed goal."}</small></div>
       </div>
       <p>${escapeHtml(tax.note)}</p>
     </aside>
@@ -887,13 +956,14 @@ function renderGuideWorkspace() {
 }
 
 function renderBaselinePanel() {
-  const steps = ["Profile", "Taxes", "Spending", "Goals"];
+  const steps = ACCOUNT_STEPS;
   const isLastStep = state.setupStep === steps.length - 1;
+  const canSkip = [1, 3, 4, 6].includes(state.setupStep);
   return `
     <section class="foresee-panel baseline-panel account-setup-panel" id="baseline-section">
       <div class="panel-kicker">Create account</div>
-      <h2>Build your PAM baseline step by step.</h2>
-      <p>PAM starts with a guided young-adult profile: identity, age, income, employment status, taxes, expenses, savings, and a real-life goal. Then every decision is analyzed against that baseline.</p>
+      <h2>Build your PAM baseline one step at a time.</h2>
+      <p>PAM asks one thing at a time so creating your account feels lighter. If you do not know a detail, some steps can use a reasonable estimate and keep moving.</p>
 
       <div class="onboarding-progress" aria-label="Account setup progress">
         ${steps.map((step, index) => `
@@ -906,10 +976,12 @@ function renderBaselinePanel() {
 
       <div class="onboarding-layout">
         <form class="baseline-form onboarding-form" data-baseline-form>
+          <div class="step-counter">Step ${state.setupStep + 1} of ${steps.length}</div>
           <h3>${steps[state.setupStep]}</h3>
           ${renderAccountSetupFields()}
           <div class="form-actions">
             ${state.setupStep > 0 ? '<button class="button button-secondary" type="submit" data-setup-action="back">Back</button>' : ""}
+            ${canSkip ? '<button class="button button-secondary" type="submit" data-setup-action="skip">Use estimate</button>' : ""}
             <button class="button button-primary" type="submit" data-setup-action="${isLastStep ? "save" : "next"}">${isLastStep ? "Save baseline" : "Continue"}</button>
             <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
           </div>

@@ -473,6 +473,14 @@ input:disabled {
   font-size: 0.95rem;
 }
 
+.step-counter {
+  color: var(--mint-5);
+  font-size: 0.77rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .onboarding-wide {
   grid-column: 1 / -1;
 }
