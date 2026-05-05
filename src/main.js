@@ -672,6 +672,10 @@ function scrollToSection(id) {
 function openWorkspaceView(view) {
   saveWorkspaceView(view);
   render();
+  const target = view === "guide" ? "#how-it-works" : "#workspace-panel";
+  requestAnimationFrame(() => {
+    scrollToSection(target);
+  });
 }
 
 function renderHero() {
@@ -685,8 +689,8 @@ function renderHero() {
         compound growth, and long-term goals.
       </p>
       <div class="pam-hero-actions">
-        <button class="button button-primary" type="button" data-open-view="simulator">${isComplete ? "Open simulator" : "Try PAM"}</button>
-        <button class="button button-secondary" type="button" data-open-view="account">${isComplete ? "Open my account" : "Create your account"}</button>
+        <button class="button button-primary" type="button" data-open-view="account">${isComplete ? "Open my account" : "Create your account"}</button>
+        <button class="button button-secondary" type="button" data-open-view="simulator">${isComplete ? "Open simulator" : "Try PAM"}</button>
         <button class="button button-secondary" type="button" data-open-view="guide">Learn how it works</button>
       </div>
       <div class="pam-proof-grid">
