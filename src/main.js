@@ -4,6 +4,7 @@ const app = document.querySelector("#app");
 const BASELINE_KEY = "pam-ai-young-adult-baseline-v2";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const SETUP_STEP_KEY = "pam-ai-account-setup-step-v1";
+const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 
 const STATE_TAX_RATES = {
   CA: 0.06,
@@ -44,6 +45,7 @@ const EMPTY_BASELINE = {
 const state = {
   baseline: loadBaseline(),
   setupStep: loadSetupStep(),
+  workspaceView: loadWorkspaceView(),
   question: loadQuestion(),
   result: null,
   status: "",
@@ -91,6 +93,21 @@ function saveSetupStep(step) {
     window.localStorage.setItem(SETUP_STEP_KEY, String(state.setupStep));
   } catch (_error) {
     // Step persistence is helpful, not required.
+  }
+}
+
+function loadWorkspaceView() {
+  if (typeof window === "undefined") return "account";
+  const stored = window.localStorage.getItem(WORKSPACE_VIEW_KEY);
+  return ["account", "simulator", "guide"].includes(stored || "") ? stored : "account";
+}
+
+function saveWorkspaceView(view) {
+  state.workspaceView = ["account", "simulator", "guide"].includes(view) ? view : "account";
+  try {
+    window.localStorage.setItem(WORKSPACE_VIEW_KEY, state.workspaceView);
+  } catch (_error) {
+    // View persistence is helpful, not required.
   }
 }
 
@@ -542,6 +559,7 @@ function handleBaselineSubmit(event) {
   }
 
   state.status = "Baseline saved. PAM will use these numbers for every scenario.";
+  saveWorkspaceView("simulator");
   state.result = analyzeQuestion(state.question);
   render();
 }
@@ -553,12 +571,13 @@ function handleQuestionSubmit(event) {
   if (!question) return;
   saveQuestion(question);
   if (!hasCompletedBaseline()) {
+    saveWorkspaceView("account");
     state.result = null;
     state.status = "Create your account baseline first so PAM can calculate this against your real inputs.";
     render();
-    scrollToSection("#baseline-section");
     return;
   }
+  saveWorkspaceView("simulator");
   state.result = analyzeQuestion(question);
   state.status = "Decision analyzed locally using your current baseline.";
   render();
@@ -568,7 +587,13 @@ function scrollToSection(id) {
   document.querySelector(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function openWorkspaceView(view) {
+  saveWorkspaceView(view);
+  render();
+}
+
 function renderHero() {
+  const isComplete = hasCompletedBaseline();
   return `
     <section class="pam-hero foresee-panel">
       <div class="panel-kicker">PAM AI • Personal Asset Manager</div>
@@ -578,9 +603,9 @@ function renderHero() {
         compound growth, and long-term goals.
       </p>
       <div class="pam-hero-actions">
-        <button class="button button-primary" type="button" data-scroll-target="#decision-input">Try PAM</button>
-        <button class="button button-secondary" type="button" data-scroll-target="#baseline-section">Create your account</button>
-        <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">Learn how it works</button>
+        <button class="button button-primary" type="button" data-open-view="simulator">${isComplete ? "Open simulator" : "Try PAM"}</button>
+        <button class="button button-secondary" type="button" data-open-view="account">${isComplete ? "Open my account" : "Create your account"}</button>
+        <button class="button button-secondary" type="button" data-open-view="guide">Learn how it works</button>
       </div>
       <div class="pam-proof-grid">
         <div><span>Version one</span><strong>Young adults</strong></div>
@@ -808,6 +833,59 @@ function renderSetupTermGuide() {
   `;
 }
 
+function renderWorkspaceHub() {
+  const isComplete = hasCompletedBaseline();
+  const goalLabel = getGoalLabel(state.baseline);
+  return `
+    <section class="foresee-panel workspace-panel" id="workspace-panel">
+      <div class="workspace-header">
+        <div>
+          <div class="panel-kicker">Workspace</div>
+          <h2>${isComplete ? `${escapeHtml(state.baseline.firstName || "Your")} PAM workspace` : "Create your account"}</h2>
+          <p>${isComplete ? `Return to your saved baseline, run decisions, or review how PAM models tradeoffs for ${escapeHtml(goalLabel)}.` : "Finish your profile once, then come back straight to your account or simulator without the long-scroll experience."}</p>
+        </div>
+        ${isComplete ? `<div class="workspace-account-chip"><strong>${escapeHtml(state.baseline.firstName || "Account")}</strong><span>${escapeHtml(state.baseline.emailAddress)}</span></div>` : ""}
+      </div>
+      <div class="workspace-tabs" role="tablist" aria-label="PAM workspace views">
+        ${[
+          { id: "account", label: isComplete ? "My account" : "Create account" },
+          { id: "simulator", label: "Simulator" },
+          { id: "guide", label: "Guide" }
+        ].map((item) => `
+          <button
+            class="workspace-tab ${state.workspaceView === item.id ? "active" : ""}"
+            type="button"
+            data-open-view="${item.id}"
+            role="tab"
+            aria-selected="${state.workspaceView === item.id ? "true" : "false"}"
+          >${item.label}</button>
+        `).join("")}
+      </div>
+      ${state.workspaceView === "account" ? renderBaselinePanel() : ""}
+      ${state.workspaceView === "simulator" ? renderSimulatorWorkspace() : ""}
+      ${state.workspaceView === "guide" ? renderGuideWorkspace() : ""}
+    </section>
+  `;
+}
+
+function renderSimulatorWorkspace() {
+  return `
+    <div class="workspace-grid workspace-grid-simulator" id="decision-input">
+      ${renderDecisionPanel()}
+      ${renderResult()}
+    </div>
+  `;
+}
+
+function renderGuideWorkspace() {
+  return `
+    <div class="workspace-guide-grid">
+      ${renderEducationSections()}
+      ${renderHowItWorksSteps()}
+    </div>
+  `;
+}
+
 function renderBaselinePanel() {
   const steps = ["Profile", "Taxes", "Spending", "Goals"];
   const isLastStep = state.setupStep === steps.length - 1;
@@ -979,11 +1057,7 @@ function render() {
       <main class="pam-homepage">
         ${renderHero()}
         ${renderStaticExample()}
-        ${renderEducationSections()}
-        ${renderBaselinePanel()}
-        ${renderDecisionPanel()}
-        ${renderResult()}
-        ${renderHowItWorksSteps()}
+        ${renderWorkspaceHub()}
       </main>
     </div>
     ${renderWaitlistModal()}
@@ -1006,19 +1080,23 @@ function wireInteractions() {
   document.querySelectorAll("[data-scroll-target]").forEach((button) => {
     button.addEventListener("click", () => scrollToSection(button.dataset.scrollTarget));
   });
+  document.querySelectorAll("[data-open-view]").forEach((button) => {
+    button.addEventListener("click", () => openWorkspaceView(button.dataset.openView || "account"));
+  });
   document.querySelectorAll("[data-question-example]").forEach((button) => {
     button.addEventListener("click", () => {
       const question = button.dataset.questionExample || "";
       saveQuestion(question);
       if (hasCompletedBaseline()) {
+        saveWorkspaceView("simulator");
         state.result = analyzeQuestion(question);
         state.status = "Example prompt analyzed. You can edit it and run another scenario.";
       } else {
+        saveWorkspaceView("account");
         state.result = null;
         state.status = "Prompt saved. Finish account setup first so PAM can analyze it against your baseline.";
       }
       render();
-      scrollToSection(hasCompletedBaseline() ? "#decision-input" : "#baseline-section");
     });
   });
 }

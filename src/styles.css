@@ -351,6 +351,70 @@ input:disabled {
   line-height: 1.55;
 }
 
+.workspace-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.workspace-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.workspace-account-chip {
+  min-width: 220px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: rgba(216, 243, 229, 0.54);
+  border: 1px solid rgba(30, 138, 102, 0.14);
+}
+
+.workspace-account-chip strong,
+.workspace-account-chip span {
+  display: block;
+}
+
+.workspace-account-chip span {
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+
+.workspace-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workspace-tab {
+  padding: 11px 15px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+  color: var(--ink-3);
+  font-weight: 900;
+}
+
+.workspace-tab.active {
+  background: linear-gradient(135deg, var(--mint-4), var(--mint-5));
+  color: white;
+  box-shadow: 0 16px 28px rgba(13, 101, 73, 0.18);
+}
+
+.workspace-grid-simulator {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.workspace-guide-grid {
+  display: grid;
+  gap: 16px;
+}
+
 .profile-form,
 .baseline-form,
 .foresee-question-form,
@@ -699,6 +763,7 @@ input:disabled {
 @media (max-width: 900px) {
   .foresee-layout,
   .onboarding-layout,
+  .workspace-header,
   .pam-proof-grid,
   .split-section,
   .feature-grid,
@@ -712,7 +777,8 @@ input:disabled {
   .cash-flow-preview-grid,
   .term-guide,
   .assumption-grid-foresee,
-  .outcome-grid {
+  .outcome-grid,
+  .workspace-grid-simulator {
     grid-template-columns: 1fr;
   }
 
