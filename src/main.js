@@ -197,17 +197,42 @@ function hasValue(value) {
   return value !== "" && value !== null && value !== undefined;
 }
 
+function hasPositiveValue(value) {
+  return hasValue(value) && toNumber(value) > 0;
+}
+
+function validateBaseline(baseline = state.baseline) {
+  const errors = [];
+  const goalLabel = getGoalLabel(baseline);
+
+  if (!hasValue(baseline.firstName)) errors.push("Add a first name so PAM can save this device profile.");
+  if (!hasValue(baseline.emailAddress)) errors.push("Add an email so this prototype knows which profile is saved on this device.");
+  if (!hasValue(baseline.grossMonthlyIncome) && toNumber(baseline.grossMonthlyIncome) !== 0) errors.push("Add gross monthly income before saving your baseline.");
+  if (!hasValue(baseline.employmentStatus)) errors.push("Choose an employment status so PAM can estimate taxes the right way.");
+  if (!hasValue(baseline.monthlyExpenses) && toNumber(baseline.monthlyExpenses) !== 0) errors.push("Add monthly expenses before saving your baseline.");
+  if (!hasValue(baseline.currentSavings) && toNumber(baseline.currentSavings) !== 0) errors.push("Add current savings before saving your baseline.");
+  if (!hasValue(goalLabel)) errors.push("Choose one long-term goal so PAM knows what to protect.");
+  if (baseline.longTermGoal === "Custom goal" && !hasValue(String(baseline.customGoalLabel || "").trim())) {
+    errors.push("Write a custom goal label or choose one of the preset goals.");
+  }
+  if (!hasPositiveValue(baseline.goalTargetAmount)) errors.push("Goal target amount must be above $0, or use PAM's estimate.");
+  if (!hasPositiveValue(baseline.goalTimelineMonths)) errors.push("Goal timeline must be at least 1 month, or use PAM's estimate.");
+
+  return errors;
+}
+
 function hasCompletedBaseline(baseline = state.baseline) {
   const hasGoal = hasValue(getGoalLabel(baseline));
   return [
     baseline.firstName,
     baseline.emailAddress,
     baseline.grossMonthlyIncome,
+    baseline.employmentStatus,
     baseline.monthlyExpenses,
     baseline.currentSavings,
     baseline.goalTargetAmount,
     baseline.goalTimelineMonths
-  ].every(hasValue) && hasGoal;
+  ].every(hasValue) && hasGoal && hasPositiveValue(baseline.goalTargetAmount) && hasPositiveValue(baseline.goalTimelineMonths);
 }
 
 function estimateGoalDefaults(goalLabel) {
@@ -581,21 +606,33 @@ function handleBaselineSubmit(event) {
   const draft = action === "skip"
     ? applyStepEstimate(stepBeforeAction, readBaselineForm(event.currentTarget))
     : readBaselineForm(event.currentTarget);
-  saveBaseline(draft);
+  const normalizedDraft = normalizeBaseline(draft);
 
   if (action === "back") {
+    saveBaseline(normalizedDraft);
     saveSetupStep(state.setupStep - 1);
     render();
     return;
   }
 
   if (action === "next" || action === "skip") {
+    saveBaseline(normalizedDraft);
     saveSetupStep(state.setupStep + 1);
     state.status = action === "skip" ? "PAM filled a reasonable estimate for that step. You can refine it later." : "";
     render();
     return;
   }
 
+  const errors = validateBaseline(normalizedDraft);
+  if (errors.length) {
+    saveBaseline(normalizedDraft);
+    state.status = errors[0];
+    state.result = null;
+    render();
+    return;
+  }
+
+  saveBaseline(normalizedDraft);
   if (!hasCompletedBaseline()) {
     state.status = "Finish the required setup fields first. PAM will not create a baseline until the profile is complete.";
     state.result = null;
@@ -753,10 +790,10 @@ function renderAccountSetupFields() {
   const baseline = state.baseline;
   if (state.setupStep === 0) {
     return `
-      <p class="setup-step-copy">Start simple. First we just create the account you’ll come back to later.</p>
+      <p class="setup-step-copy">Start simple. First we create the saved-on-this-device profile you’ll come back to later.</p>
       <div class="onboarding-field-grid">
         <label><span>First name</span><small>Used to personalize your account preview.</small><input type="text" name="firstName" value="${escapeHtml(baseline.firstName)}" placeholder="Example: Maya" /></label>
-        <label><span>Email</span><small>For your account identity in this prototype. No real auth yet.</small><input type="email" name="emailAddress" value="${escapeHtml(baseline.emailAddress)}" placeholder="you@example.com" /></label>
+        <label><span>Email</span><small>Used to label the profile saved on this device in the prototype. No real auth yet.</small><input type="email" name="emailAddress" value="${escapeHtml(baseline.emailAddress)}" placeholder="you@example.com" /></label>
       </div>
     `;
   }
@@ -774,7 +811,7 @@ function renderAccountSetupFields() {
     return `
       <p class="setup-step-copy">Next, tell PAM how money comes in. This is the biggest driver of everything else.</p>
       <div class="onboarding-field-grid">
-        <label><span>Gross monthly income</span><small>What you earn before taxes, deductions, or retirement contributions.</small><input type="number" name="grossMonthlyIncome" value="${baseline.grossMonthlyIncome}" min="0" step="50" placeholder="Example: 5600" /></label>
+        <label><span>Gross monthly income</span><small>Enter pre-tax income here, not your take-home pay. PAM calculates the take-home estimate separately.</small><input type="number" name="grossMonthlyIncome" value="${baseline.grossMonthlyIncome}" min="0" step="50" placeholder="Example: 5600" /></label>
         <label>
           <span>Employment status</span>
           <small>This changes taxes, withholding, and how PAM thinks about deductions.</small>
@@ -862,17 +899,17 @@ function renderAccountPreview() {
   return `
     <aside class="cash-flow-preview ${isComplete ? "" : "incomplete-preview"}">
       <div class="panel-kicker">${isComplete ? "Baseline ready" : "Setup in progress"}</div>
-      <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM baseline` : "No baseline yet"}</h3>
+      <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM baseline` : "Profile draft only"}</h3>
       <p>${isComplete ? "PAM now has enough information to model decisions against your profile." : "PAM will show a baseline only after income, taxes, spending, savings, and a goal are provided."}</p>
       <div class="cash-flow-preview-grid">
-        <div><span>Account</span><strong>${hasValue(baseline.emailAddress) ? escapeHtml(baseline.emailAddress) : "Not provided"}</strong><small>Young-adult profile sign-in.</small></div>
+        <div class="preview-card preview-card-account"><span>Saved on this device</span><strong>${hasValue(baseline.emailAddress) ? escapeHtml(baseline.emailAddress) : "Not provided"}</strong><small>Prototype profile label, not real auth.</small></div>
         <div><span>Age</span><strong>${valueOrPending(baseline.age)}</strong><small>Used for time horizon and retirement runway.</small></div>
         <div><span>Gross income</span><strong>${valueOrPending(baseline.grossMonthlyIncome, formatCurrency)}</strong><small>Before tax and deductions.</small></div>
-        <div><span>Take-home</span><strong>${isComplete ? formatCurrency(baseline.takeHomeIncome) : "Pending"}</strong><small>Estimated spendable income.</small></div>
+        <div><span>Take-home</span><strong>${isComplete ? formatCurrency(baseline.takeHomeIncome) : "Pending"}</strong><small>PAM estimates this from gross income, state, taxes, and work type.</small></div>
         <div><span>Tax rate</span><strong>${hasValue(baseline.estimatedTaxRate) ? `${baseline.estimatedTaxRate}%` : "Pending"}</strong><small>Combined estimate, not advice.</small></div>
         <div><span>Monthly buffer</span><strong>${isComplete ? formatCurrency(getMonthlyBuffer()) : "Pending"}</strong><small>Take-home minus spending commitments.</small></div>
         <div><span>Savings</span><strong>${valueOrPending(baseline.currentSavings, formatCurrency)}</strong><small>Cash runway PAM can protect.</small></div>
-        <div><span>Goal</span><strong>${hasValue(goalLabel) ? escapeHtml(goalLabel) : "Not provided"}</strong><small>${baseline.goalTargetEstimated || baseline.goalTimelineEstimated ? "PAM estimated part of this goal." : "No assumed goal."}</small></div>
+        <div class="preview-card preview-card-goal"><span>Goal</span><strong>${hasValue(goalLabel) ? escapeHtml(goalLabel) : "Not provided"}</strong><small>${baseline.goalTargetEstimated || baseline.goalTimelineEstimated ? "PAM estimated part of this goal." : "No assumed goal."}</small></div>
       </div>
       <p>${escapeHtml(tax.note)}</p>
     </aside>

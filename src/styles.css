@@ -608,18 +608,29 @@ input:disabled {
 }
 
 .cash-flow-preview-grid div {
+  min-width: 0;
   padding: 12px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.cash-flow-preview-grid span,
+.cash-flow-preview-grid strong,
+.cash-flow-preview-grid small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .cash-flow-preview-grid strong {
   display: block;
   margin-top: 6px;
   color: white;
-  font-size: 1.3rem;
+  font-size: clamp(1rem, 2vw, 1.3rem);
   letter-spacing: -0.04em;
+  line-height: 1.08;
 }
 
 .cash-flow-preview-grid small {
@@ -628,6 +639,12 @@ input:disabled {
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.72rem;
   line-height: 1.3;
+}
+
+.preview-card-account strong,
+.preview-card-goal strong {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
 }
 
 .term-guide {
