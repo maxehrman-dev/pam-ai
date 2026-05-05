@@ -21,6 +21,9 @@ const STATE_TAX_RATES = {
 };
 
 const EMPTY_BASELINE = {
+  firstName: "",
+  emailAddress: "",
+  age: "",
   grossMonthlyIncome: "",
   takeHomeIncome: 0,
   employmentStatus: "",
@@ -33,6 +36,7 @@ const EMPTY_BASELINE = {
   retirementContributions: "",
   deductions: "",
   longTermGoal: "",
+  customGoalLabel: "",
   goalTargetAmount: "",
   goalTimelineMonths: ""
 };
@@ -174,17 +178,20 @@ function hasValue(value) {
 }
 
 function hasCompletedBaseline(baseline = state.baseline) {
+  const hasGoal = hasValue(getGoalLabel(baseline));
   return [
+    baseline.firstName,
+    baseline.emailAddress,
+    baseline.age,
     baseline.grossMonthlyIncome,
     baseline.employmentStatus,
     baseline.stateCode,
     baseline.monthlyExpenses,
     baseline.monthlyObligations,
     baseline.currentSavings,
-    baseline.longTermGoal,
     baseline.goalTargetAmount,
     baseline.goalTimelineMonths
-  ].every(hasValue);
+  ].every(hasValue) && hasGoal;
 }
 
 function normalizeBaseline(baseline) {
@@ -195,6 +202,7 @@ function normalizeBaseline(baseline) {
   return {
     ...EMPTY_BASELINE,
     ...baseline,
+    age: hasValue(baseline.age) ? toNumber(baseline.age) : "",
     grossMonthlyIncome: hasValue(baseline.grossMonthlyIncome) ? toNumber(baseline.grossMonthlyIncome) : "",
     takeHomeIncome: taxProfile.takeHomeIncome,
     estimatedTaxRate: hasValue(baseline.grossMonthlyIncome) ? combinedRate : "",
@@ -207,6 +215,13 @@ function normalizeBaseline(baseline) {
     goalTimelineMonths: hasValue(baseline.goalTimelineMonths) ? toNumber(baseline.goalTimelineMonths) : "",
     taxProfile
   };
+}
+
+function getGoalLabel(baseline = state.baseline) {
+  if (baseline.longTermGoal === "Custom goal" && hasValue(baseline.customGoalLabel)) {
+    return String(baseline.customGoalLabel).trim();
+  }
+  return baseline.longTermGoal || "";
 }
 
 function getMonthlyBuffer() {
@@ -345,6 +360,7 @@ function inferDecision(question) {
     const estimatedCurrentRent = Math.round(state.baseline.monthlyExpenses * 0.55);
     const newRent = monthlyAmount || firstAmount || 1800;
     decision.monthlyImpact = -(Math.max(newRent - estimatedCurrentRent, 0));
+    decision.compoundMonthlyDelta = Math.abs(decision.monthlyImpact);
     decision.assumptions.push({ label: "New rent", value: `${formatCurrency(newRent)}/month` });
     decision.assumptions.push({ label: "Estimated current housing", value: `${formatCurrency(estimatedCurrentRent)}/month` });
     decision.taxImpact = "No direct change";
@@ -356,6 +372,7 @@ function inferDecision(question) {
     const modeledMonthlyCost = monthlyAmount || firstAmount || 400;
     const deduction = inferPotentialDeduction(question, modeledMonthlyCost, "monthly");
     decision.monthlyImpact = -modeledMonthlyCost;
+    decision.compoundMonthlyDelta = Math.abs(decision.monthlyImpact);
     decision.taxSavingsMonthly = deduction.isPotentiallyDeductible ? deduction.taxSavings : 0;
     decision.deductibleNote = deduction.note;
     decision.assumptions.push({ label: "Car payment / ownership cost", value: `${formatCurrency(Math.abs(decision.monthlyImpact))}/month` });
@@ -422,6 +439,19 @@ function estimateCompoundGrowth(monthlyContribution, years = 10, annualReturn = 
   return monthlyContribution * (((1 + monthlyReturn) ** months - 1) / monthlyReturn);
 }
 
+function estimateCompoundOpportunity(monthlyContribution, age, annualReturn = 0.1, retirementAge = 65) {
+  if (monthlyContribution <= 0 || !hasValue(age)) return null;
+  const years = Math.max(retirementAge - toNumber(age), 0);
+  if (years <= 0) return null;
+  const futureValue = estimateCompoundGrowth(monthlyContribution, years, annualReturn);
+  return {
+    years,
+    retirementAge,
+    annualReturn,
+    futureValue
+  };
+}
+
 function analyzeQuestion(question) {
   const decision = inferDecision(question);
   const currentBuffer = getMonthlyBuffer();
@@ -436,6 +466,7 @@ function analyzeQuestion(question) {
   const newGoalMonths = Math.max(Math.ceil(Math.max(state.baseline.goalTargetAmount - (state.baseline.currentSavings + taxAdjustedOneTimeImpact), 0) / newGoalPace), 0);
   const goalDelay = Math.max(newGoalMonths - currentGoalMonths, 0);
   const compoundGrowth = estimateCompoundGrowth(decision.compoundMonthlyDelta);
+  const compoundOpportunity = estimateCompoundOpportunity(decision.compoundMonthlyDelta, state.baseline.age);
   const explanation = risk.label === "Low"
     ? "This looks workable, but PAM still checks whether it slows your goal or reduces your safety margin."
     : risk.label === "Medium"
@@ -455,6 +486,7 @@ function analyzeQuestion(question) {
     currentGoalMonths,
     newGoalMonths,
     compoundGrowth,
+    compoundOpportunity,
     explanation
   };
 }
@@ -464,6 +496,9 @@ function readBaselineForm(form) {
   const fieldNumber = (key) => formData.has(key) ? toNumber(formData.get(key)) : state.baseline[key];
   return {
     ...state.baseline,
+    firstName: String(formData.get("firstName") || state.baseline.firstName),
+    emailAddress: String(formData.get("emailAddress") || state.baseline.emailAddress),
+    age: formData.has("age") ? toNumber(formData.get("age")) : state.baseline.age,
     grossMonthlyIncome: fieldNumber("grossMonthlyIncome"),
     employmentStatus: String(formData.get("employmentStatus") || state.baseline.employmentStatus),
     stateCode: String(formData.get("stateCode") || state.baseline.stateCode),
@@ -475,6 +510,7 @@ function readBaselineForm(form) {
     retirementContributions: fieldNumber("retirementContributions"),
     deductions: fieldNumber("deductions"),
     longTermGoal: String(formData.get("longTermGoal") || state.baseline.longTermGoal),
+    customGoalLabel: String(formData.get("customGoalLabel") || state.baseline.customGoalLabel),
     goalTargetAmount: fieldNumber("goalTargetAmount"),
     goalTimelineMonths: fieldNumber("goalTimelineMonths")
   };
@@ -588,7 +624,7 @@ function renderEducationSections() {
       <div class="panel-kicker">Decision engine</div>
       <h2>A decision engine for your money.</h2>
       <div class="feature-grid">
-        <article><h3>Build your baseline</h3><p>Add income, employment status, taxes, expenses, savings, obligations, and goals.</p></article>
+        <article><h3>Build your baseline</h3><p>Add age, employment status, income, taxes, expenses, savings, obligations, and goals.</p></article>
         <article><h3>Ask a financial question</h3><p>Test rent, cars, trips, freelance work, saving, investing, and independence decisions.</p></article>
         <article><h3>See the future impact</h3><p>PAM estimates monthly buffer, risk, goal delay, tax impact, and hypothetical compound growth.</p></article>
       </div>
@@ -647,12 +683,15 @@ function renderAccountSetupFields() {
   const baseline = state.baseline;
   if (state.setupStep === 0) {
     return `
-      <p class="setup-step-copy">Start with money coming in. PAM uses this to estimate take-home cash, not to judge spending.</p>
+      <p class="setup-step-copy">Create your account first. PAM is built for young adults, so age helps frame runway, investing time, and independence goals.</p>
       <div class="onboarding-field-grid">
+        <label><span>First name</span><small>Used to personalize your account preview.</small><input type="text" name="firstName" value="${escapeHtml(baseline.firstName)}" placeholder="Example: Maya" /></label>
+        <label><span>Email</span><small>For your account identity in this prototype. No real auth yet.</small><input type="email" name="emailAddress" value="${escapeHtml(baseline.emailAddress)}" placeholder="you@example.com" /></label>
+        <label><span>Age</span><small>PAM uses age to estimate how much time compound growth has left to work.</small><input type="number" name="age" value="${baseline.age}" min="18" max="35" step="1" placeholder="Example: 24" /></label>
         <label><span>Gross monthly income</span><small>What you earn before taxes, deductions, or retirement contributions.</small><input type="number" name="grossMonthlyIncome" value="${baseline.grossMonthlyIncome}" min="0" step="50" placeholder="Example: 5600" /></label>
         <label>
           <span>Employment status</span>
-          <small>This changes the tax estimate. W-2 and 1099 income behave differently.</small>
+          <small>This changes taxes, withholding, and how PAM thinks about deductions.</small>
           <select name="employmentStatus">
             <option value="" ${baseline.employmentStatus === "" ? "selected" : ""}>Select status</option>
             ${["W-2 employee", "1099 / self-employed", "Part-time employee", "Student worker", "Not currently employed"].map((option) => `<option value="${option}" ${baseline.employmentStatus === option ? "selected" : ""}>${option}</option>`).join("")}
@@ -667,6 +706,11 @@ function renderAccountSetupFields() {
           </select>
         </label>
         <label><span>Retirement contributions</span><small>Optional monthly amount going to retirement accounts.</small><input type="number" name="retirementContributions" value="${baseline.retirementContributions}" min="0" step="25" placeholder="Optional" /></label>
+      </div>
+      <div class="employment-guide">
+        <div><strong>W-2</strong><span>Employer withholds taxes automatically. Usually simpler cash flow.</span></div>
+        <div><strong>1099</strong><span>You usually set aside taxes yourself. Deductions may matter more.</span></div>
+        <div><strong>Student / part-time</strong><span>Income can be less stable, so buffer and runway matter more.</span></div>
       </div>
     `;
   }
@@ -694,15 +738,20 @@ function renderAccountSetupFields() {
   }
 
   return `
-    <p class="setup-step-copy">Pick the goal PAM should protect first. PAM will not assume one until you choose it.</p>
+    <p class="setup-step-copy">Choose the goal PAM should protect first, or write your own. PAM will not assume one until you give it one.</p>
     <div class="onboarding-field-grid">
       <label>
         <span>Long-term goal</span>
         <small>The life outcome PAM should measure decisions against.</small>
         <select name="longTermGoal">
           <option value="" ${baseline.longTermGoal === "" ? "selected" : ""}>Choose a goal</option>
-          ${["Move out safely", "Build emergency savings", "Buy a car", "Start investing", "Reach a net worth target"].map((option) => `<option value="${option}" ${baseline.longTermGoal === option ? "selected" : ""}>${option}</option>`).join("")}
+          ${["Move out safely", "Build emergency savings", "Buy a car", "Start investing", "Reach a net worth target", "Custom goal"].map((option) => `<option value="${option}" ${baseline.longTermGoal === option ? "selected" : ""}>${option}</option>`).join("")}
         </select>
+      </label>
+      <label>
+        <span>Custom goal label</span>
+        <small>Optional if your goal does not fit a preset. Example: “Leave my parents’ house by next spring.”</small>
+        <input type="text" name="customGoalLabel" value="${escapeHtml(baseline.customGoalLabel)}" placeholder="Write your own goal" />
       </label>
       <label><span>Goal target amount</span><small>How much money makes this goal feel realistically funded.</small><input type="number" name="goalTargetAmount" value="${baseline.goalTargetAmount}" min="0" step="100" placeholder="Example: 18000" /></label>
       <label><span>Goal timeline, months</span><small>When you hope to reach it. PAM checks if decisions push this out.</small><input type="number" name="goalTimelineMonths" value="${baseline.goalTimelineMonths}" min="1" step="1" placeholder="Example: 18" /></label>
@@ -715,18 +764,21 @@ function renderAccountPreview() {
   const tax = baseline.taxProfile;
   const isComplete = hasCompletedBaseline(baseline);
   const valueOrPending = (value, formatter = (item) => item) => hasValue(value) ? formatter(value) : "Not provided";
+  const goalLabel = getGoalLabel(baseline);
   return `
     <aside class="cash-flow-preview ${isComplete ? "" : "incomplete-preview"}">
       <div class="panel-kicker">${isComplete ? "Baseline ready" : "Setup in progress"}</div>
-      <h3>${isComplete ? "Your PAM baseline" : "No baseline yet"}</h3>
+      <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM baseline` : "No baseline yet"}</h3>
       <p>${isComplete ? "PAM now has enough information to model decisions against your profile." : "PAM will show a baseline only after income, taxes, spending, savings, and a goal are provided."}</p>
       <div class="cash-flow-preview-grid">
+        <div><span>Account</span><strong>${hasValue(baseline.emailAddress) ? escapeHtml(baseline.emailAddress) : "Not provided"}</strong><small>Young-adult profile sign-in.</small></div>
+        <div><span>Age</span><strong>${valueOrPending(baseline.age)}</strong><small>Used for time horizon and retirement runway.</small></div>
         <div><span>Gross income</span><strong>${valueOrPending(baseline.grossMonthlyIncome, formatCurrency)}</strong><small>Before tax and deductions.</small></div>
         <div><span>Take-home</span><strong>${isComplete ? formatCurrency(baseline.takeHomeIncome) : "Pending"}</strong><small>Estimated spendable income.</small></div>
         <div><span>Tax rate</span><strong>${hasValue(baseline.estimatedTaxRate) ? `${baseline.estimatedTaxRate}%` : "Pending"}</strong><small>Combined estimate, not advice.</small></div>
         <div><span>Monthly buffer</span><strong>${isComplete ? formatCurrency(getMonthlyBuffer()) : "Pending"}</strong><small>Take-home minus spending commitments.</small></div>
         <div><span>Savings</span><strong>${valueOrPending(baseline.currentSavings, formatCurrency)}</strong><small>Cash runway PAM can protect.</small></div>
-        <div><span>Goal</span><strong>${hasValue(baseline.longTermGoal) ? escapeHtml(baseline.longTermGoal) : "Not provided"}</strong><small>No assumed goal.</small></div>
+        <div><span>Goal</span><strong>${hasValue(goalLabel) ? escapeHtml(goalLabel) : "Not provided"}</strong><small>No assumed goal.</small></div>
       </div>
       <p>${escapeHtml(tax.note)}</p>
     </aside>
@@ -757,13 +809,13 @@ function renderSetupTermGuide() {
 }
 
 function renderBaselinePanel() {
-  const steps = ["Income", "Taxes", "Spending", "Goals"];
+  const steps = ["Profile", "Taxes", "Spending", "Goals"];
   const isLastStep = state.setupStep === steps.length - 1;
   return `
     <section class="foresee-panel baseline-panel account-setup-panel" id="baseline-section">
       <div class="panel-kicker">Create account</div>
       <h2>Build your PAM baseline step by step.</h2>
-      <p>PAM starts with a guided profile: income, employment status, taxes, expenses, obligations, savings, and goals. Then every decision is analyzed against that baseline.</p>
+      <p>PAM starts with a guided young-adult profile: identity, age, income, employment status, taxes, expenses, savings, and a real-life goal. Then every decision is analyzed against that baseline.</p>
 
       <div class="onboarding-progress" aria-label="Account setup progress">
         ${steps.map((step, index) => `
@@ -835,6 +887,7 @@ function renderResult() {
   }
   const result = state.result || analyzeQuestion(state.question);
   state.result = result;
+  const goalLabel = getGoalLabel(state.baseline);
   return `
     <section class="foresee-panel result-panel">
       <div class="result-header">
@@ -868,9 +921,9 @@ function renderResult() {
         <h3>Tax impact</h3>
         <p>${escapeHtml(result.decision.taxImpact)}</p>
         <h3>Long-term goal impact</h3>
-        <p>${result.goalDelay ? `This delays ${escapeHtml(state.baseline.longTermGoal.toLowerCase())} by about ${formatMonths(result.goalDelay)}.` : `This does not delay ${escapeHtml(state.baseline.longTermGoal.toLowerCase())} in this estimate.`}</p>
+        <p>${result.goalDelay ? `This delays ${escapeHtml(goalLabel.toLowerCase())} by about ${formatMonths(result.goalDelay)}.` : `This does not delay ${escapeHtml(goalLabel.toLowerCase())} in this estimate.`}</p>
         <h3>Compound growth impact</h3>
-        <p>${result.compoundGrowth ? `If invested monthly, this could hypothetically grow to about ${formatCurrency(result.compoundGrowth)} over 10 years at a 6% assumed annual return. Not guaranteed.` : "No direct compound-growth impact detected for this decision."}</p>
+        <p>${result.compoundOpportunity ? `If you redirected ${formatCurrency(result.decision.compoundMonthlyDelta)}/month into a long-term investment earning a hypothetical 10% average annual return, it could grow to about ${formatCurrency(result.compoundOpportunity.futureValue)} by age ${result.compoundOpportunity.retirementAge}. If this were held in a Roth-style account and eligibility rules were met, qualified withdrawals may be tax-free. Educational estimate only, not guaranteed.` : result.compoundGrowth ? `If invested monthly, this could hypothetically grow to about ${formatCurrency(result.compoundGrowth)} over 10 years at a 6% assumed annual return. Not guaranteed.` : "No direct compound-growth impact detected for this decision."}</p>
         <h3>Explanation</h3>
         <p>${escapeHtml(result.explanation)}</p>
         <p class="disclaimer">Educational estimate only. Not financial, tax, legal, or investment advice.</p>
@@ -885,12 +938,12 @@ function renderHowItWorksSteps() {
       <div class="panel-kicker">How it works</div>
       <h2>From baseline to outcome.</h2>
       <div class="steps-grid">
-        <div><strong>1</strong><span>Create your account baseline</span></div>
-        <div><strong>2</strong><span>Choose employment status</span></div>
-        <div><strong>3</strong><span>Add income, expenses, savings, obligations, and goals</span></div>
-        <div><strong>4</strong><span>Ask a financial question</span></div>
-        <div><strong>5</strong><span>PAM estimates tax impact if relevant</span></div>
-        <div><strong>6</strong><span>PAM shows the outcome</span></div>
+        <div><strong>1</strong><span>Create your account with age, email, and work type</span></div>
+        <div><strong>2</strong><span>Add tax context and retirement contributions</span></div>
+        <div><strong>3</strong><span>Add expenses, savings, obligations, and runway</span></div>
+        <div><strong>4</strong><span>Set a goal or write your own</span></div>
+        <div><strong>5</strong><span>Ask a financial question</span></div>
+        <div><strong>6</strong><span>PAM shows tax, goal, and compound-growth tradeoffs</span></div>
       </div>
     </section>
   `;

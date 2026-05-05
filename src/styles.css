@@ -479,6 +479,36 @@ input:disabled {
   gap: 12px;
 }
 
+.employment-guide {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.employment-guide div {
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(216, 243, 229, 0.38);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+}
+
+.employment-guide strong,
+.employment-guide span {
+  display: block;
+}
+
+.employment-guide strong {
+  color: var(--mint-5);
+  font-size: 0.84rem;
+}
+
+.employment-guide span {
+  margin-top: 5px;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  line-height: 1.38;
+}
+
 .cash-flow-preview {
   padding: 16px;
   border-radius: 24px;
@@ -678,6 +708,7 @@ input:disabled {
   .baseline-grid,
   .onboarding-progress,
   .onboarding-field-grid,
+  .employment-guide,
   .cash-flow-preview-grid,
   .term-guide,
   .assumption-grid-foresee,
