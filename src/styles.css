@@ -382,6 +382,36 @@ input:disabled {
   font-size: 0.86rem;
 }
 
+.workspace-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workspace-tab {
+  padding: 11px 15px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+  color: var(--ink-3);
+  font-weight: 900;
+}
+
+.workspace-tab.active {
+  background: linear-gradient(135deg, var(--mint-4), var(--mint-5));
+  color: white;
+  box-shadow: 0 16px 28px rgba(13, 101, 73, 0.18);
+}
+
+.workspace-tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workspace-active-view {
+  min-height: 440px;
+}
+
 .workspace-grid-simulator {
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
@@ -390,6 +420,11 @@ input:disabled {
 }
 
 .workspace-guide-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.compact-workspace-view {
   display: grid;
   gap: 16px;
 }
@@ -850,6 +885,10 @@ input:disabled {
   .outcome-grid,
   .workspace-grid-simulator {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-active-view {
+    min-height: 0;
   }
 
   .pam-hero {

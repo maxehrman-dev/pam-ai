@@ -707,19 +707,18 @@ function scrollToSection(id) {
 }
 
 function openWorkspaceView(view) {
-  const target = view === "dashboard"
-    ? "#dashboard-section"
-    : view === "account"
-      ? "#baseline-section"
-      : "#workspace-panel";
   if (view === "dashboard" && !canAccessDashboard()) {
+    saveWorkspaceView(hasPrototypeAccount() ? "account" : "landing");
     state.status = hasPrototypeAccount()
       ? "Connect Sandbox data before opening the dashboard."
       : "Create an account before opening the dashboard.";
-    render();
   }
+  else {
+    saveWorkspaceView(view);
+  }
+  render();
   requestAnimationFrame(() => {
-    scrollToSection(target);
+    scrollToSection("#workspace-panel");
   });
 }
 
@@ -735,7 +734,7 @@ function renderHero() {
       </p>
       <div class="pam-hero-actions">
         <button class="button button-primary" type="button" data-open-view="${isComplete ? "dashboard" : "account"}">${isComplete ? "Open dashboard" : hasPrototypeAccount() ? "Finish setup" : "Create your account"}</button>
-        <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">How PAM works</button>
+        <button class="button button-secondary" type="button" data-open-view="landing">Overview</button>
       </div>
       <div class="pam-proof-grid">
         <div><span>Flow</span><strong>Create account, connect Sandbox, land on home</strong></div>
@@ -824,16 +823,34 @@ function renderWorkspaceHub() {
         </div>
         ${hasPrototypeAccount() ? `<div class="workspace-account-chip"><strong>${escapeHtml(baseline.firstName || "Account")}</strong><span>${escapeHtml(baseline.emailAddress)}</span></div>` : ""}
       </div>
-      ${renderLandingWorkspace()}
-      ${renderBaselinePanel()}
-      ${renderDashboardWorkspace()}
+      <div class="workspace-tabs" role="tablist" aria-label="PAM views">
+        ${[
+          { id: "landing", label: "Overview" },
+          { id: "account", label: hasPrototypeAccount() ? "Account" : "Create account" },
+          { id: "dashboard", label: "Dashboard", disabled: !canAccessDashboard() }
+        ].map((item) => `
+          <button
+            class="workspace-tab ${state.workspaceView === item.id ? "active" : ""}"
+            type="button"
+            data-open-view="${item.id}"
+            role="tab"
+            aria-selected="${state.workspaceView === item.id ? "true" : "false"}"
+            ${item.disabled ? "disabled" : ""}
+          >${item.label}</button>
+        `).join("")}
+      </div>
+      <div class="workspace-active-view">
+        ${state.workspaceView === "landing" ? renderLandingWorkspace() : ""}
+        ${state.workspaceView === "account" ? renderBaselinePanel() : ""}
+        ${state.workspaceView === "dashboard" ? renderDashboardWorkspace() : ""}
+      </div>
     </section>
   `;
 }
 
 function renderLandingWorkspace() {
   return `
-    <div class="workspace-guide-grid">
+    <div class="workspace-guide-grid compact-workspace-view">
       ${renderEducationSections()}
       ${renderHowItWorksSteps()}
     </div>
@@ -856,15 +873,13 @@ function renderDashboardWorkspace() {
   }
 
   return `
-    <div class="workspace-guide-grid" id="dashboard-section">
+    <div class="workspace-guide-grid compact-workspace-view" id="dashboard-section">
       ${renderAccountPreview()}
       ${renderConnectedInsights()}
       <div class="workspace-grid-simulator" id="decision-input">
         ${renderDecisionPanel()}
         ${renderResult()}
       </div>
-      ${renderEducationSections()}
-      ${renderHowItWorksSteps()}
     </div>
   `;
 }
@@ -893,7 +908,7 @@ function renderBaselinePanel() {
   const isComplete = canAccessDashboard();
   const account = state.account || {};
   return `
-    <section class="foresee-panel baseline-panel account-setup-panel" id="baseline-section">
+    <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
       <div class="panel-kicker">Account setup</div>
       <h2>${hasPrototypeAccount() ? "Connect Sandbox data." : "Create your account."}</h2>
       <div class="onboarding-layout">
