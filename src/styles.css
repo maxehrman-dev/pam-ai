@@ -557,7 +557,20 @@ input:disabled {
   gap: 10px;
 }
 
+.tax-breakout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .employment-guide div {
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(216, 243, 229, 0.38);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+}
+
+.tax-breakout div {
   padding: 12px;
   border-radius: 18px;
   background: rgba(216, 243, 229, 0.38);
@@ -569,12 +582,29 @@ input:disabled {
   display: block;
 }
 
+.tax-breakout strong,
+.tax-breakout span {
+  display: block;
+}
+
 .employment-guide strong {
   color: var(--mint-5);
   font-size: 0.84rem;
 }
 
 .employment-guide span {
+  margin-top: 5px;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  line-height: 1.38;
+}
+
+.tax-breakout strong {
+  color: var(--mint-5);
+  font-size: 0.83rem;
+}
+
+.tax-breakout span {
   margin-top: 5px;
   color: var(--ink-2);
   font-size: 0.82rem;
@@ -676,6 +706,20 @@ input:disabled {
   color: var(--ink-2);
   font-size: 0.82rem;
   line-height: 1.4;
+}
+
+.input-error {
+  margin: 0;
+  color: #8f1f1f;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.prototype-note {
+  margin: 14px 0 0;
+  color: var(--ink-2);
+  font-size: 0.83rem;
+  font-weight: 700;
 }
 
 .positive-number {
@@ -798,6 +842,7 @@ input:disabled {
   .baseline-grid,
   .onboarding-progress,
   .onboarding-field-grid,
+  .tax-breakout,
   .employment-guide,
   .cash-flow-preview-grid,
   .term-guide,

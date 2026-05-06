@@ -1,87 +1,50 @@
 import { escapeHtml, formatCurrency, formatSignedCurrency } from "./utils/formatters.js";
+import {
+  WAITLIST_STORAGE_KEY,
+  estimateGoalDefaults,
+  estimateTaxProfile,
+  getCurrentSavings,
+  getEmptyBaseline,
+  getGoalLabel,
+  getMockPlaidLikeData,
+  getMonthlyBuffer,
+  getMonthlyExpenses,
+  getMonthlyObligations,
+  getSpendableIncome,
+  getUiBaseline,
+  hasCompletedBaseline,
+  hasValue,
+  labelToEmploymentStatus,
+  loadBaseline as loadStoredBaseline,
+  normalizeManualBaseline,
+  normalizePlaidMockData,
+  resetBaseline as clearStoredBaseline,
+  saveBaseline as persistBaseline,
+  toNumber,
+  validateBaseline
+} from "./utils/baseline.mjs";
 
 const app = document.querySelector("#app");
-const BASELINE_KEY = "pam-ai-young-adult-baseline-v2";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const SETUP_STEP_KEY = "pam-ai-account-setup-step-v1";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 const ACCOUNT_STEPS = ["Account", "Age", "Work", "Location", "Taxes", "Spending", "Goals"];
 
-const STATE_TAX_RATES = {
-  CA: 0.06,
-  NY: 0.055,
-  NJ: 0.045,
-  MA: 0.05,
-  IL: 0.0495,
-  PA: 0.0307,
-  TX: 0,
-  FL: 0,
-  WA: 0,
-  NV: 0,
-  TN: 0,
-  OTHER: 0.04
-};
-
-const EMPTY_BASELINE = {
-  firstName: "",
-  emailAddress: "",
-  age: "",
-  grossMonthlyIncome: "",
-  takeHomeIncome: 0,
-  employmentStatus: "",
-  stateCode: "",
-  estimatedTaxRate: "",
-  taxRateOverride: false,
-  monthlyExpenses: "",
-  monthlyObligations: "",
-  currentSavings: "",
-  retirementContributions: "",
-  deductions: "",
-  longTermGoal: "",
-  customGoalLabel: "",
-  goalTargetAmount: "",
-  goalTimelineMonths: "",
-  goalTargetEstimated: false,
-  goalTimelineEstimated: false
-};
-
 const state = {
-  baseline: loadBaseline(),
+  baseline: loadStoredBaseline(),
   setupStep: loadSetupStep(),
   workspaceView: loadWorkspaceView(),
   question: loadQuestion(),
   result: null,
   status: "",
-  showWaitlist: false
+  showWaitlist: false,
+  inlineGoalError: ""
 };
 
 let isStarted = false;
 
-function toNumber(value, fallback = 0) {
-  if (value === "" || value === null || value === undefined) return fallback;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
-}
-
-function loadBaseline() {
-  if (typeof window === "undefined") return { ...EMPTY_BASELINE };
-
-  try {
-    const stored = window.localStorage.getItem(BASELINE_KEY);
-    const baseline = stored ? { ...EMPTY_BASELINE, ...JSON.parse(stored) } : { ...EMPTY_BASELINE };
-    return normalizeBaseline(baseline);
-  } catch (_error) {
-    return { ...EMPTY_BASELINE };
-  }
-}
-
 function saveBaseline(baseline) {
-  state.baseline = normalizeBaseline(baseline);
-  try {
-    window.localStorage.setItem(BASELINE_KEY, JSON.stringify(state.baseline));
-  } catch (_error) {
-    // Local persistence is helpful, not required.
-  }
+  state.baseline = persistBaseline(baseline);
 }
 
 function loadSetupStep() {
@@ -115,10 +78,11 @@ function saveWorkspaceView(view) {
 }
 
 function resetBaseline() {
-  saveBaseline({ ...EMPTY_BASELINE });
+  state.baseline = clearStoredBaseline();
   saveSetupStep(0);
   state.status = "Setup reset. PAM will wait to calculate until your baseline is complete.";
   state.result = null;
+  state.inlineGoalError = "";
   render();
 }
 
@@ -134,158 +98,6 @@ function saveQuestion(question) {
   } catch (_error) {
     // The simulator can still run without storage.
   }
-}
-
-function estimateFederalAnnualTax(taxableIncome) {
-  const brackets = [
-    { limit: 11600, rate: 0.1 },
-    { limit: 47150, rate: 0.12 },
-    { limit: 100525, rate: 0.22 },
-    { limit: 191950, rate: 0.24 },
-    { limit: Number.POSITIVE_INFINITY, rate: 0.32 }
-  ];
-  let remaining = Math.max(taxableIncome, 0);
-  let previousLimit = 0;
-  let tax = 0;
-
-  for (const bracket of brackets) {
-    const taxableAtBracket = Math.min(remaining, bracket.limit - previousLimit);
-    if (taxableAtBracket <= 0) break;
-    tax += taxableAtBracket * bracket.rate;
-    remaining -= taxableAtBracket;
-    previousLimit = bracket.limit;
-  }
-
-  return tax;
-}
-
-function estimateTaxProfile(baseline) {
-  const grossAnnual = toNumber(baseline.grossMonthlyIncome) * 12;
-  const annualRetirement = toNumber(baseline.retirementContributions) * 12;
-  const deductions = toNumber(baseline.deductions);
-  const taxableIncome = Math.max(grossAnnual - annualRetirement - deductions - 14600, 0);
-  const federalTax = estimateFederalAnnualTax(taxableIncome);
-  const stateRate = STATE_TAX_RATES[baseline.stateCode] ?? STATE_TAX_RATES.OTHER;
-  const stateTax = Math.max(taxableIncome * stateRate, 0);
-  const payrollTax = baseline.employmentStatus === "1099 / self-employed"
-    ? grossAnnual * 0.1413
-    : grossAnnual * 0.0765;
-  const combinedTax = federalTax + stateTax + payrollTax;
-  const estimatedRate = grossAnnual > 0 ? Math.min(Math.round((combinedTax / grossAnnual) * 100), 45) : 0;
-  const combinedRate = baseline.taxRateOverride ? toNumber(baseline.estimatedTaxRate, estimatedRate) : estimatedRate;
-  const monthlyTax = Math.round((grossAnnual * (combinedRate / 100)) / 12);
-  const takeHomeIncome = Math.max(Math.round(toNumber(baseline.grossMonthlyIncome) - monthlyTax), 0);
-
-  return {
-    grossAnnual,
-    taxableIncome,
-    federalTax,
-    stateTax,
-    payrollTax,
-    combinedRate,
-    monthlyTax,
-    takeHomeIncome,
-    note: !baseline.employmentStatus
-      ? "Choose employment status so PAM can estimate how taxes may affect take-home cash."
-      : baseline.employmentStatus === "1099 / self-employed"
-        ? "1099 income usually needs a larger estimated tax set-aside because taxes are not automatically withheld."
-        : "W-2 income often has taxes withheld automatically, but the take-home estimate still matters for affordability."
-  };
-}
-
-function hasValue(value) {
-  return value !== "" && value !== null && value !== undefined;
-}
-
-function hasPositiveValue(value) {
-  return hasValue(value) && toNumber(value) > 0;
-}
-
-function validateBaseline(baseline = state.baseline) {
-  const errors = [];
-  const goalLabel = getGoalLabel(baseline);
-
-  if (!hasValue(baseline.firstName)) errors.push("Add a first name so PAM can save this device profile.");
-  if (!hasValue(baseline.emailAddress)) errors.push("Add an email so this prototype knows which profile is saved on this device.");
-  if (!hasValue(baseline.grossMonthlyIncome) && toNumber(baseline.grossMonthlyIncome) !== 0) errors.push("Add gross monthly income before saving your baseline.");
-  if (!hasValue(baseline.employmentStatus)) errors.push("Choose an employment status so PAM can estimate taxes the right way.");
-  if (!hasValue(baseline.monthlyExpenses) && toNumber(baseline.monthlyExpenses) !== 0) errors.push("Add monthly expenses before saving your baseline.");
-  if (!hasValue(baseline.currentSavings) && toNumber(baseline.currentSavings) !== 0) errors.push("Add current savings before saving your baseline.");
-  if (!hasValue(goalLabel)) errors.push("Choose one long-term goal so PAM knows what to protect.");
-  if (baseline.longTermGoal === "Custom goal" && !hasValue(String(baseline.customGoalLabel || "").trim())) {
-    errors.push("Write a custom goal label or choose one of the preset goals.");
-  }
-  if (!hasPositiveValue(baseline.goalTargetAmount)) errors.push("Goal target amount must be above $0, or use PAM's estimate.");
-  if (!hasPositiveValue(baseline.goalTimelineMonths)) errors.push("Goal timeline must be at least 1 month, or use PAM's estimate.");
-
-  return errors;
-}
-
-function hasCompletedBaseline(baseline = state.baseline) {
-  const hasGoal = hasValue(getGoalLabel(baseline));
-  return [
-    baseline.firstName,
-    baseline.emailAddress,
-    baseline.grossMonthlyIncome,
-    baseline.employmentStatus,
-    baseline.monthlyExpenses,
-    baseline.currentSavings,
-    baseline.goalTargetAmount,
-    baseline.goalTimelineMonths
-  ].every(hasValue) && hasGoal && hasPositiveValue(baseline.goalTargetAmount) && hasPositiveValue(baseline.goalTimelineMonths);
-}
-
-function estimateGoalDefaults(goalLabel) {
-  const normalized = String(goalLabel || "").toLowerCase();
-  if (normalized.includes("move out")) return { target: 18000, timeline: 18 };
-  if (normalized.includes("emergency")) return { target: 10000, timeline: 12 };
-  if (normalized.includes("car")) return { target: 8000, timeline: 14 };
-  if (normalized.includes("invest")) return { target: 6000, timeline: 12 };
-  if (normalized.includes("net worth")) return { target: 25000, timeline: 24 };
-  return { target: 12000, timeline: 18 };
-}
-
-function normalizeBaseline(baseline) {
-  const taxProfile = estimateTaxProfile(baseline);
-  const combinedRate = baseline.taxRateOverride
-    ? toNumber(baseline.estimatedTaxRate, taxProfile.combinedRate)
-    : taxProfile.combinedRate;
-  const goalLabel = getGoalLabel(baseline);
-  const estimatedGoalDefaults = hasValue(goalLabel) ? estimateGoalDefaults(goalLabel) : null;
-  const goalTargetEstimated = !hasValue(baseline.goalTargetAmount) && Boolean(estimatedGoalDefaults);
-  const goalTimelineEstimated = !hasValue(baseline.goalTimelineMonths) && Boolean(estimatedGoalDefaults);
-  return {
-    ...EMPTY_BASELINE,
-    ...baseline,
-    age: hasValue(baseline.age) ? toNumber(baseline.age) : "",
-    grossMonthlyIncome: hasValue(baseline.grossMonthlyIncome) ? toNumber(baseline.grossMonthlyIncome) : "",
-    takeHomeIncome: taxProfile.takeHomeIncome,
-    estimatedTaxRate: hasValue(baseline.grossMonthlyIncome) ? combinedRate : "",
-    monthlyExpenses: hasValue(baseline.monthlyExpenses) ? toNumber(baseline.monthlyExpenses) : "",
-    monthlyObligations: hasValue(baseline.monthlyObligations) ? toNumber(baseline.monthlyObligations) : 0,
-    currentSavings: hasValue(baseline.currentSavings) ? toNumber(baseline.currentSavings) : "",
-    retirementContributions: hasValue(baseline.retirementContributions) ? toNumber(baseline.retirementContributions) : 0,
-    deductions: hasValue(baseline.deductions) ? toNumber(baseline.deductions) : 0,
-    goalTargetAmount: hasValue(baseline.goalTargetAmount) ? toNumber(baseline.goalTargetAmount) : (estimatedGoalDefaults?.target ?? ""),
-    goalTimelineMonths: hasValue(baseline.goalTimelineMonths) ? toNumber(baseline.goalTimelineMonths) : (estimatedGoalDefaults?.timeline ?? ""),
-    goalTargetEstimated,
-    goalTimelineEstimated,
-    taxProfile
-  };
-}
-
-function getGoalLabel(baseline = state.baseline) {
-  if (baseline.longTermGoal === "Custom goal" && hasValue(baseline.customGoalLabel)) {
-    return String(baseline.customGoalLabel).trim();
-  }
-  return baseline.longTermGoal || "";
-}
-
-function getMonthlyBuffer() {
-  return state.baseline.takeHomeIncome
-    - toNumber(state.baseline.monthlyExpenses)
-    - toNumber(state.baseline.monthlyObligations)
-    - toNumber(state.baseline.retirementContributions);
 }
 
 function parseMoneyValue(value, suffix = "") {
@@ -329,7 +141,7 @@ function parseMonthlyAmount(question) {
 }
 
 function isSelfEmployedBaseline() {
-  return state.baseline.employmentStatus === "1099 / self-employed";
+  return state.baseline.profile.employmentStatus === "1099";
 }
 
 function inferPotentialDeduction(question, amount, cadence = "one-time") {
@@ -355,7 +167,7 @@ function inferPotentialDeduction(question, amount, cadence = "one-time") {
 
   const businessUseShare = /car|auto|vehicle|truck|suv|travel|trip|mileage|home office/.test(normalized) ? 0.5 : 1;
   const deductibleAmount = amount * businessUseShare;
-  const taxSavings = Math.round(deductibleAmount * (toNumber(state.baseline.estimatedTaxRate) / 100));
+  const taxSavings = Math.round(deductibleAmount * (toNumber(state.baseline.tax.combinedTaxRate) / 100));
   const useNote = businessUseShare < 1
     ? "PAM assumes 50% business use for mixed-use costs like car, mileage, travel, or home office."
     : "PAM assumes this is fully business-related based on the wording.";
@@ -387,15 +199,26 @@ function inferDecision(question) {
 
   if (/1099|freelance|contractor|self[- ]?employ|side hustle/.test(normalized)) {
     decision.type = "Employment / tax change";
-    const newGross = monthlyAmount || firstAmount || state.baseline.grossMonthlyIncome;
+    const baselineView = getUiBaseline(state.baseline);
+    const newGross = monthlyAmount || firstAmount || baselineView.grossMonthlyIncome;
     const taxProfile = estimateTaxProfile({
       ...state.baseline,
-      employmentStatus: "1099 / self-employed",
-      grossMonthlyIncome: newGross,
-      taxRateOverride: false
+      profile: {
+        ...state.baseline.profile,
+        employmentStatus: "1099"
+      },
+      income: {
+        ...state.baseline.income,
+        grossMonthlyIncome: newGross,
+        knownTakeHomeMonthlyIncome: null
+      },
+      tax: {
+        ...state.baseline.tax,
+        taxRateOverride: false
+      }
     });
-    decision.monthlyImpact = taxProfile.takeHomeIncome - state.baseline.takeHomeIncome;
-    decision.taxImpact = `Estimated combined tax rate changes to ${taxProfile.combinedRate}%. Self-employment taxes may require setting aside more cash.`;
+    decision.monthlyImpact = taxProfile.takeHomeIncome - getSpendableIncome(state.baseline);
+    decision.taxImpact = `Estimated combined tax rate changes to ${taxProfile.combinedTaxRate}%. Self-employment taxes may require setting aside more cash.`;
     decision.assumptions.push({ label: "Modeled income", value: `${formatCurrency(newGross)}/month gross` });
     decision.assumptions.push({ label: "Employment status", value: "1099 / self-employed" });
     return decision;
@@ -414,7 +237,7 @@ function inferDecision(question) {
 
   if (/rent|move|apartment|lease|housing/.test(normalized)) {
     decision.type = "Housing decision";
-    const estimatedCurrentRent = Math.round(state.baseline.monthlyExpenses * 0.55);
+    const estimatedCurrentRent = Math.round(getMonthlyExpenses(state.baseline) * 0.55);
     const newRent = monthlyAmount || firstAmount || 1800;
     decision.monthlyImpact = -(Math.max(newRent - estimatedCurrentRent, 0));
     decision.compoundMonthlyDelta = Math.abs(decision.monthlyImpact);
@@ -511,19 +334,21 @@ function estimateCompoundOpportunity(monthlyContribution, age, annualReturn = 0.
 
 function analyzeQuestion(question) {
   const decision = inferDecision(question);
-  const currentBuffer = getMonthlyBuffer();
+  const currentBuffer = getMonthlyBuffer(state.baseline);
   const taxAdjustedMonthlyImpact = decision.monthlyImpact + decision.taxSavingsMonthly;
   const taxAdjustedOneTimeImpact = decision.oneTimeImpact + decision.taxSavingsOneTime;
   const newBuffer = currentBuffer + taxAdjustedMonthlyImpact;
-  const projectedSavings12 = state.baseline.currentSavings + taxAdjustedOneTimeImpact + newBuffer * 12;
+  const currentSavings = getCurrentSavings(state.baseline);
+  const goalTargetAmount = toNumber(state.baseline.goals.goalTargetAmount, 0);
+  const projectedSavings12 = currentSavings + taxAdjustedOneTimeImpact + newBuffer * 12;
   const risk = getRisk(newBuffer);
   const monthlyGoalPace = Math.max(currentBuffer, 1);
   const newGoalPace = Math.max(newBuffer, 1);
-  const currentGoalMonths = Math.max(Math.ceil(Math.max(state.baseline.goalTargetAmount - state.baseline.currentSavings, 0) / monthlyGoalPace), 0);
-  const newGoalMonths = Math.max(Math.ceil(Math.max(state.baseline.goalTargetAmount - (state.baseline.currentSavings + taxAdjustedOneTimeImpact), 0) / newGoalPace), 0);
+  const currentGoalMonths = Math.max(Math.ceil(Math.max(goalTargetAmount - currentSavings, 0) / monthlyGoalPace), 0);
+  const newGoalMonths = Math.max(Math.ceil(Math.max(goalTargetAmount - (currentSavings + taxAdjustedOneTimeImpact), 0) / newGoalPace), 0);
   const goalDelay = Math.max(newGoalMonths - currentGoalMonths, 0);
   const compoundGrowth = estimateCompoundGrowth(decision.compoundMonthlyDelta);
-  const compoundOpportunity = estimateCompoundOpportunity(decision.compoundMonthlyDelta, state.baseline.age);
+  const compoundOpportunity = estimateCompoundOpportunity(decision.compoundMonthlyDelta, state.baseline.profile.age);
   const explanation = risk.label === "Low"
     ? "This looks workable, but PAM still checks whether it slows your goal or reduces your safety margin."
     : risk.label === "Medium"
@@ -550,24 +375,25 @@ function analyzeQuestion(question) {
 
 function readBaselineForm(form) {
   const formData = new FormData(form);
-  const fieldNumber = (key) => formData.has(key) ? toNumber(formData.get(key)) : state.baseline[key];
+  const baseline = getUiBaseline(state.baseline);
+  const fieldNumber = (key) => formData.has(key) ? toNumber(formData.get(key)) : baseline[key];
   return {
-    ...state.baseline,
-    firstName: String(formData.get("firstName") || state.baseline.firstName),
-    emailAddress: String(formData.get("emailAddress") || state.baseline.emailAddress),
-    age: formData.has("age") ? toNumber(formData.get("age")) : state.baseline.age,
+    firstName: String(formData.get("firstName") || baseline.firstName),
+    emailAddress: String(formData.get("emailAddress") || baseline.emailAddress),
+    age: formData.has("age") ? toNumber(formData.get("age")) : baseline.age,
     grossMonthlyIncome: fieldNumber("grossMonthlyIncome"),
-    employmentStatus: String(formData.get("employmentStatus") || state.baseline.employmentStatus),
-    stateCode: String(formData.get("stateCode") || state.baseline.stateCode),
-    estimatedTaxRate: fieldNumber("estimatedTaxRate"),
-    taxRateOverride: formData.has("taxRateOverride") ? formData.get("taxRateOverride") === "on" : state.baseline.taxRateOverride,
+    knownTakeHomeMonthlyIncome: fieldNumber("knownTakeHomeMonthlyIncome"),
+    employmentStatus: String(formData.get("employmentStatus") || baseline.employmentStatus),
+    stateCode: String(formData.get("stateCode") || baseline.stateCode),
+    combinedTaxRate: fieldNumber("combinedTaxRate"),
+    taxRateOverride: formData.has("taxRateOverride") ? formData.get("taxRateOverride") === "on" : baseline.taxRateOverride,
     monthlyExpenses: fieldNumber("monthlyExpenses"),
     monthlyObligations: fieldNumber("monthlyObligations"),
     currentSavings: fieldNumber("currentSavings"),
     retirementContributions: fieldNumber("retirementContributions"),
     deductions: fieldNumber("deductions"),
-    longTermGoal: String(formData.get("longTermGoal") || state.baseline.longTermGoal),
-    customGoalLabel: String(formData.get("customGoalLabel") || state.baseline.customGoalLabel),
+    longTermGoal: String(formData.get("longTermGoal") || baseline.longTermGoal),
+    customGoalLabel: String(formData.get("customGoalLabel") || baseline.customGoalLabel),
     goalTargetAmount: fieldNumber("goalTargetAmount"),
     goalTimelineMonths: fieldNumber("goalTimelineMonths")
   };
@@ -591,7 +417,7 @@ function applyStepEstimate(step, draft) {
   }
 
   if (step === 6 && hasValue(getGoalLabel(nextDraft))) {
-    const defaults = estimateGoalDefaults(getGoalLabel(nextDraft));
+    const defaults = estimateGoalDefaults(getGoalLabel(normalizeManualBaseline(nextDraft, state.baseline)), state.baseline.savings.emergencyFundFloor);
     nextDraft.goalTargetAmount = hasValue(nextDraft.goalTargetAmount) ? nextDraft.goalTargetAmount : defaults.target;
     nextDraft.goalTimelineMonths = hasValue(nextDraft.goalTimelineMonths) ? nextDraft.goalTimelineMonths : defaults.timeline;
   }
@@ -606,7 +432,7 @@ function handleBaselineSubmit(event) {
   const draft = action === "skip"
     ? applyStepEstimate(stepBeforeAction, readBaselineForm(event.currentTarget))
     : readBaselineForm(event.currentTarget);
-  const normalizedDraft = normalizeBaseline(draft);
+  const normalizedDraft = normalizeManualBaseline(draft, state.baseline);
 
   if (action === "back") {
     saveBaseline(normalizedDraft);
@@ -627,13 +453,15 @@ function handleBaselineSubmit(event) {
   if (errors.length) {
     saveBaseline(normalizedDraft);
     state.status = errors[0];
+    state.inlineGoalError = errors[0].includes("goal target") ? errors[0] : "";
     state.result = null;
     render();
     return;
   }
 
+  state.inlineGoalError = "";
   saveBaseline(normalizedDraft);
-  if (!hasCompletedBaseline()) {
+  if (!hasCompletedBaseline(state.baseline)) {
     state.status = "Finish the required setup fields first. PAM will not create a baseline until the profile is complete.";
     state.result = null;
     render();
@@ -646,13 +474,26 @@ function handleBaselineSubmit(event) {
   render();
 }
 
+async function handleSandboxSampleData() {
+  const sandboxBaseline = normalizePlaidMockData(getMockPlaidLikeData(), state.baseline);
+  saveBaseline(sandboxBaseline);
+  saveSetupStep(ACCOUNT_STEPS.length - 1);
+  state.status = "Sandbox-style data loaded. PAM built a financial baseline.";
+  state.inlineGoalError = "";
+  if (hasCompletedBaseline(state.baseline)) {
+    saveWorkspaceView("simulator");
+    state.result = analyzeQuestion(state.question);
+  }
+  render();
+}
+
 function handleQuestionSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const question = String(formData.get("question") || "").trim();
   if (!question) return;
   saveQuestion(question);
-  if (!hasCompletedBaseline()) {
+  if (!hasCompletedBaseline(state.baseline)) {
     saveWorkspaceView("account");
     state.result = null;
     state.status = "Create your account baseline first so PAM can calculate this against your real inputs.";
@@ -679,7 +520,7 @@ function openWorkspaceView(view) {
 }
 
 function renderHero() {
-  const isComplete = hasCompletedBaseline();
+  const isComplete = hasCompletedBaseline(state.baseline);
   return `
     <section class="pam-hero foresee-panel">
       <div class="panel-kicker">PAM AI • Personal Asset Manager</div>
@@ -791,7 +632,7 @@ function renderEducationSections() {
 }
 
 function renderAccountSetupFields() {
-  const baseline = state.baseline;
+  const baseline = getUiBaseline(state.baseline);
   if (state.setupStep === 0) {
     return `
       <p class="setup-step-copy">Start simple. First we create the saved-on-this-device profile you’ll come back to later.</p>
@@ -816,11 +657,12 @@ function renderAccountSetupFields() {
       <p class="setup-step-copy">Next, tell PAM how money comes in. This is the biggest driver of everything else.</p>
       <div class="onboarding-field-grid">
         <label><span>Gross monthly income</span><small>Enter pre-tax income here, not your take-home pay. PAM calculates the take-home estimate separately.</small><input type="number" name="grossMonthlyIncome" value="${baseline.grossMonthlyIncome}" min="0" step="50" placeholder="Example: 5600" /></label>
+        <label><span>Known take-home pay</span><small>Optional. If you know your actual monthly take-home, PAM uses it directly and will not tax it again.</small><input type="number" name="knownTakeHomeMonthlyIncome" value="${baseline.knownTakeHomeMonthlyIncome}" min="0" step="50" placeholder="Optional" /></label>
         <label>
           <span>Employment status</span>
           <small>This changes taxes, withholding, and how PAM thinks about deductions.</small>
           <select name="employmentStatus">
-            <option value="" ${baseline.employmentStatus === "" ? "selected" : ""}>Select status</option>
+            <option value="" ${baseline.employmentStatus === "Not sure yet" ? "selected" : ""}>Select status</option>
             ${["W-2 employee", "1099 / self-employed", "Part-time employee", "Student worker", "Not currently employed", "Not sure yet"].map((option) => `<option value="${option}" ${baseline.employmentStatus === option ? "selected" : ""}>${option}</option>`).join("")}
           </select>
         </label>
@@ -854,9 +696,14 @@ function renderAccountSetupFields() {
     return `
       <p class="setup-step-copy">Taxes can be messy. If you do not know these yet, PAM can estimate from your income and work type.</p>
       <div class="onboarding-field-grid">
-        <label><span>Estimated combined tax rate</span><small>Federal, state, and payroll/self-employment tax estimate.</small><input type="number" name="estimatedTaxRate" value="${baseline.estimatedTaxRate}" min="0" max="50" step="1" placeholder="PAM can estimate" /></label>
+        <label><span>Combined tax/payroll estimate</span><small>Overall tax estimate. PAM also breaks it into income tax and payroll tax below.</small><input type="number" name="combinedTaxRate" value="${baseline.combinedTaxRate}" min="0" max="50" step="1" placeholder="PAM can estimate" /></label>
         <label><span>Deductions</span><small>Optional annual deductions that may reduce taxable income.</small><input type="number" name="deductions" value="${baseline.deductions}" min="0" step="100" placeholder="Optional" /></label>
         <label class="checkbox-label onboarding-wide"><input type="checkbox" name="taxRateOverride" ${baseline.taxRateOverride ? "checked" : ""} /> <span>Override tax estimate manually</span></label>
+        <div class="tax-breakout onboarding-wide">
+          <div><strong>Estimated income tax rate</strong><span>${hasValue(baseline.estimatedIncomeTaxRate) ? `${baseline.estimatedIncomeTaxRate}%` : "Pending"}</span></div>
+          <div><strong>Payroll tax estimate</strong><span>${hasValue(baseline.payrollTaxRate) ? `${baseline.payrollTaxRate}%` : "Pending"}</span></div>
+          <div><strong>Combined tax/payroll estimate</strong><span>${hasValue(baseline.combinedTaxRate) ? `${baseline.combinedTaxRate}%` : "Pending"}</span></div>
+        </div>
       </div>
     `;
   }
@@ -889,29 +736,33 @@ function renderAccountSetupFields() {
         <input type="text" name="customGoalLabel" value="${escapeHtml(baseline.customGoalLabel)}" placeholder="Write your own goal" />
       </label>
       <label><span>Goal target amount</span><small>How much money makes this goal feel realistically funded.</small><input type="number" name="goalTargetAmount" value="${baseline.goalTargetAmount}" min="0" step="100" placeholder="Leave blank and PAM will estimate" /></label>
+      ${state.inlineGoalError ? `<p class="input-error onboarding-wide">${escapeHtml(state.inlineGoalError)}</p>` : ""}
       <label><span>Goal timeline, months</span><small>When you hope to reach it. PAM checks if decisions push this out.</small><input type="number" name="goalTimelineMonths" value="${baseline.goalTimelineMonths}" min="1" step="1" placeholder="Leave blank and PAM will estimate" /></label>
     </div>
   `;
 }
 
 function renderAccountPreview() {
-  const baseline = state.baseline;
-  const tax = baseline.taxProfile;
-  const isComplete = hasCompletedBaseline(baseline);
+  const baseline = getUiBaseline(state.baseline);
+  const tax = estimateTaxProfile(state.baseline);
+  const isComplete = hasCompletedBaseline(state.baseline);
   const valueOrPending = (value, formatter = (item) => item) => hasValue(value) ? formatter(value) : "Not provided";
-  const goalLabel = getGoalLabel(baseline);
+  const goalLabel = getGoalLabel(state.baseline);
   return `
     <aside class="cash-flow-preview ${isComplete ? "" : "incomplete-preview"}">
       <div class="panel-kicker">${isComplete ? "Baseline ready" : "Setup in progress"}</div>
       <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM baseline` : "Profile draft only"}</h3>
       <p>${isComplete ? "PAM now has enough information to model decisions against your profile." : "PAM will show a baseline only after income, taxes, spending, savings, and a goal are provided."}</p>
       <div class="cash-flow-preview-grid">
+        <div><span>Baseline source</span><strong>${escapeHtml(baseline.source === "plaid_mock" ? "Sandbox-style sample data" : "Manual baseline")}</strong><small>Prototype data is saved only in this browser.</small></div>
         <div class="preview-card preview-card-account"><span>Saved on this device</span><strong>${hasValue(baseline.emailAddress) ? escapeHtml(baseline.emailAddress) : "Not provided"}</strong><small>Prototype profile label, not real auth.</small></div>
         <div><span>Age</span><strong>${valueOrPending(baseline.age)}</strong><small>Used for time horizon and retirement runway.</small></div>
         <div><span>Gross income</span><strong>${valueOrPending(baseline.grossMonthlyIncome, formatCurrency)}</strong><small>Before tax and deductions.</small></div>
-        <div><span>Take-home</span><strong>${isComplete ? formatCurrency(baseline.takeHomeIncome) : "Pending"}</strong><small>PAM estimates this from gross income, state, taxes, and work type.</small></div>
-        <div><span>Tax rate</span><strong>${hasValue(baseline.estimatedTaxRate) ? `${baseline.estimatedTaxRate}%` : "Pending"}</strong><small>Combined estimate, not advice.</small></div>
-        <div><span>Monthly buffer</span><strong>${isComplete ? formatCurrency(getMonthlyBuffer()) : "Pending"}</strong><small>Take-home minus spending commitments.</small></div>
+        <div><span>Spendable income</span><strong>${isComplete ? formatCurrency(baseline.takeHomeIncome) : "Pending"}</strong><small>${hasValue(baseline.knownTakeHomeMonthlyIncome) ? "Known take-home is used directly." : "PAM estimates this from income, state, taxes, and work type."}</small></div>
+        <div><span>Estimated income tax</span><strong>${hasValue(baseline.estimatedIncomeTaxRate) ? `${baseline.estimatedIncomeTaxRate}%` : "Pending"}</strong><small>Federal and state income tax estimate.</small></div>
+        <div><span>Payroll tax</span><strong>${hasValue(baseline.payrollTaxRate) ? `${baseline.payrollTaxRate}%` : "Pending"}</strong><small>Payroll or self-employment tax estimate.</small></div>
+        <div><span>Combined tax/payroll</span><strong>${hasValue(baseline.combinedTaxRate) ? `${baseline.combinedTaxRate}%` : "Pending"}</strong><small>Overall estimate, not advice.</small></div>
+        <div><span>Monthly buffer</span><strong>${isComplete ? formatCurrency(getMonthlyBuffer(state.baseline)) : "Pending"}</strong><small>Spendable income minus spending commitments.</small></div>
         <div><span>Savings</span><strong>${valueOrPending(baseline.currentSavings, formatCurrency)}</strong><small>Cash runway PAM can protect.</small></div>
         <div class="preview-card preview-card-goal"><span>Goal</span><strong>${hasValue(goalLabel) ? escapeHtml(goalLabel) : "Not provided"}</strong><small>${baseline.goalTargetEstimated || baseline.goalTimelineEstimated ? "PAM estimated part of this goal." : "No assumed goal."}</small></div>
       </div>
@@ -944,17 +795,18 @@ function renderSetupTermGuide() {
 }
 
 function renderWorkspaceHub() {
-  const isComplete = hasCompletedBaseline();
+  const isComplete = hasCompletedBaseline(state.baseline);
   const goalLabel = getGoalLabel(state.baseline);
+  const baseline = getUiBaseline(state.baseline);
   return `
     <section class="foresee-panel workspace-panel" id="workspace-panel">
       <div class="workspace-header">
         <div>
           <div class="panel-kicker">Workspace</div>
-          <h2>${isComplete ? `${escapeHtml(state.baseline.firstName || "Your")} PAM workspace` : "Create your account"}</h2>
+          <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM workspace` : "Create your account"}</h2>
           <p>${isComplete ? `Return to your saved baseline, run decisions, or review how PAM models tradeoffs for ${escapeHtml(goalLabel)}.` : "Finish your profile once, then come back straight to your account or simulator without the long-scroll experience."}</p>
         </div>
-        ${isComplete ? `<div class="workspace-account-chip"><strong>${escapeHtml(state.baseline.firstName || "Account")}</strong><span>${escapeHtml(state.baseline.emailAddress)}</span></div>` : ""}
+        ${isComplete ? `<div class="workspace-account-chip"><strong>${escapeHtml(baseline.firstName || "Account")}</strong><span>${escapeHtml(baseline.emailAddress)}</span></div>` : ""}
       </div>
       <div class="workspace-tabs" role="tablist" aria-label="PAM workspace views">
         ${[
@@ -1003,7 +855,7 @@ function renderBaselinePanel() {
   return `
     <section class="foresee-panel baseline-panel account-setup-panel" id="baseline-section">
       <div class="panel-kicker">Create account</div>
-      <h2>Build your PAM baseline one step at a time.</h2>
+      <h2>Enter your financial baseline.</h2>
       <p>PAM asks one thing at a time so creating your account feels lighter. If you do not know a detail, some steps can use a reasonable estimate and keep moving.</p>
 
       <div class="onboarding-progress" aria-label="Account setup progress">
@@ -1024,12 +876,14 @@ function renderBaselinePanel() {
             ${state.setupStep > 0 ? '<button class="button button-secondary" type="submit" data-setup-action="back">Back</button>' : ""}
             ${canSkip ? '<button class="button button-secondary" type="submit" data-setup-action="skip">Use estimate</button>' : ""}
             <button class="button button-primary" type="submit" data-setup-action="${isLastStep ? "save" : "next"}">${isLastStep ? "Save baseline" : "Continue"}</button>
+            <button class="button button-secondary" type="button" data-load-sandbox>Use Sandbox-style sample data</button>
             <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
           </div>
         </form>
         ${renderAccountPreview()}
       </div>
       ${renderSetupTermGuide()}
+      <p class="prototype-note">Prototype data is saved only in this browser.</p>
       <p class="disclaimer">Educational estimate only. Not financial, tax, legal, or investment advice.</p>
     </section>
   `;
@@ -1063,7 +917,7 @@ function renderDecisionPanel() {
 }
 
 function renderResult() {
-  if (!hasCompletedBaseline()) {
+  if (!hasCompletedBaseline(state.baseline)) {
     return `
       <section class="foresee-panel result-panel locked-result">
         <div class="result-header">
@@ -1182,7 +1036,13 @@ function wireInteractions() {
   document.querySelector("[data-baseline-form]")?.addEventListener("submit", handleBaselineSubmit);
   document.querySelector("[data-question-form]")?.addEventListener("submit", handleQuestionSubmit);
   document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
+  document.querySelector("[data-load-sandbox]")?.addEventListener("click", handleSandboxSampleData);
   document.querySelector("[data-join-waitlist]")?.addEventListener("click", () => {
+    try {
+      window.localStorage.setItem(WAITLIST_STORAGE_KEY, JSON.stringify({ joinedAt: new Date().toISOString() }));
+    } catch (_error) {
+      // Waitlist state is helpful, not required.
+    }
     state.showWaitlist = true;
     render();
   });
@@ -1200,7 +1060,7 @@ function wireInteractions() {
     button.addEventListener("click", () => {
       const question = button.dataset.questionExample || "";
       saveQuestion(question);
-      if (hasCompletedBaseline()) {
+      if (hasCompletedBaseline(state.baseline)) {
         saveWorkspaceView("simulator");
         state.result = analyzeQuestion(question);
         state.status = "Example prompt analyzed. You can edit it and run another scenario.";
@@ -1217,6 +1077,6 @@ function wireInteractions() {
 export async function startApp() {
   if (isStarted) return;
   isStarted = true;
-  state.result = hasCompletedBaseline() ? analyzeQuestion(state.question) : null;
+  state.result = hasCompletedBaseline(state.baseline) ? analyzeQuestion(state.question) : null;
   render();
 }

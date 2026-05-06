@@ -5,7 +5,9 @@ const { URL } = require("url");
 
 const APP_DIR = __dirname;
 const INDEX_FILE = path.join(APP_DIR, "index.html");
-const PORT = Number(process.env.PORT) || 3040;
+const PORT = Number(process.env.PORT) || 3000;
+
+loadLocalEnv();
 
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -14,11 +16,35 @@ const MIME_TYPES = {
   ".jpeg": "image/jpeg",
   ".jpg": "image/jpeg",
   ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".webp": "image/webp"
 };
+
+function loadLocalEnv() {
+  const envFiles = [".env.local", ".env"];
+
+  for (const name of envFiles) {
+    const filePath = path.join(APP_DIR, name);
+    if (!fs.existsSync(filePath)) continue;
+
+    const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const separator = line.indexOf("=");
+      if (separator <= 0) continue;
+
+      const key = line.slice(0, separator).trim();
+      const value = line.slice(separator + 1).trim().replace(/^['"]|['"]$/g, "");
+      if (!process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+  }
+}
 
 function sendText(res, statusCode, body, contentType = "text/plain; charset=utf-8") {
   res.writeHead(statusCode, {
@@ -116,6 +142,17 @@ const server = http.createServer((req, res) => {
       });
     }
 
+    // Future Plaid flow:
+    // 1. Backend creates a link_token
+    // 2. Frontend opens Plaid Link
+    // 3. Plaid returns a public_token
+    // 4. Backend exchanges public_token for an access_token
+    // 5. Access token stays server-side only
+    // 6. Backend fetches Transactions, Balances, and Liabilities
+    // 7. PAM normalizes Plaid data into the shared baseline object
+    //
+    // Never expose PLAID_SECRET in frontend code.
+    // Never store Plaid access tokens in localStorage.
     if (pathname.startsWith("/api/")) {
       return invokeApiHandler(req, res, pathname, requestUrl);
     }
