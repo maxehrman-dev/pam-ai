@@ -25,13 +25,14 @@ import {
 import { connectSandboxAccount, loadSandboxFallback } from "./services/plaidClient.js";
 
 const app = document.querySelector("#app");
-const ACCOUNT_STORAGE_KEY = "pam:account:v1";
+const SESSION_STORAGE_KEY = "pam:session:v1";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 
 const state = {
   baseline: loadStoredBaseline(),
-  account: loadAccount(),
+  account: null,
+  sessionToken: loadSessionToken(),
   workspaceView: loadWorkspaceView(),
   question: loadQuestion(),
   result: null,
@@ -47,35 +48,36 @@ function saveBaseline(baseline) {
   state.baseline = persistBaseline(baseline);
 }
 
-function loadAccount() {
+function loadSessionToken() {
   if (typeof window === "undefined") return null;
   try {
-    const stored = window.localStorage.getItem(ACCOUNT_STORAGE_KEY);
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed && typeof parsed === "object" ? parsed : null;
+    return window.localStorage.getItem(SESSION_STORAGE_KEY) || null;
   } catch (_error) {
     return null;
   }
 }
 
-function saveAccount(account) {
-  state.account = account;
+function saveSessionToken(token) {
+  state.sessionToken = token || null;
   try {
-    window.localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(account));
+    if (!token) {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(SESSION_STORAGE_KEY, token);
   } catch (_error) {
-    // Prototype account state is helpful, not required.
+    // Session persistence is helpful, not required.
   }
 }
 
 function loadWorkspaceView() {
-  if (typeof window === "undefined") return "account";
+  if (typeof window === "undefined") return "landing";
   const stored = window.localStorage.getItem(WORKSPACE_VIEW_KEY);
-  return ["account", "home"].includes(stored || "") ? stored : "account";
+  return ["landing", "account", "dashboard"].includes(stored || "") ? stored : "landing";
 }
 
 function saveWorkspaceView(view) {
-  state.workspaceView = ["account", "home"].includes(view) ? view : "account";
+  state.workspaceView = ["landing", "account", "dashboard"].includes(view) ? view : "landing";
   try {
     window.localStorage.setItem(WORKSPACE_VIEW_KEY, state.workspaceView);
   } catch (_error) {
@@ -156,6 +158,46 @@ function isSelfEmployedBaseline() {
 
 function hasPrototypeAccount() {
   return Boolean(state.account?.emailAddress && state.account?.firstName);
+}
+
+function canAccessDashboard() {
+  return hasPrototypeAccount() && hasCompletedBaseline(state.baseline);
+}
+
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const payload = await response.json().catch(() => null);
+  return { response, payload };
+}
+
+async function restoreSessionAccount() {
+  if (!state.sessionToken) return null;
+  const { payload } = await requestJson(`/api/account/session?sessionToken=${encodeURIComponent(state.sessionToken)}`);
+  if (!payload?.ok || !payload?.account) {
+    saveSessionToken(null);
+    state.account = null;
+    return null;
+  }
+  state.account = payload.account;
+  return payload.account;
+}
+
+async function logoutAccount() {
+  if (state.sessionToken) {
+    await fetch("/api/account/session", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionToken: state.sessionToken })
+    }).catch(() => null);
+  }
+  saveSessionToken(null);
+  state.account = null;
+  state.baseline = clearStoredBaseline();
+  state.result = null;
+  state.aiGuidance = null;
+  saveWorkspaceView("landing");
+  state.status = "Signed out.";
+  render();
 }
 
 function syncAccountIntoBaseline(account, baseline = state.baseline) {
@@ -408,7 +450,7 @@ async function requestDecisionGuidance(question, result) {
 
 async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.") {
   saveQuestion(question);
-  saveWorkspaceView("home");
+  saveWorkspaceView("dashboard");
   state.result = analyzeQuestion(question);
   state.aiGuidance = null;
   state.status = `${statusMessage} PAM advisor is refining the explanation...`;
@@ -509,7 +551,7 @@ function readBaselineForm(form) {
   };
 }
 
-function handleCreateAccount(event) {
+async function handleCreateAccount(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const firstName = String(formData.get("firstName") || "").trim();
@@ -531,24 +573,70 @@ function handleCreateAccount(event) {
     return;
   }
 
-  saveAccount({
-    firstName,
-    emailAddress,
-    age,
-    employmentStatus,
-    stateCode,
-    createdAt: state.account?.createdAt || new Date().toISOString(),
-    hasPassword: true
+  const { payload } = await requestJson("/api/account/register", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      firstName,
+      emailAddress,
+      password,
+      age,
+      employmentStatus,
+      stateCode
+    })
   });
-  saveBaseline(syncAccountIntoBaseline({
-    firstName,
-    emailAddress,
-    age,
-    employmentStatus,
-    stateCode
-  }, state.baseline));
+
+  if (!payload?.ok) {
+    state.status = payload?.error || "Unable to create account.";
+    render();
+    return;
+  }
+
+  saveSessionToken(payload.sessionToken);
+  state.account = payload.account;
+  saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
   state.aiGuidance = null;
-  state.status = "Account created. Connect a Sandbox account next so PAM can build your financial homepage.";
+  state.status = "Account created. Connect a Sandbox account next to unlock the dashboard.";
+  saveWorkspaceView("account");
+  render();
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const emailAddress = String(formData.get("loginEmailAddress") || "").trim();
+  const password = String(formData.get("loginPassword") || "");
+
+  if (!emailAddress || !password) {
+    state.status = "Add your email and password to sign in.";
+    render();
+    return;
+  }
+
+  const { payload } = await requestJson("/api/account/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      emailAddress,
+      password
+    })
+  });
+
+  if (!payload?.ok) {
+    state.status = payload?.error || "Unable to sign in.";
+    render();
+    return;
+  }
+
+  saveSessionToken(payload.sessionToken);
+  state.account = payload.account;
+  saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
+  state.aiGuidance = null;
+  state.status = "Signed in. Connect Sandbox data to finish your dashboard.";
   saveWorkspaceView("account");
   render();
 }
@@ -603,7 +691,7 @@ async function handleQuestionSubmit(event) {
   const formData = new FormData(event.currentTarget);
   const question = String(formData.get("question") || "").trim();
   if (!question) return;
-  if (!hasCompletedBaseline(state.baseline)) {
+  if (!canAccessDashboard()) {
     saveWorkspaceView("account");
     state.result = null;
     state.aiGuidance = null;
@@ -619,7 +707,14 @@ function scrollToSection(id) {
 }
 
 function openWorkspaceView(view) {
-  saveWorkspaceView(view);
+  if (view === "dashboard" && !canAccessDashboard()) {
+    saveWorkspaceView(hasPrototypeAccount() ? "account" : "landing");
+    state.status = hasPrototypeAccount()
+      ? "Connect Sandbox data before opening the dashboard."
+      : "Create an account before opening the dashboard.";
+  } else {
+    saveWorkspaceView(view);
+  }
   render();
   const target = "#workspace-panel";
   requestAnimationFrame(() => {
@@ -628,7 +723,7 @@ function openWorkspaceView(view) {
 }
 
 function renderHero() {
-  const isComplete = hasCompletedBaseline(state.baseline);
+  const isComplete = canAccessDashboard();
   return `
     <section class="pam-hero foresee-panel">
       <div class="panel-kicker">PAM AI • Personal Asset Manager</div>
@@ -638,7 +733,7 @@ function renderHero() {
         compound growth, and long-term goals.
       </p>
       <div class="pam-hero-actions">
-        <button class="button button-primary" type="button" data-open-view="${isComplete ? "home" : "account"}">${isComplete ? "Open my homepage" : "Create your account"}</button>
+        <button class="button button-primary" type="button" data-open-view="${isComplete ? "dashboard" : hasPrototypeAccount() ? "account" : "landing"}">${isComplete ? "Open dashboard" : hasPrototypeAccount() ? "Finish setup" : "Create your account"}</button>
         <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">How PAM works</button>
       </div>
       <div class="pam-proof-grid">
@@ -665,7 +760,7 @@ function renderEducationSections() {
 function renderAccountPreview() {
   const baseline = getUiBaseline(state.baseline);
   const tax = estimateTaxProfile(state.baseline);
-  const isComplete = hasCompletedBaseline(state.baseline);
+  const isComplete = canAccessDashboard();
   const valueOrPending = (value, formatter = (item) => item) => hasValue(value) ? formatter(value) : "Not provided";
   const goalLabel = getGoalLabel(state.baseline);
   return `
@@ -715,23 +810,24 @@ function renderSetupTermGuide() {
 }
 
 function renderWorkspaceHub() {
-  const isComplete = hasCompletedBaseline(state.baseline);
+  const isComplete = canAccessDashboard();
   const goalLabel = getGoalLabel(state.baseline);
   const baseline = getUiBaseline(state.baseline);
   return `
     <section class="foresee-panel workspace-panel" id="workspace-panel">
       <div class="workspace-header">
         <div>
-          <div class="panel-kicker">Workspace</div>
-          <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM homepage` : "Create your account"}</h2>
-          <p>${isComplete ? `You are signed in on this device. PAM will reopen here and model tradeoffs against your connected baseline for ${escapeHtml(goalLabel)}.` : "Create the account shell once, connect Sandbox data, and PAM will bring you back to your homepage on return visits."}</p>
+          <div class="panel-kicker">${state.workspaceView === "dashboard" ? "Dashboard" : "Homepage"}</div>
+          <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} dashboard` : hasPrototypeAccount() ? "Finish account setup" : "Homepage"}</h2>
+          <p>${isComplete ? `You are signed in. PAM can reopen directly to your dashboard and model tradeoffs against your connected baseline for ${escapeHtml(goalLabel)}.` : hasPrototypeAccount() ? "Your account exists on the backend. Connect Sandbox data to unlock the dashboard." : "Start on the homepage, create an account, then unlock your dashboard with connected data."}</p>
         </div>
-        ${isComplete ? `<div class="workspace-account-chip"><strong>${escapeHtml(baseline.firstName || "Account")}</strong><span>${escapeHtml(baseline.emailAddress)}</span></div>` : ""}
+        ${hasPrototypeAccount() ? `<div class="workspace-account-chip"><strong>${escapeHtml(baseline.firstName || "Account")}</strong><span>${escapeHtml(baseline.emailAddress)}</span></div>` : ""}
       </div>
       <div class="workspace-tabs" role="tablist" aria-label="PAM workspace views">
         ${[
-          { id: "account", label: isComplete ? "Account" : "Create account" },
-          { id: "home", label: "Homepage" }
+          { id: "landing", label: "Homepage" },
+          { id: "account", label: hasPrototypeAccount() ? "Account" : "Create account" },
+          { id: "dashboard", label: "Dashboard" }
         ].map((item) => `
           <button
             class="workspace-tab ${state.workspaceView === item.id ? "active" : ""}"
@@ -742,13 +838,37 @@ function renderWorkspaceHub() {
           >${item.label}</button>
         `).join("")}
       </div>
+      ${state.workspaceView === "landing" ? renderLandingWorkspace() : ""}
       ${state.workspaceView === "account" ? renderBaselinePanel() : ""}
-      ${state.workspaceView === "home" ? renderHomeWorkspace() : ""}
+      ${state.workspaceView === "dashboard" ? renderDashboardWorkspace() : ""}
     </section>
   `;
 }
 
-function renderHomeWorkspace() {
+function renderLandingWorkspace() {
+  return `
+    <div class="workspace-guide-grid">
+      ${renderEducationSections()}
+      ${renderHowItWorksSteps()}
+    </div>
+  `;
+}
+
+function renderDashboardWorkspace() {
+  if (!canAccessDashboard()) {
+    return `
+      <section class="foresee-panel result-panel locked-result">
+        <div class="result-header">
+          <div>
+            <div class="panel-kicker">Dashboard locked</div>
+            <h2>Create an account and connect Sandbox data first.</h2>
+          </div>
+        </div>
+        <p>PAM only opens the dashboard after a real account session exists and the connected baseline is complete.</p>
+      </section>
+    `;
+  }
+
   return `
     <div class="workspace-guide-grid">
       ${renderAccountPreview()}
@@ -784,20 +904,20 @@ function renderConnectedInsights() {
 
 function renderBaselinePanel() {
   const baseline = getUiBaseline(state.baseline);
-  const isComplete = hasCompletedBaseline(state.baseline);
+  const isComplete = canAccessDashboard();
   const account = state.account || {};
   return `
     <section class="foresee-panel baseline-panel account-setup-panel" id="baseline-section">
       <div class="panel-kicker">Account setup</div>
       <h2>${hasPrototypeAccount() ? "Account ready. Connect Sandbox data next." : "Create your account first."}</h2>
-      <p>PAM will use a simple email-and-password account shell for this prototype, then build the financial baseline from Sandbox data instead of manual entry.</p>
+      <p>Your account is stored through the backend for this prototype. The dashboard stays locked until the session exists and Sandbox data finishes the baseline.</p>
       <div class="onboarding-layout">
         <div class="baseline-form onboarding-form sandbox-connect-panel">
           <div class="step-counter">Step 1</div>
-          <h3>${hasPrototypeAccount() ? "Account saved on this device." : "Create the account shell PAM will remember on this device."}</h3>
+          <h3>${hasPrototypeAccount() ? "Account saved on the prototype backend." : "Create your account."}</h3>
           ${hasPrototypeAccount() ? `
             <div class="signal-list-foresee">
-              <p><strong>${escapeHtml(account.firstName || baseline.firstName || "Account")}</strong> is signed in on this device.</p>
+              <p><strong>${escapeHtml(account.firstName || baseline.firstName || "Account")}</strong> is signed in.</p>
               <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
               <p>${escapeHtml(account.employmentStatus || baseline.employmentStatus || "Not sure yet")} • ${escapeHtml(account.stateCode || baseline.stateCode || "OTHER")}</p>
             </div>
@@ -827,9 +947,19 @@ function renderBaselinePanel() {
                 <button class="button button-primary" type="submit">Create account</button>
               </div>
             </form>
+            <form class="profile-form" data-login-form>
+              <div class="step-counter">Or sign in</div>
+              <div class="onboarding-field-grid">
+                <label><span>Email</span><small>Use the same email you registered with.</small><input type="email" name="loginEmailAddress" placeholder="you@example.com" /></label>
+                <label><span>Password</span><small>Your prototype password.</small><input type="password" name="loginPassword" placeholder="Password" /></label>
+              </div>
+              <div class="form-actions">
+                <button class="button button-secondary" type="submit">Sign in</button>
+              </div>
+            </form>
           `}
           <div class="step-counter">Step 2</div>
-          <h3>${isComplete ? "Your homepage is ready." : "Connect Sandbox data so PAM can build your homepage."}</h3>
+          <h3>${isComplete ? "Your dashboard is ready." : "Connect Sandbox data to unlock your dashboard."}</h3>
           <p class="setup-step-copy">PAM opens Plaid Link in Sandbox mode, exchanges the token on the backend, then turns balances, transactions, and liabilities into your baseline. If Sandbox is unavailable, sample data can still unblock the prototype.</p>
           <div class="signal-list-foresee">
             <p>Primary path: Connect Sandbox account</p>
@@ -840,8 +970,9 @@ function renderBaselinePanel() {
             <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasPrototypeAccount() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
             <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasPrototypeAccount() ? "disabled" : ""}>Use Sandbox-style sample data</button>
             <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
+            ${hasPrototypeAccount() ? `<button class="button button-secondary" type="button" data-logout>Sign out</button>` : ""}
           </div>
-          <p class="prototype-note">Prototype sign-in and profile data stay on this device. Financial baseline data comes from Sandbox or sample data.</p>
+          <p class="prototype-note">Session token stays in this browser. Passwords are hashed server-side for the prototype. File-based storage is durable locally and best-effort on serverless.</p>
         </div>
         ${renderAccountPreview()}
       </div>
@@ -878,7 +1009,7 @@ function renderDecisionPanel() {
 }
 
 function renderResult() {
-  if (!hasCompletedBaseline(state.baseline)) {
+  if (!canAccessDashboard()) {
     return `
       <section class="foresee-panel result-panel locked-result">
       <div class="result-header">
@@ -982,8 +1113,8 @@ function render() {
           </div>
         </a>
         <div class="foresee-truth">
-          <strong>Sandbox-first prototype</strong>
-          <span>Account shell + connected financial homepage</span>
+          <strong>${hasPrototypeAccount() ? "Signed in prototype" : "Public homepage"}</strong>
+          <span>${canAccessDashboard() ? "Dashboard unlocked" : "Create account to unlock dashboard"}</span>
         </div>
       </header>
       <main class="pam-homepage">
@@ -997,8 +1128,10 @@ function render() {
 
 function wireInteractions() {
   document.querySelector("[data-account-form]")?.addEventListener("submit", handleCreateAccount);
+  document.querySelector("[data-login-form]")?.addEventListener("submit", handleLogin);
   document.querySelector("[data-question-form]")?.addEventListener("submit", handleQuestionSubmit);
   document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
+  document.querySelector("[data-logout]")?.addEventListener("click", logoutAccount);
   document.querySelector("[data-load-sandbox]")?.addEventListener("click", handleSandboxSampleData);
   document.querySelector("[data-connect-sandbox]")?.addEventListener("click", handleConnectSandboxAccount);
   document.querySelectorAll("[data-scroll-target]").forEach((button) => {
@@ -1010,7 +1143,7 @@ function wireInteractions() {
   document.querySelectorAll("[data-question-example]").forEach((button) => {
     button.addEventListener("click", () => {
       const question = button.dataset.questionExample || "";
-      if (hasCompletedBaseline(state.baseline)) {
+      if (canAccessDashboard()) {
         runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
       } else {
         saveQuestion(question);
@@ -1027,15 +1160,18 @@ function wireInteractions() {
 export async function startApp() {
   if (isStarted) return;
   isStarted = true;
+  await restoreSessionAccount();
   if (hasPrototypeAccount()) {
     const baseline = syncAccountIntoBaseline(state.account, state.baseline);
     saveBaseline(baseline);
   }
-  if (hasPrototypeAccount() && hasCompletedBaseline(state.baseline)) {
-    saveWorkspaceView("home");
+  if (canAccessDashboard()) {
+    saveWorkspaceView("dashboard");
   } else if (hasPrototypeAccount()) {
     saveWorkspaceView("account");
+  } else {
+    saveWorkspaceView("landing");
   }
-  state.result = hasCompletedBaseline(state.baseline) ? analyzeQuestion(state.question) : null;
+  state.result = canAccessDashboard() ? analyzeQuestion(state.question) : null;
   render();
 }
