@@ -35,6 +35,7 @@ const state = {
   workspaceView: loadWorkspaceView(),
   question: loadQuestion(),
   result: null,
+  aiGuidance: null,
   status: "",
   inlineGoalError: "",
   plaidBusy: false
@@ -90,6 +91,7 @@ function resetBaseline() {
   saveWorkspaceView("account");
   state.status = "Baseline reset. Your account stays saved on this device, but PAM will wait for a fresh Sandbox connection.";
   state.result = null;
+  state.aiGuidance = null;
   state.inlineGoalError = "";
   render();
 }
@@ -359,6 +361,74 @@ function estimateCompoundOpportunity(monthlyContribution, age, annualReturn = 0.
   };
 }
 
+function getTopConnectedExpenses(baseline, limit = 3) {
+  const recurring = Array.isArray(baseline?.expenses?.recurringExpenses) ? baseline.expenses.recurringExpenses : [];
+  return recurring
+    .slice()
+    .sort((left, right) => Number(right.amount || 0) - Number(left.amount || 0))
+    .slice(0, limit);
+}
+
+function getConnectedSnapshot(baseline) {
+  return {
+    source: baseline.source,
+    profile: baseline.profile,
+    income: baseline.income,
+    expenses: {
+      monthlyExpenses: baseline.expenses?.monthlyExpenses,
+      recurringExpenses: getTopConnectedExpenses(baseline, 5)
+    },
+    obligations: baseline.obligations,
+    savings: baseline.savings,
+    tax: baseline.tax,
+    goals: baseline.goals
+  };
+}
+
+async function requestDecisionGuidance(question, result) {
+  const response = await fetch("/api/decision", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      prompt: question,
+      baseline: getConnectedSnapshot(state.baseline),
+      result
+    })
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.ok) {
+    return null;
+  }
+
+  return payload;
+}
+
+async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.") {
+  saveQuestion(question);
+  saveWorkspaceView("home");
+  state.result = analyzeQuestion(question);
+  state.aiGuidance = null;
+  state.status = `${statusMessage} PAM advisor is refining the explanation...`;
+  render();
+
+  try {
+    const guidance = await requestDecisionGuidance(question, state.result);
+    if (guidance?.guidance) {
+      state.aiGuidance = guidance;
+      state.status = "Decision analyzed with your baseline and server-side AI guidance.";
+    } else {
+      state.status = statusMessage;
+    }
+  } catch (_error) {
+    state.status = statusMessage;
+  }
+
+  render();
+}
+
 function analyzeQuestion(question) {
   const decision = inferDecision(question);
   const currentBuffer = getMonthlyBuffer(state.baseline);
@@ -381,6 +451,16 @@ function analyzeQuestion(question) {
     : risk.label === "Medium"
       ? "You can afford it on paper, but your monthly buffer becomes tighter."
       : "This decision pushes your buffer below a safe target. PAM would suggest changing the timing, income, or cost before moving forward.";
+  const topExpense = getTopConnectedExpenses(state.baseline, 1)[0];
+  const mostImpactedGoal = getGoalLabel(state.baseline) || "your main goal";
+  const runwayMonths = newBuffer > 0
+    ? "stable"
+    : Math.max(Math.floor((currentSavings + taxAdjustedOneTimeImpact) / Math.abs(newBuffer || 1)), 0);
+  const sandboxInsight = state.baseline.source.startsWith("plaid")
+    ? topExpense
+      ? `Connected data suggests ${topExpense.name.toLowerCase()} is one of your biggest recurring costs at about ${formatCurrency(topExpense.amount)}/month.`
+      : "Connected data is shaping the baseline behind this outcome."
+    : "Manual or fallback baseline is shaping this outcome.";
 
   return {
     question,
@@ -396,7 +476,10 @@ function analyzeQuestion(question) {
     newGoalMonths,
     compoundGrowth,
     compoundOpportunity,
-    explanation
+    explanation,
+    runwayMonths,
+    sandboxInsight,
+    mostImpactedGoal
   };
 }
 
@@ -464,6 +547,7 @@ function handleCreateAccount(event) {
     employmentStatus,
     stateCode
   }, state.baseline));
+  state.aiGuidance = null;
   state.status = "Account created. Connect a Sandbox account next so PAM can build your financial homepage.";
   saveWorkspaceView("account");
   render();
@@ -480,8 +564,8 @@ async function handleSandboxSampleData() {
   state.status = sandboxPayload.status;
   state.inlineGoalError = "";
   if (hasCompletedBaseline(state.baseline)) {
-    saveWorkspaceView("home");
-    state.result = analyzeQuestion(state.question);
+    await runDecisionAnalysis(state.question, sandboxPayload.status);
+    return;
   }
   render();
 }
@@ -501,38 +585,33 @@ async function handleConnectSandboxAccount() {
     saveBaseline(payload.baseline);
     state.status = payload.status;
     state.inlineGoalError = "";
-    saveWorkspaceView("home");
-    state.result = analyzeQuestion(state.question);
+    await runDecisionAnalysis(state.question, payload.status);
   } catch (_error) {
     const fallbackPayload = loadSandboxFallback(state.baseline);
     saveBaseline(fallbackPayload.baseline);
     state.status = fallbackPayload.status;
     state.inlineGoalError = "";
-    saveWorkspaceView("home");
-    state.result = analyzeQuestion(state.question);
+    await runDecisionAnalysis(state.question, fallbackPayload.status);
   } finally {
     state.plaidBusy = false;
     render();
   }
 }
 
-function handleQuestionSubmit(event) {
+async function handleQuestionSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const question = String(formData.get("question") || "").trim();
   if (!question) return;
-  saveQuestion(question);
   if (!hasCompletedBaseline(state.baseline)) {
     saveWorkspaceView("account");
     state.result = null;
+    state.aiGuidance = null;
     state.status = "Connect Sandbox data first so PAM can calculate this against your real inputs.";
     render();
     return;
   }
-  saveWorkspaceView("home");
-  state.result = analyzeQuestion(question);
-  state.status = "Decision analyzed locally using your current baseline.";
-  render();
+  await runDecisionAnalysis(question);
 }
 
 function scrollToSection(id) {
@@ -673,6 +752,7 @@ function renderHomeWorkspace() {
   return `
     <div class="workspace-guide-grid">
       ${renderAccountPreview()}
+      ${renderConnectedInsights()}
       <div class="workspace-grid-simulator" id="decision-input">
         ${renderDecisionPanel()}
         ${renderResult()}
@@ -680,6 +760,25 @@ function renderHomeWorkspace() {
       ${renderEducationSections()}
       ${renderHowItWorksSteps()}
     </div>
+  `;
+}
+
+function renderConnectedInsights() {
+  if (!state.baseline.source.startsWith("plaid")) return "";
+  const topExpenses = getTopConnectedExpenses(state.baseline, 3);
+  const incomeStreams = state.baseline.income?.incomeStreams || [];
+  const liabilities = state.baseline.obligations?.liabilities || [];
+
+  return `
+    <section class="foresee-panel">
+      <div class="panel-kicker">Connected baseline</div>
+      <h2>Your Sandbox data is feeding PAM.</h2>
+      <div class="feature-grid">
+        <article><h3>Detected income</h3><p>${incomeStreams[0] ? `${formatCurrency(incomeStreams[0].amount)}/month from connected deposits.` : "No recurring income pattern detected yet."}</p></article>
+        <article><h3>Largest recurring costs</h3><p>${topExpenses.length ? topExpenses.map((item) => `${item.name} ${formatCurrency(item.amount)}`).join(" • ") : "No recurring expenses detected yet."}</p></article>
+        <article><h3>Debt obligations</h3><p>${liabilities.length ? `${liabilities.length} connected liabilities totaling about ${formatCurrency(getMonthlyObligations(state.baseline))}/month.` : "No liabilities detected from connected data."}</p></article>
+      </div>
+    </section>
   `;
 }
 
@@ -822,13 +921,27 @@ function renderResult() {
           <div><span>Projected savings, 12 months</span><strong>${formatCurrency(result.projectedSavings12)}</strong></div>
           <div><span>Risk</span><strong>${result.risk.label}</strong></div>
           <div><span>Goal timeline</span><strong>${formatMonths(result.newGoalMonths)}</strong></div>
+          <div><span>Cash runway</span><strong>${typeof result.runwayMonths === "number" ? formatMonths(result.runwayMonths) : "Stable"}</strong></div>
+          <div><span>Most impacted goal</span><strong>${escapeHtml(result.mostImpactedGoal)}</strong></div>
         </div>
       </div>
+      ${state.aiGuidance?.guidance ? `
+        <div class="result-section advisor-box">
+          <h3>PAM advisor</h3>
+          <p><strong>${escapeHtml(state.aiGuidance.guidance.assistant.headline)}</strong></p>
+          <p>${escapeHtml(state.aiGuidance.guidance.assistant.body)}</p>
+          <p>${escapeHtml(state.aiGuidance.guidance.interpretationSummary)}</p>
+          ${state.aiGuidance.guidance.followUpPrompt ? `<p><strong>Next question:</strong> ${escapeHtml(state.aiGuidance.guidance.followUpPrompt)}</p>` : ""}
+          ${state.aiGuidance.guidance.followUpChoiceLabels.length ? `<div class="quick-question-row">${state.aiGuidance.guidance.followUpChoiceLabels.map((label) => `<button type="button" data-question-example="${escapeHtml(`${state.question} ${label}`)}">${escapeHtml(label)}</button>`).join("")}</div>` : ""}
+        </div>
+      ` : ""}
       <div class="result-section explanation-box">
         <h3>Tax impact</h3>
         <p>${escapeHtml(result.decision.taxImpact)}</p>
         <h3>Long-term goal impact</h3>
         <p>${result.goalDelay ? `This delays ${escapeHtml(goalLabel.toLowerCase())} by about ${formatMonths(result.goalDelay)}.` : `This does not delay ${escapeHtml(goalLabel.toLowerCase())} in this estimate.`}</p>
+        <h3>Connected baseline insight</h3>
+        <p>${escapeHtml(result.sandboxInsight)}</p>
         <h3>Compound growth impact</h3>
         <p>${result.compoundOpportunity ? `If you redirected ${formatCurrency(result.decision.compoundMonthlyDelta)}/month into a long-term investment earning a hypothetical 10% average annual return, it could grow to about ${formatCurrency(result.compoundOpportunity.futureValue)} by age ${result.compoundOpportunity.retirementAge}. If this were held in a Roth-style account and eligibility rules were met, qualified withdrawals may be tax-free. Educational estimate only, not guaranteed.` : result.compoundGrowth ? `If invested monthly, this could hypothetically grow to about ${formatCurrency(result.compoundGrowth)} over 10 years at a 6% assumed annual return. Not guaranteed.` : "No direct compound-growth impact detected for this decision."}</p>
         <h3>Explanation</h3>
@@ -897,17 +1010,16 @@ function wireInteractions() {
   document.querySelectorAll("[data-question-example]").forEach((button) => {
     button.addEventListener("click", () => {
       const question = button.dataset.questionExample || "";
-      saveQuestion(question);
       if (hasCompletedBaseline(state.baseline)) {
-        saveWorkspaceView("home");
-        state.result = analyzeQuestion(question);
-        state.status = "Example prompt analyzed. You can edit it and run another scenario.";
+        runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
       } else {
+        saveQuestion(question);
         saveWorkspaceView("account");
         state.result = null;
+        state.aiGuidance = null;
         state.status = "Prompt saved. Finish account setup first so PAM can analyze it against your baseline.";
+        render();
       }
-      render();
     });
   });
 }
