@@ -1,4 +1,4 @@
-const { createLinkToken, hasPlaidConfig } = require("../_lib/plaid.js");
+const { buildNormalizedBaseline, getStoredSession, hasPlaidConfig } = require("../_lib/plaid.js");
 
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
@@ -9,7 +9,7 @@ function sendJson(res, statusCode, payload) {
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== "POST") {
+  if (req.method !== "GET") {
     return sendJson(res, 405, { ok: false, error: "Method not allowed" });
   }
 
@@ -23,23 +23,29 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const payload = await createLinkToken({
-      clientUserId: req.body?.clientUserId,
-      legalName: req.body?.legalName,
-      emailAddress: req.body?.emailAddress
-    });
+    const clientUserId = req.query?.clientUserId || "prototype";
+    const session = getStoredSession(clientUserId);
+    if (!session?.accessToken) {
+      return sendJson(res, 200, {
+        ok: false,
+        mode: "mock",
+        fallback: true,
+        error: "No sandbox session was found for this browser yet."
+      });
+    }
 
+    const baseline = await buildNormalizedBaseline({ clientUserId });
     return sendJson(res, 200, {
       ok: true,
       mode: "sandbox",
-      link_token: payload.link_token
+      baseline
     });
   } catch (error) {
     return sendJson(res, 200, {
       ok: false,
       mode: "mock",
       fallback: true,
-      error: error.message || "Unable to create Plaid Sandbox link token."
+      error: error.message || "Unable to build a baseline from Plaid Sandbox."
     });
   }
 };

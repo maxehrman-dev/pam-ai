@@ -1,109 +1,45 @@
+import { getMockPlaidLikeData, normalizePlaidMockData } from "../utils/baseline.mjs";
+
+const CLIENT_USER_STORAGE_KEY = "pam-ai-plaid-client-user-id";
+
 function getJsonHeaders() {
   return {
     "Content-Type": "application/json"
   };
 }
 
-function readJsonSafe(response) {
-  return response
-    .json()
-    .catch(() => null);
+async function readJsonSafe(response) {
+  return response.json().catch(() => null);
 }
 
-function normalizeAccount(account = {}) {
-  return {
-    name: account.name || "PAM AI user",
-    email: account.email || "demo@pamai.app"
-  };
-}
-
-function getAccountKey(account) {
-  const normalized = normalizeAccount(account);
-  return `${normalized.email}:${normalized.name}`.toLowerCase();
-}
-
-function getPlaidClientUserId() {
+export function getPlaidClientUserId() {
   if (typeof window === "undefined") return `pam-user-${Date.now()}`;
 
-  const storageKey = "pam-ai-plaid-client-user-id";
-  const existing = window.localStorage.getItem(storageKey);
+  const existing = window.localStorage.getItem(CLIENT_USER_STORAGE_KEY);
   if (existing) return existing;
 
   const generated =
     window.crypto?.randomUUID?.() ||
     `pam-user-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const clientUserId = `pam-user-${generated}`;
-  window.localStorage.setItem(storageKey, clientUserId);
+  window.localStorage.setItem(CLIENT_USER_STORAGE_KEY, clientUserId);
   return clientUserId;
 }
 
-export async function createPlaidLinkToken(account) {
-  const response = await fetch("/api/plaid-link-token", {
-    method: "POST",
-    headers: getJsonHeaders(),
-    body: JSON.stringify({
-      clientUserId: getPlaidClientUserId(),
-      legalName: account?.name || "PAM AI user",
-      emailAddress: ""
-    })
-  });
-
-  const payload = await readJsonSafe(response);
-  if (!response.ok || !payload?.ok || !payload.linkToken) {
-    throw new Error(payload?.error || "Unable to create a Plaid link token.");
-  }
-
-  return payload;
-}
-
-export async function exchangePlaidPublicToken(publicToken, metadata) {
-  const response = await fetch("/api/plaid-exchange", {
-    method: "POST",
-    headers: getJsonHeaders(),
-    body: JSON.stringify({
-      publicToken,
-      institution: metadata?.institution || null,
-      accounts: metadata?.accounts || []
-    })
-  });
-
-  const payload = await readJsonSafe(response);
-  if (!response.ok || !payload?.ok || !payload.snapshot) {
-    throw new Error(payload?.error || "Unable to exchange the Plaid public token.");
-  }
-
-  return payload;
-}
-
-export async function loadPlaidSandboxMock(options = {}) {
-  const response = await fetch("/api/plaid-sandbox-mock", {
-    method: "POST",
-    headers: getJsonHeaders(),
-    body: JSON.stringify(options)
-  });
-
-  const payload = await readJsonSafe(response);
-  if (!response.ok || !payload?.ok || !payload.snapshot) {
-    throw new Error(payload?.error || "Unable to load Plaid sandbox mock data.");
-  }
-
-  return payload;
-}
-
-function loadPlaidScript() {
+async function loadPlaidScript() {
   if (typeof window === "undefined") {
-    return Promise.reject(new Error("Plaid Link is only available in the browser."));
+    throw new Error("Plaid Link is only available in the browser.");
   }
 
   if (window.Plaid?.create) {
-    return Promise.resolve(window.Plaid);
+    return window.Plaid;
   }
 
   return new Promise((resolve, reject) => {
     const existing = document.querySelector('script[data-plaid-link]');
     if (existing) {
-      existing.addEventListener("load", () => resolve(window.Plaid));
-      existing.addEventListener("error", () => reject(new Error("Unable to load Plaid Link.")));
+      existing.addEventListener("load", () => resolve(window.Plaid), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Unable to load Plaid Link.")), { once: true });
       return;
     }
 
@@ -117,110 +53,88 @@ function loadPlaidScript() {
   });
 }
 
-let preparedLink = null;
+async function createLinkToken(profile) {
+  const response = await fetch("/api/plaid/create_link_token", {
+    method: "POST",
+    headers: getJsonHeaders(),
+    body: JSON.stringify({
+      clientUserId: getPlaidClientUserId(),
+      legalName: profile?.firstName || "PAM user",
+      emailAddress: profile?.emailAddress || ""
+    })
+  });
 
-function resetPreparedLink(session) {
-  if (!session || preparedLink?.session === session || preparedLink?.promise === session) {
-    preparedLink = null;
+  const payload = await readJsonSafe(response);
+  if (!response.ok || !payload?.ok || !payload?.link_token) {
+    throw new Error(payload?.error || "Unable to create a Plaid Sandbox link token.");
   }
+
+  return payload.link_token;
 }
 
-function createPreparedSession(account) {
-  const normalizedAccount = normalizeAccount(account);
-  const key = getAccountKey(normalizedAccount);
-  const session = {
-    key,
-    ready: false,
-    handler: null,
-    activeReject: null,
-    activeResolve: null,
-    open() {
-      if (!session.handler) {
-        return Promise.reject(new Error("Plaid Link is still preparing. Try again in a moment."));
-      }
-
-      return new Promise((resolve, reject) => {
-        session.activeResolve = resolve;
-        session.activeReject = reject;
-
-        try {
-          session.handler.open();
-        } catch (error) {
-          session.activeResolve = null;
-          session.activeReject = null;
-          reject(error);
-        }
-      });
-    }
-  };
-
-  const promise = Promise.all([loadPlaidScript(), createPlaidLinkToken(normalizedAccount)])
-    .then(([plaid, tokenPayload]) => {
-      session.handler = plaid.create({
-        token: tokenPayload.linkToken,
-        onSuccess: async (publicToken, metadata) => {
-          try {
-            const exchange = await exchangePlaidPublicToken(publicToken, metadata);
-            session.activeResolve?.({
-              ...exchange,
-              institutionName: metadata?.institution?.name || exchange.institutionName || "Linked institution"
-            });
-          } catch (error) {
-            session.activeReject?.(error);
-          } finally {
-            session.activeResolve = null;
-            session.activeReject = null;
-          }
-        },
-        onExit: (error) => {
-          const reject = session.activeReject;
-          session.activeResolve = null;
-          session.activeReject = null;
-
-          if (error) {
-            reject?.(new Error(error.display_message || error.error_message || "Plaid Link exited before the account was connected."));
-            return;
-          }
-
-          reject?.(new Error("Plaid Link was closed before the account was connected."));
-        }
-      });
-      session.ready = true;
-      return session;
+async function exchangePublicToken(publicToken, metadata, profile) {
+  const response = await fetch("/api/plaid/exchange_public_token", {
+    method: "POST",
+    headers: getJsonHeaders(),
+    body: JSON.stringify({
+      clientUserId: getPlaidClientUserId(),
+      public_token: publicToken,
+      institution: metadata?.institution || null,
+      profile
     })
-    .catch((error) => {
-      resetPreparedLink(session);
-      throw error;
+  });
+
+  const payload = await readJsonSafe(response);
+  if (!response.ok || !payload?.ok) {
+    throw new Error(payload?.error || "Unable to exchange a Plaid Sandbox public token.");
+  }
+
+  return payload;
+}
+
+async function fetchBaseline() {
+  const response = await fetch(`/api/plaid/baseline?clientUserId=${encodeURIComponent(getPlaidClientUserId())}`);
+  const payload = await readJsonSafe(response);
+  if (!response.ok || !payload?.ok || !payload?.baseline) {
+    throw new Error(payload?.error || "Unable to build a baseline from Plaid Sandbox.");
+  }
+  return payload.baseline;
+}
+
+function openPlaidLink(plaid, linkToken) {
+  return new Promise((resolve, reject) => {
+    const handler = plaid.create({
+      token: linkToken,
+      onSuccess: (publicToken, metadata) => resolve({ publicToken, metadata }),
+      onExit: (error) => {
+        if (error) {
+          reject(new Error(error.display_message || error.error_message || "Plaid Link exited before the sandbox account connected."));
+          return;
+        }
+        reject(new Error("Plaid Link was closed before the sandbox account connected."));
+      }
     });
 
-  preparedLink = { key, promise, session };
-  return promise;
+    handler.open();
+  });
 }
 
-export function preloadPlaidLink(account) {
-  const key = getAccountKey(account);
-  if (preparedLink?.key === key) {
-    return preparedLink.promise;
-  }
+export async function connectSandboxAccount(profile) {
+  const plaid = await loadPlaidScript();
+  const linkToken = await createLinkToken(profile);
+  const { publicToken, metadata } = await openPlaidLink(plaid, linkToken);
+  await exchangePublicToken(publicToken, metadata, profile);
+  const baseline = await fetchBaseline();
 
-  return createPreparedSession(account);
+  return {
+    baseline,
+    status: "Sandbox account connected. PAM built your baseline."
+  };
 }
 
-export function getReadyPlaidLink(account) {
-  const key = getAccountKey(account);
-  if (preparedLink?.key === key && preparedLink.session?.ready) {
-    return preparedLink.session;
-  }
-
-  return null;
-}
-
-export async function launchPlaidLink(account, readySession = null) {
-  const session = readySession || await preloadPlaidLink(account);
-
-  try {
-    return await session.open();
-  } finally {
-    resetPreparedLink(session);
-  }
+export function loadSandboxFallback(previousBaseline) {
+  return {
+    baseline: normalizePlaidMockData(getMockPlaidLikeData(), previousBaseline),
+    status: "Sandbox-style sample data loaded."
+  };
 }

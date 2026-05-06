@@ -1,6 +1,16 @@
 const PLAID_ENV = process.env.PLAID_ENV || "sandbox";
 const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID;
 const PLAID_SECRET = process.env.PLAID_SECRET;
+const PLAID_PRODUCTS = String(process.env.PLAID_PRODUCTS || "transactions,balance,liabilities")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+const PLAID_COUNTRY_CODES = String(process.env.PLAID_COUNTRY_CODES || "US")
+  .split(",")
+  .map((value) => value.trim().toUpperCase())
+  .filter(Boolean);
+const LINK_TOKEN_PRODUCTS = PLAID_PRODUCTS.filter((value) => value !== "balance");
+const SANDBOX_ACCESS_TOKENS = new Map();
 
 const BASE_URLS = {
   sandbox: "https://sandbox.plaid.com",
@@ -24,12 +34,20 @@ function assertConfigured() {
   }
 }
 
+function isConfigured() {
+  return Boolean(PLAID_CLIENT_ID && PLAID_SECRET);
+}
+
 function sanitizeClientUserId(value) {
   const candidate = String(value || "").trim();
   if (!candidate || /@|\s/.test(candidate)) {
     return `pam-user-${Date.now()}`;
   }
   return candidate.slice(0, 128);
+}
+
+function getSessionKey(clientUserId = "prototype") {
+  return sanitizeClientUserId(clientUserId || "prototype");
 }
 
 async function callPlaid(path, payload) {
@@ -52,6 +70,11 @@ async function callPlaid(path, payload) {
   }
 
   return json;
+}
+
+function normalizeCategory(value) {
+  if (Array.isArray(value)) return value.join(" / ");
+  return value || "Uncategorized";
 }
 
 function normalizeAccounts(accounts = []) {
@@ -89,7 +112,7 @@ function normalizeTransactions(transactions = []) {
     name: transaction.name,
     amount: Number(transaction.amount || 0),
     date: transaction.date,
-    category: Array.isArray(transaction.category) ? transaction.category.join(" / ") : transaction.personal_finance_category?.primary || "Uncategorized",
+    category: normalizeCategory(transaction.category || transaction.personal_finance_category?.primary),
     recurring: Boolean(transaction.personal_finance_category?.detailed?.includes("RECURRING"))
   }));
 }
@@ -171,28 +194,167 @@ async function getLiabilities(accessToken) {
 
 async function getTransactions(accessToken) {
   try {
-    const response = await callPlaid("/transactions/sync", {
+    const endDate = new Date();
+    const startDate = new Date(Date.now() - 1000 * 60 * 60 * 24 * 90);
+    const response = await callPlaid("/transactions/get", {
       access_token: accessToken,
-      count: 100
+      start_date: startDate.toISOString().slice(0, 10),
+      end_date: endDate.toISOString().slice(0, 10),
+      options: {
+        count: 100
+      }
     });
-    return response.added || [];
+    return response.transactions || [];
   } catch (_error) {
     return [];
   }
 }
 
+function mapAccountType(account = {}) {
+  const subtype = String(account.subtype || "").toLowerCase();
+  const type = String(account.type || "").toLowerCase();
+  if (subtype.includes("checking")) return "checking";
+  if (subtype.includes("savings")) return "savings";
+  if (type.includes("credit")) return "credit";
+  return subtype || type || "account";
+}
+
+function mapEmploymentStatus(transactions = []) {
+  const payrollNames = transactions
+    .filter((transaction) => Number(transaction.amount || 0) < 0)
+    .map((transaction) => String(transaction.name || "").toLowerCase());
+
+  if (payrollNames.some((name) => /payroll|adp|gusto|salary|wages|employer/.test(name))) {
+    return "w2";
+  }
+
+  return "unknown";
+}
+
+function deriveRecurringExpenses(transactions = []) {
+  const outgoing = transactions.filter((transaction) => Number(transaction.amount || 0) > 0);
+  return outgoing.map((transaction) => ({
+    name: transaction.name,
+    amount: Math.round(Number(transaction.amount || 0)),
+    category: normalizeCategory(transaction.category || transaction.personal_finance_category?.primary),
+    frequency: "monthly"
+  }));
+}
+
+function deriveIncomeStreams(transactions = []) {
+  const incoming = transactions.filter((transaction) => Number(transaction.amount || 0) < 0);
+  const total = incoming.reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount || 0)), 0);
+  return total
+    ? [
+        {
+          label: "Detected paycheck deposits",
+          amount: Math.round(total / 3),
+          cadence: "monthly",
+          confidence: "medium"
+        }
+      ]
+    : [];
+}
+
+function deriveCategoryBreakdown(recurringExpenses = []) {
+  return recurringExpenses.reduce((accumulator, expense) => {
+    accumulator[expense.category] = (accumulator[expense.category] || 0) + Number(expense.amount || 0);
+    return accumulator;
+  }, {});
+}
+
+function toNormalizedBaseline({ accounts = [], transactions = [], liabilities = [], profile = {} }) {
+  const recurringExpenses = deriveRecurringExpenses(transactions);
+  const categoryBreakdown = deriveCategoryBreakdown(recurringExpenses);
+  const monthlyExpenses = recurringExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const incomeStreams = deriveIncomeStreams(transactions);
+  const detectedMonthlyIncome = incomeStreams[0]?.amount || 0;
+  const checkingBalance = accounts
+    .filter((account) => mapAccountType(account) === "checking")
+    .reduce((sum, account) => sum + Number(account.balances?.current || 0), 0);
+  const savingsBalance = accounts
+    .filter((account) => mapAccountType(account) === "savings")
+    .reduce((sum, account) => sum + Number(account.balances?.current || 0), 0);
+  const monthlyDebtPayments = liabilities.reduce((sum, item) => sum + Number(item.monthlyPayment || 0), 0);
+  const emergencyFundFloor = Math.round(monthlyExpenses * 3);
+  const now = new Date().toISOString();
+
+  return {
+    source: "plaid_sandbox",
+    profile: {
+      firstName: profile.firstName || "",
+      emailAddress: profile.emailAddress || "",
+      name: profile.firstName || "",
+      age: profile.age ?? null,
+      state: profile.state || "CA",
+      employmentStatus: profile.employmentStatus || mapEmploymentStatus(transactions)
+    },
+    income: {
+      grossMonthlyIncome: null,
+      knownTakeHomeMonthlyIncome: null,
+      detectedMonthlyIncome,
+      incomeStreams
+    },
+    expenses: {
+      monthlyExpenses,
+      recurringExpenses,
+      categoryBreakdown
+    },
+    obligations: {
+      monthlyDebtPayments,
+      liabilities: liabilities.map((item) => ({
+        type: item.type,
+        name: item.name,
+        balance: Number(item.balance || 0),
+        minimumPayment: Number(item.monthlyPayment || 0)
+      }))
+    },
+    savings: {
+      currentSavings: savingsBalance || null,
+      checkingBalance: checkingBalance || null,
+      savingsBalance: savingsBalance || null,
+      emergencyFundFloor
+    },
+    tax: {
+      estimatedIncomeTaxRate: null,
+      payrollTaxRate: null,
+      combinedTaxRate: null,
+      annualDeductions: null,
+      retirementContributionMonthly: null,
+      taxRateOverride: false
+    },
+    goals: {
+      primaryGoal: "Move out safely",
+      customGoalLabel: "",
+      goalTargetAmount: 17000,
+      goalTimelineMonths: 18,
+      goalTargetEstimated: true,
+      goalTimelineEstimated: true
+    },
+    metadata: {
+      createdAt: now,
+      updatedAt: now,
+      confidence: "medium",
+      notes: [
+        "Sandbox account connected. PAM built your baseline.",
+        "This baseline came from Plaid Sandbox data, not a production bank connection."
+      ]
+    }
+  };
+}
+
 exports.createLinkToken = async ({ clientUserId, legalName, emailAddress }) => {
   return callPlaid("/link/token/create", {
     client_name: "PAM AI",
-    country_codes: ["US"],
+    country_codes: PLAID_COUNTRY_CODES,
     language: "en",
     user: {
       client_user_id: sanitizeClientUserId(clientUserId),
       legal_name: legalName || undefined,
       email_address: emailAddress || undefined
     },
-    products: ["transactions"],
-    optional_products: ["liabilities"],
+    products: LINK_TOKEN_PRODUCTS.filter((value) => value !== "liabilities"),
+    optional_products: LINK_TOKEN_PRODUCTS.includes("liabilities") ? ["liabilities"] : [],
     redirect_uri: process.env.PLAID_REDIRECT_URI || undefined
   });
 };
@@ -232,4 +394,36 @@ exports.exchangePublicToken = async ({ publicToken, institution }) => {
     },
     institutionName: institution?.name || "Linked institution"
   };
+};
+
+exports.hasPlaidConfig = isConfigured;
+
+exports.storeAccessTokenForSession = ({ clientUserId, accessToken, itemId, institutionName, profile }) => {
+  SANDBOX_ACCESS_TOKENS.set(getSessionKey(clientUserId), {
+    accessToken,
+    itemId,
+    institutionName,
+    profile,
+    updatedAt: Date.now()
+  });
+};
+
+exports.getStoredSession = (clientUserId) => SANDBOX_ACCESS_TOKENS.get(getSessionKey(clientUserId));
+
+exports.buildNormalizedBaseline = async ({ clientUserId }) => {
+  const session = SANDBOX_ACCESS_TOKENS.get(getSessionKey(clientUserId));
+  if (!session?.accessToken) {
+    throw new Error("No sandbox session available.");
+  }
+
+  const accounts = await getAccounts(session.accessToken);
+  const liabilities = await getLiabilities(session.accessToken);
+  const transactions = await getTransactions(session.accessToken);
+
+  return toNormalizedBaseline({
+    accounts,
+    transactions,
+    liabilities,
+    profile: session.profile || {}
+  });
 };

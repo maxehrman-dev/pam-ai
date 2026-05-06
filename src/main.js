@@ -23,6 +23,7 @@ import {
   toNumber,
   validateBaseline
 } from "./utils/baseline.mjs";
+import { connectSandboxAccount, loadSandboxFallback } from "./services/plaidClient.js";
 
 const app = document.querySelector("#app");
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
@@ -38,7 +39,8 @@ const state = {
   result: null,
   status: "",
   showWaitlist: false,
-  inlineGoalError: ""
+  inlineGoalError: "",
+  plaidBusy: false
 };
 
 let isStarted = false;
@@ -475,16 +477,43 @@ function handleBaselineSubmit(event) {
 }
 
 async function handleSandboxSampleData() {
-  const sandboxBaseline = normalizePlaidMockData(getMockPlaidLikeData(), state.baseline);
-  saveBaseline(sandboxBaseline);
+  const sandboxPayload = loadSandboxFallback(state.baseline);
+  saveBaseline(sandboxPayload.baseline);
   saveSetupStep(ACCOUNT_STEPS.length - 1);
-  state.status = "Sandbox-style data loaded. PAM built a financial baseline.";
+  state.status = sandboxPayload.status;
   state.inlineGoalError = "";
   if (hasCompletedBaseline(state.baseline)) {
     saveWorkspaceView("simulator");
     state.result = analyzeQuestion(state.question);
   }
   render();
+}
+
+async function handleConnectSandboxAccount() {
+  state.plaidBusy = true;
+  state.status = "Connecting Sandbox account...";
+  render();
+
+  try {
+    const payload = await connectSandboxAccount(state.baseline.profile);
+    saveBaseline(payload.baseline);
+    saveSetupStep(ACCOUNT_STEPS.length - 1);
+    state.status = payload.status;
+    state.inlineGoalError = "";
+    saveWorkspaceView("simulator");
+    state.result = analyzeQuestion(state.question);
+  } catch (_error) {
+    const fallbackPayload = loadSandboxFallback(state.baseline);
+    saveBaseline(fallbackPayload.baseline);
+    saveSetupStep(ACCOUNT_STEPS.length - 1);
+    state.status = fallbackPayload.status;
+    state.inlineGoalError = "";
+    saveWorkspaceView("simulator");
+    state.result = analyzeQuestion(state.question);
+  } finally {
+    state.plaidBusy = false;
+    render();
+  }
 }
 
 function handleQuestionSubmit(event) {
@@ -754,7 +783,7 @@ function renderAccountPreview() {
       <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM baseline` : "Profile draft only"}</h3>
       <p>${isComplete ? "PAM now has enough information to model decisions against your profile." : "PAM will show a baseline only after income, taxes, spending, savings, and a goal are provided."}</p>
       <div class="cash-flow-preview-grid">
-        <div><span>Baseline source</span><strong>${escapeHtml(baseline.source === "plaid_mock" ? "Sandbox-style sample data" : "Manual baseline")}</strong><small>Prototype data is saved only in this browser.</small></div>
+        <div><span>Baseline source</span><strong>${escapeHtml(baseline.source === "plaid_sandbox" ? "Sandbox account" : baseline.source === "plaid_mock" ? "Sandbox-style sample data" : "Manual baseline")}</strong><small>Prototype data is saved only in this browser.</small></div>
         <div class="preview-card preview-card-account"><span>Saved on this device</span><strong>${hasValue(baseline.emailAddress) ? escapeHtml(baseline.emailAddress) : "Not provided"}</strong><small>Prototype profile label, not real auth.</small></div>
         <div><span>Age</span><strong>${valueOrPending(baseline.age)}</strong><small>Used for time horizon and retirement runway.</small></div>
         <div><span>Gross income</span><strong>${valueOrPending(baseline.grossMonthlyIncome, formatCurrency)}</strong><small>Before tax and deductions.</small></div>
@@ -849,37 +878,30 @@ function renderGuideWorkspace() {
 }
 
 function renderBaselinePanel() {
-  const steps = ACCOUNT_STEPS;
-  const isLastStep = state.setupStep === steps.length - 1;
-  const canSkip = [1, 3, 4, 6].includes(state.setupStep);
+  const baseline = getUiBaseline(state.baseline);
+  const isComplete = hasCompletedBaseline(state.baseline);
   return `
     <section class="foresee-panel baseline-panel account-setup-panel" id="baseline-section">
-      <div class="panel-kicker">Create account</div>
-      <h2>Enter your financial baseline.</h2>
-      <p>PAM asks one thing at a time so creating your account feels lighter. If you do not know a detail, some steps can use a reasonable estimate and keep moving.</p>
-
-      <div class="onboarding-progress" aria-label="Account setup progress">
-        ${steps.map((step, index) => `
-          <span class="${index <= state.setupStep ? "active" : ""}">
-            <strong>${index + 1}</strong>
-            ${step}
-          </span>
-        `).join("")}
-      </div>
-
+      <div class="panel-kicker">Sandbox baseline</div>
+      <h2>Connect a Sandbox account.</h2>
+      <p>PAM is primed for Plaid Sandbox now. Connect a Sandbox account to let PAM build the baseline it uses for decisions. The sample-data fallback stays available only if Sandbox is unavailable.</p>
       <div class="onboarding-layout">
-        <form class="baseline-form onboarding-form" data-baseline-form>
-          <div class="step-counter">Step ${state.setupStep + 1} of ${steps.length}</div>
-          <h3>${steps[state.setupStep]}</h3>
-          ${renderAccountSetupFields()}
+        <div class="baseline-form onboarding-form sandbox-connect-panel">
+          <div class="step-counter">Sandbox first</div>
+          <h3>${isComplete ? "Your baseline is ready." : "Build your baseline from Sandbox data."}</h3>
+          <p class="setup-step-copy">PAM will open Plaid Link in Sandbox mode, exchange the public token on the backend, fetch balances, transactions, and liabilities, then normalize that into your PAM baseline.</p>
+          <div class="signal-list-foresee">
+            <p>Primary path: real Plaid Sandbox connection</p>
+            <p>Fallback path: Sandbox-style sample data</p>
+            <p>Secrets stay server-side only</p>
+          </div>
           <div class="form-actions">
-            ${state.setupStep > 0 ? '<button class="button button-secondary" type="submit" data-setup-action="back">Back</button>' : ""}
-            ${canSkip ? '<button class="button button-secondary" type="submit" data-setup-action="skip">Use estimate</button>' : ""}
-            <button class="button button-primary" type="submit" data-setup-action="${isLastStep ? "save" : "next"}">${isLastStep ? "Save baseline" : "Continue"}</button>
-            <button class="button button-secondary" type="button" data-load-sandbox>Use Sandbox-style sample data</button>
+            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
+            <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy ? "disabled" : ""}>Use Sandbox-style sample data</button>
             <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
           </div>
-        </form>
+          <p class="prototype-note">Manual baseline entry is hidden for now while Sandbox connection becomes the main setup path.</p>
+        </div>
         ${renderAccountPreview()}
       </div>
       ${renderSetupTermGuide()}
@@ -1033,10 +1055,10 @@ function render() {
 }
 
 function wireInteractions() {
-  document.querySelector("[data-baseline-form]")?.addEventListener("submit", handleBaselineSubmit);
   document.querySelector("[data-question-form]")?.addEventListener("submit", handleQuestionSubmit);
   document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
   document.querySelector("[data-load-sandbox]")?.addEventListener("click", handleSandboxSampleData);
+  document.querySelector("[data-connect-sandbox]")?.addEventListener("click", handleConnectSandboxAccount);
   document.querySelector("[data-join-waitlist]")?.addEventListener("click", () => {
     try {
       window.localStorage.setItem(WAITLIST_STORAGE_KEY, JSON.stringify({ joinedAt: new Date().toISOString() }));
