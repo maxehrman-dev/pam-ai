@@ -104,7 +104,7 @@ input:disabled {
 .foresee-shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 22px 0 56px;
+  padding: 18px 0 42px;
 }
 
 .foresee-header {
@@ -175,7 +175,7 @@ input:disabled {
 .pam-hero {
   display: grid;
   align-content: center;
-  min-height: 520px;
+  min-height: 420px;
 }
 
 .pam-hero h1,
@@ -353,7 +353,7 @@ input:disabled {
 
 .workspace-panel {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .workspace-header {
@@ -540,6 +540,10 @@ input:disabled {
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.48);
   border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.profile-form {
+  margin-bottom: 18px;
 }
 
 .onboarding-field-grid,

@@ -1,6 +1,5 @@
 import { escapeHtml, formatCurrency, formatSignedCurrency } from "./utils/formatters.js";
 import {
-  WAITLIST_STORAGE_KEY,
   estimateGoalDefaults,
   estimateTaxProfile,
   getCurrentSavings,
@@ -26,19 +25,17 @@ import {
 import { connectSandboxAccount, loadSandboxFallback } from "./services/plaidClient.js";
 
 const app = document.querySelector("#app");
+const ACCOUNT_STORAGE_KEY = "pam:account:v1";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
-const SETUP_STEP_KEY = "pam-ai-account-setup-step-v1";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
-const ACCOUNT_STEPS = ["Account", "Age", "Work", "Location", "Taxes", "Spending", "Goals"];
 
 const state = {
   baseline: loadStoredBaseline(),
-  setupStep: loadSetupStep(),
+  account: loadAccount(),
   workspaceView: loadWorkspaceView(),
   question: loadQuestion(),
   result: null,
   status: "",
-  showWaitlist: false,
   inlineGoalError: "",
   plaidBusy: false
 };
@@ -49,29 +46,35 @@ function saveBaseline(baseline) {
   state.baseline = persistBaseline(baseline);
 }
 
-function loadSetupStep() {
-  if (typeof window === "undefined") return 0;
-  const stored = Number(window.localStorage.getItem(SETUP_STEP_KEY));
-  return Number.isFinite(stored) ? Math.max(0, Math.min(stored, ACCOUNT_STEPS.length - 1)) : 0;
+function loadAccount() {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(ACCOUNT_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
 }
 
-function saveSetupStep(step) {
-  state.setupStep = Math.max(0, Math.min(step, ACCOUNT_STEPS.length - 1));
+function saveAccount(account) {
+  state.account = account;
   try {
-    window.localStorage.setItem(SETUP_STEP_KEY, String(state.setupStep));
+    window.localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(account));
   } catch (_error) {
-    // Step persistence is helpful, not required.
+    // Prototype account state is helpful, not required.
   }
 }
 
 function loadWorkspaceView() {
   if (typeof window === "undefined") return "account";
   const stored = window.localStorage.getItem(WORKSPACE_VIEW_KEY);
-  return ["account", "simulator", "guide"].includes(stored || "") ? stored : "account";
+  return ["account", "home"].includes(stored || "") ? stored : "account";
 }
 
 function saveWorkspaceView(view) {
-  state.workspaceView = ["account", "simulator", "guide"].includes(view) ? view : "account";
+  state.workspaceView = ["account", "home"].includes(view) ? view : "account";
   try {
     window.localStorage.setItem(WORKSPACE_VIEW_KEY, state.workspaceView);
   } catch (_error) {
@@ -81,8 +84,11 @@ function saveWorkspaceView(view) {
 
 function resetBaseline() {
   state.baseline = clearStoredBaseline();
-  saveSetupStep(0);
-  state.status = "Setup reset. PAM will wait to calculate until your baseline is complete.";
+  if (state.account) {
+    saveBaseline(syncAccountIntoBaseline(state.account, getEmptyBaseline()));
+  }
+  saveWorkspaceView("account");
+  state.status = "Baseline reset. Your account stays saved on this device, but PAM will wait for a fresh Sandbox connection.";
   state.result = null;
   state.inlineGoalError = "";
   render();
@@ -144,6 +150,25 @@ function parseMonthlyAmount(question) {
 
 function isSelfEmployedBaseline() {
   return state.baseline.profile.employmentStatus === "1099";
+}
+
+function hasPrototypeAccount() {
+  return Boolean(state.account?.emailAddress && state.account?.firstName);
+}
+
+function syncAccountIntoBaseline(account, baseline = state.baseline) {
+  if (!account) return baseline;
+  const nextBaseline = JSON.parse(JSON.stringify(baseline || getEmptyBaseline()));
+  nextBaseline.profile = nextBaseline.profile || getEmptyBaseline().profile;
+  nextBaseline.profile.firstName = account.firstName || nextBaseline.profile.firstName || "";
+  nextBaseline.profile.emailAddress = account.emailAddress || nextBaseline.profile.emailAddress || "";
+  nextBaseline.profile.name = nextBaseline.profile.firstName;
+  nextBaseline.profile.age = hasValue(account.age) ? toNumber(account.age, null) : nextBaseline.profile.age ?? null;
+  nextBaseline.profile.employmentStatus = labelToEmploymentStatus(account.employmentStatus || nextBaseline.profile.employmentStatus);
+  nextBaseline.profile.state = account.stateCode || nextBaseline.profile.state || "OTHER";
+  nextBaseline.metadata = nextBaseline.metadata || {};
+  nextBaseline.metadata.updatedAt = new Date().toISOString();
+  return nextBaseline;
 }
 
 function inferPotentialDeduction(question, amount, cadence = "one-time") {
@@ -401,95 +426,72 @@ function readBaselineForm(form) {
   };
 }
 
-function applyStepEstimate(step, draft) {
-  const nextDraft = { ...draft };
-
-  if (step === 1) {
-    nextDraft.age = "";
-  }
-
-  if (step === 3) {
-    nextDraft.stateCode = nextDraft.stateCode || "OTHER";
-    nextDraft.retirementContributions = hasValue(nextDraft.retirementContributions) ? nextDraft.retirementContributions : 0;
-  }
-
-  if (step === 4) {
-    nextDraft.deductions = hasValue(nextDraft.deductions) ? nextDraft.deductions : 0;
-    nextDraft.taxRateOverride = false;
-  }
-
-  if (step === 6 && hasValue(getGoalLabel(nextDraft))) {
-    const defaults = estimateGoalDefaults(getGoalLabel(normalizeManualBaseline(nextDraft, state.baseline)), state.baseline.savings.emergencyFundFloor);
-    nextDraft.goalTargetAmount = hasValue(nextDraft.goalTargetAmount) ? nextDraft.goalTargetAmount : defaults.target;
-    nextDraft.goalTimelineMonths = hasValue(nextDraft.goalTimelineMonths) ? nextDraft.goalTimelineMonths : defaults.timeline;
-  }
-
-  return nextDraft;
-}
-
-function handleBaselineSubmit(event) {
+function handleCreateAccount(event) {
   event.preventDefault();
-  const action = event.submitter?.dataset.setupAction || "save";
-  const stepBeforeAction = state.setupStep;
-  const draft = action === "skip"
-    ? applyStepEstimate(stepBeforeAction, readBaselineForm(event.currentTarget))
-    : readBaselineForm(event.currentTarget);
-  const normalizedDraft = normalizeManualBaseline(draft, state.baseline);
+  const formData = new FormData(event.currentTarget);
+  const firstName = String(formData.get("firstName") || "").trim();
+  const emailAddress = String(formData.get("emailAddress") || "").trim();
+  const password = String(formData.get("password") || "");
+  const age = hasValue(formData.get("age")) ? toNumber(formData.get("age"), null) : null;
+  const employmentStatus = String(formData.get("employmentStatus") || "Not sure yet");
+  const stateCode = String(formData.get("stateCode") || "OTHER");
 
-  if (action === "back") {
-    saveBaseline(normalizedDraft);
-    saveSetupStep(state.setupStep - 1);
+  if (!firstName || !emailAddress || !password) {
+    state.status = "Add your first name, email, and password before PAM creates the account shell.";
     render();
     return;
   }
 
-  if (action === "next" || action === "skip") {
-    saveBaseline(normalizedDraft);
-    saveSetupStep(state.setupStep + 1);
-    state.status = action === "skip" ? "PAM filled a reasonable estimate for that step. You can refine it later." : "";
+  if (password.length < 8) {
+    state.status = "Use at least 8 characters for the prototype password.";
     render();
     return;
   }
 
-  const errors = validateBaseline(normalizedDraft);
-  if (errors.length) {
-    saveBaseline(normalizedDraft);
-    state.status = errors[0];
-    state.inlineGoalError = errors[0].includes("goal target") ? errors[0] : "";
-    state.result = null;
-    render();
-    return;
-  }
-
-  state.inlineGoalError = "";
-  saveBaseline(normalizedDraft);
-  if (!hasCompletedBaseline(state.baseline)) {
-    state.status = "Finish the required setup fields first. PAM will not create a baseline until the profile is complete.";
-    state.result = null;
-    render();
-    return;
-  }
-
-  state.status = "Baseline saved. PAM will use these numbers for every scenario.";
-  saveWorkspaceView("simulator");
-  state.result = analyzeQuestion(state.question);
+  saveAccount({
+    firstName,
+    emailAddress,
+    age,
+    employmentStatus,
+    stateCode,
+    createdAt: state.account?.createdAt || new Date().toISOString(),
+    hasPassword: true
+  });
+  saveBaseline(syncAccountIntoBaseline({
+    firstName,
+    emailAddress,
+    age,
+    employmentStatus,
+    stateCode
+  }, state.baseline));
+  state.status = "Account created. Connect a Sandbox account next so PAM can build your financial homepage.";
+  saveWorkspaceView("account");
   render();
 }
 
 async function handleSandboxSampleData() {
+  if (!hasPrototypeAccount()) {
+    state.status = "Create your account first, then load Sandbox data.";
+    render();
+    return;
+  }
   const sandboxPayload = loadSandboxFallback(state.baseline);
   saveBaseline(sandboxPayload.baseline);
-  saveSetupStep(ACCOUNT_STEPS.length - 1);
   state.status = sandboxPayload.status;
   state.inlineGoalError = "";
   if (hasCompletedBaseline(state.baseline)) {
-    saveWorkspaceView("simulator");
+    saveWorkspaceView("home");
     state.result = analyzeQuestion(state.question);
   }
   render();
 }
 
 async function handleConnectSandboxAccount() {
+  if (!hasPrototypeAccount()) {
+    state.status = "Create your account first, then connect Sandbox data.";
+    render();
+    return;
+  }
   state.plaidBusy = true;
   state.status = "Connecting Sandbox account...";
   render();
@@ -497,18 +499,16 @@ async function handleConnectSandboxAccount() {
   try {
     const payload = await connectSandboxAccount(state.baseline.profile);
     saveBaseline(payload.baseline);
-    saveSetupStep(ACCOUNT_STEPS.length - 1);
     state.status = payload.status;
     state.inlineGoalError = "";
-    saveWorkspaceView("simulator");
+    saveWorkspaceView("home");
     state.result = analyzeQuestion(state.question);
   } catch (_error) {
     const fallbackPayload = loadSandboxFallback(state.baseline);
     saveBaseline(fallbackPayload.baseline);
-    saveSetupStep(ACCOUNT_STEPS.length - 1);
     state.status = fallbackPayload.status;
     state.inlineGoalError = "";
-    saveWorkspaceView("simulator");
+    saveWorkspaceView("home");
     state.result = analyzeQuestion(state.question);
   } finally {
     state.plaidBusy = false;
@@ -525,11 +525,11 @@ function handleQuestionSubmit(event) {
   if (!hasCompletedBaseline(state.baseline)) {
     saveWorkspaceView("account");
     state.result = null;
-    state.status = "Create your account baseline first so PAM can calculate this against your real inputs.";
+    state.status = "Connect Sandbox data first so PAM can calculate this against your real inputs.";
     render();
     return;
   }
-  saveWorkspaceView("simulator");
+  saveWorkspaceView("home");
   state.result = analyzeQuestion(question);
   state.status = "Decision analyzed locally using your current baseline.";
   render();
@@ -542,7 +542,7 @@ function scrollToSection(id) {
 function openWorkspaceView(view) {
   saveWorkspaceView(view);
   render();
-  const target = view === "guide" ? "#how-it-works" : "#workspace-panel";
+  const target = "#workspace-panel";
   requestAnimationFrame(() => {
     scrollToSection(target);
   });
@@ -559,215 +559,27 @@ function renderHero() {
         compound growth, and long-term goals.
       </p>
       <div class="pam-hero-actions">
-        <button class="button button-primary" type="button" data-open-view="account">${isComplete ? "Open my account" : "Create your account"}</button>
-        <button class="button button-secondary" type="button" data-open-view="simulator">${isComplete ? "Open simulator" : "Try PAM"}</button>
-        <button class="button button-secondary" type="button" data-open-view="guide">Learn how it works</button>
+        <button class="button button-primary" type="button" data-open-view="${isComplete ? "home" : "account"}">${isComplete ? "Open my homepage" : "Create your account"}</button>
+        <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">How PAM works</button>
       </div>
       <div class="pam-proof-grid">
+        <div><span>Flow</span><strong>Create account, connect Sandbox, land on home</strong></div>
         <div><span>Version one</span><strong>Young adults</strong></div>
-        <div><span>Category</span><strong>Financial decision engine</strong></div>
-        <div><span>Not</span><strong>Budget tracker, chatbot, or spreadsheet</strong></div>
+        <div><span>Product</span><strong>Financial decision engine</strong></div>
       </div>
-    </section>
-  `;
-}
-
-function renderStaticExample() {
-  return `
-    <section class="foresee-panel static-example">
-      <div>
-        <div class="panel-kicker">Simple example</div>
-        <h2>One decision, clear consequences.</h2>
-        <p class="example-question">Question: “Can I buy a car with a $400/month payment?”</p>
-      </div>
-      <div class="example-output-grid">
-        <div><span>Monthly impact</span><strong>-$400</strong></div>
-        <div><span>Risk</span><strong>Medium</strong></div>
-        <div><span>Tax impact</span><strong>No direct change</strong></div>
-        <div><span>Goal impact</span><strong>This delays moving out by 6–9 months.</strong></div>
-      </div>
-      <p>You can afford it, but your monthly buffer becomes tighter.</p>
     </section>
   `;
 }
 
 function renderEducationSections() {
   return `
-    <section class="foresee-panel split-section">
+    <section class="foresee-panel split-section" id="how-it-works">
       <div>
-        <div class="panel-kicker">Past vs future</div>
-        <h2>Most money tools show the past. PAM shows what happens next.</h2>
+        <div class="panel-kicker">How PAM works</div>
+        <h2>Create your account, connect Sandbox data, then test real decisions.</h2>
       </div>
-      <p>Budgeting apps track spending after it happens. PAM is built to simulate how a decision changes your future: your buffer, savings timeline, tax picture, risk, investing path, and independence goals.</p>
+      <p>PAM is not trying to be a budgeting tracker. It builds a baseline from your connected Sandbox data, then uses that baseline to answer what happens if you rent, spend, save, invest, switch work types, or take on a new obligation.</p>
     </section>
-
-    <section class="foresee-panel" id="how-it-works">
-      <div class="panel-kicker">Decision engine</div>
-      <h2>A decision engine for your money.</h2>
-      <div class="feature-grid">
-        <article><h3>Build your baseline</h3><p>Add age, employment status, income, taxes, expenses, savings, obligations, and goals.</p></article>
-        <article><h3>Ask a financial question</h3><p>Test rent, cars, trips, freelance work, saving, investing, and independence decisions.</p></article>
-        <article><h3>See the future impact</h3><p>PAM estimates monthly buffer, risk, goal delay, tax impact, and hypothetical compound growth.</p></article>
-      </div>
-    </section>
-
-    <section class="foresee-panel">
-      <div class="panel-kicker">Goals</div>
-      <h2>PAM connects decisions to future goals.</h2>
-      <div class="signal-list-foresee">
-        <p>“This delays moving out by 8 months.”</p>
-        <p>“This pushes your emergency fund goal back by 4 months.”</p>
-        <p>“This lowers your monthly buffer below your safe target.”</p>
-        <p>“This slows down your investing plan.”</p>
-      </div>
-    </section>
-
-    <section class="foresee-panel">
-      <div class="panel-kicker">Version one focus</div>
-      <h2>Different ages, different goals.</h2>
-      <p>PAM starts with young adults making early decisions around income, rent, cars, saving, taxes, investing, and independence. Over time, PAM may expand to other groups because financial goals change with age.</p>
-      <div class="feature-grid">
-        <article><h3>Teenagers</h3><p>Saving, earning, investing early, financial literacy, and Roth IRA education.</p></article>
-        <article><h3>Young adults</h3><p>Rent, cars, taxes, emergency funds, independence, and income growth.</p></article>
-        <article><h3>Older adults</h3><p>Retirement readiness, expense control, and wealth preservation.</p></article>
-      </div>
-    </section>
-
-    <section class="foresee-panel">
-      <div class="panel-kicker">Time advantage</div>
-      <h2>Compound interest matters early.</h2>
-      <p>Young adults and teens have one huge advantage: time. PAM can show estimated growth based on assumptions, hypothetical projections, and scenarios that are not guaranteed.</p>
-      <div class="signal-list-foresee">
-        <p>“What if I invest $200/month instead of spending it?”</p>
-        <p>“How much could this grow over 10 years?”</p>
-        <p>“What happens if I wait 5 years to start saving?”</p>
-        <p>“How could starting early affect retirement?”</p>
-      </div>
-      <p class="disclaimer">PAM can teach users why tax-advantaged accounts like Roth IRAs may matter. Eligibility and contribution rules depend on income and regulations. Educational estimate only. Not financial, tax, legal, or investment advice.</p>
-    </section>
-
-    <section class="foresee-panel">
-      <div class="panel-kicker">Tax-aware affordability</div>
-      <h2>Taxes change the real outcome.</h2>
-      <p>PAM estimates combined tax impact from federal and state taxes so users can understand what they may actually keep. Gross income is not the same as take-home money, and taxes can change whether a decision is actually affordable.</p>
-      <div class="feature-grid">
-        <article><h3>Employment status matters</h3><p>A W-2 worker may have taxes withheld automatically. A 1099 worker may need to set aside more for estimated taxes.</p></article>
-        <article><h3>Taxable income matters</h3><p>Federal tax, state tax, deductions, retirement contributions, and employment type all affect the estimate.</p></article>
-        <article><h3>User control matters</h3><p>If tax rate is unknown, PAM estimates it from income, state, and employment status, then lets the user override it manually.</p></article>
-      </div>
-      <p class="disclaimer">Educational estimate only. Not financial, tax, legal, or investment advice.</p>
-    </section>
-  `;
-}
-
-function renderAccountSetupFields() {
-  const baseline = getUiBaseline(state.baseline);
-  if (state.setupStep === 0) {
-    return `
-      <p class="setup-step-copy">Start simple. First we create the saved-on-this-device profile you’ll come back to later.</p>
-      <div class="onboarding-field-grid">
-        <label><span>First name</span><small>Used to personalize your account preview.</small><input type="text" name="firstName" value="${escapeHtml(baseline.firstName)}" placeholder="Example: Maya" /></label>
-        <label><span>Email</span><small>Used to label the profile saved on this device in the prototype. No real auth yet.</small><input type="email" name="emailAddress" value="${escapeHtml(baseline.emailAddress)}" placeholder="you@example.com" /></label>
-      </div>
-    `;
-  }
-
-  if (state.setupStep === 1) {
-    return `
-      <p class="setup-step-copy">Age helps PAM frame independence timing and how much runway compound growth has left. If you do not want to answer yet, you can skip.</p>
-      <div class="onboarding-field-grid">
-        <label><span>Age</span><small>Used for long-term opportunity-cost and retirement timing estimates.</small><input type="number" name="age" value="${baseline.age}" min="18" max="35" step="1" placeholder="Example: 24" /></label>
-      </div>
-    `;
-  }
-
-  if (state.setupStep === 2) {
-    return `
-      <p class="setup-step-copy">Next, tell PAM how money comes in. This is the biggest driver of everything else.</p>
-      <div class="onboarding-field-grid">
-        <label><span>Gross monthly income</span><small>Enter pre-tax income here, not your take-home pay. PAM calculates the take-home estimate separately.</small><input type="number" name="grossMonthlyIncome" value="${baseline.grossMonthlyIncome}" min="0" step="50" placeholder="Example: 5600" /></label>
-        <label><span>Known take-home pay</span><small>Optional. If you know your actual monthly take-home, PAM uses it directly and will not tax it again.</small><input type="number" name="knownTakeHomeMonthlyIncome" value="${baseline.knownTakeHomeMonthlyIncome}" min="0" step="50" placeholder="Optional" /></label>
-        <label>
-          <span>Employment status</span>
-          <small>This changes taxes, withholding, and how PAM thinks about deductions.</small>
-          <select name="employmentStatus">
-            <option value="" ${baseline.employmentStatus === "Not sure yet" ? "selected" : ""}>Select status</option>
-            ${["W-2 employee", "1099 / self-employed", "Part-time employee", "Student worker", "Not currently employed", "Not sure yet"].map((option) => `<option value="${option}" ${baseline.employmentStatus === option ? "selected" : ""}>${option}</option>`).join("")}
-          </select>
-        </label>
-      </div>
-      <div class="employment-guide">
-        <div><strong>W-2</strong><span>Employer withholds taxes automatically. Usually simpler cash flow.</span></div>
-        <div><strong>1099</strong><span>You usually set aside taxes yourself. Deductions may matter more.</span></div>
-        <div><strong>Student / part-time</strong><span>Income can be less stable, so buffer and runway matter more.</span></div>
-      </div>
-    `;
-  }
-
-  if (state.setupStep === 3) {
-    return `
-      <p class="setup-step-copy">If you know your state and retirement contribution, great. If not, PAM can still move forward with a general estimate.</p>
-      <div class="onboarding-field-grid">
-        <label>
-          <span>State</span>
-          <small>State helps PAM estimate combined tax impact. You can refine later.</small>
-          <select name="stateCode">
-            <option value="" ${baseline.stateCode === "" ? "selected" : ""}>I do not know yet</option>
-            ${["CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN", "OTHER"].map((option) => `<option value="${option}" ${baseline.stateCode === option ? "selected" : ""}>${option}</option>`).join("")}
-          </select>
-        </label>
-        <label><span>Retirement contributions</span><small>Optional monthly amount going to retirement accounts.</small><input type="number" name="retirementContributions" value="${baseline.retirementContributions}" min="0" step="25" placeholder="Optional" /></label>
-      </div>
-    `;
-  }
-
-  if (state.setupStep === 4) {
-    return `
-      <p class="setup-step-copy">Taxes can be messy. If you do not know these yet, PAM can estimate from your income and work type.</p>
-      <div class="onboarding-field-grid">
-        <label><span>Combined tax/payroll estimate</span><small>Overall tax estimate. PAM also breaks it into income tax and payroll tax below.</small><input type="number" name="combinedTaxRate" value="${baseline.combinedTaxRate}" min="0" max="50" step="1" placeholder="PAM can estimate" /></label>
-        <label><span>Deductions</span><small>Optional annual deductions that may reduce taxable income.</small><input type="number" name="deductions" value="${baseline.deductions}" min="0" step="100" placeholder="Optional" /></label>
-        <label class="checkbox-label onboarding-wide"><input type="checkbox" name="taxRateOverride" ${baseline.taxRateOverride ? "checked" : ""} /> <span>Override tax estimate manually</span></label>
-        <div class="tax-breakout onboarding-wide">
-          <div><strong>Estimated income tax rate</strong><span>${hasValue(baseline.estimatedIncomeTaxRate) ? `${baseline.estimatedIncomeTaxRate}%` : "Pending"}</span></div>
-          <div><strong>Payroll tax estimate</strong><span>${hasValue(baseline.payrollTaxRate) ? `${baseline.payrollTaxRate}%` : "Pending"}</span></div>
-          <div><strong>Combined tax/payroll estimate</strong><span>${hasValue(baseline.combinedTaxRate) ? `${baseline.combinedTaxRate}%` : "Pending"}</span></div>
-        </div>
-      </div>
-    `;
-  }
-
-  if (state.setupStep === 5) {
-    return `
-      <p class="setup-step-copy">Now the practical part: what goes out every month, and what cushion do you already have?</p>
-      <div class="onboarding-field-grid">
-        <label><span>Monthly expenses</span><small>Expected everyday spending like rent, food, utilities, transport, and subscriptions.</small><input type="number" name="monthlyExpenses" value="${baseline.monthlyExpenses}" min="0" step="50" placeholder="Example: 2600" /></label>
-        <label><span>Monthly obligations</span><small>Optional fixed commitments like debt, insurance, tuition, or family support.</small><input type="number" name="monthlyObligations" value="${baseline.monthlyObligations}" min="0" step="50" placeholder="Optional" /></label>
-        <label><span>Current savings</span><small>Cash you can actually use as a buffer if something goes wrong.</small><input type="number" name="currentSavings" value="${baseline.currentSavings}" min="0" step="100" placeholder="Example: 12000" /></label>
-      </div>
-    `;
-  }
-
-  return `
-    <p class="setup-step-copy">Last step. Choose the goal PAM should protect first. If you do not know the amount or timeline yet, PAM can start with a reasonable estimate and you can tighten it later.</p>
-    <div class="onboarding-field-grid">
-      <label>
-        <span>Long-term goal</span>
-        <small>The life outcome PAM should measure decisions against.</small>
-        <select name="longTermGoal">
-          <option value="" ${baseline.longTermGoal === "" ? "selected" : ""}>Choose a goal</option>
-          ${["Move out safely", "Build emergency savings", "Buy a car", "Start investing", "Reach a net worth target", "Custom goal"].map((option) => `<option value="${option}" ${baseline.longTermGoal === option ? "selected" : ""}>${option}</option>`).join("")}
-        </select>
-      </label>
-      <label>
-        <span>Custom goal label</span>
-        <small>Optional if your goal does not fit a preset. Example: “Leave my parents’ house by next spring.”</small>
-        <input type="text" name="customGoalLabel" value="${escapeHtml(baseline.customGoalLabel)}" placeholder="Write your own goal" />
-      </label>
-      <label><span>Goal target amount</span><small>How much money makes this goal feel realistically funded.</small><input type="number" name="goalTargetAmount" value="${baseline.goalTargetAmount}" min="0" step="100" placeholder="Leave blank and PAM will estimate" /></label>
-      ${state.inlineGoalError ? `<p class="input-error onboarding-wide">${escapeHtml(state.inlineGoalError)}</p>` : ""}
-      <label><span>Goal timeline, months</span><small>When you hope to reach it. PAM checks if decisions push this out.</small><input type="number" name="goalTimelineMonths" value="${baseline.goalTimelineMonths}" min="1" step="1" placeholder="Leave blank and PAM will estimate" /></label>
-    </div>
   `;
 }
 
@@ -784,7 +596,7 @@ function renderAccountPreview() {
       <p>${isComplete ? "PAM now has enough information to model decisions against your profile." : "PAM will show a baseline only after income, taxes, spending, savings, and a goal are provided."}</p>
       <div class="cash-flow-preview-grid">
         <div><span>Baseline source</span><strong>${escapeHtml(baseline.source === "plaid_sandbox" ? "Sandbox account" : baseline.source === "plaid_mock" ? "Sandbox-style sample data" : "Manual baseline")}</strong><small>Prototype data is saved only in this browser.</small></div>
-        <div class="preview-card preview-card-account"><span>Saved on this device</span><strong>${hasValue(baseline.emailAddress) ? escapeHtml(baseline.emailAddress) : "Not provided"}</strong><small>Prototype profile label, not real auth.</small></div>
+        <div class="preview-card preview-card-account"><span>Signed in on this device</span><strong>${hasValue(baseline.emailAddress) ? escapeHtml(baseline.emailAddress) : "Not provided"}</strong><small>Prototype sign-in only for this version.</small></div>
         <div><span>Age</span><strong>${valueOrPending(baseline.age)}</strong><small>Used for time horizon and retirement runway.</small></div>
         <div><span>Gross income</span><strong>${valueOrPending(baseline.grossMonthlyIncome, formatCurrency)}</strong><small>Before tax and deductions.</small></div>
         <div><span>Spendable income</span><strong>${isComplete ? formatCurrency(baseline.takeHomeIncome) : "Pending"}</strong><small>${hasValue(baseline.knownTakeHomeMonthlyIncome) ? "Known take-home is used directly." : "PAM estimates this from income, state, taxes, and work type."}</small></div>
@@ -832,16 +644,15 @@ function renderWorkspaceHub() {
       <div class="workspace-header">
         <div>
           <div class="panel-kicker">Workspace</div>
-          <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM workspace` : "Create your account"}</h2>
-          <p>${isComplete ? `Return to your saved baseline, run decisions, or review how PAM models tradeoffs for ${escapeHtml(goalLabel)}.` : "Finish your profile once, then come back straight to your account or simulator without the long-scroll experience."}</p>
+          <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM homepage` : "Create your account"}</h2>
+          <p>${isComplete ? `You are signed in on this device. PAM will reopen here and model tradeoffs against your connected baseline for ${escapeHtml(goalLabel)}.` : "Create the account shell once, connect Sandbox data, and PAM will bring you back to your homepage on return visits."}</p>
         </div>
         ${isComplete ? `<div class="workspace-account-chip"><strong>${escapeHtml(baseline.firstName || "Account")}</strong><span>${escapeHtml(baseline.emailAddress)}</span></div>` : ""}
       </div>
       <div class="workspace-tabs" role="tablist" aria-label="PAM workspace views">
         ${[
-          { id: "account", label: isComplete ? "My account" : "Create account" },
-          { id: "simulator", label: "Simulator" },
-          { id: "guide", label: "Guide" }
+          { id: "account", label: isComplete ? "Account" : "Create account" },
+          { id: "home", label: "Homepage" }
         ].map((item) => `
           <button
             class="workspace-tab ${state.workspaceView === item.id ? "active" : ""}"
@@ -853,24 +664,19 @@ function renderWorkspaceHub() {
         `).join("")}
       </div>
       ${state.workspaceView === "account" ? renderBaselinePanel() : ""}
-      ${state.workspaceView === "simulator" ? renderSimulatorWorkspace() : ""}
-      ${state.workspaceView === "guide" ? renderGuideWorkspace() : ""}
+      ${state.workspaceView === "home" ? renderHomeWorkspace() : ""}
     </section>
   `;
 }
 
-function renderSimulatorWorkspace() {
-  return `
-    <div class="workspace-grid workspace-grid-simulator" id="decision-input">
-      ${renderDecisionPanel()}
-      ${renderResult()}
-    </div>
-  `;
-}
-
-function renderGuideWorkspace() {
+function renderHomeWorkspace() {
   return `
     <div class="workspace-guide-grid">
+      ${renderAccountPreview()}
+      <div class="workspace-grid-simulator" id="decision-input">
+        ${renderDecisionPanel()}
+        ${renderResult()}
+      </div>
       ${renderEducationSections()}
       ${renderHowItWorksSteps()}
     </div>
@@ -880,32 +686,66 @@ function renderGuideWorkspace() {
 function renderBaselinePanel() {
   const baseline = getUiBaseline(state.baseline);
   const isComplete = hasCompletedBaseline(state.baseline);
+  const account = state.account || {};
   return `
     <section class="foresee-panel baseline-panel account-setup-panel" id="baseline-section">
-      <div class="panel-kicker">Sandbox baseline</div>
-      <h2>Connect a Sandbox account.</h2>
-      <p>PAM is primed for Plaid Sandbox now. Connect a Sandbox account to let PAM build the baseline it uses for decisions. The sample-data fallback stays available only if Sandbox is unavailable.</p>
+      <div class="panel-kicker">Account setup</div>
+      <h2>${hasPrototypeAccount() ? "Account ready. Connect Sandbox data next." : "Create your account first."}</h2>
+      <p>PAM will use a simple email-and-password account shell for this prototype, then build the financial baseline from Sandbox data instead of manual entry.</p>
       <div class="onboarding-layout">
         <div class="baseline-form onboarding-form sandbox-connect-panel">
-          <div class="step-counter">Sandbox first</div>
-          <h3>${isComplete ? "Your baseline is ready." : "Build your baseline from Sandbox data."}</h3>
-          <p class="setup-step-copy">PAM will open Plaid Link in Sandbox mode, exchange the public token on the backend, fetch balances, transactions, and liabilities, then normalize that into your PAM baseline.</p>
+          <div class="step-counter">Step 1</div>
+          <h3>${hasPrototypeAccount() ? "Account saved on this device." : "Create the account shell PAM will remember on this device."}</h3>
+          ${hasPrototypeAccount() ? `
+            <div class="signal-list-foresee">
+              <p><strong>${escapeHtml(account.firstName || baseline.firstName || "Account")}</strong> is signed in on this device.</p>
+              <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
+              <p>${escapeHtml(account.employmentStatus || baseline.employmentStatus || "Not sure yet")} • ${escapeHtml(account.stateCode || baseline.stateCode || "OTHER")}</p>
+            </div>
+          ` : `
+            <form class="profile-form" data-account-form>
+              <div class="onboarding-field-grid">
+                <label><span>First name</span><small>Used for your homepage and account label.</small><input type="text" name="firstName" value="${escapeHtml(account.firstName || baseline.firstName)}" placeholder="Maya" /></label>
+                <label><span>Email</span><small>Used as your sign-in label for this prototype.</small><input type="email" name="emailAddress" value="${escapeHtml(account.emailAddress || baseline.emailAddress)}" placeholder="you@example.com" /></label>
+                <label><span>Password</span><small>Prototype sign-in only. Use at least 8 characters.</small><input type="password" name="password" value="" placeholder="At least 8 characters" /></label>
+                <label><span>Age</span><small>Optional, but it helps PAM frame runway and compound-growth timing.</small><input type="number" name="age" value="${hasValue(account.age) ? account.age : baseline.age}" min="18" max="35" step="1" placeholder="24" /></label>
+                <label>
+                  <span>Employment type</span>
+                  <small>A quick differentiator so PAM can frame taxes and deductions better.</small>
+                  <select name="employmentStatus">
+                    ${["W-2 employee", "1099 / self-employed", "Student worker", "Mixed income", "Not sure yet"].map((option) => `<option value="${option}" ${String(account.employmentStatus || baseline.employmentStatus) === option ? "selected" : ""}>${option}</option>`).join("")}
+                  </select>
+                </label>
+                <label>
+                  <span>State</span>
+                  <small>Optional now. PAM can refine its tax estimate later.</small>
+                  <select name="stateCode">
+                    ${["OTHER", "CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN"].map((option) => `<option value="${option}" ${String(account.stateCode || baseline.stateCode || "OTHER") === option ? "selected" : ""}>${option}</option>`).join("")}
+                  </select>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button class="button button-primary" type="submit">Create account</button>
+              </div>
+            </form>
+          `}
+          <div class="step-counter">Step 2</div>
+          <h3>${isComplete ? "Your homepage is ready." : "Connect Sandbox data so PAM can build your homepage."}</h3>
+          <p class="setup-step-copy">PAM opens Plaid Link in Sandbox mode, exchanges the token on the backend, then turns balances, transactions, and liabilities into your baseline. If Sandbox is unavailable, sample data can still unblock the prototype.</p>
           <div class="signal-list-foresee">
-            <p>Primary path: real Plaid Sandbox connection</p>
-            <p>Fallback path: Sandbox-style sample data</p>
-            <p>Secrets stay server-side only</p>
+            <p>Primary path: Connect Sandbox account</p>
+            <p>Fallback path: Use Sandbox-style sample data</p>
+            <p>No financial baseline is entered by hand here</p>
           </div>
           <div class="form-actions">
-            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
-            <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy ? "disabled" : ""}>Use Sandbox-style sample data</button>
+            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasPrototypeAccount() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
+            <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasPrototypeAccount() ? "disabled" : ""}>Use Sandbox-style sample data</button>
             <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
           </div>
-          <p class="prototype-note">Manual baseline entry is hidden for now while Sandbox connection becomes the main setup path.</p>
+          <p class="prototype-note">Prototype sign-in and profile data stay on this device. Financial baseline data comes from Sandbox or sample data.</p>
         </div>
         ${renderAccountPreview()}
       </div>
-      ${renderSetupTermGuide()}
-      <p class="prototype-note">Prototype data is saved only in this browser.</p>
       <p class="disclaimer">Educational estimate only. Not financial, tax, legal, or investment advice.</p>
     </section>
   `;
@@ -942,15 +782,15 @@ function renderResult() {
   if (!hasCompletedBaseline(state.baseline)) {
     return `
       <section class="foresee-panel result-panel locked-result">
-        <div class="result-header">
-          <div>
-            <div class="panel-kicker">Result locked</div>
-            <h2>Finish setup to model decisions.</h2>
-          </div>
+      <div class="result-header">
+        <div>
+          <div class="panel-kicker">Result locked</div>
+          <h2>Create your account and connect Sandbox data first.</h2>
         </div>
-        <p>PAM needs your income, tax context, monthly spending, savings, and one goal before it can calculate a real outcome. Until then, it will not show a fake baseline or pretend to know your priorities.</p>
-      </section>
-    `;
+      </div>
+      <p>PAM will not fake a homepage or pretend to know your finances. Create the account shell first, then connect Sandbox data so the decision engine has a real baseline to work from.</p>
+    </section>
+  `;
   }
   const result = state.result || analyzeQuestion(state.question);
   state.result = result;
@@ -1005,27 +845,14 @@ function renderHowItWorksSteps() {
       <div class="panel-kicker">How it works</div>
       <h2>From baseline to outcome.</h2>
       <div class="steps-grid">
-        <div><strong>1</strong><span>Create your account with age, email, and work type</span></div>
-        <div><strong>2</strong><span>Add tax context and retirement contributions</span></div>
-        <div><strong>3</strong><span>Add expenses, savings, obligations, and runway</span></div>
-        <div><strong>4</strong><span>Set a goal or write your own</span></div>
-        <div><strong>5</strong><span>Ask a financial question</span></div>
-        <div><strong>6</strong><span>PAM shows tax, goal, and compound-growth tradeoffs</span></div>
+        <div><strong>1</strong><span>Create your account with email, password, age, and work type</span></div>
+        <div><strong>2</strong><span>Connect Sandbox data or load sample data</span></div>
+        <div><strong>3</strong><span>PAM builds your baseline from balances, transactions, and liabilities</span></div>
+        <div><strong>4</strong><span>Ask a financial question</span></div>
+        <div><strong>5</strong><span>PAM shows tax, goal, buffer, and compound-growth tradeoffs</span></div>
+        <div><strong>6</strong><span>Return later and land back on your homepage</span></div>
       </div>
     </section>
-  `;
-}
-
-function renderWaitlistModal() {
-  if (!state.showWaitlist) return "";
-  return `
-    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="waitlist-title">
-      <div class="waitlist-modal">
-        <h2 id="waitlist-title">You are on the PAM AI waitlist.</h2>
-        <p>Thanks. For this prototype, the waitlist action is confirmed locally.</p>
-        <button class="button button-primary" type="button" data-close-waitlist>Close</button>
-      </div>
-    </div>
   `;
 }
 
@@ -1041,37 +868,26 @@ function render() {
             <small>Personal Asset Manager</small>
           </div>
         </a>
-        <button class="button button-secondary" type="button" data-join-waitlist>Join waitlist</button>
+        <div class="foresee-truth">
+          <strong>Sandbox-first prototype</strong>
+          <span>Account shell + connected financial homepage</span>
+        </div>
       </header>
       <main class="pam-homepage">
         ${renderHero()}
-        ${renderStaticExample()}
         ${renderWorkspaceHub()}
       </main>
     </div>
-    ${renderWaitlistModal()}
   `;
   wireInteractions();
 }
 
 function wireInteractions() {
+  document.querySelector("[data-account-form]")?.addEventListener("submit", handleCreateAccount);
   document.querySelector("[data-question-form]")?.addEventListener("submit", handleQuestionSubmit);
   document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
   document.querySelector("[data-load-sandbox]")?.addEventListener("click", handleSandboxSampleData);
   document.querySelector("[data-connect-sandbox]")?.addEventListener("click", handleConnectSandboxAccount);
-  document.querySelector("[data-join-waitlist]")?.addEventListener("click", () => {
-    try {
-      window.localStorage.setItem(WAITLIST_STORAGE_KEY, JSON.stringify({ joinedAt: new Date().toISOString() }));
-    } catch (_error) {
-      // Waitlist state is helpful, not required.
-    }
-    state.showWaitlist = true;
-    render();
-  });
-  document.querySelector("[data-close-waitlist]")?.addEventListener("click", () => {
-    state.showWaitlist = false;
-    render();
-  });
   document.querySelectorAll("[data-scroll-target]").forEach((button) => {
     button.addEventListener("click", () => scrollToSection(button.dataset.scrollTarget));
   });
@@ -1083,7 +899,7 @@ function wireInteractions() {
       const question = button.dataset.questionExample || "";
       saveQuestion(question);
       if (hasCompletedBaseline(state.baseline)) {
-        saveWorkspaceView("simulator");
+        saveWorkspaceView("home");
         state.result = analyzeQuestion(question);
         state.status = "Example prompt analyzed. You can edit it and run another scenario.";
       } else {
@@ -1099,6 +915,15 @@ function wireInteractions() {
 export async function startApp() {
   if (isStarted) return;
   isStarted = true;
+  if (hasPrototypeAccount()) {
+    const baseline = syncAccountIntoBaseline(state.account, state.baseline);
+    saveBaseline(baseline);
+  }
+  if (hasPrototypeAccount() && hasCompletedBaseline(state.baseline)) {
+    saveWorkspaceView("home");
+  } else if (hasPrototypeAccount()) {
+    saveWorkspaceView("account");
+  }
   state.result = hasCompletedBaseline(state.baseline) ? analyzeQuestion(state.question) : null;
   render();
 }
