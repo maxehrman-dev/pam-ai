@@ -382,27 +382,6 @@ input:disabled {
   font-size: 0.86rem;
 }
 
-.workspace-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.workspace-tab {
-  padding: 11px 15px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(30, 138, 102, 0.12);
-  color: var(--ink-3);
-  font-weight: 900;
-}
-
-.workspace-tab.active {
-  background: linear-gradient(135deg, var(--mint-4), var(--mint-5));
-  color: white;
-  box-shadow: 0 16px 28px rgba(13, 101, 73, 0.18);
-}
-
 .workspace-grid-simulator {
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
@@ -544,6 +523,30 @@ input:disabled {
 
 .profile-form {
   margin-bottom: 18px;
+}
+
+.account-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.account-summary-strip p {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(216, 243, 229, 0.42);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+  color: var(--ink-3);
+}
+
+.account-summary-strip strong {
+  color: var(--ink-4);
+}
+
+.connect-actions-header h3 {
+  margin-bottom: 4px;
 }
 
 .onboarding-field-grid,
@@ -717,13 +720,6 @@ input:disabled {
   color: #8f1f1f;
   font-size: 0.82rem;
   font-weight: 800;
-}
-
-.prototype-note {
-  margin: 14px 0 0;
-  color: var(--ink-2);
-  font-size: 0.83rem;
-  font-weight: 700;
 }
 
 .positive-number {

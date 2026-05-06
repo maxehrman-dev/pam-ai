@@ -707,16 +707,17 @@ function scrollToSection(id) {
 }
 
 function openWorkspaceView(view) {
+  const target = view === "dashboard"
+    ? "#dashboard-section"
+    : view === "account"
+      ? "#baseline-section"
+      : "#workspace-panel";
   if (view === "dashboard" && !canAccessDashboard()) {
-    saveWorkspaceView(hasPrototypeAccount() ? "account" : "landing");
     state.status = hasPrototypeAccount()
       ? "Connect Sandbox data before opening the dashboard."
       : "Create an account before opening the dashboard.";
-  } else {
-    saveWorkspaceView(view);
+    render();
   }
-  render();
-  const target = "#workspace-panel";
   requestAnimationFrame(() => {
     scrollToSection(target);
   });
@@ -733,7 +734,7 @@ function renderHero() {
         compound growth, and long-term goals.
       </p>
       <div class="pam-hero-actions">
-        <button class="button button-primary" type="button" data-open-view="${isComplete ? "dashboard" : hasPrototypeAccount() ? "account" : "landing"}">${isComplete ? "Open dashboard" : hasPrototypeAccount() ? "Finish setup" : "Create your account"}</button>
+        <button class="button button-primary" type="button" data-open-view="${isComplete ? "dashboard" : "account"}">${isComplete ? "Open dashboard" : hasPrototypeAccount() ? "Finish setup" : "Create your account"}</button>
         <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">How PAM works</button>
       </div>
       <div class="pam-proof-grid">
@@ -817,30 +818,15 @@ function renderWorkspaceHub() {
     <section class="foresee-panel workspace-panel" id="workspace-panel">
       <div class="workspace-header">
         <div>
-          <div class="panel-kicker">${state.workspaceView === "dashboard" ? "Dashboard" : "Homepage"}</div>
-          <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} dashboard` : hasPrototypeAccount() ? "Finish account setup" : "Homepage"}</h2>
-          <p>${isComplete ? `You are signed in. PAM can reopen directly to your dashboard and model tradeoffs against your connected baseline for ${escapeHtml(goalLabel)}.` : hasPrototypeAccount() ? "Your account exists on the backend. Connect Sandbox data to unlock the dashboard." : "Start on the homepage, create an account, then unlock your dashboard with connected data."}</p>
+          <div class="panel-kicker">Workspace</div>
+          <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} dashboard` : hasPrototypeAccount() ? "Finish setup" : "Create your account"}</h2>
+          <p>${isComplete ? `Connected baseline ready for ${escapeHtml(goalLabel)}.` : hasPrototypeAccount() ? "Connect Sandbox data to unlock the dashboard." : "Create an account, then connect Sandbox data."}</p>
         </div>
         ${hasPrototypeAccount() ? `<div class="workspace-account-chip"><strong>${escapeHtml(baseline.firstName || "Account")}</strong><span>${escapeHtml(baseline.emailAddress)}</span></div>` : ""}
       </div>
-      <div class="workspace-tabs" role="tablist" aria-label="PAM workspace views">
-        ${[
-          { id: "landing", label: "Homepage" },
-          { id: "account", label: hasPrototypeAccount() ? "Account" : "Create account" },
-          { id: "dashboard", label: "Dashboard" }
-        ].map((item) => `
-          <button
-            class="workspace-tab ${state.workspaceView === item.id ? "active" : ""}"
-            type="button"
-            data-open-view="${item.id}"
-            role="tab"
-            aria-selected="${state.workspaceView === item.id ? "true" : "false"}"
-          >${item.label}</button>
-        `).join("")}
-      </div>
-      ${state.workspaceView === "landing" ? renderLandingWorkspace() : ""}
-      ${state.workspaceView === "account" ? renderBaselinePanel() : ""}
-      ${state.workspaceView === "dashboard" ? renderDashboardWorkspace() : ""}
+      ${renderLandingWorkspace()}
+      ${renderBaselinePanel()}
+      ${renderDashboardWorkspace()}
     </section>
   `;
 }
@@ -870,7 +856,7 @@ function renderDashboardWorkspace() {
   }
 
   return `
-    <div class="workspace-guide-grid">
+    <div class="workspace-guide-grid" id="dashboard-section">
       ${renderAccountPreview()}
       ${renderConnectedInsights()}
       <div class="workspace-grid-simulator" id="decision-input">
@@ -909,15 +895,12 @@ function renderBaselinePanel() {
   return `
     <section class="foresee-panel baseline-panel account-setup-panel" id="baseline-section">
       <div class="panel-kicker">Account setup</div>
-      <h2>${hasPrototypeAccount() ? "Account ready. Connect Sandbox data next." : "Create your account first."}</h2>
-      <p>Your account is stored through the backend for this prototype. The dashboard stays locked until the session exists and Sandbox data finishes the baseline.</p>
+      <h2>${hasPrototypeAccount() ? "Connect Sandbox data." : "Create your account."}</h2>
       <div class="onboarding-layout">
         <div class="baseline-form onboarding-form sandbox-connect-panel">
-          <div class="step-counter">Step 1</div>
-          <h3>${hasPrototypeAccount() ? "Account saved on the prototype backend." : "Create your account."}</h3>
           ${hasPrototypeAccount() ? `
-            <div class="signal-list-foresee">
-              <p><strong>${escapeHtml(account.firstName || baseline.firstName || "Account")}</strong> is signed in.</p>
+            <div class="account-summary-strip">
+              <p><strong>${escapeHtml(account.firstName || baseline.firstName || "Account")}</strong></p>
               <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
               <p>${escapeHtml(account.employmentStatus || baseline.employmentStatus || "Not sure yet")} • ${escapeHtml(account.stateCode || baseline.stateCode || "OTHER")}</p>
             </div>
@@ -948,7 +931,6 @@ function renderBaselinePanel() {
               </div>
             </form>
             <form class="profile-form" data-login-form>
-              <div class="step-counter">Or sign in</div>
               <div class="onboarding-field-grid">
                 <label><span>Email</span><small>Use the same email you registered with.</small><input type="email" name="loginEmailAddress" placeholder="you@example.com" /></label>
                 <label><span>Password</span><small>Your prototype password.</small><input type="password" name="loginPassword" placeholder="Password" /></label>
@@ -958,13 +940,8 @@ function renderBaselinePanel() {
               </div>
             </form>
           `}
-          <div class="step-counter">Step 2</div>
-          <h3>${isComplete ? "Your dashboard is ready." : "Connect Sandbox data to unlock your dashboard."}</h3>
-          <p class="setup-step-copy">PAM opens Plaid Link in Sandbox mode, exchanges the token on the backend, then turns balances, transactions, and liabilities into your baseline. If Sandbox is unavailable, sample data can still unblock the prototype.</p>
-          <div class="signal-list-foresee">
-            <p>Primary path: Connect Sandbox account</p>
-            <p>Fallback path: Use Sandbox-style sample data</p>
-            <p>No financial baseline is entered by hand here</p>
+          <div class="connect-actions-header">
+            <h3>${isComplete ? "Dashboard ready." : "Unlock dashboard."}</h3>
           </div>
           <div class="form-actions">
             <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasPrototypeAccount() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
@@ -972,7 +949,6 @@ function renderBaselinePanel() {
             <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
             ${hasPrototypeAccount() ? `<button class="button button-secondary" type="button" data-logout>Sign out</button>` : ""}
           </div>
-          <p class="prototype-note">Session token stays in this browser. Passwords are hashed server-side for the prototype. File-based storage is durable locally and best-effort on serverless.</p>
         </div>
         ${renderAccountPreview()}
       </div>
@@ -1087,7 +1063,7 @@ function renderHowItWorksSteps() {
   return `
     <section class="foresee-panel">
       <div class="panel-kicker">How it works</div>
-      <h2>From baseline to outcome.</h2>
+      <h2>From account to decision.</h2>
       <div class="steps-grid">
         <div><strong>1</strong><span>Create your account with email, password, age, and work type</span></div>
         <div><strong>2</strong><span>Connect Sandbox data or load sample data</span></div>
