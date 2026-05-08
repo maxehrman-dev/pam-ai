@@ -560,6 +560,91 @@ input:disabled {
   margin-bottom: 18px;
 }
 
+.auth-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-switcher {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(216, 243, 229, 0.38);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+  width: fit-content;
+}
+
+.auth-switch {
+  padding: 11px 16px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  font-weight: 900;
+}
+
+.auth-switch.active {
+  color: white;
+  background: linear-gradient(135deg, var(--mint-4), var(--mint-5));
+  box-shadow: 0 14px 24px rgba(13, 101, 73, 0.18);
+}
+
+.auth-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.auth-card-copy h3 {
+  margin: 0 0 6px;
+}
+
+.auth-card-copy p {
+  margin: 0;
+}
+
+.credential-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.auth-aside {
+  display: grid;
+  gap: 10px;
+}
+
+.auth-aside div,
+.account-status-card {
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(216, 243, 229, 0.4);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.auth-aside span,
+.auth-aside strong,
+.account-status-main p,
+.account-status-meta span {
+  display: block;
+}
+
+.auth-aside span {
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 900;
+}
+
+.auth-aside strong {
+  margin-top: 6px;
+  color: var(--ink-4);
+  line-height: 1.4;
+}
+
 .account-summary-strip {
   display: flex;
   flex-wrap: wrap;
@@ -582,6 +667,44 @@ input:disabled {
 
 .connect-actions-header h3 {
   margin-bottom: 4px;
+}
+
+.connect-actions-header p {
+  margin: 0;
+}
+
+.connect-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.account-status-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.account-status-main h3,
+.account-status-main p {
+  margin: 0;
+}
+
+.account-status-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.account-status-meta span {
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-3);
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .onboarding-field-grid,
@@ -885,6 +1008,16 @@ input:disabled {
   .outcome-grid,
   .workspace-grid-simulator {
     grid-template-columns: 1fr;
+  }
+
+  .credential-row,
+  .connect-action-grid,
+  .account-status-card {
+    grid-template-columns: 1fr;
+  }
+
+  .account-status-meta {
+    justify-content: flex-start;
   }
 
   .workspace-active-view {

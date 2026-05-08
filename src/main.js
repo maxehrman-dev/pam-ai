@@ -28,12 +28,14 @@ const app = document.querySelector("#app");
 const SESSION_STORAGE_KEY = "pam:session:v1";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
+const AUTH_VIEW_KEY = "pam-ai-auth-view-v1";
 
 const state = {
   baseline: loadStoredBaseline(),
   account: null,
   sessionToken: loadSessionToken(),
   workspaceView: loadWorkspaceView(),
+  authView: loadAuthView(),
   question: loadQuestion(),
   result: null,
   aiGuidance: null,
@@ -76,12 +78,27 @@ function loadWorkspaceView() {
   return ["landing", "account", "dashboard"].includes(stored || "") ? stored : "landing";
 }
 
+function loadAuthView() {
+  if (typeof window === "undefined") return "create";
+  const stored = window.localStorage.getItem(AUTH_VIEW_KEY);
+  return ["create", "signin"].includes(stored || "") ? stored : "create";
+}
+
 function saveWorkspaceView(view) {
   state.workspaceView = ["landing", "account", "dashboard"].includes(view) ? view : "landing";
   try {
     window.localStorage.setItem(WORKSPACE_VIEW_KEY, state.workspaceView);
   } catch (_error) {
     // View persistence is helpful, not required.
+  }
+}
+
+function saveAuthView(view) {
+  state.authView = ["create", "signin"].includes(view) ? view : "create";
+  try {
+    window.localStorage.setItem(AUTH_VIEW_KEY, state.authView);
+  } catch (_error) {
+    // Auth view persistence is helpful, not required.
   }
 }
 
@@ -557,6 +574,7 @@ async function handleCreateAccount(event) {
   const firstName = String(formData.get("firstName") || "").trim();
   const emailAddress = String(formData.get("emailAddress") || "").trim();
   const password = String(formData.get("password") || "");
+  const confirmPassword = String(formData.get("confirmPassword") || "");
   const age = hasValue(formData.get("age")) ? toNumber(formData.get("age"), null) : null;
   const employmentStatus = String(formData.get("employmentStatus") || "Not sure yet");
   const stateCode = String(formData.get("stateCode") || "OTHER");
@@ -569,6 +587,12 @@ async function handleCreateAccount(event) {
 
   if (password.length < 8) {
     state.status = "Use at least 8 characters for the prototype password.";
+    render();
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    state.status = "Your password confirmation does not match yet.";
     render();
     return;
   }
@@ -599,6 +623,7 @@ async function handleCreateAccount(event) {
   saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
   state.aiGuidance = null;
   state.status = "Account created. Connect a Sandbox account next to unlock the dashboard.";
+  saveAuthView("signin");
   saveWorkspaceView("account");
   render();
 }
@@ -637,7 +662,15 @@ async function handleLogin(event) {
   saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
   state.aiGuidance = null;
   state.status = "Signed in. Connect Sandbox data to finish your dashboard.";
+  saveAuthView("signin");
   saveWorkspaceView("account");
+  render();
+}
+
+function handleAuthModeClick(event) {
+  const nextView = event.currentTarget.dataset.authMode || "create";
+  saveAuthView(nextView);
+  state.status = "";
   render();
 }
 
@@ -907,63 +940,109 @@ function renderBaselinePanel() {
   const baseline = getUiBaseline(state.baseline);
   const isComplete = canAccessDashboard();
   const account = state.account || {};
+  const isSignedIn = hasPrototypeAccount();
   return `
     <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
       <div class="panel-kicker">Account setup</div>
-      <h2>${hasPrototypeAccount() ? "Connect Sandbox data." : "Create your account."}</h2>
+      <h2>${isSignedIn ? "Finish your PAM setup." : "Create your account."}</h2>
       <div class="onboarding-layout">
         <div class="baseline-form onboarding-form sandbox-connect-panel">
-          ${hasPrototypeAccount() ? `
-            <div class="account-summary-strip">
-              <p><strong>${escapeHtml(account.firstName || baseline.firstName || "Account")}</strong></p>
-              <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
-              <p>${escapeHtml(account.employmentStatus || baseline.employmentStatus || "Not sure yet")} • ${escapeHtml(account.stateCode || baseline.stateCode || "OTHER")}</p>
+          ${isSignedIn ? `
+            <div class="account-status-card">
+              <div class="account-status-main">
+                <div class="panel-kicker">Signed in</div>
+                <h3>${escapeHtml(account.firstName || baseline.firstName || "Your")} account is ready.</h3>
+                <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
+              </div>
+              <div class="account-status-meta">
+                <span>${escapeHtml(account.employmentStatus || baseline.employmentStatus || "Not sure yet")}</span>
+                <span>${escapeHtml(account.stateCode || baseline.stateCode || "OTHER")}</span>
+              </div>
+            </div>
+            <div class="connect-actions-header">
+              <h3>${isComplete ? "Dashboard ready." : "Connect Sandbox data to unlock your dashboard."}</h3>
+              <p>PAM will build your financial baseline from Sandbox balances, transactions, and liabilities.</p>
+            </div>
+            <div class="connect-action-grid">
+              <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
+              <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy ? "disabled" : ""}>Use Sandbox-style sample data</button>
+            </div>
+            <div class="form-actions">
+              <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
+              <button class="button button-secondary" type="button" data-logout>Sign out</button>
             </div>
           ` : `
-            <form class="profile-form" data-account-form>
-              <div class="onboarding-field-grid">
-                <label><span>First name</span><small>Used for your homepage and account label.</small><input type="text" name="firstName" value="${escapeHtml(account.firstName || baseline.firstName)}" placeholder="Maya" /></label>
-                <label><span>Email</span><small>Used as your sign-in label for this prototype.</small><input type="email" name="emailAddress" value="${escapeHtml(account.emailAddress || baseline.emailAddress)}" placeholder="you@example.com" /></label>
-                <label><span>Password</span><small>Prototype sign-in only. Use at least 8 characters.</small><input type="password" name="password" value="" placeholder="At least 8 characters" /></label>
-                <label><span>Age</span><small>Optional, but it helps PAM frame runway and compound-growth timing.</small><input type="number" name="age" value="${hasValue(account.age) ? account.age : baseline.age}" min="18" max="35" step="1" placeholder="24" /></label>
-                <label>
-                  <span>Employment type</span>
-                  <small>A quick differentiator so PAM can frame taxes and deductions better.</small>
-                  <select name="employmentStatus">
-                    ${["W-2 employee", "1099 / self-employed", "Student worker", "Mixed income", "Not sure yet"].map((option) => `<option value="${option}" ${String(account.employmentStatus || baseline.employmentStatus) === option ? "selected" : ""}>${option}</option>`).join("")}
-                  </select>
-                </label>
-                <label>
-                  <span>State</span>
-                  <small>Optional now. PAM can refine its tax estimate later.</small>
-                  <select name="stateCode">
-                    ${["OTHER", "CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN"].map((option) => `<option value="${option}" ${String(account.stateCode || baseline.stateCode || "OTHER") === option ? "selected" : ""}>${option}</option>`).join("")}
-                  </select>
-                </label>
+            <div class="auth-shell">
+              <div class="auth-switcher" role="tablist" aria-label="Account access">
+                <button class="auth-switch ${state.authView === "create" ? "active" : ""}" type="button" data-auth-mode="create" role="tab" aria-selected="${state.authView === "create" ? "true" : "false"}">Create account</button>
+                <button class="auth-switch ${state.authView === "signin" ? "active" : ""}" type="button" data-auth-mode="signin" role="tab" aria-selected="${state.authView === "signin" ? "true" : "false"}">Sign in</button>
               </div>
-              <div class="form-actions">
-                <button class="button button-primary" type="submit">Create account</button>
+              ${state.authView === "create" ? `
+                <div class="auth-card">
+                  <div class="auth-card-copy">
+                    <h3>Set up your PAM account.</h3>
+                    <p>Email and password get you back into your profile. Age, work type, and state help PAM frame decisions better from day one.</p>
+                  </div>
+                  <form class="profile-form" data-account-form>
+                    <div class="onboarding-field-grid">
+                      <label><span>First name</span><small>Used for your homepage and account label.</small><input type="text" name="firstName" value="${escapeHtml(account.firstName || baseline.firstName)}" placeholder="Maya" autocomplete="given-name" /></label>
+                      <label><span>Email</span><small>Your sign-in email for this prototype.</small><input type="email" name="emailAddress" value="${escapeHtml(account.emailAddress || baseline.emailAddress)}" placeholder="you@example.com" autocomplete="email" /></label>
+                      <label><span>Password</span><small>Use at least 8 characters.</small><input type="password" name="password" value="" placeholder="At least 8 characters" autocomplete="new-password" /></label>
+                      <label><span>Confirm password</span><small>Re-enter the same password once.</small><input type="password" name="confirmPassword" value="" placeholder="Repeat password" autocomplete="new-password" /></label>
+                      <label><span>Age</span><small>Optional. Helps PAM estimate runway and compounding time.</small><input type="number" name="age" value="${hasValue(account.age) ? account.age : baseline.age}" min="18" max="35" step="1" placeholder="24" /></label>
+                      <label>
+                        <span>Employment type</span>
+                        <small>Used to frame taxes, deductions, and income structure.</small>
+                        <select name="employmentStatus">
+                          ${["W-2 employee", "1099 / self-employed", "Student worker", "Mixed income", "Not sure yet"].map((option) => `<option value="${option}" ${String(account.employmentStatus || baseline.employmentStatus) === option ? "selected" : ""}>${option}</option>`).join("")}
+                        </select>
+                      </label>
+                      <label class="onboarding-wide">
+                        <span>State</span>
+                        <small>Optional now. PAM can refine tax assumptions later.</small>
+                        <select name="stateCode">
+                          ${["OTHER", "CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN"].map((option) => `<option value="${option}" ${String(account.stateCode || baseline.stateCode || "OTHER") === option ? "selected" : ""}>${option}</option>`).join("")}
+                        </select>
+                      </label>
+                    </div>
+                    <div class="form-actions">
+                      <button class="button button-primary" type="submit">Create account</button>
+                    </div>
+                  </form>
+                </div>
+              ` : `
+                <div class="auth-card">
+                  <div class="auth-card-copy">
+                    <h3>Welcome back.</h3>
+                    <p>Sign in with the email and password you already used for PAM. Once your Sandbox baseline is connected, PAM brings you right back to your homepage.</p>
+                  </div>
+                  <form class="profile-form" data-login-form>
+                    <div class="credential-row">
+                      <label><span>Email</span><small>Use the same email you registered with.</small><input type="email" name="loginEmailAddress" placeholder="you@example.com" autocomplete="email" /></label>
+                      <label><span>Password</span><small>Your PAM password.</small><input type="password" name="loginPassword" placeholder="Password" autocomplete="current-password" /></label>
+                    </div>
+                    <div class="form-actions">
+                      <button class="button button-primary" type="submit">Sign in</button>
+                    </div>
+                  </form>
+                </div>
+              `}
+              <div class="auth-aside">
+                <div>
+                  <span>Why create an account</span>
+                  <strong>So PAM remembers your profile and brings you back to your homepage.</strong>
+                </div>
+                <div>
+                  <span>What comes next</span>
+                  <strong>Connect Sandbox data once, then run decisions from your saved baseline.</strong>
+                </div>
+                <div>
+                  <span>Prototype note</span>
+                  <strong>Real production-grade auth and permanent cloud storage come next.</strong>
+                </div>
               </div>
-            </form>
-            <form class="profile-form" data-login-form>
-              <div class="onboarding-field-grid">
-                <label><span>Email</span><small>Use the same email you registered with.</small><input type="email" name="loginEmailAddress" placeholder="you@example.com" /></label>
-                <label><span>Password</span><small>Your prototype password.</small><input type="password" name="loginPassword" placeholder="Password" /></label>
-              </div>
-              <div class="form-actions">
-                <button class="button button-secondary" type="submit">Sign in</button>
-              </div>
-            </form>
+            </div>
           `}
-          <div class="connect-actions-header">
-            <h3>${isComplete ? "Dashboard ready." : "Unlock dashboard."}</h3>
-          </div>
-          <div class="form-actions">
-            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasPrototypeAccount() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
-            <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasPrototypeAccount() ? "disabled" : ""}>Use Sandbox-style sample data</button>
-            <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
-            ${hasPrototypeAccount() ? `<button class="button button-secondary" type="button" data-logout>Sign out</button>` : ""}
-          </div>
         </div>
         ${renderAccountPreview()}
       </div>
@@ -1130,6 +1209,9 @@ function wireInteractions() {
   });
   document.querySelectorAll("[data-open-view]").forEach((button) => {
     button.addEventListener("click", () => openWorkspaceView(button.dataset.openView || "account"));
+  });
+  document.querySelectorAll("[data-auth-mode]").forEach((button) => {
+    button.addEventListener("click", handleAuthModeClick);
   });
   document.querySelectorAll("[data-question-example]").forEach((button) => {
     button.addEventListener("click", () => {
