@@ -6,7 +6,8 @@ const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "accounts.json");
 const MEMORY_STORE = global.__PAM_ACCOUNT_STORE__ || {
   accounts: [],
-  sessions: {}
+  sessions: {},
+  verificationRequests: {}
 };
 
 global.__PAM_ACCOUNT_STORE__ = MEMORY_STORE;
@@ -34,10 +35,14 @@ function readStore() {
       return MEMORY_STORE;
     }
     const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-    return {
-      accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
-      sessions: parsed.sessions && typeof parsed.sessions === "object" ? parsed.sessions : {}
-    };
+      return {
+        accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
+        sessions: parsed.sessions && typeof parsed.sessions === "object" ? parsed.sessions : {},
+        verificationRequests:
+          parsed.verificationRequests && typeof parsed.verificationRequests === "object"
+            ? parsed.verificationRequests
+            : {}
+      };
   } catch (_error) {
     return MEMORY_STORE;
   }
@@ -46,6 +51,7 @@ function readStore() {
 function writeStore(store) {
   MEMORY_STORE.accounts = store.accounts;
   MEMORY_STORE.sessions = store.sessions;
+  MEMORY_STORE.verificationRequests = store.verificationRequests;
 
   if (!canUseFileStore()) return;
 
@@ -82,12 +88,99 @@ function sanitizeAccount(account) {
   };
 }
 
-exports.createAccount = ({ firstName, emailAddress, password, age, employmentStatus, stateCode }) => {
+function generateVerificationCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function maskEmail(email) {
+  const normalized = normalizeEmail(email);
+  const [name, domain] = normalized.split("@");
+  if (!name || !domain) return normalized;
+  const safeName = name.length <= 2 ? `${name[0] || ""}*` : `${name.slice(0, 2)}${"*".repeat(Math.max(name.length - 2, 1))}`;
+  return `${safeName}@${domain}`;
+}
+
+exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
+  const email = normalizeEmail(emailAddress);
+  if (!email) {
+    throw new Error("Add an email before requesting a verification code.");
+  }
+
+  const store = readStore();
+  if (purpose === "signup" && store.accounts.some((account) => account.emailAddress === email)) {
+    throw new Error("An account with that email already exists.");
+  }
+
+  const requestId = generateId("verify");
+  const code = generateVerificationCode();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+  store.verificationRequests[requestId] = {
+    emailAddress: email,
+    purpose,
+    code,
+    expiresAt,
+    createdAt: new Date().toISOString()
+  };
+  writeStore(store);
+
+  return {
+    requestId,
+    maskedEmail: maskEmail(email),
+    expiresAt,
+    previewCode: code
+  };
+};
+
+function consumeVerificationRequest({ emailAddress, requestId, verificationCode, purpose = "signup" }) {
+  const email = normalizeEmail(emailAddress);
+  const store = readStore();
+  const request = store.verificationRequests[String(requestId || "")];
+
+  if (!request) {
+    throw new Error("Request a fresh verification code before creating the account.");
+  }
+
+  if (request.purpose !== purpose || request.emailAddress !== email) {
+    throw new Error("This verification code does not match the email you entered.");
+  }
+
+  if (new Date(request.expiresAt).getTime() < Date.now()) {
+    delete store.verificationRequests[String(requestId || "")];
+    writeStore(store);
+    throw new Error("That verification code expired. Request a new one.");
+  }
+
+  if (String(verificationCode || "").trim() !== String(request.code)) {
+    throw new Error("That verification code is incorrect.");
+  }
+
+  delete store.verificationRequests[String(requestId || "")];
+  writeStore(store);
+}
+
+exports.createAccount = ({
+  firstName,
+  emailAddress,
+  password,
+  age,
+  employmentStatus,
+  stateCode,
+  verificationRequestId,
+  verificationCode
+}) => {
   const email = normalizeEmail(emailAddress);
   const store = readStore();
   if (store.accounts.some((account) => account.emailAddress === email)) {
     throw new Error("An account with that email already exists.");
   }
+
+  consumeVerificationRequest({
+    emailAddress: email,
+    requestId: verificationRequestId,
+    verificationCode,
+    purpose: "signup"
+  });
 
   const passwordRecord = hashPassword(password);
   const account = {

@@ -49,6 +49,15 @@ const CREATE_ACCOUNT_STEPS = [
     autocomplete: "email"
   },
   {
+    key: "verificationCode",
+    label: "Enter the verification code",
+    detail: "PAM requires a six-digit verification code before the account can be created.",
+    type: "text",
+    placeholder: "123456",
+    required: true,
+    autocomplete: "one-time-code"
+  },
+  {
     key: "password",
     label: "Create a password",
     detail: "Use at least 8 characters.",
@@ -108,6 +117,9 @@ const state = {
   aiGuidance: null,
   status: "",
   inlineGoalError: "",
+  verificationPreviewCode: "",
+  verificationMaskedEmail: "",
+  verificationExpiresAt: "",
   plaidBusy: false
 };
 
@@ -123,6 +135,8 @@ function getInitialAccountDraft() {
   return {
     firstName: String(account.firstName || baseline.firstName || ""),
     emailAddress: String(account.emailAddress || baseline.emailAddress || ""),
+    verificationCode: "",
+    verificationRequestId: "",
     password: "",
     confirmPassword: "",
     age: hasValue(account.age) ? String(account.age) : hasValue(baseline.age) ? String(baseline.age) : "",
@@ -199,7 +213,15 @@ function saveCurrentStepValue(form) {
   const step = getCreateAccountStepConfig();
   if (!form || !step) return draft;
   const value = form.elements.namedItem(step.key)?.value ?? "";
+  const previousValue = String(draft[step.key] || "");
   draft[step.key] = String(value);
+  if (step.key === "emailAddress" && String(value) !== previousValue) {
+    draft.verificationCode = "";
+    draft.verificationRequestId = "";
+    state.verificationPreviewCode = "";
+    state.verificationMaskedEmail = "";
+    state.verificationExpiresAt = "";
+  }
   return draft;
 }
 
@@ -217,6 +239,15 @@ function validateAccountStep(stepIndex = state.createAccountStep, draft = ensure
 
   if (step.key === "confirmPassword" && value !== String(draft.password || "")) {
     return "Your password confirmation does not match yet.";
+  }
+
+  if (step.key === "verificationCode") {
+    if (!draft.verificationRequestId) {
+      return "Send a verification code first.";
+    }
+    if (!/^\d{6}$/.test(value)) {
+      return "Enter the 6-digit verification code.";
+    }
   }
 
   return "";
@@ -302,9 +333,17 @@ function canAccessDashboard() {
 }
 
 async function requestJson(url, options = {}) {
-  const response = await fetch(url, options);
-  const payload = await response.json().catch(() => null);
-  return { response, payload };
+  try {
+    const response = await fetch(url, options);
+    const payload = await response.json().catch(() => null);
+    return { response, payload, error: null };
+  } catch (error) {
+    return {
+      response: null,
+      payload: null,
+      error: error instanceof Error ? error.message : "Network request failed."
+    };
+  }
 }
 
 async function restoreSessionAccount() {
@@ -332,6 +371,10 @@ async function logoutAccount() {
   state.baseline = clearStoredBaseline();
   state.result = null;
   state.aiGuidance = null;
+  state.accountDraft = null;
+  state.verificationPreviewCode = "";
+  state.verificationMaskedEmail = "";
+  state.verificationExpiresAt = "";
   saveWorkspaceView("landing");
   state.status = "Signed out.";
   render();
@@ -698,6 +741,8 @@ async function handleCreateAccount(event) {
   const draft = ensureAccountDraft();
   const firstName = String(draft.firstName || "").trim();
   const emailAddress = String(draft.emailAddress || "").trim();
+  const verificationCode = String(draft.verificationCode || "").trim();
+  const verificationRequestId = String(draft.verificationRequestId || "").trim();
   const password = String(draft.password || "");
   const confirmPassword = String(draft.confirmPassword || "");
   const age = hasValue(draft.age) ? toNumber(draft.age, null) : null;
@@ -722,7 +767,7 @@ async function handleCreateAccount(event) {
     return;
   }
 
-  const { payload } = await requestJson("/api/account/register", {
+  const { payload, error } = await requestJson("/api/account/register", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -730,6 +775,8 @@ async function handleCreateAccount(event) {
     body: JSON.stringify({
       firstName,
       emailAddress,
+      verificationCode,
+      verificationRequestId,
       password,
       age,
       employmentStatus,
@@ -737,8 +784,8 @@ async function handleCreateAccount(event) {
     })
   });
 
-  if (!payload?.ok) {
-    state.status = payload?.error || "Unable to create account.";
+  if (error || !payload?.ok) {
+    state.status = payload?.error || error || "Unable to create account.";
     render();
     return;
   }
@@ -749,6 +796,9 @@ async function handleCreateAccount(event) {
   state.aiGuidance = null;
   state.accountDraft = getInitialAccountDraft();
   state.createAccountStep = 0;
+  state.verificationPreviewCode = "";
+  state.verificationMaskedEmail = "";
+  state.verificationExpiresAt = "";
   state.status = "Account created. Connect a Sandbox account next to unlock the dashboard.";
   saveAuthView("signin");
   saveWorkspaceView("account");
@@ -767,7 +817,7 @@ async function handleLogin(event) {
     return;
   }
 
-  const { payload } = await requestJson("/api/account/login", {
+  const { payload, error } = await requestJson("/api/account/login", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -778,8 +828,8 @@ async function handleLogin(event) {
     })
   });
 
-  if (!payload?.ok) {
-    state.status = payload?.error || "Unable to sign in.";
+  if (error || !payload?.ok) {
+    state.status = payload?.error || error || "Unable to sign in.";
     render();
     return;
   }
@@ -794,11 +844,52 @@ async function handleLogin(event) {
   render();
 }
 
+async function handleSendVerificationCode() {
+  const draft = ensureAccountDraft();
+  const emailAddress = String(draft.emailAddress || "").trim();
+
+  if (!emailAddress) {
+    state.status = "Add your email first so PAM knows where to send the verification code.";
+    render();
+    return;
+  }
+
+  const { payload, error } = await requestJson("/api/account/request-code", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      emailAddress
+    })
+  });
+
+  if (error || !payload?.ok) {
+    state.status = payload?.error || error || "Unable to send a verification code.";
+    render();
+    return;
+  }
+
+  draft.verificationRequestId = String(payload.requestId || "");
+  state.verificationMaskedEmail = String(payload.maskedEmail || emailAddress);
+  state.verificationPreviewCode = String(payload.previewCode || "");
+  state.verificationExpiresAt = String(payload.expiresAt || "");
+  state.status = payload.deliveryMode === "prototype_preview"
+    ? `Verification code generated for ${state.verificationMaskedEmail}.`
+    : `Verification code sent to ${state.verificationMaskedEmail}.`;
+  render();
+}
+
 function handleAuthModeClick(event) {
   const nextView = event.currentTarget.dataset.authMode || "create";
   saveAuthView(nextView);
   if (nextView === "create") {
     ensureAccountDraft();
+  }
+  if (nextView !== "create") {
+    state.verificationPreviewCode = "";
+    state.verificationMaskedEmail = "";
+    state.verificationExpiresAt = "";
   }
   state.status = "";
   render();
@@ -859,10 +950,12 @@ async function handleConnectSandboxAccount() {
     state.status = payload.status;
     state.inlineGoalError = "";
     await runDecisionAnalysis(state.question, payload.status);
-  } catch (_error) {
+  } catch (error) {
     const fallbackPayload = loadSandboxFallback(state.baseline);
     saveBaseline(fallbackPayload.baseline);
-    state.status = fallbackPayload.status;
+    state.status = error instanceof Error && error.message
+      ? `${error.message} ${fallbackPayload.status}`
+      : fallbackPayload.status;
     state.inlineGoalError = "";
     await runDecisionAnalysis(state.question, fallbackPayload.status);
   } finally {
@@ -1113,7 +1206,7 @@ function renderDashboardSummary() {
   const debtBalance = liabilities.reduce((sum, item) => sum + Number(item.balance || 0), 0);
   const availableCash = connectedAccounts
     .filter((account) => ["checking", "savings"].includes(account.type))
-    .reduce((sum, account) => sum + Number(account.available ?? account.current || 0), 0);
+    .reduce((sum, account) => sum + Number(account.available ?? account.current ?? 0), 0);
 
   return `
     <section class="foresee-panel">
@@ -1234,6 +1327,16 @@ function renderBaselinePanel() {
                         />
                       `}
                     </label>
+                    ${step.key === "verificationCode" ? `
+                      <div class="verification-panel">
+                        <button class="button button-secondary" type="button" data-send-verification-code>${draft.verificationRequestId ? "Resend code" : "Send code"}</button>
+                        <div class="verification-copy">
+                          <strong>${state.verificationMaskedEmail ? `Code destination: ${escapeHtml(state.verificationMaskedEmail)}` : "Send a code to unlock this step."}</strong>
+                          <span>${state.verificationExpiresAt ? `Expires at ${new Date(state.verificationExpiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Verification codes expire after 10 minutes."}</span>
+                          ${state.verificationPreviewCode ? `<span>Prototype preview code: <strong>${escapeHtml(state.verificationPreviewCode)}</strong></span>` : ""}
+                        </div>
+                      </div>
+                    ` : ""}
                     <div class="wizard-hint">
                       ${step.required ? "Required for account setup." : "Optional. You can come back to this later."}
                     </div>
@@ -1394,7 +1497,7 @@ function renderHowItWorksSteps() {
       <div class="panel-kicker">How it works</div>
       <h2>From account to decision.</h2>
       <div class="steps-grid">
-        <div><strong>1</strong><span>Create your account with email, password, age, and work type</span></div>
+        <div><strong>1</strong><span>Create your account with email, verification code, password, age, and work type</span></div>
         <div><strong>2</strong><span>Connect Sandbox data or load sample data</span></div>
         <div><strong>3</strong><span>PAM builds your baseline from balances, transactions, and liabilities</span></div>
         <div><strong>4</strong><span>Ask a financial question</span></div>
@@ -1441,6 +1544,7 @@ function wireInteractions() {
   document.querySelector("[data-connect-sandbox]")?.addEventListener("click", handleConnectSandboxAccount);
   document.querySelector("[data-create-next]")?.addEventListener("click", handleCreateAccountNext);
   document.querySelector("[data-create-back]")?.addEventListener("click", handleCreateAccountBack);
+  document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
   document.querySelectorAll("[data-scroll-target]").forEach((button) => {
     button.addEventListener("click", () => scrollToSection(button.dataset.scrollTarget));
   });

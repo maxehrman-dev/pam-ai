@@ -18,11 +18,13 @@ module.exports = async (req, res) => {
     const firstName = String(body.firstName || "").trim();
     const emailAddress = String(body.emailAddress || "").trim();
     const password = String(body.password || "");
+    const verificationRequestId = String(body.verificationRequestId || "").trim();
+    const verificationCode = String(body.verificationCode || "").trim();
 
-    if (!firstName || !emailAddress || password.length < 8) {
+    if (!firstName || !emailAddress || password.length < 8 || !verificationRequestId || !verificationCode) {
       return sendJson(res, 400, {
         ok: false,
-        error: "First name, email, and an 8-character password are required."
+        error: "First name, email, password, and a valid verification code are required."
       });
     }
 
@@ -30,6 +32,8 @@ module.exports = async (req, res) => {
       firstName,
       emailAddress,
       password,
+      verificationRequestId,
+      verificationCode,
       age: body.age ?? null,
       employmentStatus: body.employmentStatus || "Not sure yet",
       stateCode: body.stateCode || "OTHER"

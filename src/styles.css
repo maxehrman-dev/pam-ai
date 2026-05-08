@@ -655,6 +655,34 @@ input:disabled {
   font-weight: 700;
 }
 
+.verification-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(216, 243, 229, 0.26);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.verification-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.verification-copy strong,
+.verification-copy span {
+  display: block;
+}
+
+.verification-copy strong {
+  color: var(--ink-4);
+}
+
+.verification-copy span {
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+
 .auth-aside {
   display: grid;
   gap: 10px;
