@@ -548,6 +548,10 @@ function getTopConnectedExpenses(baseline, limit = 3) {
     .slice(0, limit);
 }
 
+function getConnectedAccounts(baseline) {
+  return Array.isArray(baseline?.savings?.connectedAccounts) ? baseline.savings.connectedAccounts : [];
+}
+
 function getConnectedSnapshot(baseline) {
   return {
     source: baseline.source,
@@ -1056,6 +1060,7 @@ function renderDashboardWorkspace() {
   return `
     <div class="workspace-guide-grid compact-workspace-view" id="dashboard-section">
       ${renderAccountPreview()}
+      ${renderDashboardSummary()}
       ${renderConnectedInsights()}
       <div class="workspace-grid-simulator" id="decision-input">
         ${renderDecisionPanel()}
@@ -1070,6 +1075,7 @@ function renderConnectedInsights() {
   const topExpenses = getTopConnectedExpenses(state.baseline, 3);
   const incomeStreams = state.baseline.income?.incomeStreams || [];
   const liabilities = state.baseline.obligations?.liabilities || [];
+  const connectedAccounts = getConnectedAccounts(state.baseline);
 
   return `
     <section class="foresee-panel">
@@ -1080,6 +1086,74 @@ function renderConnectedInsights() {
         <article><h3>Largest recurring costs</h3><p>${topExpenses.length ? topExpenses.map((item) => `${item.name} ${formatCurrency(item.amount)}`).join(" • ") : "No recurring expenses detected yet."}</p></article>
         <article><h3>Debt obligations</h3><p>${liabilities.length ? `${liabilities.length} connected liabilities totaling about ${formatCurrency(getMonthlyObligations(state.baseline))}/month.` : "No liabilities detected from connected data."}</p></article>
       </div>
+      ${connectedAccounts.length ? `
+        <div class="connected-account-list">
+          ${connectedAccounts.map((account) => `
+            <div class="connected-account-card">
+              <span>${escapeHtml(account.name)}</span>
+              <strong>${formatCurrency(account.current)}</strong>
+              <small>${escapeHtml(String(account.subtype || account.type || "account").replace(/_/g, " "))}</small>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderDashboardSummary() {
+  if (!state.baseline.source.startsWith("plaid")) return "";
+  const ui = getUiBaseline(state.baseline);
+  const connectedAccounts = getConnectedAccounts(state.baseline);
+  const liabilities = state.baseline.obligations?.liabilities || [];
+  const topExpenses = getTopConnectedExpenses(state.baseline, 4);
+  const investmentBalance = connectedAccounts
+    .filter((account) => String(account.type || "").includes("investment"))
+    .reduce((sum, account) => sum + Number(account.current || 0), 0);
+  const debtBalance = liabilities.reduce((sum, item) => sum + Number(item.balance || 0), 0);
+  const availableCash = connectedAccounts
+    .filter((account) => ["checking", "savings"].includes(account.type))
+    .reduce((sum, account) => sum + Number(account.available ?? account.current || 0), 0);
+
+  return `
+    <section class="foresee-panel">
+      <div class="panel-kicker">Dashboard snapshot</div>
+      <h2>${state.baseline.source === "plaid_mock" ? "Sandbox sample data is enough to power a mock dashboard." : "Your connected Sandbox accounts are shaping the dashboard."}</h2>
+      <div class="outcome-grid dashboard-metric-grid">
+        <div><span>Connected accounts</span><strong>${connectedAccounts.length}</strong><small>Checking, savings, credit, and investing can all flow in here.</small></div>
+        <div><span>Available cash</span><strong>${formatCurrency(availableCash)}</strong><small>Across connected cash accounts.</small></div>
+        <div><span>Protected savings</span><strong>${formatCurrency(getCurrentSavings(state.baseline))}</strong><small>Used for runway and goal protection.</small></div>
+        <div><span>Investments</span><strong>${formatCurrency(investmentBalance)}</strong><small>Longer-term accounts connected through Plaid can show up here too.</small></div>
+        <div><span>Recurring spend</span><strong>${formatCurrency(getMonthlyExpenses(state.baseline))}</strong><small>Detected from recurring Sandbox transactions.</small></div>
+        <div><span>Debt balance</span><strong>${formatCurrency(debtBalance)}</strong><small>${liabilities.length ? `${liabilities.length} liability accounts connected.` : "No liabilities detected."}</small></div>
+      </div>
+      <div class="connected-dashboard-grid">
+        <div class="connected-dashboard-card">
+          <h3>Account mix</h3>
+          <div class="connected-account-list">
+            ${connectedAccounts.map((account) => `
+              <div class="connected-account-card">
+                <span>${escapeHtml(account.name)}</span>
+                <strong>${formatCurrency(account.current)}</strong>
+                <small>${escapeHtml(String(account.subtype || account.type || "account").replace(/_/g, " "))}</small>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        <div class="connected-dashboard-card">
+          <h3>Recurring outflows</h3>
+          <div class="connected-account-list">
+            ${topExpenses.map((item) => `
+              <div class="connected-account-card">
+                <span>${escapeHtml(item.name)}</span>
+                <strong>${formatCurrency(item.amount)}</strong>
+                <small>${escapeHtml(item.category || "monthly")}</small>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+      <p class="disclaimer">${state.baseline.source === "plaid_mock" ? "This is a mock dashboard powered by Sandbox-style sample data." : "This is a mock dashboard powered by Plaid Sandbox data."}</p>
     </section>
   `;
 }

@@ -88,6 +88,7 @@ export function getEmptyBaseline() {
       currentSavings: null,
       checkingBalance: null,
       savingsBalance: null,
+      connectedAccounts: [],
       emergencyFundFloor: null
     },
     tax: {
@@ -328,6 +329,7 @@ export function normalizeManualBaseline(input, previousBaseline = getEmptyBaseli
     currentSavings: hasValue(currentSavings) ? toNumber(currentSavings, null) : null,
     checkingBalance: previousBaseline?.source?.startsWith("plaid") ? previousBaseline?.savings?.checkingBalance ?? null : null,
     savingsBalance: previousBaseline?.source?.startsWith("plaid") ? previousBaseline?.savings?.savingsBalance ?? null : null,
+    connectedAccounts: previousBaseline?.source?.startsWith("plaid") ? clone(previousBaseline?.savings?.connectedAccounts || []) : [],
     emergencyFundFloor: hasValue(emergencyFundFloor) ? toNumber(emergencyFundFloor, null) : null
   };
   next.tax = {
@@ -366,6 +368,8 @@ export function getMockPlaidLikeData() {
     accounts: [
       { id: "acct_checking_1", name: "Everyday Checking", type: "checking", current: 4450, available: 4210 },
       { id: "acct_savings_1", name: "High Yield Savings", type: "savings", current: 14800, available: 14800 },
+      { id: "acct_savings_2", name: "Travel Sinking Fund", type: "savings", current: 2600, available: 2600 },
+      { id: "acct_invest_1", name: "Roth IRA", type: "investment", current: 9400, available: 9400 },
       { id: "acct_credit_1", name: "Travel Rewards Card", type: "credit", current: -600, available: 4400 }
     ],
     transactions: [
@@ -410,6 +414,13 @@ export function deriveBaselineFromTransactions(transactions = [], accounts = [],
   const monthlyDebtPayments = liabilities.reduce((sum, item) => sum + toNumber(item.monthlyPayment, 0), 0);
   const checkingBalance = accounts.filter((item) => item.type === "checking").reduce((sum, item) => sum + toNumber(item.current, 0), 0);
   const savingsBalance = accounts.filter((item) => item.type === "savings").reduce((sum, item) => sum + toNumber(item.current, 0), 0);
+  const connectedAccounts = accounts.map((item) => ({
+    id: item.id,
+    name: item.name,
+    type: item.type,
+    current: toNumber(item.current, 0),
+    available: hasValue(item.available) ? toNumber(item.available, null) : null
+  }));
   const emergencyFundFloor = Math.round(monthlyExpenses * 3);
 
   return {
@@ -453,6 +464,7 @@ export function deriveBaselineFromTransactions(transactions = [], accounts = [],
       currentSavings: savingsBalance,
       checkingBalance,
       savingsBalance,
+      connectedAccounts,
       emergencyFundFloor
     },
     tax: {
@@ -623,6 +635,7 @@ export function getUiBaseline(baseline) {
     currentSavings: hasValue(baseline?.savings?.currentSavings) ? baseline.savings.currentSavings : getCurrentSavings(baseline) || "",
     checkingBalance: hasValue(baseline?.savings?.checkingBalance) ? baseline.savings.checkingBalance : "",
     savingsBalance: hasValue(baseline?.savings?.savingsBalance) ? baseline.savings.savingsBalance : "",
+    connectedAccounts: Array.isArray(baseline?.savings?.connectedAccounts) ? baseline.savings.connectedAccounts : [],
     emergencyFundFloor: hasValue(baseline?.savings?.emergencyFundFloor) ? baseline.savings.emergencyFundFloor : "",
     retirementContributions: hasValue(baseline?.tax?.retirementContributionMonthly) ? baseline.tax.retirementContributionMonthly : "",
     deductions: hasValue(baseline?.tax?.annualDeductions) ? baseline.tax.annualDeductions : "",

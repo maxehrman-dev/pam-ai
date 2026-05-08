@@ -61,7 +61,9 @@ test("sandbox-style sample data saves into normalized format", () => {
   assert.equal(baseline.income.detectedMonthlyIncome, 4450);
   assert.equal(getMonthlyExpenses(baseline), 2885);
   assert.equal(getMonthlyObligations(baseline), 330);
-  assert.equal(getCurrentSavings(baseline), 14800);
+  assert.equal(getCurrentSavings(baseline), 17400);
+  assert.equal(baseline.savings.connectedAccounts.length >= 4, true);
+  assert.equal(baseline.savings.connectedAccounts.some((account) => account.type === "investment"), true);
 });
 
 test("Jordan-style profile produces a monthly buffer around 1270", () => {

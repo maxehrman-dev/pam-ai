@@ -10,6 +10,8 @@ const plaidLikeData = {
   accounts: [
     { id: "acct_checking_1", name: "Everyday Checking", type: "checking", current: 4450, available: 4210 },
     { id: "acct_savings_1", name: "High Yield Savings", type: "savings", current: 14800, available: 14800 },
+    { id: "acct_savings_2", name: "Travel Sinking Fund", type: "savings", current: 2600, available: 2600 },
+    { id: "acct_invest_1", name: "Roth IRA", type: "investment", current: 9400, available: 9400 },
     { id: "acct_credit_1", name: "Travel Rewards Card", type: "credit", current: -600, available: 4400 }
   ],
   transactions: [
@@ -71,9 +73,16 @@ const baseline = {
     ]
   },
   savings: {
-    currentSavings: 14800,
+    currentSavings: 17400,
     checkingBalance: 4450,
-    savingsBalance: 14800,
+    savingsBalance: 17400,
+    connectedAccounts: [
+      { id: "acct_checking_1", name: "Everyday Checking", type: "checking", current: 4450, available: 4210 },
+      { id: "acct_savings_1", name: "High Yield Savings", type: "savings", current: 14800, available: 14800 },
+      { id: "acct_savings_2", name: "Travel Sinking Fund", type: "savings", current: 2600, available: 2600 },
+      { id: "acct_invest_1", name: "Roth IRA", type: "investment", current: 9400, available: 9400 },
+      { id: "acct_credit_1", name: "Travel Rewards Card", type: "credit", current: -600, available: 4400 }
+    ],
     emergencyFundFloor: 8655
   },
   tax: {

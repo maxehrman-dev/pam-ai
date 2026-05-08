@@ -275,6 +275,14 @@ function toNormalizedBaseline({ accounts = [], transactions = [], liabilities = 
   const savingsBalance = accounts
     .filter((account) => mapAccountType(account) === "savings")
     .reduce((sum, account) => sum + Number(account.balances?.current || 0), 0);
+  const connectedAccounts = accounts.map((account, index) => ({
+    id: account.account_id || `${account.name || "account"}-${index}`,
+    name: account.name || account.official_name || "Connected account",
+    type: mapAccountType(account),
+    subtype: account.subtype || "",
+    current: Number(account.balances?.current || 0),
+    available: account.balances?.available ?? null
+  }));
   const monthlyDebtPayments = liabilities.reduce((sum, item) => sum + Number(item.monthlyPayment || 0), 0);
   const emergencyFundFloor = Math.round(monthlyExpenses * 3);
   const now = new Date().toISOString();
@@ -313,6 +321,7 @@ function toNormalizedBaseline({ accounts = [], transactions = [], liabilities = 
       currentSavings: savingsBalance || null,
       checkingBalance: checkingBalance || null,
       savingsBalance: savingsBalance || null,
+      connectedAccounts,
       emergencyFundFloor
     },
     tax: {
