@@ -29,6 +29,71 @@ const SESSION_STORAGE_KEY = "pam:session:v1";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 const AUTH_VIEW_KEY = "pam-ai-auth-view-v1";
+const CREATE_ACCOUNT_STEPS = [
+  {
+    key: "firstName",
+    label: "What should PAM call you?",
+    detail: "This is what shows up on your homepage.",
+    type: "text",
+    placeholder: "Maya",
+    required: true,
+    autocomplete: "given-name"
+  },
+  {
+    key: "emailAddress",
+    label: "What email should you sign in with?",
+    detail: "PAM uses this as your account identity in the prototype.",
+    type: "email",
+    placeholder: "you@example.com",
+    required: true,
+    autocomplete: "email"
+  },
+  {
+    key: "password",
+    label: "Create a password",
+    detail: "Use at least 8 characters.",
+    type: "password",
+    placeholder: "At least 8 characters",
+    required: true,
+    autocomplete: "new-password"
+  },
+  {
+    key: "confirmPassword",
+    label: "Confirm your password",
+    detail: "Repeat the same password once so PAM knows it matches.",
+    type: "password",
+    placeholder: "Repeat password",
+    required: true,
+    autocomplete: "new-password"
+  },
+  {
+    key: "age",
+    label: "How old are you?",
+    detail: "Optional. PAM uses age to think about runway and compounding time.",
+    type: "number",
+    placeholder: "24",
+    required: false,
+    min: "18",
+    max: "35",
+    step: "1"
+  },
+  {
+    key: "employmentStatus",
+    label: "How do you earn money right now?",
+    detail: "This helps PAM frame taxes, deductions, and income structure.",
+    type: "select",
+    required: true,
+    options: ["W-2 employee", "1099 / self-employed", "Student worker", "Mixed income", "Not sure yet"]
+  },
+  {
+    key: "stateCode",
+    label: "What state should PAM start with?",
+    detail: "Optional. PAM can refine tax assumptions later.",
+    type: "select",
+    required: false,
+    options: ["OTHER", "CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN"]
+  }
+];
 
 const state = {
   baseline: loadStoredBaseline(),
@@ -36,6 +101,8 @@ const state = {
   sessionToken: loadSessionToken(),
   workspaceView: loadWorkspaceView(),
   authView: loadAuthView(),
+  createAccountStep: 0,
+  accountDraft: null,
   question: loadQuestion(),
   result: null,
   aiGuidance: null,
@@ -48,6 +115,27 @@ let isStarted = false;
 
 function saveBaseline(baseline) {
   state.baseline = persistBaseline(baseline);
+}
+
+function getInitialAccountDraft() {
+  const baseline = getUiBaseline(state.baseline);
+  const account = state.account || {};
+  return {
+    firstName: String(account.firstName || baseline.firstName || ""),
+    emailAddress: String(account.emailAddress || baseline.emailAddress || ""),
+    password: "",
+    confirmPassword: "",
+    age: hasValue(account.age) ? String(account.age) : hasValue(baseline.age) ? String(baseline.age) : "",
+    employmentStatus: String(account.employmentStatus || baseline.employmentStatus || "Not sure yet"),
+    stateCode: String(account.stateCode || baseline.stateCode || "OTHER")
+  };
+}
+
+function ensureAccountDraft() {
+  if (!state.accountDraft) {
+    state.accountDraft = getInitialAccountDraft();
+  }
+  return state.accountDraft;
 }
 
 function loadSessionToken() {
@@ -100,6 +188,38 @@ function saveAuthView(view) {
   } catch (_error) {
     // Auth view persistence is helpful, not required.
   }
+}
+
+function getCreateAccountStepConfig(stepIndex = state.createAccountStep) {
+  return CREATE_ACCOUNT_STEPS[Math.max(0, Math.min(stepIndex, CREATE_ACCOUNT_STEPS.length - 1))];
+}
+
+function saveCurrentStepValue(form) {
+  const draft = ensureAccountDraft();
+  const step = getCreateAccountStepConfig();
+  if (!form || !step) return draft;
+  const value = form.elements.namedItem(step.key)?.value ?? "";
+  draft[step.key] = String(value);
+  return draft;
+}
+
+function validateAccountStep(stepIndex = state.createAccountStep, draft = ensureAccountDraft()) {
+  const step = getCreateAccountStepConfig(stepIndex);
+  const value = String(draft[step.key] || "").trim();
+
+  if (step.required && !value) {
+    return `Add ${step.label.toLowerCase()} before continuing.`;
+  }
+
+  if (step.key === "password" && value && value.length < 8) {
+    return "Use at least 8 characters for the prototype password.";
+  }
+
+  if (step.key === "confirmPassword" && value !== String(draft.password || "")) {
+    return "Your password confirmation does not match yet.";
+  }
+
+  return "";
 }
 
 function resetBaseline() {
@@ -570,14 +690,15 @@ function readBaselineForm(form) {
 
 async function handleCreateAccount(event) {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
-  const firstName = String(formData.get("firstName") || "").trim();
-  const emailAddress = String(formData.get("emailAddress") || "").trim();
-  const password = String(formData.get("password") || "");
-  const confirmPassword = String(formData.get("confirmPassword") || "");
-  const age = hasValue(formData.get("age")) ? toNumber(formData.get("age"), null) : null;
-  const employmentStatus = String(formData.get("employmentStatus") || "Not sure yet");
-  const stateCode = String(formData.get("stateCode") || "OTHER");
+  saveCurrentStepValue(event.currentTarget);
+  const draft = ensureAccountDraft();
+  const firstName = String(draft.firstName || "").trim();
+  const emailAddress = String(draft.emailAddress || "").trim();
+  const password = String(draft.password || "");
+  const confirmPassword = String(draft.confirmPassword || "");
+  const age = hasValue(draft.age) ? toNumber(draft.age, null) : null;
+  const employmentStatus = String(draft.employmentStatus || "Not sure yet");
+  const stateCode = String(draft.stateCode || "OTHER");
 
   if (!firstName || !emailAddress || !password) {
     state.status = "Add your first name, email, and password before PAM creates the account shell.";
@@ -622,6 +743,8 @@ async function handleCreateAccount(event) {
   state.account = payload.account;
   saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
   state.aiGuidance = null;
+  state.accountDraft = getInitialAccountDraft();
+  state.createAccountStep = 0;
   state.status = "Account created. Connect a Sandbox account next to unlock the dashboard.";
   saveAuthView("signin");
   saveWorkspaceView("account");
@@ -670,6 +793,31 @@ async function handleLogin(event) {
 function handleAuthModeClick(event) {
   const nextView = event.currentTarget.dataset.authMode || "create";
   saveAuthView(nextView);
+  if (nextView === "create") {
+    ensureAccountDraft();
+  }
+  state.status = "";
+  render();
+}
+
+function handleCreateAccountNext(event) {
+  const form = event.currentTarget.closest("form");
+  saveCurrentStepValue(form);
+  const error = validateAccountStep();
+  if (error) {
+    state.status = error;
+    render();
+    return;
+  }
+  state.createAccountStep = Math.min(state.createAccountStep + 1, CREATE_ACCOUNT_STEPS.length - 1);
+  state.status = "";
+  render();
+}
+
+function handleCreateAccountBack(event) {
+  const form = event.currentTarget.closest("form");
+  saveCurrentStepValue(form);
+  state.createAccountStep = Math.max(state.createAccountStep - 1, 0);
   state.status = "";
   render();
 }
@@ -941,6 +1089,10 @@ function renderBaselinePanel() {
   const isComplete = canAccessDashboard();
   const account = state.account || {};
   const isSignedIn = hasPrototypeAccount();
+  const draft = ensureAccountDraft();
+  const step = getCreateAccountStepConfig();
+  const stepValue = String(draft[step.key] || "");
+  const isLastStep = state.createAccountStep === CREATE_ACCOUNT_STEPS.length - 1;
   return `
     <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
       <div class="panel-kicker">Account setup</div>
@@ -981,32 +1133,41 @@ function renderBaselinePanel() {
                 <div class="auth-card">
                   <div class="auth-card-copy">
                     <h3>Set up your PAM account.</h3>
-                    <p>Email and password get you back into your profile. Age, work type, and state help PAM frame decisions better from day one.</p>
+                    <p>PAM asks one thing at a time so setup stays quick and clean.</p>
                   </div>
-                  <form class="profile-form" data-account-form>
-                    <div class="onboarding-field-grid">
-                      <label><span>First name</span><small>Used for your homepage and account label.</small><input type="text" name="firstName" value="${escapeHtml(account.firstName || baseline.firstName)}" placeholder="Maya" autocomplete="given-name" /></label>
-                      <label><span>Email</span><small>Your sign-in email for this prototype.</small><input type="email" name="emailAddress" value="${escapeHtml(account.emailAddress || baseline.emailAddress)}" placeholder="you@example.com" autocomplete="email" /></label>
-                      <label><span>Password</span><small>Use at least 8 characters.</small><input type="password" name="password" value="" placeholder="At least 8 characters" autocomplete="new-password" /></label>
-                      <label><span>Confirm password</span><small>Re-enter the same password once.</small><input type="password" name="confirmPassword" value="" placeholder="Repeat password" autocomplete="new-password" /></label>
-                      <label><span>Age</span><small>Optional. Helps PAM estimate runway and compounding time.</small><input type="number" name="age" value="${hasValue(account.age) ? account.age : baseline.age}" min="18" max="35" step="1" placeholder="24" /></label>
-                      <label>
-                        <span>Employment type</span>
-                        <small>Used to frame taxes, deductions, and income structure.</small>
-                        <select name="employmentStatus">
-                          ${["W-2 employee", "1099 / self-employed", "Student worker", "Mixed income", "Not sure yet"].map((option) => `<option value="${option}" ${String(account.employmentStatus || baseline.employmentStatus) === option ? "selected" : ""}>${option}</option>`).join("")}
+                  <form class="profile-form auth-wizard-form" data-account-form>
+                    <div class="wizard-progress">
+                      <span>Step ${state.createAccountStep + 1} of ${CREATE_ACCOUNT_STEPS.length}</span>
+                      <strong>${escapeHtml(step.label)}</strong>
+                    </div>
+                    <label class="wizard-field">
+                      <span>${escapeHtml(step.label)}</span>
+                      <small>${escapeHtml(step.detail)}</small>
+                      ${step.type === "select" ? `
+                        <select name="${step.key}">
+                          ${step.options.map((option) => `<option value="${option}" ${stepValue === option ? "selected" : ""}>${option}</option>`).join("")}
                         </select>
-                      </label>
-                      <label class="onboarding-wide">
-                        <span>State</span>
-                        <small>Optional now. PAM can refine tax assumptions later.</small>
-                        <select name="stateCode">
-                          ${["OTHER", "CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN"].map((option) => `<option value="${option}" ${String(account.stateCode || baseline.stateCode || "OTHER") === option ? "selected" : ""}>${option}</option>`).join("")}
-                        </select>
-                      </label>
+                      ` : `
+                        <input
+                          type="${step.type}"
+                          name="${step.key}"
+                          value="${escapeHtml(stepValue)}"
+                          placeholder="${escapeHtml(step.placeholder || "")}"
+                          ${step.autocomplete ? `autocomplete="${step.autocomplete}"` : ""}
+                          ${step.min ? `min="${step.min}"` : ""}
+                          ${step.max ? `max="${step.max}"` : ""}
+                          ${step.step ? `step="${step.step}"` : ""}
+                        />
+                      `}
+                    </label>
+                    <div class="wizard-hint">
+                      ${step.required ? "Required for account setup." : "Optional. You can come back to this later."}
                     </div>
                     <div class="form-actions">
-                      <button class="button button-primary" type="submit">Create account</button>
+                      ${state.createAccountStep > 0 ? `<button class="button button-secondary" type="button" data-create-back>Back</button>` : `<button class="button button-secondary" type="button" data-open-view="landing">Cancel</button>`}
+                      ${isLastStep
+                        ? `<button class="button button-primary" type="submit">Create account</button>`
+                        : `<button class="button button-primary" type="button" data-create-next>Continue</button>`}
                     </div>
                   </form>
                 </div>
@@ -1189,7 +1350,7 @@ function render() {
       </header>
       <main class="pam-homepage">
         ${renderHero()}
-        ${renderWorkspaceHub()}
+        ${state.workspaceView === "landing" ? renderLandingWorkspace() : renderWorkspaceHub()}
       </main>
     </div>
   `;
@@ -1204,6 +1365,8 @@ function wireInteractions() {
   document.querySelector("[data-logout]")?.addEventListener("click", logoutAccount);
   document.querySelector("[data-load-sandbox]")?.addEventListener("click", handleSandboxSampleData);
   document.querySelector("[data-connect-sandbox]")?.addEventListener("click", handleConnectSandboxAccount);
+  document.querySelector("[data-create-next]")?.addEventListener("click", handleCreateAccountNext);
+  document.querySelector("[data-create-back]")?.addEventListener("click", handleCreateAccountBack);
   document.querySelectorAll("[data-scroll-target]").forEach((button) => {
     button.addEventListener("click", () => scrollToSection(button.dataset.scrollTarget));
   });
