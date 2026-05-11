@@ -88,7 +88,7 @@ const CREATE_ACCOUNT_STEPS = [
   },
   {
     key: "employmentStatus",
-    label: "How do you earn money right now?",
+    label: "What is your main source of income?",
     detail: "",
     type: "select",
     required: true,
@@ -101,6 +101,13 @@ const CREATE_ACCOUNT_STEPS = [
     type: "select",
     required: false,
     options: ["OTHER", "CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN"]
+  },
+  {
+    key: "review",
+    label: "Review your account",
+    detail: "",
+    type: "review",
+    required: false
   }
 ];
 
@@ -923,6 +930,11 @@ function handleCreateAccountBack(event) {
   render();
 }
 
+function handleCreateAccountSubmitClick(event) {
+  const form = event.currentTarget.closest("form");
+  form?.requestSubmit();
+}
+
 async function handleSandboxSampleData() {
   if (!hasPrototypeAccount()) {
     state.status = "Create your account first, then load Sandbox data.";
@@ -1337,8 +1349,17 @@ function renderBaselinePanel() {
                     </div>
                     <label class="wizard-field">
                       <span>${escapeHtml(step.label)}</span>
-                      <small>${escapeHtml(step.detail)}</small>
-                      ${step.type === "select" ? `
+                      ${step.detail ? `<small>${escapeHtml(step.detail)}</small>` : ""}
+                      ${step.type === "review" ? `
+                        <div class="review-panel">
+                          <div><span>Name</span><strong>${escapeHtml(draft.firstName || "Not provided")}</strong></div>
+                          <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "Not provided")}</strong></div>
+                          <div><span>Verification</span><strong>${draft.verificationRequestId ? "Code requested" : "Code not requested"}</strong></div>
+                          <div><span>Age</span><strong>${escapeHtml(draft.age || "Skipped")}</strong></div>
+                          <div><span>Main income</span><strong>${escapeHtml(draft.employmentStatus || "Not provided")}</strong></div>
+                          <div><span>State</span><strong>${escapeHtml(draft.stateCode || "OTHER")}</strong></div>
+                        </div>
+                      ` : step.type === "select" ? `
                         <select name="${step.key}">
                           ${step.options.map((option) => `<option value="${option}" ${stepValue === option ? "selected" : ""}>${option}</option>`).join("")}
                         </select>
@@ -1373,7 +1394,7 @@ function renderBaselinePanel() {
                     <div class="form-actions">
                       ${state.createAccountStep > 0 ? `<button class="button button-secondary" type="button" data-create-back>Back</button>` : `<button class="button button-secondary" type="button" data-open-view="landing">Cancel</button>`}
                       ${isLastStep
-                        ? `<button class="button button-primary" type="submit">Create account</button>`
+                        ? `<button class="button button-primary" type="button" data-create-submit>Create account</button>`
                         : `<button class="button button-primary" type="button" data-create-next>Continue</button>`}
                     </div>
                   </form>
@@ -1578,6 +1599,7 @@ function wireInteractions() {
   document.querySelector("[data-connect-sandbox]")?.addEventListener("click", handleConnectSandboxAccount);
   document.querySelector("[data-create-next]")?.addEventListener("click", handleCreateAccountNext);
   document.querySelector("[data-create-back]")?.addEventListener("click", handleCreateAccountBack);
+  document.querySelector("[data-create-submit]")?.addEventListener("click", handleCreateAccountSubmitClick);
   document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
   document.querySelectorAll("[data-scroll-target]").forEach((button) => {
     button.addEventListener("click", () => scrollToSection(button.dataset.scrollTarget));

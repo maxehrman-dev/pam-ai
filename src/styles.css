@@ -743,6 +743,37 @@ input:disabled {
   font-size: 0.86rem;
 }
 
+.review-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.review-panel div {
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(30, 138, 102, 0.08);
+}
+
+.review-panel span,
+.review-panel strong {
+  display: block;
+}
+
+.review-panel span {
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 900;
+}
+
+.review-panel strong {
+  margin-top: 6px;
+  color: var(--ink-4);
+}
+
 .auth-aside {
   display: grid;
   gap: 10px;
@@ -1184,7 +1215,8 @@ input:disabled {
 
   .credential-row,
   .connect-action-grid,
-  .account-status-card {
+  .account-status-card,
+  .review-panel {
     grid-template-columns: 1fr;
   }
 
