@@ -999,9 +999,13 @@ function openWorkspaceView(view) {
     saveWorkspaceView(view);
   }
   render();
-  requestAnimationFrame(() => {
-    scrollToSection("#workspace-panel");
-  });
+  if (view !== "account") {
+    requestAnimationFrame(() => {
+      scrollToSection("#workspace-panel");
+    });
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 }
 
 function renderHero() {
@@ -1107,7 +1111,6 @@ function renderWorkspaceHub() {
       </div>
       <div class="workspace-tabs" role="tablist" aria-label="PAM views">
         ${[
-          { id: "landing", label: "Overview" },
           { id: "account", label: hasPrototypeAccount() ? "Account" : "Create account" },
           { id: "dashboard", label: "Dashboard", disabled: !canAccessDashboard() }
         ].map((item) => `
@@ -1122,9 +1125,28 @@ function renderWorkspaceHub() {
         `).join("")}
       </div>
       <div class="workspace-active-view">
-        ${state.workspaceView === "landing" ? renderLandingWorkspace() : ""}
         ${state.workspaceView === "account" ? renderBaselinePanel() : ""}
         ${state.workspaceView === "dashboard" ? renderDashboardWorkspace() : ""}
+      </div>
+    </section>
+  `;
+}
+
+function renderAccountPage() {
+  return `
+    <section class="auth-page-shell">
+      <div class="auth-page-frame">
+        <div class="auth-page-brand">
+          <button class="auth-page-back" type="button" data-open-view="landing">Back to homepage</button>
+          <div>
+            <div class="panel-kicker">PAM account</div>
+            <h1>${hasPrototypeAccount() ? "Finish your setup." : "Create your account."}</h1>
+            <p>${hasPrototypeAccount()
+              ? "You’re inside PAM now. Connect Sandbox data to unlock your dashboard."
+              : "This is a dedicated account flow so signup feels separate from the homepage."}</p>
+          </div>
+        </div>
+        ${renderWorkspaceHub()}
       </div>
     </section>
   `;
@@ -1530,8 +1552,11 @@ function render() {
         </div>
       </header>
       <main class="pam-homepage">
-        ${renderHero()}
-        ${state.workspaceView === "landing" ? renderLandingWorkspace() : renderWorkspaceHub()}
+        ${state.workspaceView === "landing"
+          ? `${renderHero()}${renderLandingWorkspace()}`
+          : state.workspaceView === "account"
+            ? renderAccountPage()
+            : renderWorkspaceHub()}
       </main>
     </div>
   `;

@@ -358,6 +358,55 @@ input:disabled {
   gap: 14px;
 }
 
+.auth-page-shell {
+  min-height: calc(100vh - 128px);
+  display: grid;
+  align-items: stretch;
+}
+
+.auth-page-frame {
+  display: grid;
+  gap: 18px;
+  min-height: 100%;
+}
+
+.auth-page-brand {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 22px;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(216, 243, 229, 0.68), transparent 34%),
+    rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(30, 138, 102, 0.13);
+  box-shadow: var(--shadow-soft);
+}
+
+.auth-page-brand h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.6rem, 6vw, 4.8rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.auth-page-brand p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.auth-page-back {
+  justify-self: start;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+  color: var(--mint-5);
+  font-weight: 900;
+}
+
 .workspace-header {
   display: flex;
   justify-content: space-between;
