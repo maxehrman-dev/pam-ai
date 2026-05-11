@@ -348,7 +348,11 @@ async function requestJson(url, options = {}) {
 
 async function restoreSessionAccount() {
   if (!state.sessionToken) return null;
-  const { payload } = await requestJson(`/api/account/session?sessionToken=${encodeURIComponent(state.sessionToken)}`);
+  const { payload, error } = await requestJson(`/api/account/session?sessionToken=${encodeURIComponent(state.sessionToken)}`);
+  if (error) {
+    state.status = "PAM could not confirm your saved session right now. Try again in a moment.";
+    return state.account;
+  }
   if (!payload?.ok || !payload?.account) {
     saveSessionToken(null);
     state.account = null;

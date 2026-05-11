@@ -100,6 +100,22 @@ function maskEmail(email) {
   return `${safeName}@${domain}`;
 }
 
+function pruneVerificationRequests(store, { emailAddress = "", purpose = "", removeMatching = false } = {}) {
+  const now = Date.now();
+
+  for (const [requestId, request] of Object.entries(store.verificationRequests || {})) {
+    const isExpired = !request?.expiresAt || new Date(request.expiresAt).getTime() < now;
+    const matchesIdentity =
+      Boolean(removeMatching) &&
+      (!emailAddress || request.emailAddress === emailAddress) &&
+      (!purpose || request.purpose === purpose);
+
+    if (isExpired || matchesIdentity) {
+      delete store.verificationRequests[requestId];
+    }
+  }
+}
+
 exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
   const email = normalizeEmail(emailAddress);
   if (!email) {
@@ -110,6 +126,8 @@ exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
   if (purpose === "signup" && store.accounts.some((account) => account.emailAddress === email)) {
     throw new Error("An account with that email already exists.");
   }
+
+  pruneVerificationRequests(store, { emailAddress: email, purpose, removeMatching: true });
 
   const requestId = generateId("verify");
   const code = generateVerificationCode();
@@ -132,16 +150,18 @@ exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
   };
 };
 
-function consumeVerificationRequest({ emailAddress, requestId, verificationCode, purpose = "signup" }) {
+function consumeVerificationRequest(store, { emailAddress, requestId, verificationCode, purpose = "signup" }) {
   const email = normalizeEmail(emailAddress);
-  const store = readStore();
+  pruneVerificationRequests(store);
   const request = store.verificationRequests[String(requestId || "")];
 
   if (!request) {
+    writeStore(store);
     throw new Error("Request a fresh verification code before creating the account.");
   }
 
   if (request.purpose !== purpose || request.emailAddress !== email) {
+    writeStore(store);
     throw new Error("This verification code does not match the email you entered.");
   }
 
@@ -152,11 +172,11 @@ function consumeVerificationRequest({ emailAddress, requestId, verificationCode,
   }
 
   if (String(verificationCode || "").trim() !== String(request.code)) {
+    writeStore(store);
     throw new Error("That verification code is incorrect.");
   }
 
   delete store.verificationRequests[String(requestId || "")];
-  writeStore(store);
 }
 
 exports.createAccount = ({
@@ -175,7 +195,7 @@ exports.createAccount = ({
     throw new Error("An account with that email already exists.");
   }
 
-  consumeVerificationRequest({
+  consumeVerificationRequest(store, {
     emailAddress: email,
     requestId: verificationRequestId,
     verificationCode,
