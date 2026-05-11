@@ -1,4 +1,5 @@
 const { createVerificationRequest } = require("../_lib/account-store.js");
+const { hasEmailProvider, sendVerificationEmail } = require("../_lib/email.js");
 
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
@@ -16,18 +17,32 @@ module.exports = async (req, res) => {
   try {
     const body = req.body || {};
     const emailAddress = String(body.emailAddress || "").trim();
+    const firstName = String(body.firstName || "").trim();
     const result = createVerificationRequest({
       emailAddress,
       purpose: "signup"
     });
+
+    let deliveryMode = "prototype_preview";
+    let previewCode = result.previewCode;
+
+    if (hasEmailProvider()) {
+      await sendVerificationEmail({
+        emailAddress,
+        firstName,
+        verificationCode: result.previewCode
+      });
+      deliveryMode = "email";
+      previewCode = "";
+    }
 
     return sendJson(res, 200, {
       ok: true,
       requestId: result.requestId,
       maskedEmail: result.maskedEmail,
       expiresAt: result.expiresAt,
-      previewCode: result.previewCode,
-      deliveryMode: "prototype_preview"
+      previewCode,
+      deliveryMode
     });
   } catch (error) {
     return sendJson(res, 200, {

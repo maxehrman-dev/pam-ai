@@ -851,6 +851,7 @@ async function handleLogin(event) {
 async function handleSendVerificationCode() {
   const draft = ensureAccountDraft();
   const emailAddress = String(draft.emailAddress || "").trim();
+  const firstName = String(draft.firstName || "").trim();
 
   if (!emailAddress) {
     state.status = "Add your email first so PAM knows where to send the verification code.";
@@ -864,7 +865,8 @@ async function handleSendVerificationCode() {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      emailAddress
+      emailAddress,
+      firstName
     })
   });
 
@@ -879,7 +881,7 @@ async function handleSendVerificationCode() {
   state.verificationPreviewCode = String(payload.previewCode || "");
   state.verificationExpiresAt = String(payload.expiresAt || "");
   state.status = payload.deliveryMode === "prototype_preview"
-    ? `Verification code generated for ${state.verificationMaskedEmail}.`
+    ? `Verification code generated for ${state.verificationMaskedEmail}. Email delivery is not configured yet, so PAM is showing the code here for now.`
     : `Verification code sent to ${state.verificationMaskedEmail}.`;
   render();
 }
@@ -1359,6 +1361,7 @@ function renderBaselinePanel() {
                         <div class="verification-copy">
                           <strong>${state.verificationMaskedEmail ? `Code destination: ${escapeHtml(state.verificationMaskedEmail)}` : "Send a code to unlock this step."}</strong>
                           <span>${state.verificationExpiresAt ? `Expires at ${new Date(state.verificationExpiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Verification codes expire after 10 minutes."}</span>
+                          <span>${state.verificationPreviewCode ? "Email delivery is not configured, so PAM is showing the code here in prototype mode." : "If email delivery is configured, the code is sent to your inbox."}</span>
                           ${state.verificationPreviewCode ? `<span>Prototype preview code: <strong>${escapeHtml(state.verificationPreviewCode)}</strong></span>` : ""}
                         </div>
                       </div>

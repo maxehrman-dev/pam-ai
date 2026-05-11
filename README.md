@@ -33,6 +33,12 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - For local development, use `.env.local`
 - For Vercel production, set `OPENAI_API_KEY` in the project environment settings
 
+## Verification email configuration
+
+- Account verification codes can send through Resend when configured
+- Set `RESEND_API_KEY` and `PAM_FROM_EMAIL` in `.env.local` or Vercel project settings
+- If those variables are missing, PAM falls back to prototype preview mode and shows the code in the UI instead of emailing it
+
 ## Stack
 
 - Native ES modules
