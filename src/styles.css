@@ -704,6 +704,17 @@ input:disabled {
   font-weight: 700;
 }
 
+.auth-status-message {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 224, 220, 0.72);
+  border: 1px solid rgba(143, 31, 31, 0.14);
+  color: #8f1f1f;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
 .verification-panel {
   display: grid;
   gap: 12px;

@@ -33,7 +33,7 @@ const CREATE_ACCOUNT_STEPS = [
   {
     key: "firstName",
     label: "What should PAM call you?",
-    detail: "This is what shows up on your homepage.",
+    detail: "",
     type: "text",
     placeholder: "Maya",
     required: true,
@@ -42,7 +42,7 @@ const CREATE_ACCOUNT_STEPS = [
   {
     key: "emailAddress",
     label: "What email should you sign in with?",
-    detail: "PAM uses this as your account identity in the prototype.",
+    detail: "",
     type: "email",
     placeholder: "you@example.com",
     required: true,
@@ -51,7 +51,7 @@ const CREATE_ACCOUNT_STEPS = [
   {
     key: "verificationCode",
     label: "Enter the verification code",
-    detail: "PAM requires a six-digit verification code before the account can be created.",
+    detail: "",
     type: "text",
     placeholder: "123456",
     required: true,
@@ -60,7 +60,7 @@ const CREATE_ACCOUNT_STEPS = [
   {
     key: "password",
     label: "Create a password",
-    detail: "Use at least 8 characters.",
+    detail: "",
     type: "password",
     placeholder: "At least 8 characters",
     required: true,
@@ -69,7 +69,7 @@ const CREATE_ACCOUNT_STEPS = [
   {
     key: "confirmPassword",
     label: "Confirm your password",
-    detail: "Repeat the same password once so PAM knows it matches.",
+    detail: "",
     type: "password",
     placeholder: "Repeat password",
     required: true,
@@ -78,7 +78,7 @@ const CREATE_ACCOUNT_STEPS = [
   {
     key: "age",
     label: "How old are you?",
-    detail: "Optional. PAM uses age to think about runway and compounding time.",
+    detail: "",
     type: "number",
     placeholder: "24",
     required: false,
@@ -89,7 +89,7 @@ const CREATE_ACCOUNT_STEPS = [
   {
     key: "employmentStatus",
     label: "How do you earn money right now?",
-    detail: "This helps PAM frame taxes, deductions, and income structure.",
+    detail: "",
     type: "select",
     required: true,
     options: ["W-2 employee", "1099 / self-employed", "Student worker", "Mixed income", "Not sure yet"]
@@ -97,7 +97,7 @@ const CREATE_ACCOUNT_STEPS = [
   {
     key: "stateCode",
     label: "What state should PAM start with?",
-    detail: "Optional. PAM can refine tax assumptions later.",
+    detail: "",
     type: "select",
     required: false,
     options: ["OTHER", "CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN"]
@@ -238,7 +238,7 @@ function validateAccountStep(stepIndex = state.createAccountStep, draft = ensure
   }
 
   if (step.key === "confirmPassword" && value !== String(draft.password || "")) {
-    return "Your password confirmation does not match yet.";
+    return "Passwords don't match.";
   }
 
   if (step.key === "verificationCode") {
@@ -766,7 +766,7 @@ async function handleCreateAccount(event) {
   }
 
   if (password !== confirmPassword) {
-    state.status = "Your password confirmation does not match yet.";
+    state.status = "Passwords don't match.";
     render();
     return;
   }
@@ -1366,6 +1366,7 @@ function renderBaselinePanel() {
                         </div>
                       </div>
                     ` : ""}
+                    ${state.status ? `<p class="auth-status-message">${escapeHtml(state.status)}</p>` : ""}
                     <div class="wizard-hint">
                       ${step.required ? "Required for account setup." : "Optional. You can come back to this later."}
                     </div>
@@ -1388,6 +1389,7 @@ function renderBaselinePanel() {
                       <label><span>Email</span><small>Use the same email you registered with.</small><input type="email" name="loginEmailAddress" placeholder="you@example.com" autocomplete="email" /></label>
                       <label><span>Password</span><small>Your PAM password.</small><input type="password" name="loginPassword" placeholder="Password" autocomplete="current-password" /></label>
                     </div>
+                    ${state.status ? `<p class="auth-status-message">${escapeHtml(state.status)}</p>` : ""}
                     <div class="form-actions">
                       <button class="button button-primary" type="submit">Sign in</button>
                     </div>
