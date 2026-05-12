@@ -123,6 +123,7 @@ const state = {
   result: null,
   aiGuidance: null,
   status: "",
+  statusScope: "",
   inlineGoalError: "",
   waitlistOpen: false,
   waitlistJoined: false,
@@ -134,6 +135,22 @@ const state = {
 };
 
 let isStarted = false;
+
+function setStatus(message, scope = "account") {
+  state.status = message;
+  state.statusScope = message ? scope : "";
+}
+
+function clearStatus(scope = "") {
+  if (!scope || state.statusScope === scope) {
+    state.status = "";
+    state.statusScope = "";
+  }
+}
+
+function getStatus(scope) {
+  return state.statusScope === scope ? state.status : "";
+}
 
 function saveBaseline(baseline) {
   state.baseline = persistBaseline(baseline);
@@ -270,7 +287,7 @@ function resetBaseline() {
     saveBaseline(syncAccountIntoBaseline(state.account, getEmptyBaseline()));
   }
   saveWorkspaceView("account");
-  state.status = "Baseline reset. Your account stays saved on this device, but PAM will wait for a fresh Sandbox connection.";
+  setStatus("Baseline reset. Connect Sandbox data again when ready.", "account");
   state.result = null;
   state.aiGuidance = null;
   state.inlineGoalError = "";
@@ -361,7 +378,7 @@ async function restoreSessionAccount() {
   if (!state.sessionToken) return null;
   const { payload, error } = await requestJson(`/api/account/session?sessionToken=${encodeURIComponent(state.sessionToken)}`);
   if (error) {
-    state.status = "PAM could not confirm your saved session right now. Try again in a moment.";
+    setStatus("Could not confirm your saved session. Try again in a moment.", "account");
     return state.account;
   }
   if (!payload?.ok || !payload?.account) {
@@ -392,7 +409,7 @@ async function logoutAccount() {
   state.verificationMaskedEmail = "";
   state.verificationExpiresAt = "";
   saveWorkspaceView("landing");
-  state.status = "Signed out.";
+  clearStatus();
   render();
 }
 
@@ -653,19 +670,19 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   saveWorkspaceView("dashboard");
   state.result = analyzeQuestion(question);
   state.aiGuidance = null;
-  state.status = `${statusMessage} PAM advisor is refining the explanation...`;
+  setStatus(`${statusMessage} PAM advisor is refining the explanation...`, "decision");
   render();
 
   try {
     const guidance = await requestDecisionGuidance(question, state.result);
     if (guidance?.guidance) {
       state.aiGuidance = guidance;
-      state.status = "Decision analyzed with your baseline and server-side AI guidance.";
+      setStatus("Decision analyzed with your baseline and server-side AI guidance.", "decision");
     } else {
-      state.status = statusMessage;
+      setStatus(statusMessage, "decision");
     }
   } catch (_error) {
-    state.status = statusMessage;
+    setStatus(statusMessage, "decision");
   }
 
   render();
@@ -766,19 +783,19 @@ async function handleCreateAccount(event) {
   const stateCode = String(draft.stateCode || "OTHER");
 
   if (!firstName || !emailAddress || !password) {
-    state.status = "Add your first name, email, and password before PAM creates the account shell.";
+    setStatus("Add your first name, email, and password before PAM creates the account shell.", "account");
     render();
     return;
   }
 
   if (password.length < 8) {
-    state.status = "Use at least 8 characters for the prototype password.";
+    setStatus("Use at least 8 characters for the prototype password.", "account");
     render();
     return;
   }
 
   if (password !== confirmPassword) {
-    state.status = "Passwords don't match.";
+    setStatus("Passwords don't match.", "account");
     render();
     return;
   }
@@ -801,7 +818,7 @@ async function handleCreateAccount(event) {
   });
 
   if (error || !payload?.ok) {
-    state.status = payload?.error || error || "Unable to create account.";
+    setStatus(payload?.error || error || "Unable to create account.", "account");
     render();
     return;
   }
@@ -816,7 +833,7 @@ async function handleCreateAccount(event) {
   state.verificationWarning = "";
   state.verificationMaskedEmail = "";
   state.verificationExpiresAt = "";
-  state.status = "Account created. Connect a Sandbox account next to unlock the dashboard.";
+  setStatus("Account created. Connect Sandbox data next.", "account");
   saveAuthView("signin");
   saveWorkspaceView("account");
   render();
@@ -829,7 +846,7 @@ async function handleLogin(event) {
   const password = String(formData.get("loginPassword") || "");
 
   if (!emailAddress || !password) {
-    state.status = "Add your email and password to sign in.";
+    setStatus("Add your email and password to sign in.", "account");
     render();
     return;
   }
@@ -846,7 +863,7 @@ async function handleLogin(event) {
   });
 
   if (error || !payload?.ok) {
-    state.status = payload?.error || error || "Unable to sign in.";
+    setStatus(payload?.error || error || "Unable to sign in.", "account");
     render();
     return;
   }
@@ -855,7 +872,7 @@ async function handleLogin(event) {
   state.account = payload.account;
   saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
   state.aiGuidance = null;
-  state.status = "Signed in. Connect Sandbox data to finish your dashboard.";
+  setStatus("Signed in. Connect Sandbox data to finish your dashboard.", "account");
   saveAuthView("signin");
   saveWorkspaceView("account");
   render();
@@ -869,7 +886,7 @@ async function handleSendVerificationCode(options = {}) {
 
   if (!emailAddress) {
     if (!quiet) {
-      state.status = "Add your email first.";
+      setStatus("Add your email first.", "account");
       render();
     }
     return;
@@ -887,7 +904,7 @@ async function handleSendVerificationCode(options = {}) {
   });
 
   if (error || !payload?.ok) {
-    state.status = payload?.error || error || "Could not send code.";
+    setStatus(payload?.error || error || "Could not send code.", "account");
     render();
     return;
   }
@@ -897,7 +914,7 @@ async function handleSendVerificationCode(options = {}) {
   state.verificationPreviewCode = String(payload.previewCode || "");
   state.verificationWarning = String(payload.warning || "");
   state.verificationExpiresAt = String(payload.expiresAt || "");
-  state.status = payload.deliveryMode === "prototype_preview" ? "Code ready." : "Code sent.";
+  setStatus(payload.deliveryMode === "prototype_preview" ? "Code ready." : "Code sent.", "account");
   render();
 }
 
@@ -913,7 +930,7 @@ function handleAuthModeClick(event) {
     state.verificationMaskedEmail = "";
     state.verificationExpiresAt = "";
   }
-  state.status = "";
+  clearStatus("account");
   render();
 }
 
@@ -922,16 +939,16 @@ async function handleCreateAccountNext(event) {
   saveCurrentStepValue(form);
   const error = validateAccountStep();
   if (error) {
-    state.status = error;
+    setStatus(error, "account");
     render();
     return;
   }
   state.createAccountStep = Math.min(state.createAccountStep + 1, CREATE_ACCOUNT_STEPS.length - 1);
-  state.status = "";
+  clearStatus("account");
   const nextStep = getCreateAccountStepConfig();
   const draft = ensureAccountDraft();
   if (nextStep.key === "verificationCode" && !draft.verificationRequestId) {
-    state.status = "Sending code.";
+    setStatus("Sending code.", "account");
     render();
     await handleSendVerificationCode({ quiet: true });
     return;
@@ -943,7 +960,7 @@ function handleCreateAccountBack(event) {
   const form = event.currentTarget.closest("form");
   saveCurrentStepValue(form);
   state.createAccountStep = Math.max(state.createAccountStep - 1, 0);
-  state.status = "";
+  clearStatus("account");
   render();
 }
 
@@ -954,13 +971,13 @@ function handleCreateAccountSubmitClick(event) {
 
 async function handleSandboxSampleData() {
   if (!hasPrototypeAccount()) {
-    state.status = "Create your account first, then load Sandbox data.";
+    setStatus("Create your account first, then load Sandbox data.", "account");
     render();
     return;
   }
   const sandboxPayload = loadSandboxFallback(state.baseline);
   saveBaseline(sandboxPayload.baseline);
-  state.status = sandboxPayload.status;
+  setStatus(sandboxPayload.status, "account");
   state.inlineGoalError = "";
   if (hasCompletedBaseline(state.baseline)) {
     await runDecisionAnalysis(state.question, sandboxPayload.status);
@@ -971,26 +988,26 @@ async function handleSandboxSampleData() {
 
 async function handleConnectSandboxAccount() {
   if (!hasPrototypeAccount()) {
-    state.status = "Create your account first, then connect Sandbox data.";
+    setStatus("Create your account first, then connect Sandbox data.", "account");
     render();
     return;
   }
   state.plaidBusy = true;
-  state.status = "Connecting Sandbox account...";
+  setStatus("Connecting Sandbox account...", "account");
   render();
 
   try {
     const payload = await connectSandboxAccount(state.baseline.profile);
     saveBaseline(payload.baseline);
-    state.status = payload.status;
+    setStatus(payload.status, "account");
     state.inlineGoalError = "";
     await runDecisionAnalysis(state.question, payload.status);
   } catch (error) {
     const fallbackPayload = loadSandboxFallback(state.baseline);
     saveBaseline(fallbackPayload.baseline);
-    state.status = error instanceof Error && error.message
+    setStatus(error instanceof Error && error.message
       ? `${error.message} ${fallbackPayload.status}`
-      : fallbackPayload.status;
+      : fallbackPayload.status, "account");
     state.inlineGoalError = "";
     await runDecisionAnalysis(state.question, fallbackPayload.status);
   } finally {
@@ -1008,7 +1025,7 @@ async function handleQuestionSubmit(event) {
     saveWorkspaceView("account");
     state.result = null;
     state.aiGuidance = null;
-    state.status = "Connect Sandbox data first so PAM can calculate this against your real inputs.";
+    setStatus("Connect Sandbox data first so PAM can calculate this against your real inputs.", "account");
     render();
     return;
   }
@@ -1039,9 +1056,9 @@ function handleSectionScroll(target) {
 function openWorkspaceView(view) {
   if (view === "dashboard" && !canAccessDashboard()) {
     saveWorkspaceView(hasPrototypeAccount() ? "account" : "landing");
-    state.status = hasPrototypeAccount()
+    setStatus(hasPrototypeAccount()
       ? "Connect Sandbox data before opening the dashboard."
-      : "Create an account before opening the dashboard.";
+      : "Create an account before opening the dashboard.", "account");
   }
   else {
     saveWorkspaceView(view);
@@ -1603,7 +1620,7 @@ function renderBaselinePanel() {
                         ${draft.verificationRequestId ? `<button class="button button-secondary verification-resend-button" type="button" data-send-verification-code>Resend</button>` : ""}
                       </div>
                     ` : ""}
-                    ${state.status ? `<p class="auth-status-message">${escapeHtml(state.status)}</p>` : ""}
+                    ${getStatus("account") ? `<p class="auth-status-message">${escapeHtml(getStatus("account"))}</p>` : ""}
                     <div class="form-actions">
                       ${state.createAccountStep > 0 ? `<button class="button button-secondary" type="button" data-create-back>Back</button>` : `<button class="button button-secondary" type="button" data-open-view="landing">Cancel</button>`}
                       ${isLastStep
@@ -1619,7 +1636,7 @@ function renderBaselinePanel() {
                       <label><span>Email</span><input type="email" name="loginEmailAddress" placeholder="you@example.com" autocomplete="email" /></label>
                       <label><span>Password</span><input type="password" name="loginPassword" placeholder="Password" autocomplete="current-password" /></label>
                     </div>
-                    ${state.status ? `<p class="auth-status-message">${escapeHtml(state.status)}</p>` : ""}
+                    ${getStatus("account") ? `<p class="auth-status-message">${escapeHtml(getStatus("account"))}</p>` : ""}
                     <div class="form-actions">
                       <button class="button button-primary" type="submit">Sign in</button>
                     </div>
@@ -1658,7 +1675,7 @@ function renderDecisionPanel() {
           "What happens if I switch from W-2 to 1099 work?"
         ].map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
       </div>
-      ${state.status ? `<p class="foresee-status">${escapeHtml(state.status)}</p>` : ""}
+      ${getStatus("decision") ? `<p class="foresee-status">${escapeHtml(getStatus("decision"))}</p>` : ""}
     </section>
   `;
 }
@@ -1862,7 +1879,7 @@ function wireInteractions() {
         saveWorkspaceView("account");
         state.result = null;
         state.aiGuidance = null;
-        state.status = "Prompt saved. Finish account setup first so PAM can analyze it against your baseline.";
+        setStatus("Prompt saved. Finish account setup first so PAM can analyze it against your baseline.", "account");
         render();
       }
     });
