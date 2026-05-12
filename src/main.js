@@ -127,6 +127,7 @@ const state = {
   inlineGoalError: "",
   waitlistOpen: false,
   waitlistJoined: false,
+  waitlistMessage: "",
   verificationPreviewCode: "",
   verificationWarning: "",
   verificationMaskedEmail: "",
@@ -1447,14 +1448,146 @@ function renderDashboardWorkspace() {
 
   return `
     <div class="workspace-guide-grid compact-workspace-view" id="dashboard-section">
-      ${renderAccountPreview()}
-      ${renderDashboardSummary()}
+      ${renderDailyDashboardHome()}
       ${renderConnectedInsights()}
       <div class="workspace-grid-simulator">
         ${renderDecisionPanel()}
         ${renderResult()}
       </div>
     </div>
+  `;
+}
+
+function getProgressPercent(current, target) {
+  const safeTarget = Math.max(toNumber(target), 1);
+  return Math.max(4, Math.min(100, Math.round((toNumber(current) / safeTarget) * 100)));
+}
+
+function renderDailyDashboardHome() {
+  const ui = getUiBaseline(state.baseline);
+  const connectedAccounts = getConnectedAccounts(state.baseline);
+  const topExpenses = getTopConnectedExpenses(state.baseline, 4);
+  const liabilities = state.baseline.obligations?.liabilities || [];
+  const currentSavings = getCurrentSavings(state.baseline);
+  const monthlyBuffer = getMonthlyBuffer(state.baseline);
+  const monthlyExpenses = getMonthlyExpenses(state.baseline);
+  const obligations = getMonthlyObligations(state.baseline);
+  const investmentBalance = connectedAccounts
+    .filter((account) => String(account.type || "").includes("investment"))
+    .reduce((sum, account) => sum + Number(account.current || 0), 0);
+  const checkingBalance = connectedAccounts
+    .filter((account) => String(account.type || "").includes("checking"))
+    .reduce((sum, account) => sum + Number(account.available ?? account.current ?? 0), 0);
+  const netWorth = Math.max(currentSavings + checkingBalance + investmentBalance - obligations * 18, 0);
+  const goalLabel = getGoalLabel(state.baseline) || "Move-out fund";
+  const goalTarget = Math.max(toNumber(state.baseline.goals.goalTargetAmount), currentSavings + 1);
+  const emergencyTarget = Math.max(Math.round(monthlyExpenses * 3), 1);
+  const retirementStarter = Math.max(Math.round((investmentBalance || 1800) / 0.3), 6000);
+  const spendingPlan = Math.max(monthlyExpenses + 120, 1);
+  const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
+  const underPlan = Math.max(spendingPlan - monthlyExpenses, 0);
+  const chartPoints = [30, 34, 42, 48, 57, 66, 78, 92];
+  const askPrompts = [
+    "Can I afford a $400 car payment?",
+    "Am I on track to move out this year?",
+    "Should I start a Roth IRA now?"
+  ];
+  const expenseRows = topExpenses.length ? topExpenses : [
+    { name: "Housing", amount: Math.round(monthlyExpenses * 0.46), category: "fixed" },
+    { name: "Food & drink", amount: Math.round(monthlyExpenses * 0.2), category: "monthly" },
+    { name: "Transport", amount: Math.round(monthlyExpenses * 0.13), category: "monthly" },
+    { name: "Other", amount: Math.round(monthlyExpenses * 0.21), category: "flex" }
+  ];
+  const colors = ["#1e9f78", "#3b82d6", "#c27a13", "#d4507d"];
+
+  return `
+    <section class="daily-home-shell" id="daily-home">
+      <aside class="daily-column daily-advisor-card">
+        <div>
+          <div class="panel-kicker">Today</div>
+          <h2>Hi ${escapeHtml(ui.firstName || "there")}</h2>
+          <p>Here’s what changed in your money.</p>
+        </div>
+        <div class="daily-update-list">
+          <div class="daily-update">
+            <span class="daily-icon mint">↗</span>
+            <div><strong>Monthly buffer ${monthlyBuffer >= 0 ? "up" : "down"} to ${formatCurrency(monthlyBuffer)}</strong><p>${monthlyBuffer >= 500 ? "You have room to test decisions." : "Keep decisions conservative until buffer improves."}</p></div>
+          </div>
+          <div class="daily-update">
+            <span class="daily-icon blue">⌂</span>
+            <div><strong>${escapeHtml(goalLabel)} ${currentSavings >= goalTarget ? "funded" : "in progress"}</strong><p>${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}</p></div>
+          </div>
+          <div class="daily-update">
+            <span class="daily-icon amber">▤</span>
+            <div><strong>Spending ${formatCurrency(underPlan)} under plan</strong><p>${spendingPercent}% of ${formatCurrency(spendingPlan)} plan used.</p></div>
+          </div>
+        </div>
+        <div class="ask-pam-card">
+          <h3>Ask PAM</h3>
+          ${askPrompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)} ↗</button>`).join("")}
+          <form class="ask-pam-mini-form" data-question-form>
+            <input name="question" placeholder="Ask anything..." />
+            <button type="submit" aria-label="Analyze question">↗</button>
+          </form>
+        </div>
+      </aside>
+
+      <div class="daily-main-card">
+        <div class="daily-chart-header">
+          <div>
+            <div class="panel-kicker">Net worth</div>
+            <h2>${formatCurrency(netWorth)}</h2>
+            <p><strong>↗ ${formatCurrency(Math.max(monthlyBuffer, 0))}</strong> monthly buffer after goals</p>
+          </div>
+          <div class="daily-range-tabs"><span>1M</span><strong>3M</strong><span>6M</span><span>1Y</span><span>All</span></div>
+        </div>
+        <div class="daily-chart" aria-hidden="true">
+          ${chartPoints.map((point) => `<span style="height:${point}%"></span>`).join("")}
+        </div>
+        <div class="daily-metric-strip">
+          <div><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${getProgressPercent(currentSavings, netWorth)}% of net worth</small></div>
+          <div><span>Checking</span><strong>${formatCurrency(checkingBalance)}</strong><small>Available</small></div>
+          <div><span>Monthly buffer</span><strong>${formatCurrency(monthlyBuffer)}</strong><small>After goals</small></div>
+        </div>
+
+        <div class="daily-spending-card">
+          <div class="spending-header">
+            <div><h3>This month’s spending</h3><p>${formatCurrency(monthlyExpenses)} of ${formatCurrency(spendingPlan)} plan · ${spendingPercent}%</p></div>
+            <strong>${formatCurrency(underPlan)} under plan</strong>
+          </div>
+          <div class="spending-list">
+            ${expenseRows.slice(0, 4).map((item, index) => `
+              <div class="spending-row">
+                <span class="spending-dot" style="background:${colors[index % colors.length]}"></span>
+                <strong>${escapeHtml(item.name)}</strong>
+                <em>${formatCurrency(item.amount)}</em>
+                <i><b style="width:${Math.min(100, Math.round((toNumber(item.amount) / spendingPlan) * 100))}%; background:${colors[index % colors.length]}"></b></i>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+
+      <aside class="daily-column">
+        <div class="daily-side-card">
+          <h3>Your goals</h3>
+          <div class="goal-row"><strong>${escapeHtml(goalLabel)}</strong><span><b style="width:${getProgressPercent(currentSavings, goalTarget)}%"></b></span><p>${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}</p></div>
+          <div class="goal-row blue"><strong>Emergency fund</strong><span><b style="width:${getProgressPercent(currentSavings, emergencyTarget)}%"></b></span><p>${formatCurrency(Math.min(currentSavings, emergencyTarget))} of ${formatCurrency(emergencyTarget)}</p></div>
+          <div class="goal-row amber"><strong>Roth IRA starter</strong><span><b style="width:${getProgressPercent(investmentBalance || 1800, retirementStarter)}%"></b></span><p>${formatCurrency(investmentBalance || 1800)} of ${formatCurrency(retirementStarter)}</p></div>
+        </div>
+        <div class="daily-side-card insights-stack">
+          <h3>PAM insights</h3>
+          <div class="insight-pill good"><strong>On track</strong><p>${escapeHtml(goalLabel)} is moving forward at your current savings rate.</p></div>
+          <div class="insight-pill warn"><strong>Watch out</strong><p>A $400 car payment could delay ${escapeHtml(goalLabel.toLowerCase())} by several months.</p></div>
+          <div class="insight-pill info"><strong>Opportunity</strong><p>$200/mo invested early could materially change your long-term options.</p></div>
+        </div>
+        <div class="daily-side-card">
+          <h3>Liabilities</h3>
+          <p>${liabilities.length ? `${liabilities.length} connected liabilities · ${formatCurrency(getMonthlyObligations(state.baseline))}/mo minimums.` : "No connected liabilities detected."}</p>
+          <button type="button" data-question-example="Should I pay down debt faster?">Should I pay these off faster? ↗</button>
+        </div>
+      </aside>
+    </section>
   `;
 }
 
@@ -1795,13 +1928,14 @@ function renderWaitlistModal() {
       <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="Join PAM waitlist">
         <div class="panel-kicker">PAM waitlist</div>
         <h2>${state.waitlistJoined ? "You’re on the list." : "Join the early access list."}</h2>
-        <p>${state.waitlistJoined ? "We saved your interest for this browser session." : "Get updates as PAM moves from prototype to private beta."}</p>
+        <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || "You’re on the list.") : "Get updates as PAM moves from prototype to private beta."}</p>
         ${state.waitlistJoined ? "" : `
           <form class="profile-form" data-waitlist-form>
             <label><span>Email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
             <button class="button button-primary" type="submit">Join waitlist</button>
           </form>
         `}
+        ${!state.waitlistJoined && state.waitlistMessage ? `<p class="auth-status-message">${escapeHtml(state.waitlistMessage)}</p>` : ""}
         <button class="button button-secondary" type="button" data-close-waitlist-button>Close</button>
       </div>
     </div>
@@ -1848,10 +1982,40 @@ function render() {
 function wireInteractions() {
   document.querySelector("[data-account-form]")?.addEventListener("submit", handleCreateAccount);
   document.querySelector("[data-login-form]")?.addEventListener("submit", handleLogin);
-  document.querySelector("[data-question-form]")?.addEventListener("submit", handleQuestionSubmit);
-  document.querySelector("[data-waitlist-form]")?.addEventListener("submit", (event) => {
+  document.querySelectorAll("[data-question-form]").forEach((form) => {
+    form.addEventListener("submit", handleQuestionSubmit);
+  });
+  document.querySelector("[data-waitlist-form]")?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const emailAddress = String(formData.get("waitlistEmail") || "").trim();
+    if (!emailAddress) {
+      state.waitlistMessage = "Add your email first.";
+      render();
+      return;
+    }
+    state.waitlistMessage = "Joining waitlist...";
+    render();
+
+    const { payload, error } = await requestJson("/api/waitlist", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ emailAddress })
+    });
+
+    if (error || !payload?.ok) {
+      state.waitlistJoined = false;
+      state.waitlistMessage = payload?.error || error || "Could not join the waitlist.";
+      render();
+      return;
+    }
+
     state.waitlistJoined = true;
+    state.waitlistMessage = payload.deliveryMode === "email"
+      ? "Check your inbox for confirmation."
+      : "You’re on the list.";
     render();
   });
   document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
@@ -1864,6 +2028,7 @@ function wireInteractions() {
   document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
   document.querySelector("[data-open-waitlist]")?.addEventListener("click", () => {
     state.waitlistOpen = true;
+    state.waitlistMessage = "";
     render();
   });
   document.querySelector("[data-close-waitlist-button]")?.addEventListener("click", () => {

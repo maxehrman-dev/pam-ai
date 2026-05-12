@@ -38,6 +38,10 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 
 - Account verification codes can send through Resend when configured
 - Set `RESEND_API_KEY` and `PAM_FROM_EMAIL` in `.env.local` or Vercel project settings
+- `PAM_FROM_EMAIL` must be an address on a verified Resend domain, such as `PAM AI <hello@yourdomain.com>`, before Resend will send to arbitrary user emails
+- `onboarding@resend.dev` is Resend's testing sender and can only send to the verified owner email on the Resend account
+- Optional: set `WAITLIST_NOTIFY_EMAIL` to the inbox that should receive new waitlist signup notifications
+- The waitlist endpoint sends a notification email plus a confirmation email when the Resend sender is allowed to deliver broadly
 - If those variables are missing, PAM falls back to prototype preview mode and shows the code in the UI instead of emailing it
 - Keep email provider credentials server-side only and rotate them immediately if they were ever exposed
 

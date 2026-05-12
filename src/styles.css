@@ -1387,6 +1387,352 @@ input:disabled {
   margin-top: 0;
 }
 
+.daily-home-shell {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(420px, 1.18fr) minmax(260px, 0.78fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.daily-column,
+.daily-main-card,
+.daily-side-card {
+  min-width: 0;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+  box-shadow: var(--shadow-soft);
+}
+
+.daily-column {
+  display: grid;
+  gap: 16px;
+}
+
+.daily-advisor-card,
+.daily-main-card,
+.daily-side-card {
+  padding: 22px;
+}
+
+.daily-advisor-card h2,
+.daily-main-card h2 {
+  margin: 6px 0 8px;
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  letter-spacing: -0.06em;
+  line-height: 0.92;
+}
+
+.daily-advisor-card p,
+.daily-main-card p,
+.daily-side-card p {
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.daily-update-list {
+  display: grid;
+}
+
+.daily-update {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px 0;
+  border-top: 1px solid rgba(30, 138, 102, 0.12);
+}
+
+.daily-update:first-child {
+  border-top: 0;
+}
+
+.daily-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  font-weight: 950;
+}
+
+.daily-icon.mint {
+  color: var(--mint-5);
+  background: rgba(216, 243, 229, 0.9);
+}
+
+.daily-icon.blue {
+  color: #0b4a85;
+  background: rgba(218, 236, 255, 0.9);
+}
+
+.daily-icon.amber {
+  color: #724006;
+  background: rgba(255, 237, 199, 0.95);
+}
+
+.daily-update strong,
+.daily-side-card h3,
+.ask-pam-card h3 {
+  color: var(--ink-5);
+  font-size: 1.18rem;
+}
+
+.daily-update p,
+.daily-side-card p {
+  margin: 6px 0 0;
+}
+
+.ask-pam-card {
+  display: grid;
+  gap: 10px;
+}
+
+.ask-pam-card button,
+.daily-side-card button {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 16px;
+  text-align: left;
+  color: var(--ink-4);
+  background: rgba(246, 239, 226, 0.62);
+  border: 1px solid rgba(12, 21, 18, 0.1);
+  font-weight: 850;
+}
+
+.ask-pam-mini-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px;
+  gap: 10px;
+}
+
+.ask-pam-mini-form input {
+  min-width: 0;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(30, 138, 102, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.ask-pam-mini-form button {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 1.4rem;
+}
+
+.daily-chart-header,
+.spending-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.daily-chart-header p {
+  margin: 0;
+}
+
+.daily-chart-header p strong,
+.spending-header > strong {
+  color: var(--mint-5);
+}
+
+.daily-range-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--ink-3);
+  font-weight: 900;
+}
+
+.daily-range-tabs span,
+.daily-range-tabs strong {
+  padding: 9px 13px;
+  border-radius: 999px;
+}
+
+.daily-range-tabs strong {
+  background: rgba(246, 239, 226, 0.88);
+  border: 1px solid rgba(12, 21, 18, 0.08);
+}
+
+.daily-chart {
+  height: 260px;
+  margin: 22px 0;
+  padding: 20px;
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, transparent 0 24%, rgba(30, 138, 102, 0.08) 24% 25%, transparent 25% 49%, rgba(30, 138, 102, 0.08) 49% 50%, transparent 50% 74%, rgba(30, 138, 102, 0.08) 74% 75%, transparent 75%),
+    linear-gradient(180deg, rgba(216, 243, 229, 0.2), rgba(255, 255, 255, 0.4));
+}
+
+.daily-chart span {
+  flex: 1;
+  border-radius: 999px 999px 8px 8px;
+  background: linear-gradient(180deg, var(--mint-4), rgba(216, 243, 229, 0.32));
+  box-shadow: 0 14px 24px rgba(30, 138, 102, 0.12);
+}
+
+.daily-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.daily-metric-strip div {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(246, 239, 226, 0.68);
+}
+
+.daily-metric-strip span,
+.daily-metric-strip strong,
+.daily-metric-strip small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.daily-metric-strip span {
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 900;
+}
+
+.daily-metric-strip strong {
+  margin-top: 5px;
+  color: var(--ink-5);
+  font-size: 1.45rem;
+  letter-spacing: -0.04em;
+}
+
+.daily-metric-strip small {
+  color: var(--ink-3);
+}
+
+.daily-spending-card {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(30, 138, 102, 0.12);
+}
+
+.spending-header h3,
+.daily-side-card h3 {
+  margin: 0;
+}
+
+.spending-header p {
+  margin: 3px 0 0;
+}
+
+.spending-list {
+  display: grid;
+  margin-top: 16px;
+}
+
+.spending-row {
+  display: grid;
+  grid-template-columns: 18px minmax(120px, 1fr) 86px minmax(100px, 140px);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.spending-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.spending-row strong {
+  color: var(--ink-4);
+}
+
+.spending-row em {
+  color: var(--ink-3);
+  font-style: normal;
+  text-align: right;
+}
+
+.spending-row i,
+.goal-row span {
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(12, 21, 18, 0.08);
+  overflow: hidden;
+}
+
+.spending-row i b,
+.goal-row span b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--mint-4);
+}
+
+.daily-side-card {
+  display: grid;
+  gap: 14px;
+}
+
+.goal-row {
+  display: grid;
+  gap: 7px;
+}
+
+.goal-row strong {
+  color: var(--ink-4);
+}
+
+.goal-row p {
+  margin: 0;
+}
+
+.goal-row.blue span b {
+  background: #3b82d6;
+}
+
+.goal-row.amber span b {
+  background: #c27a13;
+}
+
+.insights-stack {
+  gap: 12px;
+}
+
+.insight-pill {
+  padding: 16px;
+  border-radius: 20px;
+}
+
+.insight-pill strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 1.05rem;
+}
+
+.insight-pill.good {
+  color: #0d5843;
+  background: rgba(216, 243, 229, 0.86);
+}
+
+.insight-pill.warn {
+  color: #734006;
+  background: rgba(255, 237, 199, 0.86);
+}
+
+.insight-pill.info {
+  color: #0b4a85;
+  background: rgba(218, 236, 255, 0.86);
+}
+
 .connected-account-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 12px;
@@ -1446,6 +1792,7 @@ input:disabled {
 
 @media (max-width: 900px) {
   .foresee-layout,
+  .daily-home-shell,
   .onboarding-layout,
   .workspace-header,
   .pam-proof-grid,
@@ -1472,6 +1819,15 @@ input:disabled {
   .outcome-grid,
   .workspace-grid-simulator {
     grid-template-columns: 1fr;
+  }
+
+  .daily-metric-strip,
+  .spending-row {
+    grid-template-columns: 1fr;
+  }
+
+  .spending-row em {
+    text-align: left;
   }
 
   .credential-row,
