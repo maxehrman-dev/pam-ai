@@ -71,6 +71,56 @@ function generateId(prefix) {
   return `${prefix}_${crypto.randomBytes(12).toString("hex")}`;
 }
 
+function base64UrlEncode(value) {
+  return Buffer.from(String(value), "utf8").toString("base64url");
+}
+
+function base64UrlDecode(value) {
+  return Buffer.from(String(value), "base64url").toString("utf8");
+}
+
+function getVerificationSecret() {
+  return (
+    process.env.PAM_VERIFICATION_SECRET ||
+    process.env.SESSION_SECRET ||
+    process.env.RESEND_API_KEY ||
+    "pam-local-verification-secret"
+  );
+}
+
+function signPayload(payload) {
+  return crypto.createHmac("sha256", getVerificationSecret()).update(payload).digest("base64url");
+}
+
+function createVerificationToken({ emailAddress, purpose, code, expiresAt }) {
+  const payload = base64UrlEncode(JSON.stringify({
+    emailAddress: normalizeEmail(emailAddress),
+    purpose,
+    code,
+    expiresAt,
+    nonce: crypto.randomBytes(10).toString("hex")
+  }));
+  return `${payload}.${signPayload(payload)}`;
+}
+
+function readVerificationToken(token) {
+  const [payload, signature] = String(token || "").split(".");
+  if (!payload || !signature) return null;
+
+  const expected = signPayload(payload);
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(base64UrlDecode(payload));
+  } catch (_error) {
+    return null;
+  }
+}
+
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const hash = crypto.scryptSync(String(password || ""), salt, 64).toString("hex");
   return {
@@ -179,18 +229,53 @@ exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
     requestId,
     maskedEmail: maskEmail(email),
     expiresAt,
-    previewCode: code
+    previewCode: code,
+    verificationToken: createVerificationToken({
+      emailAddress: email,
+      purpose,
+      code,
+      expiresAt
+    })
   };
 };
 
-function consumeVerificationRequest(store, { emailAddress, requestId, verificationCode, purpose = "signup" }) {
+function consumeVerificationToken({ emailAddress, verificationCode, verificationToken, purpose }) {
+  const email = normalizeEmail(emailAddress);
+  const request = readVerificationToken(verificationToken);
+  if (!request) {
+    throw new Error("Verification expired. Send a new code.");
+  }
+
+  if (request.purpose !== purpose || request.emailAddress !== email) {
+    throw new Error("This verification code does not match the email you entered.");
+  }
+
+  if (new Date(request.expiresAt).getTime() < Date.now()) {
+    throw new Error("Verification expired. Send a new code.");
+  }
+
+  if (String(verificationCode || "").trim() !== String(request.code)) {
+    throw new Error("That verification code is incorrect.");
+  }
+}
+
+function consumeVerificationRequest(store, { emailAddress, requestId, verificationCode, verificationToken = "", purpose = "signup" }) {
   const email = normalizeEmail(emailAddress);
   pruneVerificationRequests(store);
   const request = store.verificationRequests[String(requestId || "")];
 
   if (!request) {
     writeStore(store);
-    throw new Error("Request a fresh verification code before creating the account.");
+    if (!verificationToken) {
+      throw new Error("Request a fresh verification code before creating the account.");
+    }
+    consumeVerificationToken({
+      emailAddress: email,
+      verificationCode,
+      verificationToken,
+      purpose
+    });
+    return;
   }
 
   if (request.purpose !== purpose || request.emailAddress !== email) {
@@ -220,7 +305,8 @@ exports.createAccount = ({
   employmentStatus,
   stateCode,
   verificationRequestId,
-  verificationCode
+  verificationCode,
+  verificationToken
 }) => {
   const email = normalizeEmail(emailAddress);
   const store = readStore();
@@ -233,6 +319,7 @@ exports.createAccount = ({
     emailAddress: email,
     requestId: verificationRequestId,
     verificationCode,
+    verificationToken,
     purpose: "signup"
   });
 

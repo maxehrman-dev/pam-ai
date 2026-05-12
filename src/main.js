@@ -164,6 +164,7 @@ function getInitialAccountDraft() {
     emailAddress: String(account.emailAddress || baseline.emailAddress || ""),
     verificationCode: "",
     verificationRequestId: "",
+    verificationToken: "",
     password: "",
     confirmPassword: "",
     age: hasValue(account.age) ? String(account.age) : hasValue(baseline.age) ? String(baseline.age) : "",
@@ -245,6 +246,7 @@ function saveCurrentStepValue(form) {
   if (step.key === "emailAddress" && String(value) !== previousValue) {
     draft.verificationCode = "";
     draft.verificationRequestId = "";
+    draft.verificationToken = "";
     state.verificationPreviewCode = "";
     state.verificationWarning = "";
     state.verificationMaskedEmail = "";
@@ -776,6 +778,7 @@ async function handleCreateAccount(event) {
   const emailAddress = String(draft.emailAddress || "").trim();
   const verificationCode = String(draft.verificationCode || "").trim();
   const verificationRequestId = String(draft.verificationRequestId || "").trim();
+  const verificationToken = String(draft.verificationToken || "").trim();
   const password = String(draft.password || "");
   const confirmPassword = String(draft.confirmPassword || "");
   const age = hasValue(draft.age) ? toNumber(draft.age, null) : null;
@@ -810,6 +813,7 @@ async function handleCreateAccount(event) {
       emailAddress,
       verificationCode,
       verificationRequestId,
+      verificationToken,
       password,
       age,
       employmentStatus,
@@ -818,7 +822,18 @@ async function handleCreateAccount(event) {
   });
 
   if (error || !payload?.ok) {
-    setStatus(payload?.error || error || "Unable to create account.", "account");
+    const message = payload?.error || error || "Unable to create account.";
+    if (/fresh verification|verification expired|expired/i.test(message)) {
+      draft.verificationCode = "";
+      draft.verificationRequestId = "";
+      draft.verificationToken = "";
+      state.createAccountStep = CREATE_ACCOUNT_STEPS.findIndex((step) => step.key === "verificationCode");
+      setStatus("Code expired. Sending a new one.", "account");
+      render();
+      await handleSendVerificationCode({ quiet: true });
+      return;
+    }
+    setStatus(message, "account");
     render();
     return;
   }
@@ -910,6 +925,7 @@ async function handleSendVerificationCode(options = {}) {
   }
 
   draft.verificationRequestId = String(payload.requestId || "");
+  draft.verificationToken = String(payload.verificationToken || "");
   state.verificationMaskedEmail = String(payload.maskedEmail || emailAddress);
   state.verificationPreviewCode = String(payload.previewCode || "");
   state.verificationWarning = String(payload.warning || "");
@@ -1588,7 +1604,7 @@ function renderBaselinePanel() {
                         <div class="review-panel">
                           <div><span>Name</span><strong>${escapeHtml(draft.firstName || "—")}</strong></div>
                           <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "—")}</strong></div>
-                          <div><span>Verification</span><strong>${String(draft.verificationCode || "").trim().length === 6 ? "Completed" : "Incomplete"}</strong></div>
+                          <div><span>Verification</span><strong>${draft.verificationRequestId && String(draft.verificationCode || "").trim().length === 6 ? "Ready" : "Incomplete"}</strong></div>
                           <div><span>Age</span><strong>${escapeHtml(draft.age || "—")}</strong></div>
                           <div><span>Main income</span><strong>${escapeHtml(draft.employmentStatus || "—")}</strong></div>
                           <div><span>State</span><strong>${escapeHtml(draft.stateCode || "OTHER")}</strong></div>

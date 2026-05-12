@@ -61,6 +61,7 @@ module.exports = async (req, res) => {
       maskedEmail: result.maskedEmail,
       expiresAt: result.expiresAt,
       previewCode,
+      verificationToken: result.verificationToken,
       deliveryMode,
       warning
     });

@@ -9,6 +9,7 @@ const registerSchema = {
     password: { type: "string", minLength: 8, maxLength: 128, trim: false },
     verificationRequestId: { type: "string", minLength: 10, maxLength: 64, pattern: /^verify_[a-f0-9]+$/ },
     verificationCode: { type: "string", minLength: 6, maxLength: 6, pattern: /^\d{6}$/ },
+    verificationToken: { type: "string", minLength: 20, maxLength: 512 },
     age: { type: "integer", minimum: 13, maximum: 120, allowNull: true },
     employmentStatus: { type: "string", minLength: 2, maxLength: 40 },
     stateCode: { type: "string", minLength: 2, maxLength: 5, uppercase: true, pattern: STATE_PATTERN }
@@ -40,6 +41,7 @@ module.exports = async (req, res) => {
       password: body.password,
       verificationRequestId: body.verificationRequestId,
       verificationCode: body.verificationCode,
+      verificationToken: body.verificationToken || "",
       age: body.age ?? null,
       employmentStatus: body.employmentStatus || "Not sure yet",
       stateCode: body.stateCode || "OTHER"
