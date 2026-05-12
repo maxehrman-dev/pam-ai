@@ -1,20 +1,34 @@
 const { createSandboxPublicToken, exchangePublicToken } = require("./_lib/plaid.js");
+const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
+const { checkRateLimit, validatePayload } = require("./_lib/security.js");
 
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
-  res.end(body);
-}
+const sandboxMockSchema = {
+  properties: {
+    institutionId: { type: "string", minLength: 3, maxLength: 64 },
+    institutionName: { type: "string", minLength: 1, maxLength: 120 },
+    username: { type: "string", minLength: 3, maxLength: 64 },
+    password: { type: "string", minLength: 3, maxLength: 64, trim: false }
+  },
+  required: []
+};
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return sendMethodNotAllowed(res);
   }
 
   try {
-    const payload = typeof req.body === "object" && req.body ? req.body : {};
+    const payload = validatePayload(req.body, sandboxMockSchema, "request body");
+    if (
+      !checkRateLimit(req, res, {
+        routeKey: "plaid:sandbox-mock",
+        userKey: payload.institutionId || payload.username,
+        ipLimit: { windowMs: 10 * 60 * 1000, max: 10 },
+        userLimit: { windowMs: 10 * 60 * 1000, max: 6 }
+      })
+    ) {
+      return;
+    }
     const institutionId = payload.institutionId || "ins_109508";
     const username = payload.username || "user_good";
     const password = payload.password || "pass_good";
@@ -44,7 +58,7 @@ module.exports = async (req, res) => {
       }
     });
   } catch (error) {
-    return sendJson(res, 200, {
+    return sendJson(res, error.statusCode || 200, {
       ok: false,
       error: error.message || "Unable to create Plaid sandbox mock data."
     });

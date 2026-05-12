@@ -4,6 +4,7 @@ const path = require("path");
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "accounts.json");
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MEMORY_STORE = global.__PAM_ACCOUNT_STORE__ || {
   accounts: [],
   sessions: {},
@@ -71,8 +72,29 @@ function generateId(prefix) {
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
-  const hash = crypto.pbkdf2Sync(String(password || ""), salt, 100000, 64, "sha512").toString("hex");
-  return { salt, hash };
+  const hash = crypto.scryptSync(String(password || ""), salt, 64).toString("hex");
+  return {
+    algorithm: "scrypt",
+    salt,
+    hash
+  };
+}
+
+function verifyPassword(password, account) {
+  if (!account?.passwordSalt || !account?.passwordHash) return false;
+
+  if (account.passwordAlgorithm === "scrypt") {
+    const expected = Buffer.from(String(account.passwordHash || ""), "hex");
+    const actual = crypto.scryptSync(String(password || ""), account.passwordSalt, 64);
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  }
+
+  const legacyHash = crypto
+    .pbkdf2Sync(String(password || ""), account.passwordSalt, 100000, 64, "sha512")
+    .toString("hex");
+  const expected = Buffer.from(String(account.passwordHash || ""), "hex");
+  const actual = Buffer.from(legacyHash, "hex");
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
 function sanitizeAccount(account) {
@@ -116,6 +138,16 @@ function pruneVerificationRequests(store, { emailAddress = "", purpose = "", rem
   }
 }
 
+function pruneSessions(store) {
+  const now = Date.now();
+  for (const [sessionToken, session] of Object.entries(store.sessions || {})) {
+    const createdAt = new Date(session?.createdAt || 0).getTime();
+    if (!createdAt || createdAt + SESSION_TTL_MS < now) {
+      delete store.sessions[sessionToken];
+    }
+  }
+}
+
 exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
   const email = normalizeEmail(emailAddress);
   if (!email) {
@@ -123,6 +155,7 @@ exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
   }
 
   const store = readStore();
+  pruneSessions(store);
   if (purpose === "signup" && store.accounts.some((account) => account.emailAddress === email)) {
     throw new Error("An account with that email already exists.");
   }
@@ -191,6 +224,7 @@ exports.createAccount = ({
 }) => {
   const email = normalizeEmail(emailAddress);
   const store = readStore();
+  pruneSessions(store);
   if (store.accounts.some((account) => account.emailAddress === email)) {
     throw new Error("An account with that email already exists.");
   }
@@ -211,6 +245,7 @@ exports.createAccount = ({
     employmentStatus: employmentStatus || "Not sure yet",
     stateCode: stateCode || "OTHER",
     createdAt: new Date().toISOString(),
+    passwordAlgorithm: passwordRecord.algorithm,
     passwordSalt: passwordRecord.salt,
     passwordHash: passwordRecord.hash
   };
@@ -232,13 +267,13 @@ exports.createAccount = ({
 exports.loginAccount = ({ emailAddress, password }) => {
   const email = normalizeEmail(emailAddress);
   const store = readStore();
+  pruneSessions(store);
   const account = store.accounts.find((item) => item.emailAddress === email);
   if (!account) {
     throw new Error("No account was found for that email.");
   }
 
-  const passwordRecord = hashPassword(password, account.passwordSalt);
-  if (passwordRecord.hash !== account.passwordHash) {
+  if (!verifyPassword(password, account)) {
     throw new Error("Incorrect email or password.");
   }
 
@@ -257,6 +292,7 @@ exports.loginAccount = ({ emailAddress, password }) => {
 
 exports.getSessionAccount = (sessionToken) => {
   const store = readStore();
+  pruneSessions(store);
   const session = store.sessions[String(sessionToken || "")];
   if (!session?.accountId) return null;
   const account = store.accounts.find((item) => item.id === session.accountId);
@@ -265,6 +301,7 @@ exports.getSessionAccount = (sessionToken) => {
 
 exports.clearSession = (sessionToken) => {
   const store = readStore();
+  pruneSessions(store);
   delete store.sessions[String(sessionToken || "")];
   writeStore(store);
 };

@@ -1,16 +1,19 @@
 const { createLinkToken, hasPlaidConfig } = require("../_lib/plaid.js");
+const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
+const { checkRateLimit, validatePayload } = require("../_lib/security.js");
 
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
-  res.end(body);
-}
+const createLinkTokenSchema = {
+  properties: {
+    clientUserId: { type: "string", minLength: 3, maxLength: 128 },
+    legalName: { type: "string", minLength: 1, maxLength: 120 },
+    emailAddress: { type: "string", format: "email", minLength: 5, maxLength: 254, lowercase: true }
+  },
+  required: ["clientUserId"]
+};
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return sendMethodNotAllowed(res);
   }
 
   if (!hasPlaidConfig()) {
@@ -23,10 +26,22 @@ module.exports = async (req, res) => {
   }
 
   try {
+    const body = validatePayload(req.body, createLinkTokenSchema, "request body");
+    if (
+      !checkRateLimit(req, res, {
+        routeKey: "plaid:create-link-token",
+        userKey: body.clientUserId,
+        ipLimit: { windowMs: 10 * 60 * 1000, max: 20 },
+        userLimit: { windowMs: 10 * 60 * 1000, max: 10 }
+      })
+    ) {
+      return;
+    }
+
     const payload = await createLinkToken({
-      clientUserId: req.body?.clientUserId,
-      legalName: req.body?.legalName,
-      emailAddress: req.body?.emailAddress
+      clientUserId: body.clientUserId,
+      legalName: body.legalName,
+      emailAddress: body.emailAddress
     });
 
     return sendJson(res, 200, {
@@ -35,7 +50,7 @@ module.exports = async (req, res) => {
       link_token: payload.link_token
     });
   } catch (error) {
-    return sendJson(res, 200, {
+    return sendJson(res, error.statusCode || 200, {
       ok: false,
       mode: "mock",
       fallback: true,

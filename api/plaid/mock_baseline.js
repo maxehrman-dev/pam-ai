@@ -1,10 +1,5 @@
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
-  res.end(body);
-}
+const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
+const { checkRateLimit } = require("../_lib/security.js");
 
 const plaidLikeData = {
   accounts: [
@@ -110,7 +105,16 @@ const baseline = {
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
-    return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return sendMethodNotAllowed(res);
+  }
+
+  if (
+    !checkRateLimit(req, res, {
+      routeKey: "plaid:mock-baseline",
+      ipLimit: { windowMs: 60 * 1000, max: 30 }
+    })
+  ) {
+    return;
   }
 
   return sendJson(res, 200, {

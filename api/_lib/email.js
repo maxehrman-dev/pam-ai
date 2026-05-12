@@ -7,6 +7,7 @@ function hasEmailProvider() {
 }
 
 async function sendVerificationEmail({ emailAddress, firstName = "", verificationCode }) {
+  // Verification delivery must stay server-side so provider keys never reach the browser.
   const subject = "Your PAM AI verification code";
   const greeting = firstName ? `Hi ${firstName},` : "Hi,";
   const html = `
@@ -36,8 +37,7 @@ async function sendVerificationEmail({ emailAddress, firstName = "", verificatio
   });
 
   if (!response.ok) {
-    const payload = await response.text().catch(() => "");
-    throw new Error(payload || "Unable to send verification email.");
+    throw new Error("Unable to send verification email.");
   }
 }
 

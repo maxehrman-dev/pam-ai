@@ -2,6 +2,8 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
+const { MAX_BODY_BYTES, checkRateLimit } = require("./api/_lib/security.js");
+const { applySecurityHeaders, sendJson } = require("./api/_lib/http.js");
 
 const APP_DIR = __dirname;
 const INDEX_FILE = path.join(APP_DIR, "index.html");
@@ -47,17 +49,9 @@ function loadLocalEnv() {
 }
 
 function sendText(res, statusCode, body, contentType = "text/plain; charset=utf-8") {
+  applySecurityHeaders(res);
   res.writeHead(statusCode, {
     "Content-Type": contentType,
-    "Content-Length": Buffer.byteLength(body)
-  });
-  res.end(body);
-}
-
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body)
   });
   res.end(body);
@@ -67,6 +61,12 @@ function sendFile(res, filePath) {
   try {
     const stat = fs.statSync(filePath);
     const extension = path.extname(filePath).toLowerCase();
+    applySecurityHeaders(res, {
+      "Content-Security-Policy":
+        "default-src 'self'; script-src 'self' https://cdn.plaid.com; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-src https://cdn.plaid.com https://*.plaid.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Resource-Policy": "same-origin"
+    });
     res.writeHead(200, {
       "Content-Type": MIME_TYPES[extension] || "application/octet-stream",
       "Content-Length": stat.size
@@ -80,8 +80,22 @@ function sendFile(res, filePath) {
 function parseRequestBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let totalBytes = 0;
+    let settled = false;
+    req.on("data", (chunk) => {
+      if (settled) return;
+      chunks.push(chunk);
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_BODY_BYTES) {
+        settled = true;
+        const error = new Error("Request body is too large.");
+        error.statusCode = 413;
+        reject(error);
+        req.destroy();
+      }
+    });
     req.on("end", () => {
+      if (settled) return;
       if (!chunks.length) {
         resolve({});
         return;
@@ -91,10 +105,15 @@ function parseRequestBody(req) {
         const raw = Buffer.concat(chunks).toString("utf8");
         resolve(raw ? JSON.parse(raw) : {});
       } catch (error) {
+        settled = true;
         reject(error);
       }
     });
-    req.on("error", reject);
+    req.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
   });
 }
 
@@ -107,8 +126,8 @@ async function invokeApiHandler(req, res, pathname, requestUrl) {
 
   try {
     req.body = await parseRequestBody(req);
-  } catch (_error) {
-    sendJson(res, 400, { error: "Invalid JSON body" });
+  } catch (error) {
+    sendJson(res, error.statusCode || 400, { ok: false, error: error.statusCode === 413 ? "Request body is too large." : "Invalid JSON body" });
     return true;
   }
 
@@ -129,12 +148,30 @@ function safeStaticPath(requestPath) {
   return resolved;
 }
 
+function getClientIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)[0];
+  return forwarded || req.socket?.remoteAddress || "127.0.0.1";
+}
+
 const server = http.createServer((req, res) => {
   try {
+    applySecurityHeaders(res);
+    req.clientIp = getClientIp(req);
     const requestUrl = new URL(req.url, `http://${req.headers.host || `127.0.0.1:${PORT}`}`);
     const pathname = requestUrl.pathname;
 
     if (req.method === "GET" && pathname === "/api/health") {
+      if (
+        !checkRateLimit(req, res, {
+          routeKey: "health",
+          ipLimit: { windowMs: 60 * 1000, max: 30 }
+        })
+      ) {
+        return;
+      }
       return sendJson(res, 200, {
         ok: true,
         app: "PAM AI",
@@ -165,7 +202,10 @@ const server = http.createServer((req, res) => {
 
     return sendJson(res, 405, { error: "Method not allowed" });
   } catch (error) {
-    return sendJson(res, 500, { error: "Server error", detail: error.message });
+    return sendJson(res, 500, {
+      ok: false,
+      error: "Server error"
+    });
   }
 });
 

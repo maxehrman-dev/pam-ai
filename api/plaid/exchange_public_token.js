@@ -1,16 +1,34 @@
 const { exchangePublicToken, hasPlaidConfig, storeAccessTokenForSession } = require("../_lib/plaid.js");
+const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
+const { STATE_PATTERN, checkRateLimit, validatePayload } = require("../_lib/security.js");
 
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
-  res.end(body);
-}
+const exchangeSchema = {
+  properties: {
+    clientUserId: { type: "string", minLength: 3, maxLength: 128 },
+    public_token: { type: "string", minLength: 10, maxLength: 256 },
+    institution: {
+      type: "object",
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: 120 }
+      }
+    },
+    profile: {
+      type: "object",
+      properties: {
+        firstName: { type: "string", minLength: 1, maxLength: 60 },
+        emailAddress: { type: "string", format: "email", minLength: 5, maxLength: 254, lowercase: true },
+        age: { type: "integer", minimum: 13, maximum: 120, allowNull: true },
+        state: { type: "string", minLength: 2, maxLength: 5, uppercase: true, pattern: STATE_PATTERN },
+        employmentStatus: { type: "string", minLength: 2, maxLength: 40 }
+      }
+    }
+  },
+  required: ["clientUserId", "public_token"]
+};
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return sendMethodNotAllowed(res);
   }
 
   if (!hasPlaidConfig()) {
@@ -23,17 +41,29 @@ module.exports = async (req, res) => {
   }
 
   try {
+    const body = validatePayload(req.body, exchangeSchema, "request body");
+    if (
+      !checkRateLimit(req, res, {
+        routeKey: "plaid:exchange-public-token",
+        userKey: body.clientUserId,
+        ipLimit: { windowMs: 10 * 60 * 1000, max: 20 },
+        userLimit: { windowMs: 10 * 60 * 1000, max: 10 }
+      })
+    ) {
+      return;
+    }
+
     const exchange = await exchangePublicToken({
-      publicToken: req.body?.public_token,
-      institution: req.body?.institution || null
+      publicToken: body.public_token,
+      institution: body.institution || null
     });
 
     storeAccessTokenForSession({
-      clientUserId: req.body?.clientUserId,
+      clientUserId: body.clientUserId,
       accessToken: exchange.accessToken,
       itemId: exchange.itemId,
       institutionName: exchange.institutionName,
-      profile: req.body?.profile || {}
+      profile: body.profile || {}
     });
 
     return sendJson(res, 200, {
@@ -43,7 +73,7 @@ module.exports = async (req, res) => {
       institution_name: exchange.institutionName
     });
   } catch (error) {
-    return sendJson(res, 200, {
+    return sendJson(res, error.statusCode || 200, {
       ok: false,
       mode: "mock",
       fallback: true,

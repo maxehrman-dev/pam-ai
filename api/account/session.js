@@ -1,12 +1,13 @@
 const { clearSession, getSessionAccount } = require("../_lib/account-store.js");
+const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
+const { checkRateLimit, validatePayload } = require("../_lib/security.js");
 
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
-  res.end(body);
-}
+const querySchema = {
+  properties: {
+    sessionToken: { type: "string", minLength: 10, maxLength: 64, pattern: /^sess_[a-f0-9]+$/ }
+  },
+  required: []
+};
 
 function getSessionToken(req) {
   return req.query?.sessionToken || req.body?.sessionToken || "";
@@ -14,6 +15,17 @@ function getSessionToken(req) {
 
 module.exports = async (req, res) => {
   if (req.method === "GET") {
+    const query = validatePayload(req.query, querySchema, "query");
+    if (
+      !checkRateLimit(req, res, {
+        routeKey: "account:session:get",
+        userKey: query.sessionToken,
+        ipLimit: { windowMs: 60 * 1000, max: 120 },
+        userLimit: { windowMs: 60 * 1000, max: 60 }
+      })
+    ) {
+      return;
+    }
     const account = getSessionAccount(getSessionToken(req));
     return sendJson(res, 200, {
       ok: Boolean(account),
@@ -22,9 +34,20 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === "DELETE") {
+    const body = validatePayload(req.body, querySchema, "request body");
+    if (
+      !checkRateLimit(req, res, {
+        routeKey: "account:session:delete",
+        userKey: body.sessionToken,
+        ipLimit: { windowMs: 5 * 60 * 1000, max: 40 },
+        userLimit: { windowMs: 5 * 60 * 1000, max: 20 }
+      })
+    ) {
+      return;
+    }
     clearSession(getSessionToken(req));
     return sendJson(res, 200, { ok: true });
   }
 
-  return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+  return sendMethodNotAllowed(res);
 };

@@ -32,12 +32,21 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - Frontend code should never contain a raw OpenAI key
 - For local development, use `.env.local`
 - For Vercel production, set `OPENAI_API_KEY` in the project environment settings
+- If any provider key was ever pasted into code, chat, or a client bundle, rotate it in the provider dashboard before reuse
 
 ## Verification email configuration
 
 - Account verification codes can send through Resend when configured
 - Set `RESEND_API_KEY` and `PAM_FROM_EMAIL` in `.env.local` or Vercel project settings
 - If those variables are missing, PAM falls back to prototype preview mode and shows the code in the UI instead of emailing it
+- Keep email provider credentials server-side only and rotate them immediately if they were ever exposed
+
+## Security notes
+
+- Public API routes use strict payload validation, reject unexpected fields, and apply rate limiting by IP and user identifier
+- Passwords are hashed server-side and are never stored in plaintext
+- Plaid and OpenAI credentials stay in environment variables only; never commit them and never expose them in frontend code
+- Plaid access tokens must remain server-side only and must never be written to `localStorage`
 
 ## Stack
 

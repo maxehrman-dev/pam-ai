@@ -1,16 +1,17 @@
 const { buildNormalizedBaseline, getStoredSession, hasPlaidConfig } = require("../_lib/plaid.js");
+const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
+const { checkRateLimit, validatePayload } = require("../_lib/security.js");
 
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
-  res.end(body);
-}
+const baselineQuerySchema = {
+  properties: {
+    clientUserId: { type: "string", minLength: 3, maxLength: 128 }
+  },
+  required: ["clientUserId"]
+};
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
-    return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return sendMethodNotAllowed(res);
   }
 
   if (!hasPlaidConfig()) {
@@ -23,7 +24,19 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const clientUserId = req.query?.clientUserId || "prototype";
+    const query = validatePayload(req.query, baselineQuerySchema, "query");
+    if (
+      !checkRateLimit(req, res, {
+        routeKey: "plaid:baseline",
+        userKey: query.clientUserId,
+        ipLimit: { windowMs: 5 * 60 * 1000, max: 30 },
+        userLimit: { windowMs: 5 * 60 * 1000, max: 20 }
+      })
+    ) {
+      return;
+    }
+
+    const clientUserId = query.clientUserId;
     const session = getStoredSession(clientUserId);
     if (!session?.accessToken) {
       return sendJson(res, 200, {
@@ -41,7 +54,7 @@ module.exports = async (req, res) => {
       baseline
     });
   } catch (error) {
-    return sendJson(res, 200, {
+    return sendJson(res, error.statusCode || 200, {
       ok: false,
       mode: "mock",
       fallback: true,

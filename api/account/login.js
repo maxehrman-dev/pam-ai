@@ -1,37 +1,40 @@
 const { loginAccount } = require("../_lib/account-store.js");
+const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
+const { checkRateLimit, validatePayload } = require("../_lib/security.js");
 
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
-  res.end(body);
-}
+const loginSchema = {
+  properties: {
+    emailAddress: { type: "string", format: "email", minLength: 5, maxLength: 254, lowercase: true },
+    password: { type: "string", minLength: 1, maxLength: 128, trim: false }
+  },
+  required: ["emailAddress", "password"]
+};
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return sendMethodNotAllowed(res);
   }
 
   try {
-    const body = req.body || {};
-    const emailAddress = String(body.emailAddress || "").trim();
-    const password = String(body.password || "");
-
-    if (!emailAddress || !password) {
-      return sendJson(res, 400, {
-        ok: false,
-        error: "Email and password are required."
-      });
+    const body = validatePayload(req.body, loginSchema, "request body");
+    if (
+      !checkRateLimit(req, res, {
+        routeKey: "account:login",
+        userKey: body.emailAddress,
+        ipLimit: { windowMs: 15 * 60 * 1000, max: 20 },
+        userLimit: { windowMs: 15 * 60 * 1000, max: 10 }
+      })
+    ) {
+      return;
     }
 
-    const result = loginAccount({ emailAddress, password });
+    const result = loginAccount({ emailAddress: body.emailAddress, password: body.password });
     return sendJson(res, 200, {
       ok: true,
       ...result
     });
   } catch (error) {
-    return sendJson(res, 200, {
+    return sendJson(res, error.statusCode || 200, {
       ok: false,
       error: error.message || "Unable to sign in."
     });

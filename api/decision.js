@@ -1,13 +1,133 @@
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
+const { checkRateLimit, validatePayload } = require("./_lib/security.js");
 
-function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
-  res.end(body);
-}
+const decisionSchema = {
+  properties: {
+    prompt: { type: "string", minLength: 1, maxLength: 500 },
+    baseline: {
+      type: "object",
+      properties: {
+        source: { type: "string", maxLength: 40 },
+        profile: {
+          type: "object",
+          properties: {
+            firstName: { type: "string", maxLength: 60 },
+            emailAddress: { type: "string", format: "email", maxLength: 254 },
+            employmentStatus: { type: "string", maxLength: 40 },
+            state: { type: "string", maxLength: 10 }
+          }
+        },
+        income: {
+          type: "object",
+          properties: {
+            grossMonthlyIncome: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
+            knownTakeHomeMonthlyIncome: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
+            detectedMonthlyIncome: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
+            incomeStreams: {
+              type: "array",
+              maxItems: 10,
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", maxLength: 80 },
+                  amount: { type: "number", minimum: 0, maximum: 1000000, allowNull: true }
+                }
+              }
+            }
+          }
+        },
+        expenses: {
+          type: "object",
+          properties: {
+            monthlyExpenses: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
+            recurringExpenses: {
+              type: "array",
+              maxItems: 10,
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string", maxLength: 80 },
+                  amount: { type: "number", minimum: 0, maximum: 1000000, allowNull: true }
+                }
+              }
+            }
+          }
+        },
+        obligations: {
+          type: "object",
+          properties: {
+            monthlyDebtPayments: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
+            liabilities: {
+              type: "array",
+              maxItems: 10,
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string", maxLength: 80 },
+                  balance: { type: "number", minimum: 0, maximum: 10000000, allowNull: true },
+                  minimumPayment: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
+                  monthlyPayment: { type: "number", minimum: 0, maximum: 1000000, allowNull: true }
+                }
+              }
+            }
+          }
+        },
+        savings: {
+          type: "object",
+          properties: {
+            currentSavings: { type: "number", minimum: 0, maximum: 100000000, allowNull: true },
+            savingsBalance: { type: "number", minimum: 0, maximum: 100000000, allowNull: true }
+          }
+        },
+        goals: {
+          type: "object",
+          properties: {
+            primaryGoal: { type: "string", maxLength: 80 },
+            customGoalLabel: { type: "string", maxLength: 120 },
+            goalTargetAmount: { type: "number", minimum: 0, maximum: 100000000, allowNull: true },
+            goalTimelineMonths: { type: "number", minimum: 0, maximum: 1200, allowNull: true }
+          }
+        }
+      }
+    },
+    draft: { type: "object", properties: {}, allowUnknown: true },
+    followUp: { type: "object", properties: {}, allowUnknown: true },
+    result: {
+      type: "object",
+      allowUnknown: true,
+      properties: {
+        ahaMoment: { type: "string", maxLength: 240 },
+        nextStep: { type: "string", maxLength: 240 },
+        confidence: { type: "string", maxLength: 40 },
+        monthlyCashFlowImpact: { type: "number", minimum: -1000000, maximum: 1000000, allowNull: true },
+        savingsRunoutMonths: { type: "number", minimum: 0, maximum: 1200, allowNull: true },
+        explanation: { type: "string", maxLength: 400 },
+        currentBuffer: { type: "number", minimum: -1000000, maximum: 1000000, allowNull: true },
+        newBuffer: { type: "number", minimum: -1000000, maximum: 1000000, allowNull: true },
+        projectedSavings12: { type: "number", minimum: -100000000, maximum: 100000000, allowNull: true },
+        goalDelay: { type: "number", minimum: 0, maximum: 1200, allowNull: true },
+        decision: {
+          type: "object",
+          properties: {
+            type: { type: "string", maxLength: 80 },
+            monthlyImpact: { type: "number", minimum: -1000000, maximum: 1000000, allowNull: true },
+            oneTimeImpact: { type: "number", minimum: -100000000, maximum: 100000000, allowNull: true },
+            taxImpact: { type: "string", maxLength: 180 }
+          }
+        },
+        risk: {
+          type: "object",
+          properties: {
+            label: { type: "string", maxLength: 30 }
+          }
+        }
+      }
+    }
+  },
+  required: ["prompt"]
+};
 
 function sanitizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -240,11 +360,25 @@ async function requestGuidance(payload) {
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return sendMethodNotAllowed(res);
   }
 
   try {
-    const payload = typeof req.body === "object" && req.body ? req.body : {};
+    const payload = validatePayload(req.body, decisionSchema, "request body");
+    if (
+      !checkRateLimit(req, res, {
+        routeKey: "decision",
+        userKey:
+          payload.baseline?.profile?.emailAddress ||
+          payload.baseline?.profile?.firstName ||
+          payload.prompt,
+        ipLimit: { windowMs: 60 * 1000, max: 40 },
+        userLimit: { windowMs: 60 * 1000, max: 20 }
+      })
+    ) {
+      return;
+    }
+
     const result = await requestGuidance(payload);
     if (!result.ok) {
       return sendJson(res, 200, {
