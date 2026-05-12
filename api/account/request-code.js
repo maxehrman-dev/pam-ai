@@ -1,5 +1,5 @@
 const { createVerificationRequest } = require("../_lib/account-store.js");
-const { hasEmailProvider, sendVerificationEmail } = require("../_lib/email.js");
+const { hasEmailProvider, isResendTestingRestriction, sendVerificationEmail } = require("../_lib/email.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, validatePayload } = require("../_lib/security.js");
 
@@ -37,15 +37,22 @@ module.exports = async (req, res) => {
 
     let deliveryMode = "prototype_preview";
     let previewCode = result.previewCode;
+    let warning = "";
 
     if (hasEmailProvider()) {
-      await sendVerificationEmail({
-        emailAddress,
-        firstName,
-        verificationCode: result.previewCode
-      });
-      deliveryMode = "email";
-      previewCode = "";
+      try {
+        await sendVerificationEmail({
+          emailAddress,
+          firstName,
+          verificationCode: result.previewCode
+        });
+        deliveryMode = "email";
+        previewCode = "";
+      } catch (error) {
+        if (!isResendTestingRestriction(error)) {
+          throw error;
+        }
+      }
     }
 
     return sendJson(res, 200, {
@@ -54,7 +61,8 @@ module.exports = async (req, res) => {
       maskedEmail: result.maskedEmail,
       expiresAt: result.expiresAt,
       previewCode,
-      deliveryMode
+      deliveryMode,
+      warning
     });
   } catch (error) {
     return sendJson(res, error.statusCode || 200, {

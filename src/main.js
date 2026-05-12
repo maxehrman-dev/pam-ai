@@ -125,6 +125,7 @@ const state = {
   status: "",
   inlineGoalError: "",
   verificationPreviewCode: "",
+  verificationWarning: "",
   verificationMaskedEmail: "",
   verificationExpiresAt: "",
   plaidBusy: false
@@ -226,6 +227,7 @@ function saveCurrentStepValue(form) {
     draft.verificationCode = "";
     draft.verificationRequestId = "";
     state.verificationPreviewCode = "";
+    state.verificationWarning = "";
     state.verificationMaskedEmail = "";
     state.verificationExpiresAt = "";
   }
@@ -250,7 +252,7 @@ function validateAccountStep(stepIndex = state.createAccountStep, draft = ensure
 
   if (step.key === "verificationCode") {
     if (!draft.verificationRequestId) {
-      return "Send a verification code first.";
+      return "Code is still sending. Try again in a moment.";
     }
     if (!/^\d{6}$/.test(value)) {
       return "Enter the 6-digit verification code.";
@@ -384,6 +386,7 @@ async function logoutAccount() {
   state.aiGuidance = null;
   state.accountDraft = null;
   state.verificationPreviewCode = "";
+  state.verificationWarning = "";
   state.verificationMaskedEmail = "";
   state.verificationExpiresAt = "";
   saveWorkspaceView("landing");
@@ -808,6 +811,7 @@ async function handleCreateAccount(event) {
   state.accountDraft = getInitialAccountDraft();
   state.createAccountStep = 0;
   state.verificationPreviewCode = "";
+  state.verificationWarning = "";
   state.verificationMaskedEmail = "";
   state.verificationExpiresAt = "";
   state.status = "Account created. Connect a Sandbox account next to unlock the dashboard.";
@@ -855,14 +859,17 @@ async function handleLogin(event) {
   render();
 }
 
-async function handleSendVerificationCode() {
+async function handleSendVerificationCode(options = {}) {
+  const { quiet = false } = options;
   const draft = ensureAccountDraft();
   const emailAddress = String(draft.emailAddress || "").trim();
   const firstName = String(draft.firstName || "").trim();
 
   if (!emailAddress) {
-    state.status = "Add your email first so PAM knows where to send the verification code.";
-    render();
+    if (!quiet) {
+      state.status = "Add your email first.";
+      render();
+    }
     return;
   }
 
@@ -878,7 +885,7 @@ async function handleSendVerificationCode() {
   });
 
   if (error || !payload?.ok) {
-    state.status = payload?.error || error || "Unable to send a verification code.";
+    state.status = payload?.error || error || "Could not send code.";
     render();
     return;
   }
@@ -886,10 +893,9 @@ async function handleSendVerificationCode() {
   draft.verificationRequestId = String(payload.requestId || "");
   state.verificationMaskedEmail = String(payload.maskedEmail || emailAddress);
   state.verificationPreviewCode = String(payload.previewCode || "");
+  state.verificationWarning = String(payload.warning || "");
   state.verificationExpiresAt = String(payload.expiresAt || "");
-  state.status = payload.deliveryMode === "prototype_preview"
-    ? `Verification code generated for ${state.verificationMaskedEmail}. Email delivery is not configured yet, so PAM is showing the code here for now.`
-    : `Verification code sent to ${state.verificationMaskedEmail}.`;
+  state.status = payload.deliveryMode === "prototype_preview" ? "Code ready." : "Code sent.";
   render();
 }
 
@@ -901,6 +907,7 @@ function handleAuthModeClick(event) {
   }
   if (nextView !== "create") {
     state.verificationPreviewCode = "";
+    state.verificationWarning = "";
     state.verificationMaskedEmail = "";
     state.verificationExpiresAt = "";
   }
@@ -908,7 +915,7 @@ function handleAuthModeClick(event) {
   render();
 }
 
-function handleCreateAccountNext(event) {
+async function handleCreateAccountNext(event) {
   const form = event.currentTarget.closest("form");
   saveCurrentStepValue(form);
   const error = validateAccountStep();
@@ -919,6 +926,14 @@ function handleCreateAccountNext(event) {
   }
   state.createAccountStep = Math.min(state.createAccountStep + 1, CREATE_ACCOUNT_STEPS.length - 1);
   state.status = "";
+  const nextStep = getCreateAccountStepConfig();
+  const draft = ensureAccountDraft();
+  if (nextStep.key === "verificationCode" && !draft.verificationRequestId) {
+    state.status = "Sending code.";
+    render();
+    await handleSendVerificationCode({ quiet: true });
+    return;
+  }
   render();
 }
 
@@ -1059,29 +1074,58 @@ function renderEducationSections() {
 
 function renderAccountPreview() {
   const baseline = getUiBaseline(state.baseline);
-  const tax = estimateTaxProfile(state.baseline);
   const isComplete = canAccessDashboard();
-  const valueOrPending = (value, formatter = (item) => item) => hasValue(value) ? formatter(value) : "Not provided";
   const goalLabel = getGoalLabel(state.baseline);
+  const cards = [];
+
+  if (hasValue(baseline.emailAddress)) {
+    cards.push({
+      label: "Account",
+      value: escapeHtml(baseline.emailAddress),
+      className: "preview-card preview-card-account"
+    });
+  }
+
+  if (hasValue(baseline.age)) {
+    cards.push({ label: "Age", value: baseline.age });
+  }
+
+  if (!isComplete && hasValue(baseline.grossMonthlyIncome)) {
+    cards.push({ label: "Gross income", value: formatCurrency(baseline.grossMonthlyIncome) });
+  }
+
+  if (isComplete) {
+    cards.push({ label: "Spendable income", value: formatCurrency(baseline.takeHomeIncome) });
+  }
+
+  if (isComplete) {
+    cards.push({ label: "Monthly buffer", value: formatCurrency(getMonthlyBuffer(state.baseline)) });
+  }
+
+  if (hasValue(baseline.currentSavings)) {
+    cards.push({ label: "Savings", value: formatCurrency(baseline.currentSavings) });
+  }
+
+  if (hasValue(goalLabel)) {
+    cards.push({
+      label: "Goal",
+      value: escapeHtml(goalLabel),
+      className: "preview-card preview-card-goal"
+    });
+  }
+
   return `
     <aside class="cash-flow-preview ${isComplete ? "" : "incomplete-preview"}">
-      <div class="panel-kicker">${isComplete ? "Baseline ready" : "Setup in progress"}</div>
-      <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} PAM baseline` : "Profile draft only"}</h3>
-      <p>${isComplete ? "PAM now has enough information to model decisions against your profile." : "PAM will show a baseline only after income, taxes, spending, savings, and a goal are provided."}</p>
+      <div class="panel-kicker">${isComplete ? "Baseline" : "Profile"}</div>
+      <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} homepage` : "Draft"}</h3>
       <div class="cash-flow-preview-grid">
-        <div><span>Baseline source</span><strong>${escapeHtml(baseline.source === "plaid_sandbox" ? "Sandbox account" : baseline.source === "plaid_mock" ? "Sandbox-style sample data" : "Manual baseline")}</strong><small>Prototype data is saved only in this browser.</small></div>
-        <div class="preview-card preview-card-account"><span>Signed in on this device</span><strong>${hasValue(baseline.emailAddress) ? escapeHtml(baseline.emailAddress) : "Not provided"}</strong><small>Prototype sign-in only for this version.</small></div>
-        <div><span>Age</span><strong>${valueOrPending(baseline.age)}</strong><small>Used for time horizon and retirement runway.</small></div>
-        <div><span>Gross income</span><strong>${valueOrPending(baseline.grossMonthlyIncome, formatCurrency)}</strong><small>Before tax and deductions.</small></div>
-        <div><span>Spendable income</span><strong>${isComplete ? formatCurrency(baseline.takeHomeIncome) : "Pending"}</strong><small>${hasValue(baseline.knownTakeHomeMonthlyIncome) ? "Known take-home is used directly." : "PAM estimates this from income, state, taxes, and work type."}</small></div>
-        <div><span>Estimated income tax</span><strong>${hasValue(baseline.estimatedIncomeTaxRate) ? `${baseline.estimatedIncomeTaxRate}%` : "Pending"}</strong><small>Federal and state income tax estimate.</small></div>
-        <div><span>Payroll tax</span><strong>${hasValue(baseline.payrollTaxRate) ? `${baseline.payrollTaxRate}%` : "Pending"}</strong><small>Payroll or self-employment tax estimate.</small></div>
-        <div><span>Combined tax/payroll</span><strong>${hasValue(baseline.combinedTaxRate) ? `${baseline.combinedTaxRate}%` : "Pending"}</strong><small>Overall estimate, not advice.</small></div>
-        <div><span>Monthly buffer</span><strong>${isComplete ? formatCurrency(getMonthlyBuffer(state.baseline)) : "Pending"}</strong><small>Spendable income minus spending commitments.</small></div>
-        <div><span>Savings</span><strong>${valueOrPending(baseline.currentSavings, formatCurrency)}</strong><small>Cash runway PAM can protect.</small></div>
-        <div class="preview-card preview-card-goal"><span>Goal</span><strong>${hasValue(goalLabel) ? escapeHtml(goalLabel) : "Not provided"}</strong><small>${baseline.goalTargetEstimated || baseline.goalTimelineEstimated ? "PAM estimated part of this goal." : "No assumed goal."}</small></div>
+        ${cards.map((card) => `
+          <div class="${card.className || ""}">
+            <span>${card.label}</span>
+            <strong>${card.value}</strong>
+          </div>
+        `).join("")}
       </div>
-      <p>${escapeHtml(tax.note)}</p>
     </aside>
   `;
 }
@@ -1111,7 +1155,6 @@ function renderSetupTermGuide() {
 
 function renderWorkspaceHub() {
   const isComplete = canAccessDashboard();
-  const goalLabel = getGoalLabel(state.baseline);
   const baseline = getUiBaseline(state.baseline);
   return `
     <section class="foresee-panel workspace-panel" id="workspace-panel">
@@ -1119,7 +1162,6 @@ function renderWorkspaceHub() {
         <div>
           <div class="panel-kicker">Workspace</div>
           <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} dashboard` : hasPrototypeAccount() ? "Finish setup" : "Create your account"}</h2>
-          <p>${isComplete ? `Connected baseline ready for ${escapeHtml(goalLabel)}.` : hasPrototypeAccount() ? "Connect Sandbox data to unlock the dashboard." : "Create an account, then connect Sandbox data."}</p>
         </div>
         ${hasPrototypeAccount() ? `<div class="workspace-account-chip"><strong>${escapeHtml(baseline.firstName || "Account")}</strong><span>${escapeHtml(baseline.emailAddress)}</span></div>` : ""}
       </div>
@@ -1155,9 +1197,6 @@ function renderAccountPage() {
           <div>
             <div class="panel-kicker">PAM account</div>
             <h1>${hasPrototypeAccount() ? "Finish your setup." : "Create your account."}</h1>
-            <p>${hasPrototypeAccount()
-              ? "You’re inside PAM now. Connect Sandbox data to unlock your dashboard."
-              : "This is a dedicated account flow so signup feels separate from the homepage."}</p>
           </div>
         </div>
         ${renderWorkspaceHub()}
@@ -1185,7 +1224,6 @@ function renderDashboardWorkspace() {
             <h2>Create an account and connect Sandbox data first.</h2>
           </div>
         </div>
-        <p>PAM only opens the dashboard after a real account session exists and the connected baseline is complete.</p>
       </section>
     `;
   }
@@ -1320,7 +1358,6 @@ function renderBaselinePanel() {
             </div>
             <div class="connect-actions-header">
               <h3>${isComplete ? "Dashboard ready." : "Connect Sandbox data to unlock your dashboard."}</h3>
-              <p>PAM will build your financial baseline from Sandbox balances, transactions, and liabilities.</p>
             </div>
             <div class="connect-action-grid">
               <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
@@ -1338,10 +1375,6 @@ function renderBaselinePanel() {
               </div>
               ${state.authView === "create" ? `
                 <div class="auth-card">
-                  <div class="auth-card-copy">
-                    <h3>Set up your PAM account.</h3>
-                    <p>PAM asks one thing at a time so setup stays quick and clean.</p>
-                  </div>
                   <form class="profile-form auth-wizard-form" data-account-form>
                     <div class="wizard-progress">
                       <span>Step ${state.createAccountStep + 1} of ${CREATE_ACCOUNT_STEPS.length}</span>
@@ -1352,11 +1385,11 @@ function renderBaselinePanel() {
                       ${step.detail ? `<small>${escapeHtml(step.detail)}</small>` : ""}
                       ${step.type === "review" ? `
                         <div class="review-panel">
-                          <div><span>Name</span><strong>${escapeHtml(draft.firstName || "Not provided")}</strong></div>
-                          <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "Not provided")}</strong></div>
-                          <div><span>Verification</span><strong>${draft.verificationRequestId ? "Code requested" : "Code not requested"}</strong></div>
-                          <div><span>Age</span><strong>${escapeHtml(draft.age || "Skipped")}</strong></div>
-                          <div><span>Main income</span><strong>${escapeHtml(draft.employmentStatus || "Not provided")}</strong></div>
+                          <div><span>Name</span><strong>${escapeHtml(draft.firstName || "—")}</strong></div>
+                          <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "—")}</strong></div>
+                          <div><span>Verification</span><strong>${String(draft.verificationCode || "").trim().length === 6 ? "Completed" : "Incomplete"}</strong></div>
+                          <div><span>Age</span><strong>${escapeHtml(draft.age || "—")}</strong></div>
+                          <div><span>Main income</span><strong>${escapeHtml(draft.employmentStatus || "—")}</strong></div>
                           <div><span>State</span><strong>${escapeHtml(draft.stateCode || "OTHER")}</strong></div>
                         </div>
                       ` : step.type === "select" ? `
@@ -1378,19 +1411,15 @@ function renderBaselinePanel() {
                     </label>
                     ${step.key === "verificationCode" ? `
                       <div class="verification-panel">
-                        <button class="button button-secondary" type="button" data-send-verification-code>${draft.verificationRequestId ? "Resend code" : "Send code"}</button>
                         <div class="verification-copy">
-                          <strong>${state.verificationMaskedEmail ? `Code destination: ${escapeHtml(state.verificationMaskedEmail)}` : "Send a code to unlock this step."}</strong>
-                          <span>${state.verificationExpiresAt ? `Expires at ${new Date(state.verificationExpiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Verification codes expire after 10 minutes."}</span>
-                          <span>${state.verificationPreviewCode ? "Email delivery is not configured, so PAM is showing the code here in prototype mode." : "If email delivery is configured, the code is sent to your inbox."}</span>
-                          ${state.verificationPreviewCode ? `<span>Prototype preview code: <strong>${escapeHtml(state.verificationPreviewCode)}</strong></span>` : ""}
+                          ${state.verificationMaskedEmail ? `<span>Sent to ${escapeHtml(state.verificationMaskedEmail)}</span>` : ""}
+                          ${state.verificationPreviewCode ? `<strong>Code: ${escapeHtml(state.verificationPreviewCode)}</strong>` : ""}
+                          ${state.verificationWarning ? `<span>${escapeHtml(state.verificationWarning)}</span>` : ""}
                         </div>
+                        ${draft.verificationRequestId ? `<button class="button button-secondary verification-resend-button" type="button" data-send-verification-code>Resend</button>` : ""}
                       </div>
                     ` : ""}
                     ${state.status ? `<p class="auth-status-message">${escapeHtml(state.status)}</p>` : ""}
-                    <div class="wizard-hint">
-                      ${step.required ? "Required for account setup." : "Optional. You can come back to this later."}
-                    </div>
                     <div class="form-actions">
                       ${state.createAccountStep > 0 ? `<button class="button button-secondary" type="button" data-create-back>Back</button>` : `<button class="button button-secondary" type="button" data-open-view="landing">Cancel</button>`}
                       ${isLastStep
@@ -1401,14 +1430,10 @@ function renderBaselinePanel() {
                 </div>
               ` : `
                 <div class="auth-card">
-                  <div class="auth-card-copy">
-                    <h3>Welcome back.</h3>
-                    <p>Sign in with the email and password you already used for PAM. Once your Sandbox baseline is connected, PAM brings you right back to your homepage.</p>
-                  </div>
                   <form class="profile-form" data-login-form>
                     <div class="credential-row">
-                      <label><span>Email</span><small>Use the same email you registered with.</small><input type="email" name="loginEmailAddress" placeholder="you@example.com" autocomplete="email" /></label>
-                      <label><span>Password</span><small>Your PAM password.</small><input type="password" name="loginPassword" placeholder="Password" autocomplete="current-password" /></label>
+                      <label><span>Email</span><input type="email" name="loginEmailAddress" placeholder="you@example.com" autocomplete="email" /></label>
+                      <label><span>Password</span><input type="password" name="loginPassword" placeholder="Password" autocomplete="current-password" /></label>
                     </div>
                     ${state.status ? `<p class="auth-status-message">${escapeHtml(state.status)}</p>` : ""}
                     <div class="form-actions">
@@ -1417,20 +1442,6 @@ function renderBaselinePanel() {
                   </form>
                 </div>
               `}
-              <div class="auth-aside">
-                <div>
-                  <span>Why create an account</span>
-                  <strong>So PAM remembers your profile and brings you back to your homepage.</strong>
-                </div>
-                <div>
-                  <span>What comes next</span>
-                  <strong>Connect Sandbox data once, then run decisions from your saved baseline.</strong>
-                </div>
-                <div>
-                  <span>Prototype note</span>
-                  <strong>Real production-grade auth and permanent cloud storage come next.</strong>
-                </div>
-              </div>
             </div>
           `}
         </div>
@@ -1549,12 +1560,12 @@ function renderHowItWorksSteps() {
       <div class="panel-kicker">How it works</div>
       <h2>From account to decision.</h2>
       <div class="steps-grid">
-        <div><strong>1</strong><span>Create your account with email, verification code, password, age, and work type</span></div>
-        <div><strong>2</strong><span>Connect Sandbox data or load sample data</span></div>
-        <div><strong>3</strong><span>PAM builds your baseline from balances, transactions, and liabilities</span></div>
+        <div><strong>1</strong><span>Create your account</span></div>
+        <div><strong>2</strong><span>Connect Sandbox data</span></div>
+        <div><strong>3</strong><span>PAM builds your baseline</span></div>
         <div><strong>4</strong><span>Ask a financial question</span></div>
-        <div><strong>5</strong><span>PAM shows tax, goal, buffer, and compound-growth tradeoffs</span></div>
-        <div><strong>6</strong><span>Return later and land back on your homepage</span></div>
+        <div><strong>5</strong><span>See the tradeoff</span></div>
+        <div><strong>6</strong><span>Return to your homepage</span></div>
       </div>
     </section>
   `;

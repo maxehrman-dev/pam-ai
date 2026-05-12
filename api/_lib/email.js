@@ -1,13 +1,37 @@
-const RESEND_API_URL = "https://api.resend.com/emails";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const RESEND_FROM_EMAIL = process.env.PAM_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || "";
 
+function getResendClient() {
+  if (!RESEND_API_KEY) return null;
+
+  try {
+    const { Resend } = require("resend");
+    return new Resend(RESEND_API_KEY);
+  } catch (_error) {
+    return null;
+  }
+}
+
 function hasEmailProvider() {
-  return Boolean(RESEND_API_KEY && RESEND_FROM_EMAIL);
+  return Boolean(getResendClient() && RESEND_FROM_EMAIL);
+}
+
+function isResendTestingRestriction(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("you can only send testing emails to your own email address") ||
+    message.includes("verify a domain at resend.com/domains") ||
+    message.includes("validation_error")
+  );
 }
 
 async function sendVerificationEmail({ emailAddress, firstName = "", verificationCode }) {
   // Verification delivery must stay server-side so provider keys never reach the browser.
+  const resend = getResendClient();
+  if (!resend || !RESEND_FROM_EMAIL) {
+    throw new Error("Resend email delivery is not configured.");
+  }
+
   const subject = "Your PAM AI verification code";
   const greeting = firstName ? `Hi ${firstName},` : "Hi,";
   const html = `
@@ -22,26 +46,16 @@ async function sendVerificationEmail({ emailAddress, firstName = "", verificatio
     </div>
   `;
 
-  const response = await fetch(RESEND_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      from: RESEND_FROM_EMAIL,
-      to: [emailAddress],
-      subject,
-      html
-    })
+  await resend.emails.send({
+    from: RESEND_FROM_EMAIL,
+    to: [emailAddress],
+    subject,
+    html
   });
-
-  if (!response.ok) {
-    throw new Error("Unable to send verification email.");
-  }
 }
 
 module.exports = {
   hasEmailProvider,
+  isResendTestingRestriction,
   sendVerificationEmail
 };

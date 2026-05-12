@@ -2,6 +2,9 @@
   "name": "pam-ai",
   "version": "1.0.0",
   "private": true,
+  "dependencies": {
+    "resend": "^4.0.1"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
