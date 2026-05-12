@@ -121,6 +121,38 @@ input:disabled {
   backdrop-filter: blur(18px);
 }
 
+.foresee-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.foresee-nav button {
+  padding: 9px 10px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.foresee-nav button:hover {
+  background: rgba(216, 243, 229, 0.5);
+  color: var(--mint-5);
+}
+
+.foresee-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.foresee-header-actions .button {
+  padding: 0.72rem 1rem;
+}
+
 .foresee-brand {
   display: inline-flex;
   align-items: center;
@@ -174,8 +206,12 @@ input:disabled {
 
 .pam-hero {
   display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.72fr);
+  gap: 24px;
+  align-items: center;
   align-content: center;
   min-height: 420px;
+  overflow: hidden;
 }
 
 .pam-hero h1,
@@ -191,6 +227,131 @@ input:disabled {
 .pam-hero p {
   max-width: 680px;
   font-size: 1.1rem;
+}
+
+.hero-preview-card,
+.advisor-demo-window {
+  min-width: 0;
+  padding: 18px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 253, 249, 0.72)),
+    var(--cream-0);
+  border: 1px solid rgba(30, 138, 102, 0.13);
+  box-shadow: 0 30px 70px rgba(12, 21, 18, 0.12);
+}
+
+.preview-window-bar,
+.demo-window-header,
+.section-heading-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.preview-window-bar span,
+.demo-window-header span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(216, 243, 229, 0.72);
+  color: var(--mint-5);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.preview-advisor-note,
+.preview-goal-callout,
+.demo-question {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(216, 243, 229, 0.45);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.preview-advisor-note span,
+.preview-goal-callout span,
+.demo-result-grid span,
+.module-card span,
+.decision-example-card > span {
+  display: block;
+  color: var(--ink-2);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 900;
+}
+
+.preview-advisor-note strong,
+.preview-goal-callout strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-4);
+  font-size: 1.1rem;
+  line-height: 1.22;
+}
+
+.preview-metric-row,
+.demo-result-grid,
+.module-card-grid,
+.example-stack-grid,
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.preview-metric-row {
+  margin-top: 12px;
+}
+
+.preview-metric-row div,
+.demo-result-grid div {
+  min-width: 0;
+  padding: 13px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.preview-metric-row span,
+.preview-metric-row strong {
+  display: block;
+}
+
+.preview-metric-row span {
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.preview-metric-row strong,
+.demo-result-grid strong {
+  margin-top: 5px;
+  display: block;
+  color: var(--ink-4);
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+}
+
+.preview-chart {
+  height: 150px;
+  margin-top: 14px;
+  padding: 16px;
+  display: flex;
+  align-items: end;
+  gap: 9px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, transparent 0 24%, rgba(30, 138, 102, 0.08) 24% 25%, transparent 25% 49%, rgba(30, 138, 102, 0.08) 49% 50%, transparent 50% 74%, rgba(30, 138, 102, 0.08) 74% 75%, transparent 75%),
+    rgba(216, 243, 229, 0.28);
+}
+
+.preview-chart span {
+  flex: 1;
+  border-radius: 999px 999px 6px 6px;
+  background: linear-gradient(180deg, var(--mint-4), rgba(121, 201, 164, 0.28));
 }
 
 .pam-hero-actions,
@@ -269,6 +430,101 @@ input:disabled {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.module-card-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.module-card,
+.decision-example-card,
+.pricing-card {
+  min-width: 0;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.module-card {
+  min-height: 168px;
+}
+
+.module-card span {
+  color: var(--mint-5);
+  font-size: 0.82rem;
+}
+
+.module-card p,
+.decision-example-card p,
+.pricing-card li {
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.product-demo-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(320px, 1fr);
+  gap: 22px;
+  align-items: center;
+}
+
+.demo-copy h2 {
+  max-width: 520px;
+}
+
+.demo-question {
+  color: var(--ink-4);
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.demo-result-grid {
+  margin-top: 12px;
+}
+
+.advisor-demo-window p {
+  margin-bottom: 0;
+}
+
+.example-stack-grid,
+.pricing-grid {
+  margin-top: 14px;
+}
+
+.decision-example-card h3,
+.pricing-card h3 {
+  margin: 8px 0 10px;
+  color: var(--ink-4);
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.decision-example-card ul,
+.pricing-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.decision-example-card li,
+.pricing-card li {
+  margin: 8px 0;
+}
+
+.pricing-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pricing-card:first-child {
+  background: rgba(216, 243, 229, 0.46);
+}
+
+.integrations-section {
+  background:
+    radial-gradient(circle at 90% 10%, rgba(216, 243, 229, 0.74), transparent 32%),
+    rgba(255, 255, 255, 0.76);
 }
 
 .example-output-grid {
@@ -1193,8 +1449,13 @@ input:disabled {
   .onboarding-layout,
   .workspace-header,
   .pam-proof-grid,
+  .pam-hero,
+  .product-demo-section,
   .split-section,
   .feature-grid,
+  .module-card-grid,
+  .example-stack-grid,
+  .pricing-grid,
   .steps-grid,
   .tax-summary,
   .connected-dashboard-grid,
@@ -1231,6 +1492,12 @@ input:disabled {
   .pam-hero {
     min-height: auto;
   }
+
+  .section-heading-row,
+  .preview-window-bar,
+  .demo-window-header {
+    display: grid;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1243,7 +1510,17 @@ input:disabled {
     display: grid;
   }
 
+  .foresee-nav,
+  .foresee-header-actions {
+    justify-content: flex-start;
+  }
+
   .foresee-truth {
     text-align: left;
+  }
+
+  .preview-metric-row,
+  .demo-result-grid {
+    grid-template-columns: 1fr;
   }
 }

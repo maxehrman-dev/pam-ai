@@ -124,6 +124,8 @@ const state = {
   aiGuidance: null,
   status: "",
   inlineGoalError: "",
+  waitlistOpen: false,
+  waitlistJoined: false,
   verificationPreviewCode: "",
   verificationWarning: "",
   verificationMaskedEmail: "",
@@ -1017,6 +1019,23 @@ function scrollToSection(id) {
   document.querySelector(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function handleSectionScroll(target) {
+  if (!target) return;
+  if (target === "#baseline-section") {
+    saveWorkspaceView("account");
+    render();
+    requestAnimationFrame(() => scrollToSection(target));
+    return;
+  }
+  if (!document.querySelector(target) && state.workspaceView !== "landing") {
+    saveWorkspaceView("landing");
+    render();
+    requestAnimationFrame(() => scrollToSection(target));
+    return;
+  }
+  scrollToSection(target);
+}
+
 function openWorkspaceView(view) {
   if (view === "dashboard" && !canAccessDashboard()) {
     saveWorkspaceView(hasPrototypeAccount() ? "account" : "landing");
@@ -1041,20 +1060,44 @@ function renderHero() {
   const isComplete = canAccessDashboard();
   return `
     <section class="pam-hero foresee-panel">
-      <div class="panel-kicker">PAM AI • Personal Asset Manager</div>
-      <h1>Know what happens before you decide.</h1>
-      <p>
-        PAM AI helps young adults see how money decisions affect their monthly buffer, savings, taxes, risk,
-        compound growth, and long-term goals.
-      </p>
-      <div class="pam-hero-actions">
-        <button class="button button-primary" type="button" data-open-view="${isComplete ? "dashboard" : "account"}">${isComplete ? "Open dashboard" : hasPrototypeAccount() ? "Finish setup" : "Create your account"}</button>
-        <button class="button button-secondary" type="button" data-open-view="landing">Overview</button>
+      <div class="hero-copy">
+        <div class="panel-kicker">PAM AI • Personal Asset Manager</div>
+        <h1>Know what happens before you decide.</h1>
+        <p>
+          PAM AI helps young adults understand how money decisions affect their monthly buffer, taxes, savings,
+          risk, and long-term goals.
+        </p>
+        <div class="pam-hero-actions">
+          <button class="button button-primary" type="button" ${isComplete ? `data-open-view="dashboard"` : `data-scroll-target="#baseline-section"`}>${isComplete ? "Open dashboard" : "Start with your baseline"}</button>
+          <button class="button button-secondary" type="button" data-scroll-target="#decision-input">Try PAM</button>
+          <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">Learn how it works</button>
+        </div>
       </div>
-      <div class="pam-proof-grid">
-        <div><span>Flow</span><strong>Create account, connect Sandbox, land on home</strong></div>
-        <div><span>Version one</span><strong>Young adults</strong></div>
-        <div><span>Product</span><strong>Financial decision engine</strong></div>
+      <div class="hero-preview-card" aria-label="PAM AI product preview">
+        <div class="preview-window-bar">
+          <strong>PAM dashboard</strong>
+          <span>Decision mode</span>
+        </div>
+        <div class="preview-advisor-note">
+          <span>Question</span>
+          <strong>Can I buy a car with a $400/month payment?</strong>
+        </div>
+        <div class="preview-metric-row">
+          <div><span>Monthly buffer</span><strong>$1,270 → $870</strong></div>
+          <div><span>Risk</span><strong>Medium</strong></div>
+        </div>
+        <div class="preview-chart" aria-hidden="true">
+          <span style="height: 44%"></span>
+          <span style="height: 58%"></span>
+          <span style="height: 50%"></span>
+          <span style="height: 74%"></span>
+          <span style="height: 63%"></span>
+          <span style="height: 42%"></span>
+        </div>
+        <div class="preview-goal-callout">
+          <span>Goal impact</span>
+          <strong>Moving out delayed by 6-9 months</strong>
+        </div>
       </div>
     </section>
   `;
@@ -1062,12 +1105,148 @@ function renderHero() {
 
 function renderEducationSections() {
   return `
-    <section class="foresee-panel split-section" id="how-it-works">
+    <section class="foresee-panel split-section" id="positioning">
       <div>
-        <div class="panel-kicker">How PAM works</div>
-        <h2>Create your account, connect Sandbox data, then test real decisions.</h2>
+        <div class="panel-kicker">Before wealth management</div>
+        <h2>Built for people before wealth management.</h2>
       </div>
-      <p>PAM is not trying to be a budgeting tracker. It builds a baseline from your connected Sandbox data, then uses that baseline to answer what happens if you rent, spend, save, invest, switch work types, or take on a new obligation.</p>
+      <p>Traditional financial advisors and premium wealth platforms are built for people who already have significant money to manage. PAM starts earlier. It helps young adults make smarter first decisions around income, rent, cars, taxes, saving, investing, and independence.</p>
+    </section>
+  `;
+}
+
+function renderPlanningModules() {
+  const modules = [
+    ["decisions", "Decisions", "Test choices like rent, cars, trips, job changes, and big purchases."],
+    ["taxes", "Taxes", "Understand estimated tax impact, W-2 vs 1099 income, deductions, and take-home pay."],
+    ["goals", "Goals", "See whether a decision delays goals like moving out, emergency savings, or investing."],
+    ["growth", "Growth", "Model compound interest and long-term saving/investing tradeoffs."],
+    ["cash-flow", "Cash Flow", "Understand monthly buffer, expenses, obligations, and runway."],
+    ["guidance", "Guidance", "Get plain-English explanations without needing a spreadsheet or financial advisor."]
+  ];
+
+  return `
+    <section class="foresee-panel modules-section" id="planning-modules">
+      <div class="section-heading-row">
+        <div>
+          <div class="panel-kicker">Planning modules</div>
+          <h2>Everything your financial future needs, in one place.</h2>
+        </div>
+        <p>PAM organizes the moving pieces of a young adult financial life into one decision engine.</p>
+      </div>
+      <div class="module-card-grid">
+        ${modules.map(([id, title, copy]) => `
+          <article class="module-card" id="${id}">
+            <span>${title}</span>
+            <p>${copy}</p>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderDecisionDemo() {
+  return `
+    <section class="foresee-panel product-demo-section" id="decision-input">
+      <div class="demo-copy">
+        <div class="panel-kicker">Decision engine</div>
+        <h2>A preview of how PAM turns a question into a plan.</h2>
+        <p>PAM is not a chatbot thread. It interprets the decision, runs deterministic math, and shows the tradeoff clearly.</p>
+        <button class="button button-primary" type="button" data-open-view="account">Start with your baseline</button>
+      </div>
+      <div class="advisor-demo-window">
+        <div class="demo-window-header">
+          <strong>PAM analysis</strong>
+          <span>Example</span>
+        </div>
+        <div class="demo-question">“Can I buy a car with a $400/month payment?”</div>
+        <div class="demo-result-grid">
+          <div><span>Monthly impact</span><strong>-$400</strong></div>
+          <div><span>Risk</span><strong>Medium</strong></div>
+          <div><span>Goal impact</span><strong>Delays moving out by 6-9 months</strong></div>
+          <div><span>Tax impact</span><strong>No direct change</strong></div>
+        </div>
+        <p>You can afford it, but your monthly buffer becomes tighter and your moving-out goal slows down.</p>
+      </div>
+    </section>
+  `;
+}
+
+function renderExamplesSection() {
+  return `
+    <section class="foresee-panel example-stack-section">
+      <div class="section-heading-row">
+        <div>
+          <div class="panel-kicker">Examples</div>
+          <h2>From decision to consequence.</h2>
+        </div>
+      </div>
+      <div class="example-stack-grid">
+        <article class="decision-example-card">
+          <span>Question</span>
+          <h3>“Can I buy a car with a $400/month payment?”</h3>
+          <ul>
+            <li><strong>Monthly impact:</strong> -$400</li>
+            <li><strong>Risk:</strong> Medium</li>
+            <li><strong>Goal impact:</strong> This delays moving out by 6-9 months.</li>
+            <li><strong>Tax impact:</strong> No direct change.</li>
+          </ul>
+          <p>You can afford it, but your monthly buffer becomes tighter and your moving-out goal slows down.</p>
+        </article>
+        <article class="decision-example-card">
+          <span>Question</span>
+          <h3>“What if I invest $200/month instead of spending it?”</h3>
+          <ul>
+            <li><strong>Monthly impact:</strong> -$200</li>
+            <li><strong>Compound growth:</strong> Hypothetical projection based on assumptions.</li>
+            <li><strong>Goal impact:</strong> Improves long-term savings.</li>
+            <li><strong>Disclaimer:</strong> Educational estimate only. Not financial, tax, legal, or investment advice.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function renderFutureIntegrations() {
+  return `
+    <section class="foresee-panel split-section integrations-section">
+      <div>
+        <div class="panel-kicker">Future integrations</div>
+        <h2>Automatic baselines later. Clear decisions now.</h2>
+      </div>
+      <p>Future versions can connect financial accounts and automatically build a baseline from income, balances, recurring expenses, and liabilities. For now, Sandbox data keeps the prototype decision-focused without making integrations the homepage story.</p>
+    </section>
+  `;
+}
+
+function renderPricingModel() {
+  const tiers = [
+    ["Free", ["Manual baseline", "Basic decision simulations", "Goal delay estimates"]],
+    ["Premium", ["More scenarios", "Tax and compound growth modules", "Saved goals", "Comparison planning"]],
+    ["Future", ["Account integrations", "School/employer financial wellness partnerships", "Advisor/expert review options later"]]
+  ];
+
+  return `
+    <section class="foresee-panel pricing-section">
+      <div class="section-heading-row">
+        <div>
+          <div class="panel-kicker">Business model</div>
+          <h2>Affordable guidance before you can afford an advisor.</h2>
+        </div>
+        <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
+      </div>
+      <div class="pricing-grid">
+        ${tiers.map(([name, items]) => `
+          <article class="pricing-card">
+            <h3>${name}</h3>
+            <ul>
+              ${items.map((item) => `<li>${item}</li>`).join("")}
+            </ul>
+          </article>
+        `).join("")}
+      </div>
     </section>
   `;
 }
@@ -1209,7 +1388,12 @@ function renderLandingWorkspace() {
   return `
     <div class="workspace-guide-grid compact-workspace-view">
       ${renderEducationSections()}
+      ${renderPlanningModules()}
+      ${renderDecisionDemo()}
       ${renderHowItWorksSteps()}
+      ${renderExamplesSection()}
+      ${renderFutureIntegrations()}
+      ${renderPricingModel()}
     </div>
   `;
 }
@@ -1233,7 +1417,7 @@ function renderDashboardWorkspace() {
       ${renderAccountPreview()}
       ${renderDashboardSummary()}
       ${renderConnectedInsights()}
-      <div class="workspace-grid-simulator" id="decision-input">
+      <div class="workspace-grid-simulator">
         ${renderDecisionPanel()}
         ${renderResult()}
       </div>
@@ -1556,18 +1740,38 @@ function renderResult() {
 
 function renderHowItWorksSteps() {
   return `
-    <section class="foresee-panel">
+    <section class="foresee-panel" id="how-it-works">
       <div class="panel-kicker">How it works</div>
       <h2>From account to decision.</h2>
       <div class="steps-grid">
-        <div><strong>1</strong><span>Create your account</span></div>
-        <div><strong>2</strong><span>Connect Sandbox data</span></div>
-        <div><strong>3</strong><span>PAM builds your baseline</span></div>
-        <div><strong>4</strong><span>Ask a financial question</span></div>
-        <div><strong>5</strong><span>See the tradeoff</span></div>
-        <div><strong>6</strong><span>Return to your homepage</span></div>
+        <div><strong>1</strong><span>Build your baseline</span></div>
+        <div><strong>2</strong><span>Ask a financial question</span></div>
+        <div><strong>3</strong><span>PAM models the outcome</span></div>
+        <div><strong>4</strong><span>See your risk, taxes, buffer, and goal impact</span></div>
+        <div><strong>5</strong><span>Compare safer alternatives</span></div>
       </div>
+      <p class="disclaimer">Educational estimate only. Not financial, tax, legal, or investment advice.</p>
     </section>
+  `;
+}
+
+function renderWaitlistModal() {
+  if (!state.waitlistOpen) return "";
+  return `
+    <div class="modal-backdrop" data-close-waitlist>
+      <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="Join PAM waitlist">
+        <div class="panel-kicker">PAM waitlist</div>
+        <h2>${state.waitlistJoined ? "You’re on the list." : "Join the early access list."}</h2>
+        <p>${state.waitlistJoined ? "We saved your interest for this browser session." : "Get updates as PAM moves from prototype to private beta."}</p>
+        ${state.waitlistJoined ? "" : `
+          <form class="profile-form" data-waitlist-form>
+            <label><span>Email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
+            <button class="button button-primary" type="submit">Join waitlist</button>
+          </form>
+        `}
+        <button class="button button-secondary" type="button" data-close-waitlist-button>Close</button>
+      </div>
+    </div>
   `;
 }
 
@@ -1583,9 +1787,16 @@ function render() {
             <small>Personal Asset Manager</small>
           </div>
         </a>
-        <div class="foresee-truth">
-          <strong>${hasPrototypeAccount() ? "Signed in prototype" : "Public homepage"}</strong>
-          <span>${canAccessDashboard() ? "Dashboard unlocked" : "Create account to unlock dashboard"}</span>
+        <nav class="foresee-nav" aria-label="Homepage sections">
+          <button type="button" data-scroll-target="#decision-input">Decisions</button>
+          <button type="button" data-scroll-target="#goals">Goals</button>
+          <button type="button" data-scroll-target="#taxes">Taxes</button>
+          <button type="button" data-scroll-target="#growth">Growth</button>
+          <button type="button" data-scroll-target="#how-it-works">How it works</button>
+        </nav>
+        <div class="foresee-header-actions">
+          <button class="button button-secondary" type="button" data-scroll-target="#decision-input">Try PAM</button>
+          <button class="button button-primary" type="button" data-open-view="${canAccessDashboard() ? "dashboard" : "account"}">${canAccessDashboard() ? "Open dashboard" : "Create account"}</button>
         </div>
       </header>
       <main class="pam-homepage">
@@ -1595,6 +1806,7 @@ function render() {
             ? renderAccountPage()
             : renderWorkspaceHub()}
       </main>
+      ${renderWaitlistModal()}
     </div>
   `;
   wireInteractions();
@@ -1604,6 +1816,11 @@ function wireInteractions() {
   document.querySelector("[data-account-form]")?.addEventListener("submit", handleCreateAccount);
   document.querySelector("[data-login-form]")?.addEventListener("submit", handleLogin);
   document.querySelector("[data-question-form]")?.addEventListener("submit", handleQuestionSubmit);
+  document.querySelector("[data-waitlist-form]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.waitlistJoined = true;
+    render();
+  });
   document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
   document.querySelector("[data-logout]")?.addEventListener("click", logoutAccount);
   document.querySelector("[data-load-sandbox]")?.addEventListener("click", handleSandboxSampleData);
@@ -1612,8 +1829,22 @@ function wireInteractions() {
   document.querySelector("[data-create-back]")?.addEventListener("click", handleCreateAccountBack);
   document.querySelector("[data-create-submit]")?.addEventListener("click", handleCreateAccountSubmitClick);
   document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
+  document.querySelector("[data-open-waitlist]")?.addEventListener("click", () => {
+    state.waitlistOpen = true;
+    render();
+  });
+  document.querySelector("[data-close-waitlist-button]")?.addEventListener("click", () => {
+    state.waitlistOpen = false;
+    render();
+  });
+  document.querySelector("[data-close-waitlist]")?.addEventListener("click", (event) => {
+    if (event.target.matches("[data-close-waitlist]")) {
+      state.waitlistOpen = false;
+      render();
+    }
+  });
   document.querySelectorAll("[data-scroll-target]").forEach((button) => {
-    button.addEventListener("click", () => scrollToSection(button.dataset.scrollTarget));
+    button.addEventListener("click", () => handleSectionScroll(button.dataset.scrollTarget));
   });
   document.querySelectorAll("[data-open-view]").forEach((button) => {
     button.addEventListener("click", () => openWorkspaceView(button.dataset.openView || "account"));
