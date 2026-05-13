@@ -35,7 +35,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const result = createAccount({
+    const result = await createAccount({
       firstName: body.firstName,
       emailAddress: body.emailAddress,
       password: body.password,

@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const result = loginAccount({ emailAddress: body.emailAddress, password: body.password });
+    const result = await loginAccount({ emailAddress: body.emailAddress, password: body.password });
     return sendJson(res, 200, {
       ok: true,
       ...result

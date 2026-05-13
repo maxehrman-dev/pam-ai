@@ -45,6 +45,13 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - If those variables are missing, PAM falls back to prototype preview mode and shows the code in the UI instead of emailing it
 - Keep email provider credentials server-side only and rotate them immediately if they were ever exposed
 
+## Supabase setup
+
+- Run `supabase/schema.sql` in the Supabase SQL Editor to create PAM's account, session, waitlist, baseline, scenario, and future Plaid item tables
+- Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel project environment variables
+- `SUPABASE_SERVICE_ROLE_KEY` must stay server-side only; never expose it in frontend code
+- If Supabase env vars are missing, PAM falls back to prototype storage so local demos still work
+
 ## Security notes
 
 - Public API routes use strict payload validation, reject unexpected fields, and apply rate limiting by IP and user identifier

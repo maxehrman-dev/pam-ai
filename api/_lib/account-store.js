@@ -1,6 +1,15 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const {
+  createSession: createSupabaseSession,
+  deleteSession: deleteSupabaseSession,
+  findAccountByEmail,
+  findAccountById,
+  getSession: getSupabaseSession,
+  hasSupabaseConfig,
+  insertAccount
+} = require("./supabase.js");
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "accounts.json");
@@ -297,7 +306,7 @@ function consumeVerificationRequest(store, { emailAddress, requestId, verificati
   delete store.verificationRequests[String(requestId || "")];
 }
 
-exports.createAccount = ({
+exports.createAccount = async ({
   firstName,
   emailAddress,
   password,
@@ -311,7 +320,11 @@ exports.createAccount = ({
   const email = normalizeEmail(emailAddress);
   const store = readStore();
   pruneSessions(store);
-  if (store.accounts.some((account) => account.emailAddress === email)) {
+  const existingAccount = hasSupabaseConfig()
+    ? await findAccountByEmail(email)
+    : store.accounts.find((account) => account.emailAddress === email);
+
+  if (existingAccount) {
     throw new Error("An account with that email already exists.");
   }
 
@@ -338,12 +351,23 @@ exports.createAccount = ({
   };
 
   const sessionToken = generateId("sess");
-  store.accounts.push(account);
-  store.sessions[sessionToken] = {
-    accountId: account.id,
-    createdAt: new Date().toISOString()
-  };
-  writeStore(store);
+  const sessionCreatedAt = new Date().toISOString();
+
+  if (hasSupabaseConfig()) {
+    await insertAccount(account);
+    await createSupabaseSession({
+      sessionToken,
+      accountId: account.id,
+      createdAt: sessionCreatedAt
+    });
+  } else {
+    store.accounts.push(account);
+    store.sessions[sessionToken] = {
+      accountId: account.id,
+      createdAt: sessionCreatedAt
+    };
+    writeStore(store);
+  }
 
   return {
     account: sanitizeAccount(account),
@@ -351,11 +375,14 @@ exports.createAccount = ({
   };
 };
 
-exports.loginAccount = ({ emailAddress, password }) => {
+exports.loginAccount = async ({ emailAddress, password }) => {
   const email = normalizeEmail(emailAddress);
   const store = readStore();
   pruneSessions(store);
-  const account = store.accounts.find((item) => item.emailAddress === email);
+  const account = hasSupabaseConfig()
+    ? await findAccountByEmail(email)
+    : store.accounts.find((item) => item.emailAddress === email);
+
   if (!account) {
     throw new Error("No account was found for that email.");
   }
@@ -365,11 +392,21 @@ exports.loginAccount = ({ emailAddress, password }) => {
   }
 
   const sessionToken = generateId("sess");
-  store.sessions[sessionToken] = {
-    accountId: account.id,
-    createdAt: new Date().toISOString()
-  };
-  writeStore(store);
+  const sessionCreatedAt = new Date().toISOString();
+
+  if (hasSupabaseConfig()) {
+    await createSupabaseSession({
+      sessionToken,
+      accountId: account.id,
+      createdAt: sessionCreatedAt
+    });
+  } else {
+    store.sessions[sessionToken] = {
+      accountId: account.id,
+      createdAt: sessionCreatedAt
+    };
+    writeStore(store);
+  }
 
   return {
     account: sanitizeAccount(account),
@@ -377,7 +414,14 @@ exports.loginAccount = ({ emailAddress, password }) => {
   };
 };
 
-exports.getSessionAccount = (sessionToken) => {
+exports.getSessionAccount = async (sessionToken) => {
+  if (hasSupabaseConfig()) {
+    const session = await getSupabaseSession(sessionToken);
+    if (!session?.account_id) return null;
+    const account = await findAccountById(session.account_id);
+    return account ? sanitizeAccount(account) : null;
+  }
+
   const store = readStore();
   pruneSessions(store);
   const session = store.sessions[String(sessionToken || "")];
@@ -386,7 +430,12 @@ exports.getSessionAccount = (sessionToken) => {
   return account ? sanitizeAccount(account) : null;
 };
 
-exports.clearSession = (sessionToken) => {
+exports.clearSession = async (sessionToken) => {
+  if (hasSupabaseConfig()) {
+    await deleteSupabaseSession(sessionToken);
+    return;
+  }
+
   const store = readStore();
   pruneSessions(store);
   delete store.sessions[String(sessionToken || "")];

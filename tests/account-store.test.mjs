@@ -33,7 +33,7 @@ test("verification request is consumed and cannot be reused", async () => {
       purpose: "signup"
     });
 
-    const created = store.createAccount({
+    const created = await store.createAccount({
       firstName: "Maya",
       emailAddress: "maya@example.com",
       password: "strongpass1",
@@ -44,10 +44,10 @@ test("verification request is consumed and cannot be reused", async () => {
     });
 
     assert.ok(created.sessionToken);
-    assert.equal(store.getSessionAccount(created.sessionToken)?.emailAddress, "maya@example.com");
+    assert.equal((await store.getSessionAccount(created.sessionToken))?.emailAddress, "maya@example.com");
 
-    assert.throws(() => {
-      store.createAccount({
+    await assert.rejects(async () => {
+      await store.createAccount({
         firstName: "Maya Again",
         emailAddress: "maya2@example.com",
         password: "strongpass2",
@@ -73,8 +73,8 @@ test("requesting a new verification code invalidates the previous one for the sa
 
     assert.notEqual(first.requestId, second.requestId);
 
-    assert.throws(() => {
-      store.createAccount({
+    await assert.rejects(async () => {
+      await store.createAccount({
         firstName: "Alex",
         emailAddress: "alex@example.com",
         password: "strongpass1",
@@ -85,7 +85,7 @@ test("requesting a new verification code invalidates the previous one for the sa
       });
     }, /fresh verification code/i);
 
-    const created = store.createAccount({
+    const created = await store.createAccount({
       firstName: "Alex",
       emailAddress: "alex@example.com",
       password: "strongpass1",

@@ -1,6 +1,7 @@
 const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification } = require("./_lib/email.js");
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { checkRateLimit, validatePayload } = require("./_lib/security.js");
+const { hasSupabaseConfig, upsertWaitlistEntry } = require("./_lib/supabase.js");
 
 const waitlistSchema = {
   properties: {
@@ -30,6 +31,10 @@ module.exports = async (req, res) => {
     let deliveryMode = "saved";
     let warning = "";
 
+    if (hasSupabaseConfig()) {
+      await upsertWaitlistEntry(body.emailAddress);
+    }
+
     if (hasEmailProvider()) {
       try {
         await sendWaitlistNotification({ emailAddress: body.emailAddress });
@@ -48,6 +53,7 @@ module.exports = async (req, res) => {
     return sendJson(res, 200, {
       ok: true,
       deliveryMode,
+      stored: hasSupabaseConfig() ? "supabase" : "prototype",
       warning
     });
   } catch (error) {

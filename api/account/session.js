@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
     ) {
       return;
     }
-    const account = getSessionAccount(getSessionToken(req));
+    const account = await getSessionAccount(getSessionToken(req));
     return sendJson(res, 200, {
       ok: Boolean(account),
       account
@@ -45,7 +45,7 @@ module.exports = async (req, res) => {
     ) {
       return;
     }
-    clearSession(getSessionToken(req));
+    await clearSession(getSessionToken(req));
     return sendJson(res, 200, { ok: true });
   }
 
