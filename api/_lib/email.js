@@ -1,6 +1,8 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const RESEND_FROM_EMAIL = process.env.PAM_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || "";
 const WAITLIST_NOTIFY_EMAIL = process.env.WAITLIST_NOTIFY_EMAIL || "mbewebdesign@gmail.com";
+const WAITLIST_FOUNDING_NOTE =
+  "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
 
 function getResendClient() {
   if (!RESEND_API_KEY) return null;
@@ -36,8 +38,8 @@ async function sendVerificationEmail({ emailAddress, firstName = "", verificatio
   const subject = "Your PAM AI verification code";
   const greeting = firstName ? `Hi ${firstName},` : "Hi,";
   const html = `
-    <div style="font-family: Avenir Next, Helvetica Neue, Arial, sans-serif; background:#fbf7ef; color:#1e2a24; padding:32px;">
-      <div style="max-width:560px; margin:0 auto; background:white; border-radius:24px; padding:32px; border:1px solid rgba(30,138,102,0.12);">
+    <div style="font-family: Avenir Next, Helvetica Neue, Arial, sans-serif; background:#f5f2e8; color:#1e2a24; padding:32px;">
+      <div style="max-width:560px; margin:0 auto; background:#fffdf7; border-radius:24px; padding:32px; border:1px solid rgba(30,138,102,0.12);">
         <div style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#0d6549; font-weight:700;">PAM AI</div>
         <h1 style="margin:12px 0 8px; font-size:32px; line-height:1;">Verify your account</h1>
         <p style="margin:0 0 20px; color:#45584c;">${greeting} enter this code in PAM to finish creating your account.</p>
@@ -87,20 +89,20 @@ async function sendWaitlistNotification({ emailAddress }) {
 
 async function sendWaitlistConfirmation({ emailAddress }) {
   const html = `
-    <div style="font-family: Avenir Next, Helvetica Neue, Arial, sans-serif; background:#fbf7ef; color:#1e2a24; padding:32px;">
-      <div style="max-width:560px; margin:0 auto; background:white; border-radius:24px; padding:32px; border:1px solid rgba(30,138,102,0.12);">
+    <div style="font-family: Avenir Next, Helvetica Neue, Arial, sans-serif; background:#f5f2e8; color:#1e2a24; padding:32px;">
+      <div style="max-width:560px; margin:0 auto; background:#fffdf7; border-radius:24px; padding:32px; border:1px solid rgba(30,138,102,0.12);">
         <div style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#0d6549; font-weight:700;">PAM AI</div>
-        <h1 style="margin:12px 0 8px; font-size:30px; line-height:1;">You’re on the list.</h1>
-        <p style="margin:0; color:#45584c;">Thanks for joining the PAM AI early access list. We’ll send meaningful updates as the decision engine gets closer to private beta.</p>
+        <h1 style="margin:12px 0 14px; font-size:30px; line-height:1;">You're on the PAM AI waitlist</h1>
+        <p style="margin:0; color:#45584c; font-size:16px; line-height:1.6;">${WAITLIST_FOUNDING_NOTE}</p>
       </div>
     </div>
   `;
 
   await sendEmail({
     to: emailAddress,
-    subject: "You’re on the PAM AI waitlist",
+    subject: "You're on the PAM AI waitlist",
     html,
-    text: "You’re on the PAM AI early access list."
+    text: WAITLIST_FOUNDING_NOTE
   });
 }
 

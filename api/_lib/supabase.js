@@ -140,6 +140,20 @@ async function upsertBaseline({ accountId, baseline }) {
   });
 }
 
+async function insertTelemetryEvent({ eventType, eventName, sessionId = "", page = "", properties = {} }) {
+  await supabaseRequest("pam_events", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      event_type: eventType,
+      event_name: eventName,
+      session_id: sessionId || null,
+      page: page || null,
+      properties: properties || {}
+    })
+  });
+}
+
 module.exports = {
   createSession,
   deleteSession,
@@ -147,6 +161,7 @@ module.exports = {
   findAccountById,
   getSession,
   hasSupabaseConfig,
+  insertTelemetryEvent,
   insertAccount,
   upsertBaseline,
   upsertWaitlistEntry

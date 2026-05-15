@@ -50,13 +50,26 @@ create table if not exists public.pam_plaid_items (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.pam_events (
+  id uuid primary key default gen_random_uuid(),
+  event_type text not null,
+  event_name text not null,
+  session_id text,
+  page text,
+  properties jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 alter table public.pam_accounts enable row level security;
 alter table public.pam_sessions enable row level security;
 alter table public.pam_waitlist enable row level security;
 alter table public.pam_baselines enable row level security;
 alter table public.pam_scenario_runs enable row level security;
 alter table public.pam_plaid_items enable row level security;
+alter table public.pam_events enable row level security;
 
 create index if not exists pam_sessions_account_id_idx on public.pam_sessions(account_id);
 create index if not exists pam_scenario_runs_account_id_idx on public.pam_scenario_runs(account_id);
 create index if not exists pam_plaid_items_account_id_idx on public.pam_plaid_items(account_id);
+create index if not exists pam_events_created_at_idx on public.pam_events(created_at);
+create index if not exists pam_events_event_name_idx on public.pam_events(event_name);

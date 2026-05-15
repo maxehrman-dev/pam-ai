@@ -29,6 +29,7 @@ const SESSION_STORAGE_KEY = "pam:session:v1";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 const AUTH_VIEW_KEY = "pam-ai-auth-view-v1";
+const TELEMETRY_SESSION_KEY = "pam:telemetry-session:v1";
 const CREATE_ACCOUNT_STEPS = [
   {
     key: "firstName",
@@ -136,6 +137,45 @@ const state = {
 };
 
 let isStarted = false;
+
+function getTelemetrySessionId() {
+  try {
+    const existing = localStorage.getItem(TELEMETRY_SESSION_KEY);
+    if (existing) return existing;
+    const nextId = crypto?.randomUUID ? crypto.randomUUID() : `pam-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(TELEMETRY_SESSION_KEY, nextId);
+    return nextId;
+  } catch (_error) {
+    return "pam-anonymous";
+  }
+}
+
+function trackEvent(eventName, properties = {}, eventType = "product") {
+  const body = JSON.stringify({
+    eventType,
+    eventName,
+    sessionId: getTelemetrySessionId(),
+    page: window.location.pathname || "/",
+    properties
+  });
+
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: "application/json" });
+      navigator.sendBeacon("/api/telemetry", blob);
+      return;
+    }
+
+    fetch("/api/telemetry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true
+    }).catch(() => {});
+  } catch (_error) {
+    // Telemetry should never interrupt the decision engine.
+  }
+}
 
 function setStatus(message, scope = "account") {
   state.status = message;
@@ -673,6 +713,11 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   saveWorkspaceView("dashboard");
   state.result = analyzeQuestion(question);
   state.aiGuidance = null;
+  trackEvent("decision_analyzed", {
+    source: state.baseline.source || "unknown",
+    hasQuestion: Boolean(question),
+    risk: state.result?.risk?.label || ""
+  });
   setStatus(`${statusMessage} PAM advisor is refining the explanation...`, "decision");
   render();
 
@@ -852,6 +897,10 @@ async function handleCreateAccount(event) {
   setStatus("Account created. Connect Sandbox data next.", "account");
   saveAuthView("signin");
   saveWorkspaceView("account");
+  trackEvent("account_created", {
+    stateCode,
+    employmentStatus
+  });
   render();
 }
 
@@ -891,6 +940,10 @@ async function handleLogin(event) {
   setStatus("Signed in. Connect Sandbox data to finish your dashboard.", "account");
   saveAuthView("signin");
   saveWorkspaceView("account");
+  trackEvent("account_signed_in", {
+    stateCode: payload.account?.stateCode || "",
+    employmentStatus: payload.account?.employmentStatus || ""
+  });
   render();
 }
 
@@ -1053,6 +1106,9 @@ function scrollToSection(id) {
   document.querySelector(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+const WAITLIST_FOUNDING_NOTE =
+  "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
+
 function handleSectionScroll(target) {
   if (!target) return;
   if (target === "#baseline-section") {
@@ -1098,14 +1154,15 @@ function renderHero() {
         <div class="panel-kicker">PAM AI • Personal Asset Manager</div>
         <h1>Know what happens before you decide.</h1>
         <p>
-          PAM AI helps young adults understand how money decisions affect their monthly buffer, taxes, savings,
-          risk, and long-term goals.
+          PAM AI models your money decisions before you make them, so you can see the impact on your
+          monthly buffer, taxes, savings, risk, and long-term goals before you commit.
         </p>
         <div class="pam-hero-actions">
-          <button class="button button-primary" type="button" ${isComplete ? `data-open-view="dashboard"` : `data-scroll-target="#baseline-section"`}>${isComplete ? "Open dashboard" : "Start with your baseline"}</button>
-          <button class="button button-secondary" type="button" data-scroll-target="#decision-input">Try PAM</button>
+          <button class="button button-primary" type="button" data-open-view="${isComplete ? "dashboard" : "account"}">${isComplete ? "Open dashboard" : "Create your account"}</button>
+          <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
           <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">Learn how it works</button>
         </div>
+        <p class="founding-note">Free to join. Early members lock in founding pricing forever.</p>
       </div>
       <div class="hero-preview-card" aria-label="PAM AI product preview">
         <div class="preview-window-bar">
@@ -1928,10 +1985,11 @@ function renderWaitlistModal() {
       <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="Join PAM waitlist">
         <div class="panel-kicker">PAM waitlist</div>
         <h2>${state.waitlistJoined ? "You’re on the list." : "Join the early access list."}</h2>
-        <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || "You’re on the list.") : "Get updates as PAM moves from prototype to private beta."}</p>
+        <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Join the founding list for PAM AI."}</p>
+        ${state.waitlistJoined ? "" : `<p class="waitlist-founder-note">${escapeHtml(WAITLIST_FOUNDING_NOTE)}</p>`}
         ${state.waitlistJoined ? "" : `
           <form class="profile-form" data-waitlist-form>
-            <label><span>Email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
+            <label><span>Your email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
             <button class="button button-primary" type="submit">Join waitlist</button>
           </form>
         `}
@@ -1962,7 +2020,7 @@ function render() {
           <button type="button" data-scroll-target="#how-it-works">How it works</button>
         </nav>
         <div class="foresee-header-actions">
-          <button class="button button-secondary" type="button" data-scroll-target="#decision-input">Try PAM</button>
+          <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
           <button class="button button-primary" type="button" data-open-view="${canAccessDashboard() ? "dashboard" : "account"}">${canAccessDashboard() ? "Open dashboard" : "Create account"}</button>
         </div>
       </header>
@@ -2014,8 +2072,12 @@ function wireInteractions() {
 
     state.waitlistJoined = true;
     state.waitlistMessage = payload.deliveryMode === "email"
-      ? "Check your inbox for confirmation."
-      : "You’re on the list.";
+      ? WAITLIST_FOUNDING_NOTE
+      : WAITLIST_FOUNDING_NOTE;
+    trackEvent("waitlist_joined", {
+      deliveryMode: payload.deliveryMode || "",
+      stored: payload.stored || ""
+    });
     render();
   });
   document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
@@ -2029,6 +2091,7 @@ function wireInteractions() {
   document.querySelector("[data-open-waitlist]")?.addEventListener("click", () => {
     state.waitlistOpen = true;
     state.waitlistMessage = "";
+    trackEvent("waitlist_opened");
     render();
   });
   document.querySelector("[data-close-waitlist-button]")?.addEventListener("click", () => {
@@ -2070,6 +2133,17 @@ function wireInteractions() {
 export async function startApp() {
   if (isStarted) return;
   isStarted = true;
+  window.addEventListener("error", (event) => {
+    trackEvent("client_error", {
+      message: event.message || "Unknown client error",
+      source: event.filename || ""
+    }, "error");
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    trackEvent("client_unhandled_rejection", {
+      message: String(event.reason?.message || event.reason || "Unhandled rejection")
+    }, "error");
+  });
   await restoreSessionAccount();
   if (hasPrototypeAccount()) {
     const baseline = syncAccountIntoBaseline(state.account, state.baseline);
@@ -2083,5 +2157,10 @@ export async function startApp() {
     saveWorkspaceView("landing");
   }
   state.result = canAccessDashboard() ? analyzeQuestion(state.question) : null;
+  trackEvent("app_loaded", {
+    view: state.workspaceView,
+    hasAccount: hasPrototypeAccount(),
+    hasDashboard: canAccessDashboard()
+  });
   render();
 }

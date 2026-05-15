@@ -1,11 +1,15 @@
 /* PAM AI focused decision-tool interface */
 :root {
   --cream-0: #fffdf9;
-  --cream-1: #f6efe2;
+  --cream-1: #f4f1e8;
+  --cream-2: #ebe8dc;
   --mint-1: #d8f3e5;
+  --mint-2: #6fe0be;
   --mint-3: #79c9a4;
   --mint-4: #1e8a66;
   --mint-5: #0d6549;
+  --forest: #143729;
+  --forest-2: #0d261c;
   --ink-2: #809687;
   --ink-3: #45584c;
   --ink-4: #1e2a24;
@@ -27,9 +31,9 @@ body {
   font-family: "Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif;
   color: var(--ink-4);
   background:
-    radial-gradient(circle at top left, rgba(121, 201, 164, 0.18), transparent 36%),
-    radial-gradient(circle at right 10% top 15%, rgba(255, 253, 249, 0.72), transparent 28%),
-    linear-gradient(180deg, #fbf7ef 0%, #f7f1e6 36%, #eef5ef 100%);
+    radial-gradient(circle at top left, rgba(111, 224, 190, 0.2), transparent 34%),
+    radial-gradient(circle at right 10% top 15%, rgba(20, 55, 41, 0.08), transparent 28%),
+    linear-gradient(180deg, #f5f2e8 0%, #fffdf7 38%, #edf7ef 100%);
 }
 
 a {
@@ -115,7 +119,7 @@ input:disabled {
   padding: 16px 18px;
   margin-bottom: 22px;
   border-radius: 28px;
-  background: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 253, 247, 0.86);
   border: 1px solid rgba(30, 138, 102, 0.12);
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(18px);
@@ -179,9 +183,21 @@ input:disabled {
   display: block;
 }
 
+.foresee-brand strong {
+  color: var(--ink-4);
+}
+
 .foresee-brand small,
 .foresee-truth span {
   color: var(--ink-2);
+}
+
+.foresee-brand small {
+  max-width: 180px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .foresee-truth {
@@ -212,6 +228,10 @@ input:disabled {
   align-content: center;
   min-height: 420px;
   overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(circle at 88% 14%, rgba(111, 224, 190, 0.28), transparent 28%),
+    linear-gradient(135deg, rgba(255, 253, 247, 0.92), rgba(232, 247, 239, 0.76));
 }
 
 .pam-hero h1,
@@ -222,11 +242,18 @@ input:disabled {
   line-height: 0.87;
   letter-spacing: -0.08em;
   margin: 8px 0 12px;
+  color: var(--forest);
 }
 
 .pam-hero p {
   max-width: 680px;
   font-size: 1.1rem;
+}
+
+.founding-note {
+  margin: 14px 0 0;
+  color: var(--forest);
+  font-weight: 850;
 }
 
 .hero-preview-card,
@@ -235,7 +262,7 @@ input:disabled {
   padding: 18px;
   border-radius: 28px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 253, 249, 0.72)),
+    linear-gradient(180deg, rgba(255, 253, 247, 0.94), rgba(255, 253, 249, 0.74)),
     var(--cream-0);
   border: 1px solid rgba(30, 138, 102, 0.13);
   box-shadow: 0 30px 70px rgba(12, 21, 18, 0.12);
@@ -336,6 +363,7 @@ input:disabled {
 }
 
 .preview-chart {
+  position: relative;
   height: 150px;
   margin-top: 14px;
   padding: 16px;
@@ -348,10 +376,25 @@ input:disabled {
     rgba(216, 243, 229, 0.28);
 }
 
+.preview-chart::before {
+  content: "";
+  position: absolute;
+  inset: 24px 18px 28px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, transparent 0 38%, rgba(30, 138, 102, 0.2) 38% 40%, transparent 40% 54%, rgba(30, 138, 102, 0.32) 54% 56%, transparent 56% 70%, rgba(30, 138, 102, 0.44) 70% 72%, transparent 72%),
+    linear-gradient(180deg, rgba(111, 224, 190, 0.22), rgba(111, 224, 190, 0));
+  clip-path: polygon(0 70%, 16% 62%, 31% 66%, 48% 48%, 63% 54%, 82% 30%, 100% 18%, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
 .preview-chart span {
+  position: relative;
+  z-index: 1;
   flex: 1;
   border-radius: 999px 999px 6px 6px;
-  background: linear-gradient(180deg, var(--mint-4), rgba(121, 201, 164, 0.28));
+  background: linear-gradient(180deg, var(--mint-4), rgba(111, 224, 190, 0.38));
+  box-shadow: 0 12px 22px rgba(13, 101, 73, 0.08);
 }
 
 .pam-hero-actions,
@@ -1790,6 +1833,28 @@ input:disabled {
   box-shadow: 0 40px 90px rgba(12, 21, 18, 0.18);
 }
 
+.waitlist-modal h2 {
+  margin: 8px 0 10px;
+  color: var(--forest);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2.1rem;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.waitlist-modal p {
+  color: var(--ink-3);
+  line-height: 1.55;
+}
+
+.waitlist-founder-note {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(216, 243, 229, 0.42);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+  font-weight: 750;
+}
+
 @media (max-width: 900px) {
   .foresee-layout,
   .daily-home-shell,
@@ -1847,6 +1912,12 @@ input:disabled {
 
   .pam-hero {
     min-height: auto;
+  }
+
+  .foresee-header,
+  .foresee-header-actions,
+  .foresee-nav {
+    justify-content: flex-start;
   }
 
   .section-heading-row,

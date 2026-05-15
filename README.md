@@ -38,12 +38,20 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 
 - Account verification codes can send through Resend when configured
 - Set `RESEND_API_KEY` and `PAM_FROM_EMAIL` in `.env.local` or Vercel project settings
-- `PAM_FROM_EMAIL` must be an address on a verified Resend domain, such as `PAM AI <hello@yourdomain.com>`, before Resend will send to arbitrary user emails
+- `PAM_FROM_EMAIL` should be `PAM AI <hello@pamadvisor.com>` once `pamadvisor.com` is verified in Resend
+- `PAM_FROM_EMAIL` must be an address on a verified Resend domain before Resend will send to arbitrary user emails
 - `onboarding@resend.dev` is Resend's testing sender and can only send to the verified owner email on the Resend account
 - Optional: set `WAITLIST_NOTIFY_EMAIL` to the inbox that should receive new waitlist signup notifications
 - The waitlist endpoint sends a notification email plus a confirmation email when the Resend sender is allowed to deliver broadly
 - If those variables are missing, PAM falls back to prototype preview mode and shows the code in the UI instead of emailing it
 - Keep email provider credentials server-side only and rotate them immediately if they were ever exposed
+
+### Domain setup
+
+- `pamadvisor.com` is the production brand domain
+- In the domain DNS provider, set `A pamadvisor.com 76.76.21.21` so Vercel can serve the site
+- Add the DNS records Resend gives you for `pamadvisor.com` before expecting email to send to every user
+- Do not use `onboarding@resend.dev` for production email
 
 ## Supabase setup
 
@@ -58,6 +66,15 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - Passwords are hashed server-side and are never stored in plaintext
 - Plaid and OpenAI credentials stay in environment variables only; never commit them and never expose them in frontend code
 - Plaid access tokens must remain server-side only and must never be written to `localStorage`
+
+## Startup stack status
+
+- Live now: GitHub, Vercel deployment, Supabase storage, Resend API wiring, Plaid Sandbox wiring, and server-side OpenAI route
+- Needs DNS/domain verification: `pamadvisor.com` on Vercel and Resend sending from `hello@pamadvisor.com`
+- Optional free-tier next: PostHog analytics, Sentry error monitoring, and Cloudflare DNS after DNS is moved or configured
+- Later, not necessary for this MVP: Clerk auth, Stripe payments, Upstash Redis, and Pinecone vector search
+- PAM already has account creation and password hashing, so do not add Clerk unless replacing the current auth path deliberately
+- Stripe has no monthly platform fee for basic setup, but payments have transaction fees, so leave it out until pricing is ready
 
 ## Stack
 
