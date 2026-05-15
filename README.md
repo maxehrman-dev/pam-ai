@@ -49,9 +49,12 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 ### Domain setup
 
 - `pamadvisor.com` is the production brand domain
-- In the domain DNS provider, set `A pamadvisor.com 76.76.21.21` so Vercel can serve the site
+- Vercel project `pam-ai1` has `pamadvisor.com` and `www.pamadvisor.com` attached
+- In the domain DNS provider, set `A pamadvisor.com 76.76.21.21` so Vercel can serve the root site
+- Also set `A www.pamadvisor.com 76.76.21.21` or use the Vercel-recommended `www` record shown in the Vercel Domains screen
 - Add the DNS records Resend gives you for `pamadvisor.com` before expecting email to send to every user
 - Do not use `onboarding@resend.dev` for production email
+- Set `PAM_SITE_URL=https://pamadvisor.com` anywhere the app needs its public URL
 
 ## Supabase setup
 
