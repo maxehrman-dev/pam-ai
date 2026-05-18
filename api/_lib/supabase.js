@@ -1,5 +1,14 @@
-const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+// Prefer the official Vercel Marketplace Supabase integration when it is connected.
+// The legacy SUPABASE_* names remain supported so local/dev deployments do not break.
+const SUPABASE_URL = String(
+  process.env.PAM_SUPABASE_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    ""
+).replace(/\/$/, "");
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.PAM_SUPABASE_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  "";
 
 function hasSupabaseConfig() {
   return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
@@ -125,6 +134,40 @@ async function upsertWaitlistEntry(emailAddress) {
   });
 }
 
+async function deleteVerificationRequests({ emailAddress = "", purpose = "", requestId = "" } = {}) {
+  const filters = [];
+  if (requestId) filters.push(`request_id=eq.${encodeFilter(requestId)}`);
+  if (emailAddress) filters.push(`email_address=eq.${encodeFilter(emailAddress)}`);
+  if (purpose) filters.push(`purpose=eq.${encodeFilter(purpose)}`);
+  if (!filters.length) return;
+
+  await supabaseRequest(`pam_verification_requests?${filters.join("&")}`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" }
+  });
+}
+
+async function findVerificationRequest(requestId) {
+  const rows = await supabaseRequest(`pam_verification_requests?request_id=eq.${encodeFilter(requestId)}&limit=1`);
+  return rows?.[0] || null;
+}
+
+async function insertVerificationRequest({ requestId, emailAddress, purpose, codeHash, codeSalt, expiresAt, createdAt }) {
+  await supabaseRequest("pam_verification_requests", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      request_id: requestId,
+      email_address: emailAddress,
+      purpose,
+      code_hash: codeHash,
+      code_salt: codeSalt,
+      expires_at: expiresAt,
+      created_at: createdAt
+    })
+  });
+}
+
 async function upsertBaseline({ accountId, baseline }) {
   if (!accountId || !baseline) return;
   await supabaseRequest("pam_baselines", {
@@ -154,13 +197,50 @@ async function insertTelemetryEvent({ eventType, eventName, sessionId = "", page
   });
 }
 
+async function checkSupabaseConnection() {
+  if (!hasSupabaseConfig()) {
+    return {
+      configured: false,
+      connected: false,
+      schemaReady: false,
+      mode: "not_configured"
+    };
+  }
+
+  try {
+    await supabaseRequest("pam_accounts?select=id&limit=1", {
+      method: "GET"
+    });
+    return {
+      configured: true,
+      connected: true,
+      schemaReady: true,
+      mode: process.env.PAM_SUPABASE_SUPABASE_URL ? "vercel_marketplace" : "manual_env"
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      connected: false,
+      schemaReady: false,
+      mode: process.env.PAM_SUPABASE_SUPABASE_URL ? "vercel_marketplace" : "manual_env",
+      reason: /does not exist|schema cache|relation/i.test(String(error.message || ""))
+        ? "schema_pending"
+        : "connection_error"
+    };
+  }
+}
+
 module.exports = {
+  checkSupabaseConnection,
   createSession,
+  deleteVerificationRequests,
   deleteSession,
   findAccountByEmail,
   findAccountById,
+  findVerificationRequest,
   getSession,
   hasSupabaseConfig,
+  insertVerificationRequest,
   insertTelemetryEvent,
   insertAccount,
   upsertBaseline,

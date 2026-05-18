@@ -26,6 +26,16 @@ create table if not exists public.pam_waitlist (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.pam_verification_requests (
+  request_id text primary key,
+  email_address text not null,
+  purpose text not null default 'signup',
+  code_hash text not null,
+  code_salt text not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.pam_baselines (
   account_id text primary key references public.pam_accounts(id) on delete cascade,
   baseline jsonb not null,
@@ -63,12 +73,15 @@ create table if not exists public.pam_events (
 alter table public.pam_accounts enable row level security;
 alter table public.pam_sessions enable row level security;
 alter table public.pam_waitlist enable row level security;
+alter table public.pam_verification_requests enable row level security;
 alter table public.pam_baselines enable row level security;
 alter table public.pam_scenario_runs enable row level security;
 alter table public.pam_plaid_items enable row level security;
 alter table public.pam_events enable row level security;
 
 create index if not exists pam_sessions_account_id_idx on public.pam_sessions(account_id);
+create index if not exists pam_verification_requests_email_purpose_idx on public.pam_verification_requests(email_address, purpose);
+create index if not exists pam_verification_requests_expires_at_idx on public.pam_verification_requests(expires_at);
 create index if not exists pam_scenario_runs_account_id_idx on public.pam_scenario_runs(account_id);
 create index if not exists pam_plaid_items_account_id_idx on public.pam_plaid_items(account_id);
 create index if not exists pam_events_created_at_idx on public.pam_events(created_at);

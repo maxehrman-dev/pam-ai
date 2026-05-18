@@ -28,7 +28,7 @@ async function withFreshAccountStore(run) {
 
 test("verification request is consumed and cannot be reused", async () => {
   await withFreshAccountStore(async (store) => {
-    const verification = store.createVerificationRequest({
+    const verification = await store.createVerificationRequest({
       emailAddress: "maya@example.com",
       purpose: "signup"
     });
@@ -62,11 +62,11 @@ test("verification request is consumed and cannot be reused", async () => {
 
 test("requesting a new verification code invalidates the previous one for the same email", async () => {
   await withFreshAccountStore(async (store) => {
-    const first = store.createVerificationRequest({
+    const first = await store.createVerificationRequest({
       emailAddress: "alex@example.com",
       purpose: "signup"
     });
-    const second = store.createVerificationRequest({
+    const second = await store.createVerificationRequest({
       emailAddress: "alex@example.com",
       purpose: "signup"
     });

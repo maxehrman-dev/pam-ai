@@ -3,12 +3,15 @@ const fs = require("fs");
 const path = require("path");
 const {
   createSession: createSupabaseSession,
+  deleteVerificationRequests,
   deleteSession: deleteSupabaseSession,
   findAccountByEmail,
   findAccountById,
+  findVerificationRequest,
   getSession: getSupabaseSession,
   hasSupabaseConfig,
-  insertAccount
+  insertAccount,
+  insertVerificationRequest
 } = require("./supabase.js");
 
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -173,6 +176,19 @@ function generateVerificationCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function hashVerificationCode(code, salt = crypto.randomBytes(16).toString("hex")) {
+  return {
+    salt,
+    hash: crypto.scryptSync(String(code || ""), salt, 32).toString("hex")
+  };
+}
+
+function verifyCodeHash(code, salt, hash) {
+  const expected = Buffer.from(String(hash || ""), "hex");
+  const actual = crypto.scryptSync(String(code || ""), String(salt || ""), 32);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
+
 function maskEmail(email) {
   const normalized = normalizeEmail(email);
   const [name, domain] = normalized.split("@");
@@ -207,7 +223,7 @@ function pruneSessions(store) {
   }
 }
 
-exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
+exports.createVerificationRequest = async ({ emailAddress, purpose = "signup" }) => {
   const email = normalizeEmail(emailAddress);
   if (!email) {
     throw new Error("Add an email before requesting a verification code.");
@@ -215,7 +231,11 @@ exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
 
   const store = readStore();
   pruneSessions(store);
-  if (purpose === "signup" && store.accounts.some((account) => account.emailAddress === email)) {
+  const existingAccount = hasSupabaseConfig()
+    ? await findAccountByEmail(email)
+    : store.accounts.find((account) => account.emailAddress === email);
+
+  if (purpose === "signup" && existingAccount) {
     throw new Error("An account with that email already exists.");
   }
 
@@ -224,13 +244,36 @@ exports.createVerificationRequest = ({ emailAddress, purpose = "signup" }) => {
   const requestId = generateId("verify");
   const code = generateVerificationCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const createdAt = new Date().toISOString();
+
+  if (hasSupabaseConfig()) {
+    const codeRecord = hashVerificationCode(code);
+    await deleteVerificationRequests({ emailAddress: email, purpose });
+    await insertVerificationRequest({
+      requestId,
+      emailAddress: email,
+      purpose,
+      codeHash: codeRecord.hash,
+      codeSalt: codeRecord.salt,
+      expiresAt,
+      createdAt
+    });
+
+    return {
+      requestId,
+      maskedEmail: maskEmail(email),
+      expiresAt,
+      previewCode: code,
+      verificationToken: ""
+    };
+  }
 
   store.verificationRequests[requestId] = {
     emailAddress: email,
     purpose,
     code,
     expiresAt,
-    createdAt: new Date().toISOString()
+    createdAt
   };
   writeStore(store);
 
@@ -268,8 +311,32 @@ function consumeVerificationToken({ emailAddress, verificationCode, verification
   }
 }
 
-function consumeVerificationRequest(store, { emailAddress, requestId, verificationCode, verificationToken = "", purpose = "signup" }) {
+async function consumeVerificationRequest(store, { emailAddress, requestId, verificationCode, verificationToken = "", purpose = "signup" }) {
   const email = normalizeEmail(emailAddress);
+
+  if (hasSupabaseConfig()) {
+    const request = await findVerificationRequest(String(requestId || ""));
+    if (!request) {
+      throw new Error("Request a fresh verification code before creating the account.");
+    }
+
+    if (request.purpose !== purpose || request.email_address !== email) {
+      throw new Error("This verification code does not match the email you entered.");
+    }
+
+    if (new Date(request.expires_at).getTime() < Date.now()) {
+      await deleteVerificationRequests({ requestId });
+      throw new Error("That verification code expired. Request a new one.");
+    }
+
+    if (!verifyCodeHash(verificationCode, request.code_salt, request.code_hash)) {
+      throw new Error("That verification code is incorrect.");
+    }
+
+    await deleteVerificationRequests({ requestId });
+    return;
+  }
+
   pruneVerificationRequests(store);
   const request = store.verificationRequests[String(requestId || "")];
 
@@ -328,7 +395,7 @@ exports.createAccount = async ({
     throw new Error("An account with that email already exists.");
   }
 
-  consumeVerificationRequest(store, {
+  await consumeVerificationRequest(store, {
     emailAddress: email,
     requestId: verificationRequestId,
     verificationCode,

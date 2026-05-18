@@ -26,6 +26,15 @@
           "value": "no-store, max-age=0"
         }
       ]
+    },
+    {
+      "source": "/(favicon.svg|og-image.svg|site.webmanifest|robots.txt|sitemap.xml)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
+      ]
     }
   ]
 }

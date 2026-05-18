@@ -50,8 +50,8 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 
 - `pamadvisor.com` is the production brand domain
 - Vercel project `pam-ai1` has `pamadvisor.com` and `www.pamadvisor.com` attached
-- In the domain DNS provider, set `A pamadvisor.com 76.76.21.21` so Vercel can serve the root site
-- Also set `A www.pamadvisor.com 76.76.21.21` or use the Vercel-recommended `www` record shown in the Vercel Domains screen
+- In the domain DNS provider, use the exact Vercel records shown in the Vercel Domains screen
+- The current production setup uses Vercel DNS for `pamadvisor.com` and `www.pamadvisor.com`
 - Add the DNS records Resend gives you for `pamadvisor.com` before expecting email to send to every user
 - Do not use `onboarding@resend.dev` for production email
 - Set `PAM_SITE_URL=https://pamadvisor.com` anywhere the app needs its public URL
@@ -60,6 +60,8 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 
 - Run `supabase/schema.sql` in the Supabase SQL Editor to create PAM's account, session, waitlist, baseline, scenario, and future Plaid item tables
 - Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel project environment variables
+- If Supabase is connected through Vercel Marketplace, PAM also supports the prefixed `PAM_SUPABASE_*` environment variables Vercel creates automatically
+- To apply the schema locally from pulled Vercel env vars, run `npx -p pg node scripts/apply-supabase-schema.mjs`
 - `SUPABASE_SERVICE_ROLE_KEY` must stay server-side only; never expose it in frontend code
 - If Supabase env vars are missing, PAM falls back to prototype storage so local demos still work
 
@@ -73,7 +75,7 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 ## Startup stack status
 
 - Live now: GitHub, Vercel deployment, Supabase storage, Resend API wiring, Plaid Sandbox wiring, and server-side OpenAI route
-- Needs DNS/domain verification: `pamadvisor.com` on Vercel and Resend sending from `hello@pamadvisor.com`
+- Needs external verification only if missing in provider dashboards: Resend domain sending from `hello@pamadvisor.com`
 - Optional free-tier next: PostHog analytics, Sentry error monitoring, and Cloudflare DNS after DNS is moved or configured
 - Later, not necessary for this MVP: Clerk auth, Stripe payments, Upstash Redis, and Pinecone vector search
 - PAM already has account creation and password hashing, so do not add Clerk unless replacing the current auth path deliberately

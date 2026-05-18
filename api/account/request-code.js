@@ -30,7 +30,7 @@ module.exports = async (req, res) => {
     }
 
     const { emailAddress, firstName } = body;
-    const result = createVerificationRequest({
+    const result = await createVerificationRequest({
       emailAddress,
       purpose: "signup"
     });
@@ -48,6 +48,7 @@ module.exports = async (req, res) => {
         });
         deliveryMode = "email";
         previewCode = "";
+        result.verificationToken = "";
       } catch (error) {
         if (!isResendTestingRestriction(error)) {
           throw error;

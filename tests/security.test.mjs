@@ -102,12 +102,12 @@ test("checkRateLimit returns a graceful 429 after the configured threshold", () 
 
 test("account passwords are hashed at rest and never persisted in plaintext", async () => {
   await withFreshAccountStore(async (store, tempDir) => {
-    const verification = store.createVerificationRequest({
+    const verification = await store.createVerificationRequest({
       emailAddress: "maya@example.com",
       purpose: "signup"
     });
 
-    store.createAccount({
+    await store.createAccount({
       firstName: "Maya",
       emailAddress: "maya@example.com",
       password: "VeryStrongPass123",

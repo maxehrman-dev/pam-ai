@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="mint" cx="18%" cy="18%" r="65%">
+      <stop offset="0" stop-color="#d8f3e5"/>
+      <stop offset="1" stop-color="#f7f1e4"/>
+    </radialGradient>
+    <linearGradient id="card" x1="0" x2="1">
+      <stop offset="0" stop-color="#fffdf4"/>
+      <stop offset="1" stop-color="#eef9f2"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mint)"/>
+  <rect x="70" y="70" width="1060" height="490" rx="44" fill="url(#card)" stroke="#cbe5d7" stroke-width="2"/>
+  <rect x="88" y="88" width="92" height="92" rx="24" fill="#143729"/>
+  <path d="M134 105l9 29 29 9-29 9-9 29-9-29-29-9 29-9 9-29z" fill="#fffdf4"/>
+  <circle cx="134" cy="143" r="8" fill="#6ee0bd"/>
+  <text x="205" y="130" fill="#143729" font-family="Georgia, serif" font-size="54" font-weight="700">PAM AI</text>
+  <text x="207" y="165" fill="#789381" font-family="Arial, sans-serif" font-size="22" letter-spacing="5">PERSONAL ASSET MANAGER</text>
+  <text x="90" y="305" fill="#143729" font-family="Georgia, serif" font-size="78" font-weight="700">Know what happens</text>
+  <text x="90" y="388" fill="#143729" font-family="Georgia, serif" font-size="78" font-weight="700">before you decide.</text>
+  <text x="94" y="454" fill="#587160" font-family="Arial, sans-serif" font-size="28">AI-powered financial decision modeling for young adults.</text>
+  <rect x="790" y="210" width="260" height="190" rx="28" fill="#143729" opacity="0.96"/>
+  <text x="825" y="265" fill="#d8f3e5" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="2">DECISION</text>
+  <text x="825" y="315" fill="#fffdf4" font-family="Arial, sans-serif" font-size="30" font-weight="700">-$400/mo</text>
+  <text x="825" y="358" fill="#d8f3e5" font-family="Arial, sans-serif" font-size="24">Risk: Medium</text>
+</svg>
