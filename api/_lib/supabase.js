@@ -14,6 +14,10 @@ function hasSupabaseConfig() {
   return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 }
 
+function isRecoverableSupabaseStorageError(error) {
+  return /schema cache|could not find the table|does not exist|relation/i.test(String(error?.message || ""));
+}
+
 function getHeaders(extra = {}) {
   return {
     apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -243,6 +247,7 @@ module.exports = {
   insertVerificationRequest,
   insertTelemetryEvent,
   insertAccount,
+  isRecoverableSupabaseStorageError,
   upsertBaseline,
   upsertWaitlistEntry
 };

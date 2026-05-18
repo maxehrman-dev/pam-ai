@@ -1,7 +1,7 @@
 const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification } = require("./_lib/email.js");
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { checkRateLimit, validatePayload } = require("./_lib/security.js");
-const { hasSupabaseConfig, upsertWaitlistEntry } = require("./_lib/supabase.js");
+const { hasSupabaseConfig, isRecoverableSupabaseStorageError, upsertWaitlistEntry } = require("./_lib/supabase.js");
 
 const waitlistSchema = {
   properties: {
@@ -30,9 +30,18 @@ module.exports = async (req, res) => {
 
     let deliveryMode = "saved";
     let warning = "";
+    let stored = hasSupabaseConfig() ? "supabase" : "prototype";
 
     if (hasSupabaseConfig()) {
-      await upsertWaitlistEntry(body.emailAddress);
+      try {
+        await upsertWaitlistEntry(body.emailAddress);
+      } catch (error) {
+        if (!isRecoverableSupabaseStorageError(error)) {
+          throw error;
+        }
+        stored = "email_only";
+        warning = "Joined waitlist. Storage is syncing.";
+      }
     }
 
     if (hasEmailProvider()) {
@@ -44,22 +53,22 @@ module.exports = async (req, res) => {
         if (!isResendTestingRestriction(error)) {
           throw error;
         }
-        warning = "Email confirmation needs a verified sending domain.";
+        warning = warning || "Email confirmation needs a verified sending domain.";
       }
     } else {
-      warning = "Email delivery is not configured.";
+      warning = warning || "Email delivery is not configured.";
     }
 
     return sendJson(res, 200, {
       ok: true,
       deliveryMode,
-      stored: hasSupabaseConfig() ? "supabase" : "prototype",
+      stored,
       warning
     });
   } catch (error) {
     return sendJson(res, error.statusCode || 200, {
       ok: false,
-      error: error.message || "Unable to join the waitlist."
+      error: "Unable to join the waitlist right now. Please try again."
     });
   }
 };
