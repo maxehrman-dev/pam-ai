@@ -1108,6 +1108,7 @@ function scrollToSection(id) {
 
 const WAITLIST_FOUNDING_NOTE =
   "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
+const WAITLIST_SIGNUP_URL = "https://pamadvisor.com/newsletter";
 
 function handleSectionScroll(target) {
   if (!target) return;
@@ -1163,6 +1164,7 @@ function renderHero() {
           <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">Learn how it works</button>
         </div>
         <p class="founding-note">Free to join. Early members lock in founding pricing forever.</p>
+        <p class="newsletter-link-row">Newsletter link: <a href="/newsletter" data-open-waitlist-link>${WAITLIST_SIGNUP_URL}</a></p>
       </div>
       <div class="hero-preview-card" aria-label="PAM AI product preview">
         <div class="preview-window-bar">
@@ -1983,9 +1985,9 @@ function renderWaitlistModal() {
   return `
     <div class="modal-backdrop" data-close-waitlist>
       <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="Join PAM waitlist">
-        <div class="panel-kicker">PAM waitlist</div>
-        <h2>${state.waitlistJoined ? "You’re on the list." : "Join the early access list."}</h2>
-        <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Join the founding list for PAM AI."}</p>
+        <div class="panel-kicker">PAM newsletter</div>
+        <h2>${state.waitlistJoined ? "You're on the list." : "Join the early access list."}</h2>
+        <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Get launch access, product updates, and founding pricing."}</p>
         ${state.waitlistJoined ? "" : `<p class="waitlist-founder-note">${escapeHtml(WAITLIST_FOUNDING_NOTE)}</p>`}
         ${state.waitlistJoined ? "" : `
           <form class="profile-form" data-waitlist-form>
@@ -1993,6 +1995,10 @@ function renderWaitlistModal() {
             <button class="button button-primary" type="submit">Join waitlist</button>
           </form>
         `}
+        <div class="waitlist-links">
+          <span>Signup link</span>
+          <a href="/newsletter" data-open-waitlist-link>${WAITLIST_SIGNUP_URL}</a>
+        </div>
         ${!state.waitlistJoined && state.waitlistMessage ? `<p class="auth-status-message">${escapeHtml(state.waitlistMessage)}</p>` : ""}
         <button class="button button-secondary" type="button" data-close-waitlist-button>Close</button>
       </div>
@@ -2018,6 +2024,7 @@ function render() {
           <button type="button" data-scroll-target="#taxes">Taxes</button>
           <button type="button" data-scroll-target="#growth">Growth</button>
           <button type="button" data-scroll-target="#how-it-works">How it works</button>
+          <button type="button" data-open-waitlist>Newsletter</button>
         </nav>
         <div class="foresee-header-actions">
           <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
@@ -2104,6 +2111,15 @@ function wireInteractions() {
       render();
     }
   });
+  document.querySelectorAll("[data-open-waitlist-link]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      state.waitlistOpen = true;
+      state.waitlistMessage = "";
+      trackEvent("waitlist_opened", { source: "direct_link" });
+      render();
+    });
+  });
   document.querySelectorAll("[data-scroll-target]").forEach((button) => {
     button.addEventListener("click", () => handleSectionScroll(button.dataset.scrollTarget));
   });
@@ -2155,6 +2171,10 @@ export async function startApp() {
     saveWorkspaceView("account");
   } else {
     saveWorkspaceView("landing");
+  }
+  if (["/newsletter", "/waitlist"].includes(window.location.pathname)) {
+    saveWorkspaceView("landing");
+    state.waitlistOpen = true;
   }
   state.result = canAccessDashboard() ? analyzeQuestion(state.question) : null;
   trackEvent("app_loaded", {

@@ -1,4 +1,4 @@
-const { hasEmailProvider } = require("../_lib/email.js");
+const { hasEmailProvider, hasNewsletterAudience } = require("../_lib/email.js");
 const { hasPlaidConfig } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit } = require("../_lib/security.js");
@@ -29,7 +29,8 @@ module.exports = async (req, res) => {
       mode: process.env.PLAID_ENV || "sandbox"
     },
     email: {
-      configured: hasEmailProvider()
+      configured: hasEmailProvider(),
+      newsletterAudienceConfigured: hasNewsletterAudience()
     },
     openai: {
       configured: Boolean(process.env.OPENAI_API_KEY),

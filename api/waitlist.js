@@ -1,4 +1,4 @@
-const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification } = require("./_lib/email.js");
+const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification, syncWaitlistContact } = require("./_lib/email.js");
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { checkRateLimit, validatePayload } = require("./_lib/security.js");
 const { hasSupabaseConfig, isRecoverableSupabaseStorageError, upsertWaitlistEntry } = require("./_lib/supabase.js");
@@ -31,6 +31,7 @@ module.exports = async (req, res) => {
     let deliveryMode = "saved";
     let warning = "";
     let stored = hasSupabaseConfig() ? "supabase" : "prototype";
+    let newsletter = "not_configured";
 
     if (hasSupabaseConfig()) {
       try {
@@ -46,6 +47,7 @@ module.exports = async (req, res) => {
 
     if (hasEmailProvider()) {
       try {
+        newsletter = await syncWaitlistContact({ emailAddress: body.emailAddress });
         await sendWaitlistNotification({ emailAddress: body.emailAddress });
         await sendWaitlistConfirmation({ emailAddress: body.emailAddress });
         deliveryMode = "email";
@@ -63,6 +65,7 @@ module.exports = async (req, res) => {
       ok: true,
       deliveryMode,
       stored,
+      newsletter,
       warning
     });
   } catch (error) {

@@ -256,6 +256,20 @@ input:disabled {
   font-weight: 850;
 }
 
+.newsletter-link-row {
+  margin: 10px 0 0;
+  color: var(--ink-3);
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.newsletter-link-row a {
+  color: var(--mint-5);
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .hero-preview-card,
 .advisor-demo-window {
   min-width: 0;
@@ -1853,6 +1867,34 @@ input:disabled {
   background: rgba(216, 243, 229, 0.42);
   border: 1px solid rgba(30, 138, 102, 0.12);
   font-weight: 750;
+}
+
+.waitlist-links {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 253, 249, 0.88);
+  border: 1px solid rgba(30, 138, 102, 0.14);
+}
+
+.waitlist-links span,
+.waitlist-links a {
+  display: block;
+}
+
+.waitlist-links span {
+  color: var(--ink-2);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.waitlist-links a {
+  margin-top: 4px;
+  color: var(--mint-5);
+  font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 900px) {
