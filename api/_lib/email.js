@@ -4,7 +4,6 @@ const RESEND_AUDIENCE_ID = process.env.RESEND_AUDIENCE_ID || "";
 const WAITLIST_NOTIFY_EMAIL = process.env.WAITLIST_NOTIFY_EMAIL || "mbewebdesign@gmail.com";
 const PAM_SITE_URL = (process.env.PAM_SITE_URL || "https://pamadvisor.com").replace(/\/$/, "");
 const NEWSLETTER_URL = `${PAM_SITE_URL}/newsletter`;
-const SIGNUP_URL = `${PAM_SITE_URL}/`;
 const WAITLIST_FOUNDING_NOTE =
   "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
 
@@ -107,7 +106,7 @@ async function sendWaitlistConfirmation({ emailAddress }) {
       <p style="${styles.paragraph}">Hey — you're in.</p>
       <p style="${styles.paragraph}">We'll email you the moment PAM launches with a direct link to sign up. As an early member, you'll lock in our founding price of <strong>$7.99/month permanently</strong>.</p>
       <p style="${styles.paragraph}">We're building something that actually helps you make smarter money decisions. Stay tuned.</p>
-      <a href="${SIGNUP_URL}" style="${styles.button}">Visit PAM AI</a>
+      <a href="${NEWSLETTER_URL}" style="${styles.button}">View waitlist page</a>
       <p style="${styles.signature}">— The PAM AI team</p>
     `
   });

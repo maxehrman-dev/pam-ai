@@ -1106,6 +1106,10 @@ function scrollToSection(id) {
   document.querySelector(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function isWaitlistRoute() {
+  return ["/newsletter", "/waitlist"].includes(window.location.pathname);
+}
+
 const WAITLIST_FOUNDING_NOTE =
   "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
 
@@ -2000,8 +2004,56 @@ function renderWaitlistModal() {
   `;
 }
 
+function renderWaitlistPage() {
+  return `
+    <div class="waitlist-page-shell">
+      <header class="waitlist-page-header">
+        <a class="foresee-brand" href="/newsletter" aria-label="PAM AI waitlist">
+          <span>PAM</span>
+          <div>
+            <strong>PAM AI</strong>
+            <small>Personal Asset Manager</small>
+          </div>
+        </a>
+        <p>Early access</p>
+      </header>
+      <main class="waitlist-page-card" aria-labelledby="waitlist-title">
+        <section class="waitlist-page-copy">
+          <div class="panel-kicker">PAM waitlist</div>
+          <h1 id="waitlist-title">${state.waitlistJoined ? "You're on the list." : "Know what happens before you decide."}</h1>
+          <p>
+            PAM AI helps young adults test financial decisions before making them. Join the founding list for launch access and founding pricing.
+          </p>
+          <div class="waitlist-proof-grid">
+            <div><span>Decision engine</span><strong>Rent, cars, trips, job changes</strong></div>
+            <div><span>Future impact</span><strong>Buffer, taxes, savings, goals</strong></div>
+            <div><span>Built for</span><strong>Young adults before wealth management</strong></div>
+          </div>
+        </section>
+        <section class="waitlist-page-form-panel" aria-label="Join the PAM waitlist">
+          <h2>${state.waitlistJoined ? "Check your inbox." : "Join the early access list."}</h2>
+          <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Free to join. Early members lock in founding pricing forever."}</p>
+          ${state.waitlistJoined ? "" : `
+            <form class="profile-form waitlist-page-form" data-waitlist-form>
+              <label><span>Your email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
+              <button class="button button-primary" type="submit">Join waitlist</button>
+            </form>
+          `}
+          ${state.waitlistMessage && !state.waitlistJoined ? `<p class="auth-status-message">${escapeHtml(state.waitlistMessage)}</p>` : ""}
+        </section>
+      </main>
+      <p class="waitlist-page-footer">PAM AI is in private build. Waitlist signup does not open the work-in-progress app.</p>
+    </div>
+  `;
+}
+
 function render() {
   if (!app) return;
+  if (isWaitlistRoute()) {
+    app.innerHTML = renderWaitlistPage();
+    wireInteractions();
+    return;
+  }
   app.innerHTML = `
     <div class="foresee-shell">
       <header class="foresee-header">
@@ -2044,7 +2096,7 @@ function wireInteractions() {
   document.querySelectorAll("[data-question-form]").forEach((form) => {
     form.addEventListener("submit", handleQuestionSubmit);
   });
-  document.querySelector("[data-waitlist-form]")?.addEventListener("submit", async (event) => {
+  document.querySelectorAll("[data-waitlist-form]").forEach((form) => form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const emailAddress = String(formData.get("waitlistEmail") || "").trim();
@@ -2080,7 +2132,7 @@ function wireInteractions() {
       stored: payload.stored || ""
     });
     render();
-  });
+  }));
   document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
   document.querySelector("[data-logout]")?.addEventListener("click", logoutAccount);
   document.querySelector("[data-load-sandbox]")?.addEventListener("click", handleSandboxSampleData);
@@ -2089,12 +2141,12 @@ function wireInteractions() {
   document.querySelector("[data-create-back]")?.addEventListener("click", handleCreateAccountBack);
   document.querySelector("[data-create-submit]")?.addEventListener("click", handleCreateAccountSubmitClick);
   document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
-  document.querySelector("[data-open-waitlist]")?.addEventListener("click", () => {
+  document.querySelectorAll("[data-open-waitlist]").forEach((button) => button.addEventListener("click", () => {
     state.waitlistOpen = true;
     state.waitlistMessage = "";
     trackEvent("waitlist_opened");
     render();
-  });
+  }));
   document.querySelector("[data-close-waitlist-button]")?.addEventListener("click", () => {
     state.waitlistOpen = false;
     render();
@@ -2168,7 +2220,7 @@ export async function startApp() {
   }
   if (["/newsletter", "/waitlist"].includes(window.location.pathname)) {
     saveWorkspaceView("landing");
-    state.waitlistOpen = true;
+    state.waitlistOpen = false;
   }
   state.result = canAccessDashboard() ? analyzeQuestion(state.question) : null;
   trackEvent("app_loaded", {

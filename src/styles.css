@@ -1855,6 +1855,134 @@ input:disabled {
   font-weight: 750;
 }
 
+.waitlist-page-shell {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(116, 232, 185, 0.28), transparent 34%),
+    linear-gradient(135deg, var(--cream-0) 0%, var(--cream-1) 58%, rgba(216, 243, 229, 0.72) 100%);
+  color: var(--forest);
+}
+
+.waitlist-page-header {
+  width: min(1180px, 100%);
+  margin: 0 auto 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.waitlist-page-header p {
+  margin: 0;
+  color: var(--mint-5);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.waitlist-page-card {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+  gap: 24px;
+  align-items: stretch;
+}
+
+.waitlist-page-copy,
+.waitlist-page-form-panel {
+  border: 1px solid rgba(30, 138, 102, 0.16);
+  background: rgba(255, 253, 249, 0.82);
+  box-shadow: 0 30px 80px rgba(20, 55, 41, 0.1);
+}
+
+.waitlist-page-copy {
+  padding: clamp(32px, 5vw, 64px);
+  border-radius: 38px;
+}
+
+.waitlist-page-copy h1 {
+  max-width: 760px;
+  margin: 14px 0 22px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.4rem, 8vw, 7.5rem);
+  line-height: 0.86;
+  letter-spacing: -0.07em;
+}
+
+.waitlist-page-copy p {
+  max-width: 680px;
+  color: var(--ink-3);
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
+  line-height: 1.55;
+}
+
+.waitlist-proof-grid {
+  margin-top: clamp(28px, 4vw, 52px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.waitlist-proof-grid div {
+  min-width: 0;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(216, 243, 229, 0.48);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+}
+
+.waitlist-proof-grid span,
+.waitlist-proof-grid strong {
+  display: block;
+}
+
+.waitlist-proof-grid span {
+  color: var(--mint-5);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.waitlist-proof-grid strong {
+  margin-top: 8px;
+  color: var(--forest);
+  line-height: 1.25;
+}
+
+.waitlist-page-form-panel {
+  padding: clamp(26px, 4vw, 42px);
+  border-radius: 34px;
+  align-self: center;
+}
+
+.waitlist-page-form-panel h2 {
+  margin: 0 0 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  line-height: 0.92;
+  letter-spacing: -0.055em;
+}
+
+.waitlist-page-form-panel p {
+  color: var(--ink-3);
+  line-height: 1.55;
+}
+
+.waitlist-page-form {
+  margin-top: 24px;
+}
+
+.waitlist-page-footer {
+  width: min(1180px, 100%);
+  margin: 22px auto 0;
+  color: var(--ink-2);
+  font-weight: 750;
+  text-align: center;
+}
+
 @media (max-width: 900px) {
   .foresee-layout,
   .daily-home-shell,
@@ -1884,6 +2012,16 @@ input:disabled {
   .outcome-grid,
   .workspace-grid-simulator {
     grid-template-columns: 1fr;
+  }
+
+  .waitlist-page-card,
+  .waitlist-proof-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .waitlist-page-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .daily-metric-strip,
