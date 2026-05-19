@@ -1483,6 +1483,12 @@ input:disabled {
   margin-top: 0;
 }
 
+.mobile-app-chrome,
+.mobile-welcome-card,
+.mobile-bottom-nav {
+  display: none;
+}
+
 .daily-home-shell {
   display: grid;
   grid-template-columns: minmax(260px, 0.78fr) minmax(420px, 1.18fr) minmax(260px, 0.78fr);
@@ -2705,8 +2711,13 @@ input:disabled {
 }
 
 @media (max-width: 640px) {
+  body {
+    padding-bottom: 82px;
+  }
+
   .foresee-shell {
-    width: min(100% - 18px, 1180px);
+    width: min(100% - 14px, 1180px);
+    padding-top: 10px;
   }
 
   .result-header,
@@ -2736,8 +2747,146 @@ input:disabled {
   }
 
   .foresee-panel {
-    padding: 16px;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .workspace-panel {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .workspace-header,
+  .workspace-tabs {
+    display: none;
+  }
+
+  .workspace-guide-grid {
+    gap: 12px;
+  }
+
+  .mobile-app-chrome {
+    position: sticky;
+    top: 8px;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 22px;
+    background: rgba(255, 253, 249, 0.92);
+    border: 1px solid rgba(30, 138, 102, 0.13);
+    box-shadow: 0 16px 38px rgba(20, 55, 41, 0.12);
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+  }
+
+  .mobile-brand-lockup > span {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    color: white;
+    background: #063f2b;
+    font-size: 0.66rem;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+  }
+
+  .mobile-brand-lockup strong,
+  .mobile-brand-lockup small {
+    display: block;
+  }
+
+  .mobile-brand-lockup strong {
+    color: var(--ink-5);
+    font-size: 0.94rem;
+    line-height: 1;
+  }
+
+  .mobile-brand-lockup small {
+    color: var(--ink-2);
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .mobile-app-chrome button {
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: rgba(216, 243, 229, 0.72);
+    color: var(--mint-5);
+    font-size: 0.8rem;
+    font-weight: 900;
+  }
+
+  .mobile-welcome-card {
+    display: block;
+    padding: 14px 16px;
     border-radius: 24px;
+    background: linear-gradient(135deg, rgba(216, 243, 229, 0.62), rgba(255, 253, 249, 0.86));
+    border: 1px solid rgba(30, 138, 102, 0.11);
+  }
+
+  .mobile-welcome-card p {
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.86rem;
+    font-weight: 800;
+  }
+
+  .mobile-welcome-card strong {
+    display: block;
+    margin-top: 4px;
+    color: var(--ink-5);
+    font-size: 1.25rem;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    padding: 8px;
+    border-radius: 24px;
+    background: rgba(255, 253, 249, 0.94);
+    border: 1px solid rgba(30, 138, 102, 0.16);
+    box-shadow: 0 20px 50px rgba(20, 55, 41, 0.18);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-bottom-nav button {
+    min-width: 0;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    color: var(--ink-3);
+    font-size: 0.74rem;
+    font-weight: 900;
+  }
+
+  .mobile-bottom-nav button:focus,
+  .mobile-bottom-nav button:hover {
+    color: var(--mint-5);
+    background: rgba(216, 243, 229, 0.72);
   }
 
   .pam-hero {
@@ -2765,10 +2914,37 @@ input:disabled {
 
   .daily-home-shell {
     gap: 12px;
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .daily-advisor-card {
-    padding: 16px;
+    padding: 14px;
+  }
+
+  .daily-advisor-card > div:first-child {
+    display: none;
+  }
+
+  .daily-main-card {
+    order: -1;
+    padding: 14px;
+  }
+
+  .daily-main-card h2 {
+    font-size: clamp(2rem, 13vw, 3rem);
+  }
+
+  .daily-chart {
+    height: 150px;
+    min-height: 150px;
+    margin: 14px 0;
+    padding: 14px;
+    gap: 8px;
+  }
+
+  .daily-range-tabs {
+    display: none;
   }
 
   .daily-update {
@@ -2785,33 +2961,47 @@ input:disabled {
 
   .ask-pam-card h3 {
     margin: 2px 0 4px;
-    font-size: 1.08rem;
+    font-size: 1.18rem;
   }
 
   .ask-pam-card button {
-    min-height: 0;
-    padding: 9px 11px;
-    border-radius: 13px;
-    font-size: 0.9rem;
+    min-height: 44px;
+    padding: 11px 13px;
+    border-radius: 16px;
+    font-size: 0.92rem;
+    background: rgba(255, 253, 249, 0.92);
   }
 
   .ask-pam-mini-form {
-    grid-template-columns: minmax(0, 1fr) 52px;
+    grid-template-columns: minmax(0, 1fr) 58px;
   }
 
   .ask-pam-mini-form input {
-    padding: 11px 12px;
-    border-radius: 15px;
+    padding: 12px;
+    border-radius: 16px;
   }
 
   .daily-advisor-card,
   .daily-main-card,
   .daily-side-card {
-    border-radius: 24px;
+    border-radius: 22px;
+    box-shadow: 0 14px 34px rgba(20, 55, 41, 0.08);
   }
 
-  .daily-chart {
-    min-height: 170px;
+  .daily-side-card {
+    padding: 14px;
+  }
+
+  .spending-header {
+    display: grid;
+  }
+
+  .spending-row {
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+  }
+
+  .spending-row i {
+    grid-column: 2 / -1;
   }
 
   .waitlist-page-copy h1,
