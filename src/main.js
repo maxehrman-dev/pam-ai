@@ -30,6 +30,13 @@ const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 const AUTH_VIEW_KEY = "pam-ai-auth-view-v1";
 const TELEMETRY_SESSION_KEY = "pam:telemetry-session:v1";
+const COOKIE_CONSENT_KEY = "pam:cookie-consent:v1";
+const LEGAL_ACCEPTANCE_KEY = "pam:legal-acceptance:v1";
+const WALKTHROUGH_DISMISSED_KEY = "pam:walkthrough-dismissed:v1";
+const TERMS_VERSION = "2026-05-18";
+const PRIVACY_VERSION = "2026-05-18";
+const LEGAL_DISCLAIMER =
+  "PAM AI is a financial modeling tool, not a licensed financial advisor, investment adviser, tax professional, attorney, or RIA. Nothing in PAM is financial, tax, legal, or investment advice. Consult a qualified professional before making financial decisions.";
 const CREATE_ACCOUNT_STEPS = [
   {
     key: "firstName",
@@ -129,6 +136,13 @@ const state = {
   waitlistOpen: false,
   waitlistJoined: false,
   waitlistMessage: "",
+  cookieConsent: loadCookieConsent(),
+  legalAcceptance: loadLegalAcceptance(),
+  legalAcceptanceError: "",
+  inputWarning: "",
+  walkthroughDismissed: loadWalkthroughDismissed(),
+  feedbackMessage: "",
+  feedbackBusy: false,
   verificationPreviewCode: "",
   verificationWarning: "",
   verificationMaskedEmail: "",
@@ -137,6 +151,72 @@ const state = {
 };
 
 let isStarted = false;
+
+function loadCookieConsent() {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(COOKIE_CONSENT_KEY) || "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function saveCookieConsent(value) {
+  const normalized = value === "accepted" ? "accepted" : "declined";
+  state.cookieConsent = normalized;
+  try {
+    window.localStorage.setItem(COOKIE_CONSENT_KEY, normalized);
+  } catch (_error) {
+    // Consent UI still works without persistence.
+  }
+}
+
+function loadLegalAcceptance() {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(LEGAL_ACCEPTANCE_KEY) || "null");
+    if (parsed?.acceptedAdvisorDisclaimer && parsed?.acceptedTermsPrivacy) return parsed;
+  } catch (_error) {
+    // Legal acceptance will be requested again if local storage is unavailable.
+  }
+  return null;
+}
+
+function saveLegalAcceptance(record) {
+  state.legalAcceptance = record;
+  try {
+    window.localStorage.setItem(LEGAL_ACCEPTANCE_KEY, JSON.stringify(record));
+  } catch (_error) {
+    // Server-side logging is the source of truth when available.
+  }
+}
+
+function hasAcceptedLegalTerms() {
+  return Boolean(
+    state.legalAcceptance?.acceptedAdvisorDisclaimer &&
+      state.legalAcceptance?.acceptedTermsPrivacy &&
+      state.legalAcceptance?.termsVersion === TERMS_VERSION &&
+      state.legalAcceptance?.privacyVersion === PRIVACY_VERSION
+  );
+}
+
+function loadWalkthroughDismissed() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(WALKTHROUGH_DISMISSED_KEY) === "true";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function saveWalkthroughDismissed() {
+  state.walkthroughDismissed = true;
+  try {
+    window.localStorage.setItem(WALKTHROUGH_DISMISSED_KEY, "true");
+  } catch (_error) {
+    // The walkthrough can still be dismissed for the current render.
+  }
+}
 
 function getTelemetrySessionId() {
   try {
@@ -151,6 +231,10 @@ function getTelemetrySessionId() {
 }
 
 function trackEvent(eventName, properties = {}, eventType = "product") {
+  if (state.cookieConsent !== "accepted" && eventType !== "security") {
+    return;
+  }
+
   const body = JSON.stringify({
     eventType,
     eventName,
@@ -403,6 +487,10 @@ function canAccessDashboard() {
   return hasPrototypeAccount() && hasCompletedBaseline(state.baseline);
 }
 
+function canUseFinancialFeatures() {
+  return canAccessDashboard() && hasAcceptedLegalTerms();
+}
+
 async function requestJson(url, options = {}) {
   try {
     const response = await fetch(url, options);
@@ -447,11 +535,17 @@ async function logoutAccount() {
   state.result = null;
   state.aiGuidance = null;
   state.accountDraft = null;
+  state.legalAcceptance = null;
   state.verificationPreviewCode = "";
   state.verificationWarning = "";
   state.verificationMaskedEmail = "";
   state.verificationExpiresAt = "";
   saveWorkspaceView("landing");
+  try {
+    window.localStorage.removeItem(LEGAL_ACCEPTANCE_KEY);
+  } catch (_error) {
+    // Legal acceptance is user/session scoped.
+  }
   clearStatus();
   render();
 }
@@ -888,6 +982,12 @@ async function handleCreateAccount(event) {
   state.account = payload.account;
   saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
   state.aiGuidance = null;
+  state.legalAcceptance = null;
+  try {
+    window.localStorage.removeItem(LEGAL_ACCEPTANCE_KEY);
+  } catch (_error) {
+    // User will be gated by in-memory legal state if storage is unavailable.
+  }
   state.accountDraft = getInitialAccountDraft();
   state.createAccountStep = 0;
   state.verificationPreviewCode = "";
@@ -937,6 +1037,7 @@ async function handleLogin(event) {
   state.account = payload.account;
   saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
   state.aiGuidance = null;
+  state.legalAcceptance = loadLegalAcceptance();
   setStatus("Signed in. Connect Sandbox data to finish your dashboard.", "account");
   saveAuthView("signin");
   saveWorkspaceView("account");
@@ -1045,6 +1146,11 @@ async function handleSandboxSampleData() {
     render();
     return;
   }
+  if (!hasAcceptedLegalTerms()) {
+    setStatus("Accept PAM's legal terms before loading financial data.", "account");
+    render();
+    return;
+  }
   const sandboxPayload = loadSandboxFallback(state.baseline);
   saveBaseline(sandboxPayload.baseline);
   setStatus(sandboxPayload.status, "account");
@@ -1059,6 +1165,11 @@ async function handleSandboxSampleData() {
 async function handleConnectSandboxAccount() {
   if (!hasPrototypeAccount()) {
     setStatus("Create your account first, then connect Sandbox data.", "account");
+    render();
+    return;
+  }
+  if (!hasAcceptedLegalTerms()) {
+    setStatus("Accept PAM's legal terms before connecting financial data.", "account");
     render();
     return;
   }
@@ -1091,6 +1202,12 @@ async function handleQuestionSubmit(event) {
   const formData = new FormData(event.currentTarget);
   const question = String(formData.get("question") || "").trim();
   if (!question) return;
+  const inputWarning = getInputContentWarning(question);
+  if (inputWarning) {
+    state.inputWarning = inputWarning;
+    render();
+    return;
+  }
   if (!canAccessDashboard()) {
     saveWorkspaceView("account");
     state.result = null;
@@ -1099,7 +1216,119 @@ async function handleQuestionSubmit(event) {
     render();
     return;
   }
+  if (!hasAcceptedLegalTerms()) {
+    saveWorkspaceView("account");
+    setStatus("Accept PAM's legal terms before using financial modeling features.", "account");
+    render();
+    return;
+  }
+  state.inputWarning = "";
   await runDecisionAnalysis(question);
+}
+
+async function handleLegalAcceptance(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const acceptedAdvisorDisclaimer = formData.get("acceptedAdvisorDisclaimer") === "on";
+  const acceptedTermsPrivacy = formData.get("acceptedTermsPrivacy") === "on";
+
+  if (!acceptedAdvisorDisclaimer || !acceptedTermsPrivacy) {
+    state.legalAcceptanceError = "Both acknowledgements are required before using financial features.";
+    render();
+    return;
+  }
+
+  if (!state.sessionToken) {
+    state.legalAcceptanceError = "Sign in again before accepting legal terms.";
+    render();
+    return;
+  }
+
+  const { payload, error } = await requestJson("/api/account/session", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      sessionToken: state.sessionToken,
+      action: "accept_legal",
+      acceptedAdvisorDisclaimer,
+      acceptedTermsPrivacy,
+      termsVersion: TERMS_VERSION,
+      privacyVersion: PRIVACY_VERSION
+    })
+  });
+
+  if (error || !payload?.ok) {
+    state.legalAcceptanceError = payload?.error || error || "Unable to record legal acceptance.";
+    render();
+    return;
+  }
+
+  saveLegalAcceptance({
+    acceptedAdvisorDisclaimer,
+    acceptedTermsPrivacy,
+    termsVersion: TERMS_VERSION,
+    privacyVersion: PRIVACY_VERSION,
+    acceptedAt: payload.acceptedAt,
+    stored: payload.stored || "none"
+  });
+  state.legalAcceptanceError = "";
+  setStatus("Legal terms accepted. You can now connect Sandbox data and model decisions.", "account");
+  trackEvent("legal_terms_accepted", { stored: payload.stored || "none" }, "security");
+  render();
+}
+
+async function handleFeedbackSubmit(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const message = String(formData.get("feedbackMessage") || "").trim();
+  const ratingValue = Number(formData.get("feedbackRating") || 0);
+
+  if (message.length < 4) {
+    state.feedbackMessage = "Write a short note first.";
+    render();
+    return;
+  }
+
+  state.feedbackBusy = true;
+  state.feedbackMessage = "Sending feedback...";
+  render();
+
+  const { payload, error } = await requestJson("/api/telemetry", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      eventType: "product",
+      eventName: "feedback_submitted",
+      sessionId: getTelemetrySessionId(),
+      page: window.location.pathname || "/",
+      properties: {
+        sessionToken: state.sessionToken || "",
+        feedbackMessage: message,
+        rating: ratingValue || 0
+      }
+    })
+  });
+
+  state.feedbackBusy = false;
+  if (error || !payload?.ok) {
+    state.feedbackMessage = payload?.error || error || "Could not send feedback.";
+    render();
+    return;
+  }
+
+  state.feedbackMessage = payload.feedbackStored === "schema_pending"
+    ? "Thanks. PAM received your feedback locally, but the feedback table still needs the latest Supabase schema."
+    : "Thanks. PAM received your feedback.";
+  render();
+}
+
+function handleDismissWalkthrough() {
+  saveWalkthroughDismissed();
+  render();
 }
 
 function scrollToSection(id) {
@@ -1108,6 +1337,24 @@ function scrollToSection(id) {
 
 function isWaitlistRoute() {
   return ["/newsletter", "/waitlist"].includes(window.location.pathname);
+}
+
+function getLegalRoute() {
+  const pathname = window.location.pathname;
+  if (pathname === "/terms") return "terms";
+  if (pathname === "/privacy") return "privacy";
+  if (pathname === "/content-policy") return "content-policy";
+  if (pathname === "/faq") return "faq";
+  return "";
+}
+
+function getInputContentWarning(value) {
+  const text = String(value || "");
+  const lineCount = text.split(/\n/).filter((line) => line.trim()).length;
+  if (text.length > 1800 || lineCount > 10) {
+    return "That looks like a large pasted block. Please summarize the financial decision in your own words instead of pasting copyrighted or third-party content.";
+  }
+  return "";
 }
 
 const WAITLIST_FOUNDING_NOTE =
@@ -1131,6 +1378,13 @@ function handleSectionScroll(target) {
 }
 
 function openWorkspaceView(view) {
+  if (view === "dashboard" && canAccessDashboard() && !hasAcceptedLegalTerms()) {
+    saveWorkspaceView("account");
+    setStatus("Accept PAM's legal terms before opening the dashboard.", "account");
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
   if (view === "dashboard" && !canAccessDashboard()) {
     saveWorkspaceView(hasPrototypeAccount() ? "account" : "landing");
     setStatus(hasPrototypeAccount()
@@ -1151,7 +1405,7 @@ function openWorkspaceView(view) {
 }
 
 function renderHero() {
-  const isComplete = canAccessDashboard();
+  const isComplete = canUseFinancialFeatures();
   return `
     <section class="pam-hero foresee-panel">
       <div class="hero-copy">
@@ -1348,7 +1602,7 @@ function renderPricingModel() {
 
 function renderAccountPreview() {
   const baseline = getUiBaseline(state.baseline);
-  const isComplete = canAccessDashboard();
+  const isComplete = canUseFinancialFeatures();
   const goalLabel = getGoalLabel(state.baseline);
   const cards = [];
 
@@ -1428,7 +1682,7 @@ function renderSetupTermGuide() {
 }
 
 function renderWorkspaceHub() {
-  const isComplete = canAccessDashboard();
+  const isComplete = canUseFinancialFeatures();
   const baseline = getUiBaseline(state.baseline);
   return `
     <section class="foresee-panel workspace-panel" id="workspace-panel">
@@ -1442,7 +1696,7 @@ function renderWorkspaceHub() {
       <div class="workspace-tabs" role="tablist" aria-label="PAM views">
         ${[
           { id: "account", label: hasPrototypeAccount() ? "Account" : "Create account" },
-          { id: "dashboard", label: "Dashboard", disabled: !canAccessDashboard() }
+          { id: "dashboard", label: "Dashboard", disabled: !canUseFinancialFeatures() }
         ].map((item) => `
           <button
             class="workspace-tab ${state.workspaceView === item.id ? "active" : ""}"
@@ -1494,28 +1748,80 @@ function renderLandingWorkspace() {
 }
 
 function renderDashboardWorkspace() {
-  if (!canAccessDashboard()) {
+  if (!canAccessDashboard() || !hasAcceptedLegalTerms()) {
     return `
       <section class="foresee-panel result-panel locked-result">
         <div class="result-header">
           <div>
             <div class="panel-kicker">Dashboard locked</div>
-            <h2>Create an account and connect Sandbox data first.</h2>
+            <h2>${canAccessDashboard() ? "Accept PAM's legal terms first." : "Create an account and connect Sandbox data first."}</h2>
           </div>
         </div>
+        ${canAccessDashboard() ? renderLegalGate() : ""}
       </section>
     `;
   }
 
   return `
     <div class="workspace-guide-grid compact-workspace-view" id="dashboard-section">
+      ${renderOnboardingWalkthrough()}
       ${renderDailyDashboardHome()}
       ${renderConnectedInsights()}
       <div class="workspace-grid-simulator">
         ${renderDecisionPanel()}
         ${renderResult()}
       </div>
+      ${renderFeedbackPanel()}
     </div>
+  `;
+}
+
+function renderOnboardingWalkthrough() {
+  if (state.walkthroughDismissed) return "";
+  return `
+    <section class="foresee-panel walkthrough-panel" aria-label="PAM walkthrough">
+      <div>
+        <div class="panel-kicker">Quick walkthrough</div>
+        <h2>Your PAM homepage is built from your baseline.</h2>
+      </div>
+      <div class="walkthrough-steps">
+        <article><strong>1</strong><span>Review your dashboard</span><p>Check buffer, cash, spending, debts, and goals.</p></article>
+        <article><strong>2</strong><span>Ask one decision</span><p>Try rent, a car payment, a trip, a job change, or investing.</p></article>
+        <article><strong>3</strong><span>Compare the tradeoff</span><p>PAM shows risk, taxes, savings, runway, and goal impact.</p></article>
+      </div>
+      <button class="button button-secondary" type="button" data-dismiss-walkthrough>Got it</button>
+    </section>
+  `;
+}
+
+function renderFeedbackPanel() {
+  return `
+    <section class="foresee-panel feedback-panel" id="feedback">
+      <div>
+        <div class="panel-kicker">Feedback</div>
+        <h2>Help shape PAM.</h2>
+        <p>Tell us what felt confusing, missing, or surprisingly useful.</p>
+      </div>
+      <form class="feedback-form" data-feedback-form>
+        <label>
+          <span>Rating</span>
+          <select name="feedbackRating">
+            <option value="">Optional</option>
+            <option value="5">5 - Very useful</option>
+            <option value="4">4 - Useful</option>
+            <option value="3">3 - Okay</option>
+            <option value="2">2 - Needs work</option>
+            <option value="1">1 - Not useful</option>
+          </select>
+        </label>
+        <label>
+          <span>Your feedback</span>
+          <textarea name="feedbackMessage" rows="4" placeholder="What should PAM improve next?"></textarea>
+        </label>
+        <button class="button button-primary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send feedback"}</button>
+        ${state.feedbackMessage ? `<p class="auth-status-message">${escapeHtml(state.feedbackMessage)}</p>` : ""}
+      </form>
+    </section>
   `;
 }
 
@@ -1638,6 +1944,7 @@ function renderDailyDashboardHome() {
         </div>
         <div class="daily-side-card insights-stack">
           <h3>PAM insights</h3>
+          <p class="ai-output-disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
           <div class="insight-pill good"><strong>On track</strong><p>${escapeHtml(goalLabel)} is moving forward at your current savings rate.</p></div>
           <div class="insight-pill warn"><strong>Watch out</strong><p>A $400 car payment could delay ${escapeHtml(goalLabel.toLowerCase())} by several months.</p></div>
           <div class="insight-pill info"><strong>Opportunity</strong><p>$200/mo invested early could materially change your long-term options.</p></div>
@@ -1679,6 +1986,7 @@ function renderConnectedInsights() {
           `).join("")}
         </div>
       ` : ""}
+      <p class="disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
     </section>
   `;
 }
@@ -1736,6 +2044,7 @@ function renderDashboardSummary() {
         </div>
       </div>
       <p class="disclaimer">${state.baseline.source === "plaid_mock" ? "This is a mock dashboard powered by Sandbox-style sample data." : "This is a mock dashboard powered by Plaid Sandbox data."}</p>
+      <p class="disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
     </section>
   `;
 }
@@ -1767,12 +2076,17 @@ function renderBaselinePanel() {
                 <span>${escapeHtml(account.stateCode || baseline.stateCode || "OTHER")}</span>
               </div>
             </div>
+            ${!hasAcceptedLegalTerms() ? renderLegalGate() : ""}
             <div class="connect-actions-header">
               <h3>${isComplete ? "Dashboard ready." : "Connect Sandbox data to unlock your dashboard."}</h3>
             </div>
+            <div class="plaid-security-note">
+              <strong>Data security</strong>
+              <p>We never see or store your bank login credentials. Plaid handles bank connections. Financial data is encrypted in transit and at rest by our infrastructure providers, and PAM does not use financial data to train AI models.</p>
+            </div>
             <div class="connect-action-grid">
-              <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
-              <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy ? "disabled" : ""}>Use Sandbox-style sample data</button>
+              <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
+              <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>Use Sandbox-style sample data</button>
             </div>
             <div class="form-actions">
               <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
@@ -1872,6 +2186,7 @@ function renderDecisionPanel() {
       <form class="foresee-question-form" data-question-form>
         <label for="pam-question">Ask a financial question</label>
         <textarea id="pam-question" name="question" rows="4" placeholder="Can I afford to move out if rent is $1,800?">${escapeHtml(state.question)}</textarea>
+        ${state.inputWarning ? `<p class="input-warning">${escapeHtml(state.inputWarning)}</p>` : ""}
         <button class="button button-primary" type="submit">Analyze decision</button>
       </form>
       <div class="quick-question-row">
@@ -1886,21 +2201,22 @@ function renderDecisionPanel() {
         ].map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
       </div>
       ${getStatus("decision") ? `<p class="foresee-status">${escapeHtml(getStatus("decision"))}</p>` : ""}
+      <p class="disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
     </section>
   `;
 }
 
 function renderResult() {
-  if (!canAccessDashboard()) {
+  if (!canAccessDashboard() || !hasAcceptedLegalTerms()) {
     return `
       <section class="foresee-panel result-panel locked-result">
       <div class="result-header">
         <div>
           <div class="panel-kicker">Result locked</div>
-          <h2>Create your account and connect Sandbox data first.</h2>
+          <h2>${canAccessDashboard() ? "Accept PAM's legal terms first." : "Create your account and connect Sandbox data first."}</h2>
         </div>
       </div>
-      <p>PAM will not fake a homepage or pretend to know your finances. Create the account shell first, then connect Sandbox data so the decision engine has a real baseline to work from.</p>
+      ${canAccessDashboard() ? renderLegalGate() : "<p>PAM will not fake a homepage or pretend to know your finances. Create the account shell first, then connect Sandbox data so the decision engine has a real baseline to work from.</p>"}
     </section>
   `;
   }
@@ -1941,6 +2257,7 @@ function renderResult() {
       ${state.aiGuidance?.guidance ? `
         <div class="result-section advisor-box">
           <h3>PAM advisor</h3>
+          <p class="ai-output-disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
           <p><strong>${escapeHtml(state.aiGuidance.guidance.assistant.headline)}</strong></p>
           <p>${escapeHtml(state.aiGuidance.guidance.assistant.body)}</p>
           <p>${escapeHtml(state.aiGuidance.guidance.interpretationSummary)}</p>
@@ -1960,6 +2277,7 @@ function renderResult() {
         <h3>Explanation</h3>
         <p>${escapeHtml(result.explanation)}</p>
         <p class="disclaimer">Educational estimate only. Not financial, tax, legal, or investment advice.</p>
+        <p class="disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
       </div>
     </section>
   `;
@@ -2007,6 +2325,7 @@ function renderWaitlistModal() {
 function renderWaitlistPage() {
   return `
     <div class="waitlist-page-shell">
+      ${renderDisclaimerBanner()}
       <header class="waitlist-page-header">
         <a class="foresee-brand" href="/newsletter" aria-label="PAM AI waitlist">
           <span>PAM</span>
@@ -2043,12 +2362,184 @@ function renderWaitlistPage() {
         </section>
       </main>
       <p class="waitlist-page-footer">PAM AI is in private build. Waitlist signup does not open the work-in-progress app.</p>
+      ${renderLegalFooter()}
+      ${renderCookieConsentBanner()}
+    </div>
+  `;
+}
+
+function renderDisclaimerBanner() {
+  return `
+    <div class="legal-disclaimer-banner" role="note">
+      <strong>Important:</strong> ${escapeHtml(LEGAL_DISCLAIMER)}
+    </div>
+  `;
+}
+
+function renderLegalFooter() {
+  return `
+    <footer class="pam-legal-footer">
+      <p>${escapeHtml(LEGAL_DISCLAIMER)}</p>
+      <nav aria-label="Legal links">
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/content-policy">Content Policy</a>
+        <a href="/faq">FAQ</a>
+        <a href="/newsletter">Waitlist</a>
+      </nav>
+    </footer>
+  `;
+}
+
+function renderCookieConsentBanner() {
+  if (state.cookieConsent) return "";
+  return `
+    <div class="cookie-consent-banner" role="dialog" aria-label="Cookie consent">
+      <div>
+        <strong>Cookies</strong>
+        <p>PAM uses essential cookies/storage to run the app. Analytics are optional and only help us improve the product.</p>
+      </div>
+      <div class="cookie-actions">
+        <button class="button button-secondary" type="button" data-cookie-consent="declined">Essential only</button>
+        <button class="button button-primary" type="button" data-cookie-consent="accepted">Allow analytics</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderLegalGate() {
+  return `
+    <section class="foresee-panel legal-gate-panel">
+      <div class="panel-kicker">Before financial modeling</div>
+      <h2>Quick legal check.</h2>
+      <p>PAM can model decisions, but it cannot make decisions for you. Please confirm these two points before using financial features.</p>
+      <form class="legal-acceptance-form" data-legal-acceptance-form>
+        <label>
+          <input type="checkbox" name="acceptedAdvisorDisclaimer" required />
+          <span>I understand PAM AI is a financial modeling tool, not a licensed advisor, and nothing is financial, tax, legal, or investment advice.</span>
+        </label>
+        <label>
+          <input type="checkbox" name="acceptedTermsPrivacy" required />
+          <span>I have read and agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</span>
+        </label>
+        <button class="button button-primary" type="submit">Accept and continue</button>
+      </form>
+      ${state.legalAcceptanceError ? `<p class="auth-status-message">${escapeHtml(state.legalAcceptanceError)}</p>` : ""}
+      <p class="disclaimer">Acceptance is timestamped and logged for your account.</p>
+    </section>
+  `;
+}
+
+function renderLegalPage(route) {
+  const pages = {
+    terms: {
+      title: "Terms of Service",
+      eyebrow: "Legal",
+      intro: "Plain-English terms for using PAM AI. These terms protect both you and PAM while the product remains a financial modeling tool, not a licensed advisor.",
+      sections: [
+        ["PAM is not a licensed advisor", "PAM AI is a software-based financial modeling tool. PAM AI is not a registered investment adviser, broker-dealer, bank, accountant, attorney, tax preparer, or fiduciary. Nothing in the product constitutes financial, investment, tax, legal, credit, insurance, or accounting advice."],
+        ["No guarantees", "PAM may show projections, scenarios, risk levels, goal delays, tax estimates, and compound-growth examples. These outputs are hypothetical, assumption-based, and not guaranteed. Real outcomes can differ materially."],
+        ["Your responsibility", "You are responsible for your own financial decisions. Before acting on any PAM output, consult qualified professionals such as a licensed financial advisor, CPA, attorney, or tax professional."],
+        ["Data use", "We use your data solely to provide and improve the PAM service. We do not sell user data to third parties."],
+        ["Bank credentials", "We do not store raw bank login credentials. Future or Sandbox bank connections are handled through Plaid or a similar regulated third-party provider."],
+        ["AI outputs and copyrighted inputs", "Do not input copyrighted material, confidential third-party documents, or content you do not have rights to use. PAM is not liable for outputs generated from copyrighted or unauthorized inputs."],
+        ["Account termination", "We may suspend or terminate accounts that abuse the service, attempt unauthorized access, violate these terms, or create legal/security risk. You may stop using PAM at any time."],
+        ["Limitation of liability", "To the fullest extent permitted by law, PAM AI and its operators are not liable for lost profits, investment losses, tax consequences, missed opportunities, data loss, or indirect, incidental, consequential, special, or punitive damages arising from use of the service."],
+        ["Governing law", "These terms are governed by the laws of the State of California, without regard to conflict-of-law rules."]
+      ]
+    },
+    privacy: {
+      title: "Privacy Policy",
+      eyebrow: "Privacy",
+      intro: "PAM is designed around trust: collect only what is needed, explain how it is used, and avoid turning financial data into ad targeting.",
+      sections: [
+        ["Data we collect", "PAM may collect your email, account profile, age range or age, state, employment type, financial baseline, account balances, transactions, liabilities, goals, decision prompts, scenario outputs, cookie choices, usage data, and support/security logs."],
+        ["Plaid and financial data", "When financial account connections are used, Plaid handles bank authentication. PAM never sees or stores your bank login credentials. PAM may receive summarized balances, transactions, recurring income/expenses, liabilities, and account metadata to build your baseline."],
+        ["What we do not do", "We do not sell your data. We do not share financial data with advertisers. We do not use financial data for advertising profiling. We do not use your financial data to train AI models."],
+        ["Third-party services", "PAM may use Plaid for banking data, AI API providers such as OpenAI or Anthropic for explanation and scenario interpretation, Resend for email, Supabase for storage, Vercel for hosting, and Google Analytics if enabled. Google may collect anonymized usage data under its own policy: https://policies.google.com/privacy."],
+        ["Security", "Financial data is protected in transit with HTTPS and stored with provider-level encryption at rest where supported. Access tokens and provider secrets must remain server-side and are never intentionally exposed in the browser."],
+        ["Cookies", "Essential cookies/local storage keep the app functioning, remember sessions, legal acceptance, and preferences. Analytics cookies or telemetry are optional; if you decline analytics, PAM disables non-essential tracking in the client."],
+        ["Retention", "We retain account and financial baseline data while your account is active or as needed for security, legal, backup, and operational purposes. Waitlist emails are retained until you unsubscribe or request deletion."],
+        ["Your rights", "You may request access, deletion, correction, or portability of your data by contacting PAM. Some deletion requests may be limited by security, fraud prevention, or legal retention obligations."]
+      ]
+    },
+    "content-policy": {
+      title: "Content Policy",
+      eyebrow: "Acceptable use",
+      intro: "PAM is for personal financial decision modeling. Keep inputs lawful, concise, and yours to use.",
+      sections: [
+        ["Acceptable use", "Use PAM to ask financial decision questions, compare scenarios, understand tradeoffs, and learn how assumptions may affect your future."],
+        ["Do not paste copyrighted material", "Do not paste books, articles, paid reports, proprietary documents, private legal/tax files, or any other copyrighted or confidential material unless you own the rights or have permission."],
+        ["No illegal or harmful use", "Do not use PAM to evade taxes, hide income, commit fraud, deceive lenders, bypass bank rules, or harm another person."],
+        ["AI output limitations", "PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information with authoritative sources or qualified professionals."],
+        ["Input filtering", "PAM may warn or block unusually large pasted text to reduce copyright and privacy risk. Summarize the financial decision in your own words instead."]
+      ]
+    },
+    faq: {
+      title: "FAQ",
+      eyebrow: "Help",
+      intro: "Fast answers for people trying PAM for the first time.",
+      sections: [
+        ["What is PAM AI?", "PAM AI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit."],
+        ["Is PAM a financial advisor?", "No. PAM is not a licensed financial advisor, RIA, tax professional, attorney, bank, or broker. It provides educational modeling only."],
+        ["Does PAM connect to my bank?", "The current production prototype supports Plaid Sandbox and Sandbox-style sample data. Real production bank connections should only be enabled after full auth, storage, security, and compliance review."],
+        ["Does PAM store bank credentials?", "No. PAM should never see or store raw bank login credentials. Plaid handles bank authentication."],
+        ["Are the results guaranteed?", "No. PAM's results are hypothetical estimates based on the data and assumptions available. Real-life outcomes can differ."],
+        ["What should I do if a result looks wrong?", "Treat PAM as a planning aid, not a source of truth. Verify important numbers, update your baseline, and consult a qualified professional before making major decisions."],
+        ["Can I give feedback?", "Yes. Signed-in users can send feedback from the dashboard. Waitlist users can reply to PAM emails or sign up again with the email they want us to use."]
+      ]
+    }
+  };
+  const page = pages[route] || pages.terms;
+
+  return `
+    <div class="legal-page-shell">
+      ${renderDisclaimerBanner()}
+      <header class="waitlist-page-header legal-page-header">
+        <a class="foresee-brand" href="/" aria-label="PAM AI home">
+          <span>PAM</span>
+          <div>
+            <strong>PAM AI</strong>
+            <small>Personal Asset Manager</small>
+          </div>
+        </a>
+        <nav>
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/content-policy">Content Policy</a>
+          <a href="/faq">FAQ</a>
+        </nav>
+      </header>
+      <main class="legal-page-card">
+        <div class="panel-kicker">${escapeHtml(page.eyebrow)}</div>
+        <h1>${escapeHtml(page.title)}</h1>
+        <p class="legal-page-intro">${escapeHtml(page.intro)}</p>
+        <div class="legal-section-list">
+          ${page.sections.map(([title, copy]) => `
+            <section>
+              <h2>${escapeHtml(title)}</h2>
+              <p>${copy.includes("https://policies.google.com/privacy")
+                ? `${escapeHtml(copy.replace("https://policies.google.com/privacy.", ""))}<a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Google Privacy Policy</a>.`
+                : escapeHtml(copy)}
+              </p>
+            </section>
+          `).join("")}
+        </div>
+      </main>
+      ${renderLegalFooter()}
+      ${renderCookieConsentBanner()}
     </div>
   `;
 }
 
 function render() {
   if (!app) return;
+  const legalRoute = getLegalRoute();
+  if (legalRoute) {
+    app.innerHTML = renderLegalPage(legalRoute);
+    wireInteractions();
+    return;
+  }
   if (isWaitlistRoute()) {
     app.innerHTML = renderWaitlistPage();
     wireInteractions();
@@ -2056,6 +2547,7 @@ function render() {
   }
   app.innerHTML = `
     <div class="foresee-shell">
+      ${renderDisclaimerBanner()}
       <header class="foresee-header">
         <a class="foresee-brand" href="/">
           <span>PAM</span>
@@ -2071,6 +2563,8 @@ function render() {
           <button type="button" data-scroll-target="#growth">Growth</button>
           <button type="button" data-scroll-target="#how-it-works">How it works</button>
           <button type="button" data-open-waitlist>Newsletter</button>
+          <button type="button" data-legal-route="/faq">FAQ</button>
+          <button type="button" data-legal-route="/terms">Terms</button>
         </nav>
         <div class="foresee-header-actions">
           <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
@@ -2084,6 +2578,8 @@ function render() {
             ? renderAccountPage()
             : renderWorkspaceHub()}
       </main>
+      ${renderLegalFooter()}
+      ${renderCookieConsentBanner()}
       ${renderWaitlistModal()}
     </div>
   `;
@@ -2095,6 +2591,23 @@ function wireInteractions() {
   document.querySelector("[data-login-form]")?.addEventListener("submit", handleLogin);
   document.querySelectorAll("[data-question-form]").forEach((form) => {
     form.addEventListener("submit", handleQuestionSubmit);
+  });
+  document.querySelector("[data-legal-acceptance-form]")?.addEventListener("submit", handleLegalAcceptance);
+  document.querySelector("[data-feedback-form]")?.addEventListener("submit", handleFeedbackSubmit);
+  document.querySelector("[data-dismiss-walkthrough]")?.addEventListener("click", handleDismissWalkthrough);
+  document.querySelectorAll("[data-cookie-consent]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveCookieConsent(button.dataset.cookieConsent || "declined");
+      if (state.cookieConsent === "accepted") {
+        trackEvent("cookie_consent_accepted", {}, "security");
+      }
+      render();
+    });
+  });
+  document.querySelectorAll("[data-legal-route]").forEach((button) => {
+    button.addEventListener("click", () => {
+      window.location.href = button.dataset.legalRoute || "/terms";
+    });
   });
   document.querySelectorAll("[data-waitlist-form]").forEach((form) => form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -2178,14 +2691,16 @@ function wireInteractions() {
   document.querySelectorAll("[data-question-example]").forEach((button) => {
     button.addEventListener("click", () => {
       const question = button.dataset.questionExample || "";
-      if (canAccessDashboard()) {
+      if (canUseFinancialFeatures()) {
         runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
       } else {
         saveQuestion(question);
         saveWorkspaceView("account");
         state.result = null;
         state.aiGuidance = null;
-        setStatus("Prompt saved. Finish account setup first so PAM can analyze it against your baseline.", "account");
+        setStatus(canAccessDashboard()
+          ? "Prompt saved. Accept PAM's legal terms first so PAM can analyze it against your baseline."
+          : "Prompt saved. Finish account setup first so PAM can analyze it against your baseline.", "account");
         render();
       }
     });
@@ -2212,7 +2727,7 @@ export async function startApp() {
     saveBaseline(baseline);
   }
   if (canAccessDashboard()) {
-    saveWorkspaceView("dashboard");
+    saveWorkspaceView(hasAcceptedLegalTerms() ? "dashboard" : "account");
   } else if (hasPrototypeAccount()) {
     saveWorkspaceView("account");
   } else {

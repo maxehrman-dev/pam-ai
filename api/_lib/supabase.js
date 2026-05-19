@@ -201,6 +201,44 @@ async function insertTelemetryEvent({ eventType, eventName, sessionId = "", page
   });
 }
 
+async function insertFeedback({ accountId = "", emailAddress = "", page = "", rating = null, message }) {
+  await supabaseRequest("pam_feedback", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      account_id: accountId || null,
+      email_address: emailAddress || null,
+      page: page || null,
+      rating,
+      message
+    })
+  });
+}
+
+async function insertLegalAcceptance({
+  accountId,
+  emailAddress = "",
+  acceptedAdvisorDisclaimer,
+  acceptedTermsPrivacy,
+  termsVersion,
+  privacyVersion,
+  acceptedAt
+}) {
+  await supabaseRequest("pam_legal_acceptances", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      account_id: accountId,
+      email_address: emailAddress || null,
+      accepted_advisor_disclaimer: acceptedAdvisorDisclaimer,
+      accepted_terms_privacy: acceptedTermsPrivacy,
+      terms_version: termsVersion,
+      privacy_version: privacyVersion,
+      accepted_at: acceptedAt
+    })
+  });
+}
+
 async function checkSupabaseConnection() {
   if (!hasSupabaseConfig()) {
     return {
@@ -244,6 +282,8 @@ module.exports = {
   findVerificationRequest,
   getSession,
   hasSupabaseConfig,
+  insertFeedback,
+  insertLegalAcceptance,
   insertVerificationRequest,
   insertTelemetryEvent,
   insertAccount,

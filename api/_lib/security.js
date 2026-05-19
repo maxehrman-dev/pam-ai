@@ -33,6 +33,23 @@ function validateUnknownFields(value, schema, path) {
   }
 }
 
+function sanitizeUnknownValue(value) {
+  if (typeof value === "string") return sanitizeText(value).slice(0, 1200);
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "boolean" || value === null) return value;
+  if (Array.isArray(value)) return value.slice(0, 50).map(sanitizeUnknownValue);
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .slice(0, 50)
+      .reduce((next, [key, rawValue]) => {
+        const cleanKey = sanitizeText(key).slice(0, 80);
+        if (cleanKey) next[cleanKey] = sanitizeUnknownValue(rawValue);
+        return next;
+      }, {});
+  }
+  return null;
+}
+
 function validateString(value, schema, path) {
   if (typeof value !== "string") {
     reject(`${path} must be a string.`, path);
@@ -94,7 +111,13 @@ function validateObject(value, schema, path) {
   if (!schema.allowUnknown) {
     validateUnknownFields(value, schema, path);
   }
-  const nextValue = {};
+  const nextValue = schema.allowUnknown
+    ? Object.entries(value).reduce((next, [key, rawValue]) => {
+        const cleanKey = sanitizeText(key).slice(0, 80);
+        if (cleanKey) next[cleanKey] = sanitizeUnknownValue(rawValue);
+        return next;
+      }, {})
+    : {};
   const properties = schema.properties || {};
   const required = new Set(schema.required || []);
 

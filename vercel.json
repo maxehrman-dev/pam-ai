@@ -11,6 +11,26 @@
     {
       "source": "/signup",
       "destination": "/"
+    },
+    {
+      "source": "/terms",
+      "destination": "/"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/"
+    },
+    {
+      "source": "/content-policy",
+      "destination": "/"
+    },
+    {
+      "source": "/faq",
+      "destination": "/"
+    },
+    {
+      "source": "/faq",
+      "destination": "/"
     }
   ],
   "headers": [
