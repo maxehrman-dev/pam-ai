@@ -181,14 +181,17 @@ input:disabled {
 .foresee-brand > span {
   display: inline-grid;
   place-items: center;
-  min-width: 45px;
-  height: 45px;
-  padding: 0 10px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--mint-4), var(--mint-3));
-  color: white;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 999px;
+  background: #063f2b;
+  color: var(--cream-0);
   font-weight: 900;
-  font-size: 0.86rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  box-shadow: 0 16px 34px rgba(6, 63, 43, 0.2);
 }
 
 .foresee-brand strong,
@@ -2359,6 +2362,87 @@ input:disabled {
 }
 
 @media (max-width: 900px) {
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(111, 224, 190, 0.18), transparent 36%),
+      linear-gradient(180deg, #f6f3ea 0%, #fffdf9 44%, #edf7ef 100%);
+  }
+
+  .foresee-shell {
+    width: min(100% - 24px, 720px);
+    padding: 12px 0 28px;
+  }
+
+  .foresee-panel {
+    padding: 18px;
+    border-radius: 26px;
+  }
+
+  .legal-disclaimer-banner {
+    padding: 10px 12px;
+    border-radius: 16px;
+    font-size: 0.78rem;
+  }
+
+  .foresee-header {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 24px;
+  }
+
+  .foresee-brand {
+    width: 100%;
+    align-items: center;
+  }
+
+  .foresee-brand > span {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    font-size: 0.76rem;
+  }
+
+  .foresee-brand small {
+    max-width: 220px;
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+  }
+
+  .foresee-nav {
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding: 2px 0 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .foresee-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .foresee-nav button {
+    flex: 0 0 auto;
+    padding: 9px 12px;
+    background: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(30, 138, 102, 0.1);
+  }
+
+  .foresee-header-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .foresee-header-actions .button {
+    width: 100%;
+    min-height: 46px;
+    padding: 0.72rem 0.8rem;
+  }
+
   .foresee-layout,
   .daily-home-shell,
   .onboarding-layout,
@@ -2389,6 +2473,71 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 
+  .pam-hero {
+    gap: 18px;
+    min-height: auto;
+    padding: 20px;
+  }
+
+  .pam-hero h1,
+  .foresee-panel h1 {
+    font-size: clamp(3.15rem, 16vw, 5.5rem);
+    line-height: 0.88;
+    letter-spacing: -0.075em;
+  }
+
+  .pam-hero p {
+    font-size: 1rem;
+  }
+
+  .pam-hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .pam-hero-actions .button,
+  .form-actions .button,
+  .connect-action-grid .button {
+    width: 100%;
+  }
+
+  .hero-preview-card,
+  .advisor-demo-window {
+    padding: 14px;
+    border-radius: 24px;
+  }
+
+  .preview-chart {
+    height: 112px;
+  }
+
+  .workspace-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .workspace-tab {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .auth-page-shell {
+    min-height: auto;
+  }
+
+  .auth-page-brand,
+  .baseline-panel,
+  .workspace-panel {
+    padding: 18px;
+    border-radius: 26px;
+  }
+
+  .auth-card,
+  .onboarding-form {
+    padding: 14px;
+    border-radius: 22px;
+  }
+
   .walkthrough-steps,
   .feedback-panel {
     grid-template-columns: 1fr;
@@ -2412,9 +2561,36 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 
+  .waitlist-page-shell,
+  .legal-page-shell {
+    padding: 14px;
+  }
+
   .waitlist-page-header {
     align-items: flex-start;
     flex-direction: column;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .waitlist-page-copy,
+  .waitlist-page-form-panel,
+  .legal-page-card {
+    border-radius: 28px;
+  }
+
+  .waitlist-page-copy {
+    padding: 28px 20px;
+  }
+
+  .waitlist-page-copy h1,
+  .legal-page-card h1 {
+    font-size: clamp(3.35rem, 17vw, 5.8rem);
+    letter-spacing: -0.075em;
+  }
+
+  .waitlist-page-form-panel {
+    padding: 20px;
   }
 
   .daily-metric-strip,
@@ -2442,10 +2618,6 @@ input:disabled {
     min-height: 0;
   }
 
-  .pam-hero {
-    min-height: auto;
-  }
-
   .foresee-header,
   .foresee-header-actions,
   .foresee-nav {
@@ -2461,17 +2633,19 @@ input:disabled {
 
 @media (max-width: 640px) {
   .foresee-shell {
-    width: min(100% - 20px, 1180px);
+    width: min(100% - 18px, 1180px);
   }
 
-  .foresee-header,
-  .result-header {
+  .result-header,
+  .workspace-header,
+  .section-heading-row,
+  .preview-window-bar,
+  .demo-window-header {
     display: grid;
   }
 
-  .foresee-nav,
   .foresee-header-actions {
-    justify-content: flex-start;
+    grid-template-columns: 1fr;
   }
 
   .foresee-truth {
@@ -2479,7 +2653,67 @@ input:disabled {
   }
 
   .preview-metric-row,
-  .demo-result-grid {
+  .demo-result-grid,
+  .daily-metric-strip,
+  .daily-chart-header,
+  .review-panel,
+  .assumption-grid-foresee,
+  .outcome-grid {
     grid-template-columns: 1fr;
+  }
+
+  .foresee-panel {
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .pam-hero {
+    padding: 18px;
+  }
+
+  .pam-hero h1,
+  .foresee-panel h1 {
+    font-size: clamp(3rem, 18vw, 4.8rem);
+  }
+
+  .button {
+    min-height: 48px;
+  }
+
+  .quick-question-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .quick-question-row button {
+    width: 100%;
+    text-align: left;
+  }
+
+  .daily-home-shell {
+    gap: 12px;
+  }
+
+  .daily-advisor-card,
+  .daily-main-card,
+  .daily-side-card {
+    border-radius: 24px;
+  }
+
+  .daily-chart {
+    min-height: 170px;
+  }
+
+  .waitlist-page-copy h1,
+  .legal-page-card h1 {
+    font-size: clamp(3rem, 18vw, 4.7rem);
+  }
+
+  .cookie-consent-banner {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: calc(100% - 20px);
+    border-radius: 22px;
   }
 }
