@@ -137,6 +137,14 @@ const state = {
   waitlistOpen: false,
   waitlistJoined: false,
   waitlistMessage: "",
+  waitlistBusy: false,
+  waitlistDraft: {
+    emailAddress: "",
+    fullName: "",
+    age: "",
+    stage: "",
+    goal: ""
+  },
   cookieConsent: loadCookieConsent(),
   legalAcceptance: loadLegalAcceptance(),
   legalAcceptanceError: "",
@@ -2428,13 +2436,13 @@ function renderWaitlistModal() {
         <h2>${state.waitlistJoined ? "You're on the list." : "Join the early access list."}</h2>
         <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Get launch access, product updates, and founding pricing."}</p>
         ${state.waitlistJoined ? "" : `<p class="waitlist-founder-note">${escapeHtml(WAITLIST_FOUNDING_NOTE)}</p>`}
+        ${!state.waitlistJoined && state.waitlistMessage ? `<p class="auth-status-message waitlist-modal-status">${escapeHtml(state.waitlistMessage)}</p>` : ""}
         ${state.waitlistJoined ? "" : `
           <form class="profile-form" data-waitlist-form>
             ${renderWaitlistFields()}
-            <button class="button button-primary" type="submit">Join waitlist</button>
+            <button class="button button-primary" type="submit" ${state.waitlistBusy ? "disabled" : ""}>${state.waitlistBusy ? "Joining..." : "Join waitlist"}</button>
           </form>
         `}
-        ${!state.waitlistJoined && state.waitlistMessage ? `<p class="auth-status-message">${escapeHtml(state.waitlistMessage)}</p>` : ""}
         <button class="button button-secondary" type="button" data-close-waitlist-button>Close</button>
       </div>
     </div>
@@ -2442,24 +2450,25 @@ function renderWaitlistModal() {
 }
 
 function renderWaitlistFields() {
+  const draft = state.waitlistDraft || {};
   return `
-    <label><span>Your email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
-    <label><span>Full name <small>optional</small></span><input type="text" name="waitlistFullName" placeholder="Maya Chen" maxlength="120" /></label>
+    <label><span>Your email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" value="${escapeHtml(draft.emailAddress || "")}" required /></label>
+    <label><span>Full name <small>optional</small></span><input type="text" name="waitlistFullName" placeholder="Maya Chen" maxlength="120" value="${escapeHtml(draft.fullName || "")}" /></label>
     <div class="waitlist-optional-grid">
-      <label><span>Age <small>optional</small></span><input type="number" name="waitlistAge" placeholder="24" min="13" max="120" /></label>
+      <label><span>Age <small>optional</small></span><input type="number" name="waitlistAge" placeholder="24" min="13" max="120" value="${escapeHtml(draft.age || "")}" /></label>
       <label>
         <span>Stage <small>optional</small></span>
         <select name="waitlistStage">
-          <option value="">Choose one</option>
-          <option value="Student">Student</option>
-          <option value="Working full-time">Working full-time</option>
-          <option value="Freelance / self-employed">Freelance / self-employed</option>
-          <option value="Planning to move out">Planning to move out</option>
-          <option value="Other">Other</option>
+          <option value="" ${!draft.stage ? "selected" : ""}>Choose one</option>
+          <option value="Student" ${draft.stage === "Student" ? "selected" : ""}>Student</option>
+          <option value="Working full-time" ${draft.stage === "Working full-time" ? "selected" : ""}>Working full-time</option>
+          <option value="Freelance / self-employed" ${draft.stage === "Freelance / self-employed" ? "selected" : ""}>Freelance / self-employed</option>
+          <option value="Planning to move out" ${draft.stage === "Planning to move out" ? "selected" : ""}>Planning to move out</option>
+          <option value="Other" ${draft.stage === "Other" ? "selected" : ""}>Other</option>
         </select>
       </label>
     </div>
-    <label><span>What do you want PAM to help with? <small>optional</small></span><input type="text" name="waitlistGoal" placeholder="Moving out, buying a car, taxes, investing..." maxlength="220" /></label>
+    <label><span>What do you want PAM to help with? <small>optional</small></span><input type="text" name="waitlistGoal" placeholder="Moving out, buying a car, taxes, investing..." maxlength="220" value="${escapeHtml(draft.goal || "")}" /></label>
   `;
 }
 
@@ -2493,13 +2502,13 @@ function renderWaitlistPage() {
         <section class="waitlist-page-form-panel" aria-label="Join the PAM waitlist">
           <h2>${state.waitlistJoined ? "Check your inbox." : "Join the early access list."}</h2>
           <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Free to join. Early members lock in founding pricing forever."}</p>
+          ${state.waitlistMessage && !state.waitlistJoined ? `<p class="auth-status-message waitlist-modal-status">${escapeHtml(state.waitlistMessage)}</p>` : ""}
           ${state.waitlistJoined ? "" : `
             <form class="profile-form waitlist-page-form" data-waitlist-form>
               ${renderWaitlistFields()}
-              <button class="button button-primary" type="submit">Join waitlist</button>
+              <button class="button button-primary" type="submit" ${state.waitlistBusy ? "disabled" : ""}>${state.waitlistBusy ? "Joining..." : "Join waitlist"}</button>
             </form>
           `}
-          ${state.waitlistMessage && !state.waitlistJoined ? `<p class="auth-status-message">${escapeHtml(state.waitlistMessage)}</p>` : ""}
         </section>
       </main>
       <p class="waitlist-page-footer">PAM AI is in private build. Waitlist signup does not open the work-in-progress app.</p>
@@ -2759,11 +2768,19 @@ function wireInteractions() {
     const ageRaw = String(formData.get("waitlistAge") || "").trim();
     const stage = String(formData.get("waitlistStage") || "").trim();
     const goal = String(formData.get("waitlistGoal") || "").trim();
+    state.waitlistDraft = {
+      emailAddress,
+      fullName,
+      age: ageRaw,
+      stage,
+      goal
+    };
     if (!emailAddress) {
       state.waitlistMessage = "Add your email first.";
       render();
       return;
     }
+    state.waitlistBusy = true;
     state.waitlistMessage = "Joining waitlist...";
     render();
 
@@ -2783,12 +2800,14 @@ function wireInteractions() {
 
     if (error || !payload?.ok) {
       state.waitlistJoined = false;
+      state.waitlistBusy = false;
       state.waitlistMessage = payload?.error || error || "Could not join the waitlist.";
       render();
       return;
     }
 
     state.waitlistJoined = true;
+    state.waitlistBusy = false;
     state.waitlistMessage = payload.deliveryMode === "email"
       ? WAITLIST_FOUNDING_NOTE
       : WAITLIST_FOUNDING_NOTE;
@@ -2810,6 +2829,7 @@ function wireInteractions() {
   document.querySelectorAll("[data-open-waitlist]").forEach((button) => button.addEventListener("click", () => {
     state.waitlistOpen = true;
     state.waitlistMessage = "";
+    state.waitlistBusy = false;
     trackEvent("waitlist_opened");
     render();
   }));
@@ -2828,6 +2848,7 @@ function wireInteractions() {
       event.preventDefault();
       state.waitlistOpen = true;
       state.waitlistMessage = "";
+      state.waitlistBusy = false;
       trackEvent("waitlist_opened", { source: "direct_link" });
       render();
     });

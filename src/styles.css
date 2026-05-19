@@ -1952,21 +1952,28 @@ input:disabled {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 20px max(16px, env(safe-area-inset-bottom));
   background: rgba(12, 21, 18, 0.34);
   backdrop-filter: blur(10px);
   z-index: 30;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .waitlist-modal {
   width: min(420px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
   border-radius: 28px;
   background: var(--cream-0);
   border: 1px solid rgba(30, 138, 102, 0.18);
   box-shadow: 0 40px 90px rgba(12, 21, 18, 0.18);
+  scroll-padding-bottom: 18px;
 }
 
 .waitlist-modal h2 {
@@ -1989,6 +1996,15 @@ input:disabled {
   background: rgba(216, 243, 229, 0.42);
   border: 1px solid rgba(30, 138, 102, 0.12);
   font-weight: 750;
+}
+
+.waitlist-modal-status {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 12px 0;
+  background: rgba(255, 253, 249, 0.94);
+  backdrop-filter: blur(10px);
 }
 
 .pam-legal-footer {
@@ -2821,5 +2837,30 @@ input:disabled {
 
   .cookie-actions .button {
     width: 100%;
+  }
+
+  .modal-backdrop {
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .waitlist-modal {
+    width: min(100%, 520px);
+    max-height: calc(100dvh - 20px);
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .waitlist-modal h2 {
+    font-size: 1.75rem;
+  }
+
+  .waitlist-founder-note {
+    padding: 12px;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .waitlist-optional-grid {
+    grid-template-columns: 1fr;
   }
 }
