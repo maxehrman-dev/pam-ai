@@ -3,7 +3,7 @@ const RESEND_FROM_EMAIL = process.env.PAM_FROM_EMAIL || process.env.RESEND_FROM_
 const RESEND_AUDIENCE_ID = process.env.RESEND_AUDIENCE_ID || "";
 const WAITLIST_NOTIFY_EMAIL = process.env.WAITLIST_NOTIFY_EMAIL || "mbewebdesign@gmail.com";
 const PAM_SITE_URL = (process.env.PAM_SITE_URL || "https://pamadvisor.com").replace(/\/$/, "");
-const NEWSLETTER_URL = `${PAM_SITE_URL}/newsletter`;
+const WAITLIST_URL = `${PAM_SITE_URL}/waitlist`;
 const WAITLIST_FOUNDING_NOTE =
   "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
 
@@ -71,21 +71,36 @@ async function sendEmail({ to, subject, html, text = "" }) {
 
   await resend.emails.send({
     from: RESEND_FROM_EMAIL,
+    replyTo: RESEND_FROM_EMAIL,
     to: Array.isArray(to) ? to : [to],
     subject,
     html,
-    text
+    text,
+    headers: {
+      "X-Entity-Ref-ID": `pam-${Date.now()}`
+    }
   });
 }
 
-async function sendWaitlistNotification({ emailAddress }) {
+function renderWaitlistDetails({ emailAddress, fullName = "", age = null, stage = "", goal = "" }) {
+  return `
+    <p style="${styles.paragraph}"><strong>Email:</strong> ${emailAddress}</p>
+    ${fullName ? `<p style="${styles.paragraph}"><strong>Name:</strong> ${fullName}</p>` : ""}
+    ${age ? `<p style="${styles.paragraph}"><strong>Age:</strong> ${age}</p>` : ""}
+    ${stage ? `<p style="${styles.paragraph}"><strong>Stage:</strong> ${stage}</p>` : ""}
+    ${goal ? `<p style="${styles.paragraph}"><strong>What they want help with:</strong> ${goal}</p>` : ""}
+  `;
+}
+
+async function sendWaitlistNotification(details) {
+  const { emailAddress } = details;
   const html = renderPamEmail({
     eyebrow: "PAM waitlist",
     title: "New waitlist signup",
     preview: `${emailAddress} joined the PAM AI waitlist.`,
     body: `
-      <p style="${styles.paragraph}"><strong>${emailAddress}</strong> joined the PAM AI waitlist.</p>
-      <a href="${NEWSLETTER_URL}" style="${styles.button}">Open waitlist page</a>
+      ${renderWaitlistDetails(details)}
+      <a href="${WAITLIST_URL}" style="${styles.button}">Open waitlist page</a>
     `
   });
 
@@ -93,20 +108,26 @@ async function sendWaitlistNotification({ emailAddress }) {
     to: WAITLIST_NOTIFY_EMAIL,
     subject: "New PAM AI waitlist signup",
     html,
-    text: `New PAM AI waitlist signup: ${emailAddress}`
+    text: `New PAM AI waitlist signup:
+Email: ${emailAddress}
+Name: ${details.fullName || ""}
+Age: ${details.age || ""}
+Stage: ${details.stage || ""}
+Goal: ${details.goal || ""}`
   });
 }
 
-async function sendWaitlistConfirmation({ emailAddress }) {
+async function sendWaitlistConfirmation({ emailAddress, fullName = "" }) {
+  const greeting = fullName ? `Hi ${fullName.split(/\s+/)[0]},` : "Hey,";
   const html = renderPamEmail({
     eyebrow: "PAM AI early access",
     title: "You're on the waitlist",
     preview: "You are on the PAM AI waitlist.",
     body: `
-      <p style="${styles.paragraph}">Hey — you're in.</p>
-      <p style="${styles.paragraph}">We'll email you the moment PAM launches with a direct link to sign up. As an early member, you'll lock in our founding price of <strong>$7.99/month permanently</strong>.</p>
-      <p style="${styles.paragraph}">We're building something that actually helps you make smarter money decisions. Stay tuned.</p>
-      <a href="${NEWSLETTER_URL}" style="${styles.button}">View waitlist page</a>
+      <p style="${styles.paragraph}">${greeting} you're on the PAM AI waitlist.</p>
+      <p style="${styles.paragraph}">We'll email you when early access opens with a direct signup link. Early members will lock in founding pricing at <strong>$7.99/month</strong>.</p>
+      <p style="${styles.paragraph}">PAM is being built to help people test money decisions before making them.</p>
+      <a href="${WAITLIST_URL}" style="${styles.button}">View waitlist page</a>
       <p style="${styles.signature}">— The PAM AI team</p>
     `
   });
@@ -119,7 +140,7 @@ async function sendWaitlistConfirmation({ emailAddress }) {
   });
 }
 
-async function syncWaitlistContact({ emailAddress }) {
+async function syncWaitlistContact({ emailAddress, fullName = "", age = null, stage = "", goal = "" }) {
   const resend = getResendClient();
   if (!resend || !RESEND_AUDIENCE_ID) {
     return "not_configured";
@@ -129,6 +150,8 @@ async function syncWaitlistContact({ emailAddress }) {
     await resend.contacts.create({
       audienceId: RESEND_AUDIENCE_ID,
       email: emailAddress,
+      firstName: fullName.split(/\s+/)[0] || undefined,
+      lastName: fullName.split(/\s+/).slice(1).join(" ") || undefined,
       unsubscribed: false
     });
     return "synced";
@@ -188,7 +211,7 @@ function renderPamEmail({ eyebrow, title, preview, body }) {
             </div>
             <div style="${styles.footer}">
               PAM AI helps young adults know what happens before they decide.<br />
-              <a href="${NEWSLETTER_URL}" style="color:#0d6549;font-weight:800;">Join the PAM AI newsletter</a>
+              <a href="${WAITLIST_URL}" style="color:#0d6549;font-weight:800;">Join the PAM AI waitlist</a>
             </div>
           </div>
         </div>

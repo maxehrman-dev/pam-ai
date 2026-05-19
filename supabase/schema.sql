@@ -21,10 +21,19 @@ create table if not exists public.pam_sessions (
 
 create table if not exists public.pam_waitlist (
   email_address text primary key,
+  full_name text,
+  age integer,
+  stage text,
+  goal text,
   source text not null default 'website',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.pam_waitlist add column if not exists full_name text;
+alter table public.pam_waitlist add column if not exists age integer;
+alter table public.pam_waitlist add column if not exists stage text;
+alter table public.pam_waitlist add column if not exists goal text;
 
 create table if not exists public.pam_verification_requests (
   request_id text primary key,

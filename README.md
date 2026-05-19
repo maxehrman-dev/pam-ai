@@ -42,9 +42,11 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - `PAM_FROM_EMAIL` must be an address on a verified Resend domain before Resend will send to arbitrary user emails
 - `onboarding@resend.dev` is Resend's testing sender and can only send to the verified owner email on the Resend account
 - Optional: set `WAITLIST_NOTIFY_EMAIL` to the inbox that should receive new waitlist signup notifications
-- Optional: set `RESEND_AUDIENCE_ID` to sync waitlist signups into a Resend Audience for newsletter/broadcasts
+- Optional: set `RESEND_AUDIENCE_ID` to sync waitlist signups into a Resend Audience for waitlist updates
 - The waitlist endpoint stores the signup, syncs the Resend audience when configured, then sends a notification email plus a confirmation email
-- Public signup links are `https://pamadvisor.com/newsletter` and `https://pamadvisor.com/waitlist`
+- Public signup links are `https://pamadvisor.com/waitlist` and legacy alias `https://pamadvisor.com/newsletter`
+- Waitlist signups collect email plus optional full name, age, current stage, and what the user wants PAM to help with
+- Deliverability note: inbox placement depends heavily on Resend domain verification, SPF/DKIM/DMARC alignment, domain age, and recipient engagement. Ask early testers to mark PAM emails as "Not Junk" if they land in spam while the domain reputation warms up
 - If those variables are missing, PAM falls back to prototype preview mode and shows the code in the UI instead of emailing it
 - Keep email provider credentials server-side only and rotate them immediately if they were ever exposed
 

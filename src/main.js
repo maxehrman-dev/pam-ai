@@ -2317,13 +2317,13 @@ function renderWaitlistModal() {
   return `
     <div class="modal-backdrop" data-close-waitlist>
       <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="Join PAM waitlist">
-        <div class="panel-kicker">PAM newsletter</div>
+        <div class="panel-kicker">PAM waitlist</div>
         <h2>${state.waitlistJoined ? "You're on the list." : "Join the early access list."}</h2>
         <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Get launch access, product updates, and founding pricing."}</p>
         ${state.waitlistJoined ? "" : `<p class="waitlist-founder-note">${escapeHtml(WAITLIST_FOUNDING_NOTE)}</p>`}
         ${state.waitlistJoined ? "" : `
           <form class="profile-form" data-waitlist-form>
-            <label><span>Your email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
+            ${renderWaitlistFields()}
             <button class="button button-primary" type="submit">Join waitlist</button>
           </form>
         `}
@@ -2334,12 +2334,34 @@ function renderWaitlistModal() {
   `;
 }
 
+function renderWaitlistFields() {
+  return `
+    <label><span>Your email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
+    <label><span>Full name <small>optional</small></span><input type="text" name="waitlistFullName" placeholder="Maya Chen" maxlength="120" /></label>
+    <div class="waitlist-optional-grid">
+      <label><span>Age <small>optional</small></span><input type="number" name="waitlistAge" placeholder="24" min="13" max="120" /></label>
+      <label>
+        <span>Stage <small>optional</small></span>
+        <select name="waitlistStage">
+          <option value="">Choose one</option>
+          <option value="Student">Student</option>
+          <option value="Working full-time">Working full-time</option>
+          <option value="Freelance / self-employed">Freelance / self-employed</option>
+          <option value="Planning to move out">Planning to move out</option>
+          <option value="Other">Other</option>
+        </select>
+      </label>
+    </div>
+    <label><span>What do you want PAM to help with? <small>optional</small></span><input type="text" name="waitlistGoal" placeholder="Moving out, buying a car, taxes, investing..." maxlength="220" /></label>
+  `;
+}
+
 function renderWaitlistPage() {
   return `
     <div class="waitlist-page-shell">
       ${renderDisclaimerBanner()}
       <header class="waitlist-page-header">
-        <a class="foresee-brand" href="/newsletter" aria-label="PAM AI waitlist">
+        <a class="foresee-brand" href="/waitlist" aria-label="PAM AI waitlist">
           <span>PAM</span>
           <div>
             <strong>PAM AI</strong>
@@ -2366,7 +2388,7 @@ function renderWaitlistPage() {
           <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Free to join. Early members lock in founding pricing forever."}</p>
           ${state.waitlistJoined ? "" : `
             <form class="profile-form waitlist-page-form" data-waitlist-form>
-              <label><span>Your email</span><input type="email" name="waitlistEmail" placeholder="you@example.com" required /></label>
+              ${renderWaitlistFields()}
               <button class="button button-primary" type="submit">Join waitlist</button>
             </form>
           `}
@@ -2397,7 +2419,7 @@ function renderLegalFooter() {
         <a href="/privacy">Privacy</a>
         <a href="/content-policy">Content Policy</a>
         <a href="/faq">FAQ</a>
-        <a href="/newsletter">Waitlist</a>
+        <a href="/waitlist">Waitlist</a>
       </nav>
     </footer>
   `;
@@ -2578,7 +2600,7 @@ function render() {
           <button type="button" data-scroll-target="#taxes">Taxes</button>
           <button type="button" data-scroll-target="#growth">Growth</button>
           <button type="button" data-scroll-target="#how-it-works">How it works</button>
-          <button type="button" data-open-waitlist>Newsletter</button>
+          <button type="button" data-open-waitlist>Waitlist</button>
           <button type="button" data-legal-route="/faq">FAQ</button>
           <button type="button" data-legal-route="/terms">Terms</button>
         </nav>
@@ -2629,6 +2651,10 @@ function wireInteractions() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const emailAddress = String(formData.get("waitlistEmail") || "").trim();
+    const fullName = String(formData.get("waitlistFullName") || "").trim();
+    const ageRaw = String(formData.get("waitlistAge") || "").trim();
+    const stage = String(formData.get("waitlistStage") || "").trim();
+    const goal = String(formData.get("waitlistGoal") || "").trim();
     if (!emailAddress) {
       state.waitlistMessage = "Add your email first.";
       render();
@@ -2642,7 +2668,13 @@ function wireInteractions() {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ emailAddress })
+      body: JSON.stringify({
+        emailAddress,
+        fullName,
+        age: ageRaw ? Number(ageRaw) : null,
+        stage,
+        goal
+      })
     });
 
     if (error || !payload?.ok) {

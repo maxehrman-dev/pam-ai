@@ -822,6 +822,12 @@ input:disabled {
   line-height: 1.35;
 }
 
+.profile-form label small {
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
 .profile-form input,
 .profile-form select,
 .baseline-form select,
@@ -2338,6 +2344,12 @@ input:disabled {
   margin-top: 24px;
 }
 
+.waitlist-optional-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.45fr) minmax(0, 0.55fr);
+  gap: 12px;
+}
+
 .waitlist-page-footer {
   width: min(1180px, 100%);
   margin: 22px auto 0;
@@ -2417,7 +2429,8 @@ input:disabled {
   .credential-row,
   .connect-action-grid,
   .account-status-card,
-  .review-panel {
+  .review-panel,
+  .waitlist-optional-grid {
     grid-template-columns: 1fr;
   }
 

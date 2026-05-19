@@ -125,7 +125,24 @@ async function deleteSession(sessionToken) {
   });
 }
 
-async function upsertWaitlistEntry(emailAddress) {
+async function upsertWaitlistEntry({ emailAddress, fullName = "", age = null, stage = "", goal = "" }) {
+  await supabaseRequest("pam_waitlist", {
+    method: "POST",
+    headers: {
+      Prefer: "resolution=merge-duplicates,return=minimal"
+    },
+    body: JSON.stringify({
+      email_address: emailAddress,
+      full_name: fullName || null,
+      age,
+      stage: stage || null,
+      goal: goal || null,
+      updated_at: new Date().toISOString()
+    })
+  });
+}
+
+async function upsertWaitlistEntryLegacy(emailAddress) {
   await supabaseRequest("pam_waitlist", {
     method: "POST",
     headers: {
@@ -289,5 +306,6 @@ module.exports = {
   insertAccount,
   isRecoverableSupabaseStorageError,
   upsertBaseline,
-  upsertWaitlistEntry
+  upsertWaitlistEntry,
+  upsertWaitlistEntryLegacy
 };

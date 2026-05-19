@@ -1,11 +1,15 @@
 const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification, syncWaitlistContact } = require("./_lib/email.js");
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { checkRateLimit, validatePayload } = require("./_lib/security.js");
-const { hasSupabaseConfig, isRecoverableSupabaseStorageError, upsertWaitlistEntry } = require("./_lib/supabase.js");
+const { hasSupabaseConfig, isRecoverableSupabaseStorageError, upsertWaitlistEntry, upsertWaitlistEntryLegacy } = require("./_lib/supabase.js");
 
 const waitlistSchema = {
   properties: {
-    emailAddress: { type: "string", format: "email", minLength: 5, maxLength: 254, lowercase: true }
+    emailAddress: { type: "string", format: "email", minLength: 5, maxLength: 254, lowercase: true },
+    fullName: { type: "string", maxLength: 120 },
+    age: { type: "integer", minimum: 13, maximum: 120, allowNull: true },
+    stage: { type: "string", maxLength: 80 },
+    goal: { type: "string", maxLength: 220 }
   },
   required: ["emailAddress"]
 };
@@ -35,21 +39,48 @@ module.exports = async (req, res) => {
 
     if (hasSupabaseConfig()) {
       try {
-        await upsertWaitlistEntry(body.emailAddress);
+        await upsertWaitlistEntry({
+          emailAddress: body.emailAddress,
+          fullName: body.fullName || "",
+          age: body.age ?? null,
+          stage: body.stage || "",
+          goal: body.goal || ""
+        });
       } catch (error) {
         if (!isRecoverableSupabaseStorageError(error)) {
           throw error;
         }
-        stored = "email_only";
-        warning = "Joined waitlist. Storage is syncing.";
+        try {
+          await upsertWaitlistEntryLegacy(body.emailAddress);
+          stored = "supabase_legacy";
+          warning = "Joined waitlist. Optional details will sync after the database schema updates.";
+        } catch (_legacyError) {
+          stored = "email_only";
+          warning = "Joined waitlist. Storage is syncing.";
+        }
       }
     }
 
     if (hasEmailProvider()) {
       try {
-        newsletter = await syncWaitlistContact({ emailAddress: body.emailAddress });
-        await sendWaitlistNotification({ emailAddress: body.emailAddress });
-        await sendWaitlistConfirmation({ emailAddress: body.emailAddress });
+        newsletter = await syncWaitlistContact({
+          emailAddress: body.emailAddress,
+          fullName: body.fullName || "",
+          age: body.age ?? null,
+          stage: body.stage || "",
+          goal: body.goal || ""
+        });
+        await sendWaitlistNotification({
+          emailAddress: body.emailAddress,
+          fullName: body.fullName || "",
+          age: body.age ?? null,
+          stage: body.stage || "",
+          goal: body.goal || ""
+        });
+        await sendWaitlistConfirmation({
+          emailAddress: body.emailAddress,
+          fullName: body.fullName || ""
+        });
         deliveryMode = "email";
       } catch (error) {
         if (!isResendTestingRestriction(error)) {
