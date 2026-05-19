@@ -189,7 +189,7 @@ function renderPamEmail({ eyebrow, title, preview, body }) {
             </div>
             <div style="${styles.footer}">
               PAM AI helps young adults know what happens before they decide.<br />
-              Newsletter signup: <a href="${NEWSLETTER_URL}" style="color:#0d6549;font-weight:800;">${NEWSLETTER_URL}</a>
+              <a href="${NEWSLETTER_URL}" style="color:#0d6549;font-weight:800;">Join the PAM AI newsletter</a>
             </div>
           </div>
         </div>

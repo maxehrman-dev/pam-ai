@@ -1,4 +1,18 @@
 {
+  "rewrites": [
+    {
+      "source": "/newsletter",
+      "destination": "/"
+    },
+    {
+      "source": "/waitlist",
+      "destination": "/"
+    },
+    {
+      "source": "/signup",
+      "destination": "/"
+    }
+  ],
   "headers": [
     {
       "source": "/src/(.*)",

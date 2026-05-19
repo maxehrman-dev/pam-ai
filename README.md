@@ -38,7 +38,7 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 
 - Account verification codes can send through Resend when configured
 - Set `RESEND_API_KEY` and `PAM_FROM_EMAIL` in `.env.local` or Vercel project settings
-- `PAM_FROM_EMAIL` should be `PAM AI <hello@pamadvisor.com>` once `pamadvisor.com` is verified in Resend
+- Production uses `PAM AI <hello@pamadvisor.com>` from the verified `pamadvisor.com` Resend domain
 - `PAM_FROM_EMAIL` must be an address on a verified Resend domain before Resend will send to arbitrary user emails
 - `onboarding@resend.dev` is Resend's testing sender and can only send to the verified owner email on the Resend account
 - Optional: set `WAITLIST_NOTIFY_EMAIL` to the inbox that should receive new waitlist signup notifications
@@ -54,7 +54,7 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - Vercel project `pam-ai1` has `pamadvisor.com` and `www.pamadvisor.com` attached
 - In the domain DNS provider, use the exact Vercel records shown in the Vercel Domains screen
 - The current production setup uses Vercel DNS for `pamadvisor.com` and `www.pamadvisor.com`
-- Add the DNS records Resend gives you for `pamadvisor.com` before expecting email to send to every user
+- Resend sending is verified for `pamadvisor.com` with DKIM, SPF/MX, and DMARC records in Vercel DNS
 - Do not use `onboarding@resend.dev` for production email
 - Set `PAM_SITE_URL=https://pamadvisor.com` anywhere the app needs its public URL
 

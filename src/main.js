@@ -1108,7 +1108,6 @@ function scrollToSection(id) {
 
 const WAITLIST_FOUNDING_NOTE =
   "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
-const WAITLIST_SIGNUP_URL = "https://pamadvisor.com/newsletter";
 
 function handleSectionScroll(target) {
   if (!target) return;
@@ -1164,7 +1163,6 @@ function renderHero() {
           <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">Learn how it works</button>
         </div>
         <p class="founding-note">Free to join. Early members lock in founding pricing forever.</p>
-        <p class="newsletter-link-row">Newsletter link: <a href="/newsletter" data-open-waitlist-link>${WAITLIST_SIGNUP_URL}</a></p>
       </div>
       <div class="hero-preview-card" aria-label="PAM AI product preview">
         <div class="preview-window-bar">
@@ -1995,10 +1993,6 @@ function renderWaitlistModal() {
             <button class="button button-primary" type="submit">Join waitlist</button>
           </form>
         `}
-        <div class="waitlist-links">
-          <span>Signup link</span>
-          <a href="/newsletter" data-open-waitlist-link>${WAITLIST_SIGNUP_URL}</a>
-        </div>
         ${!state.waitlistJoined && state.waitlistMessage ? `<p class="auth-status-message">${escapeHtml(state.waitlistMessage)}</p>` : ""}
         <button class="button button-secondary" type="button" data-close-waitlist-button>Close</button>
       </div>
