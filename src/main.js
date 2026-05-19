@@ -104,7 +104,7 @@ const CREATE_ACCOUNT_STEPS = [
   },
   {
     key: "stateCode",
-    label: "What state should PAM start with?",
+    label: "What state do you live in?",
     detail: "",
     type: "select",
     required: false,
@@ -390,7 +390,7 @@ function validateAccountStep(stepIndex = state.createAccountStep, draft = ensure
   }
 
   if (step.key === "password" && value && value.length < 8) {
-    return "Use at least 8 characters for the prototype password.";
+    return "Use at least 8 characters for your password.";
   }
 
   if (step.key === "confirmPassword" && value !== String(draft.password || "")) {
@@ -929,13 +929,13 @@ async function handleCreateAccount(event) {
   const stateCode = String(draft.stateCode || "OTHER");
 
   if (!firstName || !emailAddress || !password) {
-    setStatus("Add your first name, email, and password before PAM creates the account shell.", "account");
+    setStatus("Add your first name, email, and password before creating your account.", "account");
     render();
     return;
   }
 
   if (password.length < 8) {
-    setStatus("Use at least 8 characters for the prototype password.", "account");
+    setStatus("Use at least 8 characters for your password.", "account");
     render();
     return;
   }
@@ -956,7 +956,7 @@ async function handleCreateAccount(event) {
       emailAddress,
       verificationCode,
       verificationRequestId,
-      verificationToken,
+      ...(verificationToken ? { verificationToken } : {}),
       password,
       age,
       employmentStatus,
@@ -1647,8 +1647,8 @@ function renderAccountPreview() {
 
   return `
     <aside class="cash-flow-preview ${isComplete ? "" : "incomplete-preview"}">
-      <div class="panel-kicker">${isComplete ? "Baseline" : "Profile"}</div>
-      <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} homepage` : "Draft"}</h3>
+      <div class="panel-kicker">${isComplete ? "Baseline" : "Account preview"}</div>
+      <h3>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} homepage` : "Your account"}</h3>
       <div class="cash-flow-preview-grid">
         ${cards.map((card) => `
           <div class="${card.className || ""}">
@@ -2228,7 +2228,7 @@ function renderResult() {
           <h2>${canAccessDashboard() ? "Accept PAM's legal terms first." : "Create your account and connect Sandbox data first."}</h2>
         </div>
       </div>
-      ${canAccessDashboard() ? renderLegalGate() : "<p>PAM will not fake a homepage or pretend to know your finances. Create the account shell first, then connect Sandbox data so the decision engine has a real baseline to work from.</p>"}
+      ${canAccessDashboard() ? renderLegalGate() : "<p>PAM will not fake a homepage or pretend to know your finances. Create your account first, then connect Sandbox data so the decision engine has a real baseline to work from.</p>"}
     </section>
   `;
   }

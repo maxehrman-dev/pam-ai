@@ -73,6 +73,41 @@ test("validatePayload rejects unexpected fields", () => {
   }, /Unexpected field "admin"/i);
 });
 
+test("register payload accepts email verification without a browser verification token", () => {
+  const { validatePayload } = freshSecurity();
+
+  const payload = validatePayload(
+    {
+      firstName: "Maya",
+      emailAddress: "maya@example.com",
+      password: "VeryStrongPass123",
+      verificationRequestId: "verify_abcdef1234567890",
+      verificationCode: "123456",
+      verificationToken: "",
+      age: 24,
+      employmentStatus: "W-2 employee",
+      stateCode: "CA"
+    },
+    {
+      properties: {
+        firstName: { type: "string", minLength: 1, maxLength: 60 },
+        emailAddress: { type: "string", format: "email", minLength: 5, maxLength: 254, lowercase: true },
+        password: { type: "string", minLength: 8, maxLength: 128, trim: false },
+        verificationRequestId: { type: "string", minLength: 10, maxLength: 64, pattern: /^verify_[a-f0-9]+$/ },
+        verificationCode: { type: "string", minLength: 6, maxLength: 6, pattern: /^\d{6}$/ },
+        verificationToken: { type: "string", maxLength: 512 },
+        age: { type: "integer", minimum: 13, maximum: 120, allowNull: true },
+        employmentStatus: { type: "string", minLength: 2, maxLength: 40 },
+        stateCode: { type: "string", minLength: 2, maxLength: 5, uppercase: true }
+      },
+      required: ["firstName", "emailAddress", "password", "verificationRequestId", "verificationCode"]
+    },
+    "request body"
+  );
+
+  assert.equal(payload.verificationToken, "");
+});
+
 test("checkRateLimit returns a graceful 429 after the configured threshold", () => {
   const { checkRateLimit } = freshSecurity();
   const req = { clientIp: "127.0.0.1" };

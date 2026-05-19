@@ -9,7 +9,7 @@ const registerSchema = {
     password: { type: "string", minLength: 8, maxLength: 128, trim: false },
     verificationRequestId: { type: "string", minLength: 10, maxLength: 64, pattern: /^verify_[a-f0-9]+$/ },
     verificationCode: { type: "string", minLength: 6, maxLength: 6, pattern: /^\d{6}$/ },
-    verificationToken: { type: "string", minLength: 20, maxLength: 512 },
+    verificationToken: { type: "string", maxLength: 512 },
     age: { type: "integer", minimum: 13, maximum: 120, allowNull: true },
     employmentStatus: { type: "string", minLength: 2, maxLength: 40 },
     stateCode: { type: "string", minLength: 2, maxLength: 5, uppercase: true, pattern: STATE_PATTERN }
