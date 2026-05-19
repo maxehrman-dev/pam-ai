@@ -73,15 +73,17 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - Passwords are hashed server-side and are never stored in plaintext
 - Plaid and OpenAI credentials stay in environment variables only; never commit them and never expose them in frontend code
 - Plaid access tokens must remain server-side only and must never be written to `localStorage`
+- Run an OWASP ZAP baseline scan before public launch, then fix any medium/high findings before accepting real financial users
+- Do not log raw prompts, bank data, access tokens, passwords, provider secrets, or full financial payloads to the browser console
 
 ## Startup stack status
 
 - Live now: GitHub, Vercel deployment, Supabase storage, Resend API wiring, Plaid Sandbox wiring, and server-side OpenAI route
 - Needs external verification only if missing in provider dashboards: Resend domain sending from `hello@pamadvisor.com`
 - Optional free-tier next: PostHog analytics, Sentry error monitoring, and Cloudflare DNS after DNS is moved or configured
-- Later, not necessary for this MVP: Clerk auth, Stripe payments, Upstash Redis, and Pinecone vector search
-- PAM already has account creation and password hashing, so do not add Clerk unless replacing the current auth path deliberately
-- Stripe has no monthly platform fee for basic setup, but payments have transaction fees, so leave it out until pricing is ready
+- Production launch blockers: replace or harden prototype auth with Clerk/Auth0 before real financial data, set up Stripe before charging, add Sentry, add uptime monitoring, and run OWASP ZAP
+- PAM currently has account creation, email verification, and password hashing, but this is still prototype auth and should not be treated as a managed auth provider
+- Stripe has no monthly platform fee for basic setup, but payments have transaction fees; leave live billing disabled until pricing, refund policy, cancellation, and receipt flows are ready
 
 ## Stack
 

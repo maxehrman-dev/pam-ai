@@ -1845,6 +1845,44 @@ input:disabled {
   font-weight: 800;
 }
 
+.ai-loading-state {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(216, 243, 229, 0.52);
+  border: 1px solid rgba(30, 138, 102, 0.16);
+}
+
+.ai-loading-state span {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 3px solid rgba(30, 138, 102, 0.2);
+  border-top-color: var(--mint-5);
+  animation: pam-spin 850ms linear infinite;
+}
+
+.ai-loading-state strong {
+  display: block;
+  color: var(--forest);
+}
+
+.ai-loading-state p {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+@keyframes pam-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .advisor-followup {
   padding: 12px;
   border-radius: 14px;

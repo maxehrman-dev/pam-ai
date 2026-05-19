@@ -130,6 +130,7 @@ const state = {
   question: loadQuestion(),
   result: null,
   aiGuidance: null,
+  decisionBusy: false,
   status: "",
   statusScope: "",
   inlineGoalError: "",
@@ -807,6 +808,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   saveWorkspaceView("dashboard");
   state.result = analyzeQuestion(question);
   state.aiGuidance = null;
+  state.decisionBusy = true;
   trackEvent("decision_analyzed", {
     source: state.baseline.source || "unknown",
     hasQuestion: Boolean(question),
@@ -827,6 +829,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
     setStatus(statusMessage, "decision");
   }
 
+  state.decisionBusy = false;
   render();
 }
 
@@ -2187,8 +2190,17 @@ function renderDecisionPanel() {
         <label for="pam-question">Ask a financial question</label>
         <textarea id="pam-question" name="question" rows="4" placeholder="Can I afford to move out if rent is $1,800?">${escapeHtml(state.question)}</textarea>
         ${state.inputWarning ? `<p class="input-warning">${escapeHtml(state.inputWarning)}</p>` : ""}
-        <button class="button button-primary" type="submit">Analyze decision</button>
+        <button class="button button-primary" type="submit" ${state.decisionBusy ? "disabled" : ""}>${state.decisionBusy ? "Analyzing..." : "Analyze decision"}</button>
       </form>
+      ${state.decisionBusy ? `
+        <div class="ai-loading-state" role="status" aria-live="polite">
+          <span></span>
+          <div>
+            <strong>PAM is modeling the decision.</strong>
+            <p>Running deterministic math first, then asking the server-side AI to refine the explanation.</p>
+          </div>
+        </div>
+      ` : ""}
       <div class="quick-question-row">
         ${[
           "What happens if I go on a $2,500 trip?",
@@ -2443,6 +2455,8 @@ function renderLegalPage(route) {
         ["Data use", "We use your data solely to provide and improve the PAM service. We do not sell user data to third parties."],
         ["Bank credentials", "We do not store raw bank login credentials. Future or Sandbox bank connections are handled through Plaid or a similar regulated third-party provider."],
         ["AI outputs and copyrighted inputs", "Do not input copyrighted material, confidential third-party documents, or content you do not have rights to use. PAM is not liable for outputs generated from copyrighted or unauthorized inputs."],
+        ["Plans, trials, billing, and refunds", "PAM may offer a free tier, free trial, or paid subscription in the future. A paid subscription is not active until Stripe or another payment provider is connected and you complete checkout. If paid billing is enabled, renewal, cancellation, failed-payment handling, receipts, and refund eligibility will be shown at checkout and in these terms before purchase."],
+        ["Cancellation and data after cancellation", "If a paid plan is later offered, cancelling stops future subscription renewals but does not automatically delete your account data. You may request deletion, subject to legal, security, fraud-prevention, and backup-retention requirements."],
         ["Account termination", "We may suspend or terminate accounts that abuse the service, attempt unauthorized access, violate these terms, or create legal/security risk. You may stop using PAM at any time."],
         ["Limitation of liability", "To the fullest extent permitted by law, PAM AI and its operators are not liable for lost profits, investment losses, tax consequences, missed opportunities, data loss, or indirect, incidental, consequential, special, or punitive damages arising from use of the service."],
         ["Governing law", "These terms are governed by the laws of the State of California, without regard to conflict-of-law rules."]
@@ -2483,6 +2497,8 @@ function renderLegalPage(route) {
         ["What is PAM AI?", "PAM AI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit."],
         ["Is PAM a financial advisor?", "No. PAM is not a licensed financial advisor, RIA, tax professional, attorney, bank, or broker. It provides educational modeling only."],
         ["Does PAM connect to my bank?", "The current production prototype supports Plaid Sandbox and Sandbox-style sample data. Real production bank connections should only be enabled after full auth, storage, security, and compliance review."],
+        ["Is authentication production-grade?", "PAM currently uses a prototype account system with email verification and hashed passwords. Before a public launch with real financial data, PAM should replace or harden this path with a managed auth provider such as Clerk or Auth0."],
+        ["Are payments live?", "No. Stripe subscriptions are not live yet. Founding pricing can be communicated on the waitlist, but paid checkout, cancellation, failed-payment handling, receipts, and refund flows need Stripe setup before charging users."],
         ["Does PAM store bank credentials?", "No. PAM should never see or store raw bank login credentials. Plaid handles bank authentication."],
         ["Are the results guaranteed?", "No. PAM's results are hypothetical estimates based on the data and assumptions available. Real-life outcomes can differ."],
         ["What should I do if a result looks wrong?", "Treat PAM as a planning aid, not a source of truth. Verify important numbers, update your baseline, and consult a qualified professional before making major decisions."],
