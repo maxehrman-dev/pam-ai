@@ -148,6 +148,10 @@ const state = {
   verificationWarning: "",
   verificationMaskedEmail: "",
   verificationExpiresAt: "",
+  verificationCheckStatus: "",
+  verificationCheckMessage: "",
+  verificationCheckBusy: false,
+  lastCheckedVerificationCode: "",
   plaidBusy: false
 };
 
@@ -280,6 +284,36 @@ function getStatus(scope) {
 
 function saveBaseline(baseline) {
   state.baseline = persistBaseline(baseline);
+  persistAccountBaseline(state.baseline);
+}
+
+function persistAccountBaseline(baseline) {
+  if (!state.sessionToken || !state.account?.id || !hasCompletedBaseline(baseline)) return;
+
+  fetch("/api/account/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "save_baseline",
+      sessionToken: state.sessionToken,
+      baseline
+    }),
+    keepalive: true
+  }).catch(() => {});
+}
+
+function routeSignedInUser(statusMessage = "Signed in.") {
+  saveAuthView("signin");
+  state.legalAcceptance = loadLegalAcceptance();
+  if (canAccessDashboard() && hasAcceptedLegalTerms()) {
+    saveWorkspaceView("dashboard");
+    setStatus(`${statusMessage} Dashboard restored.`, "decision");
+    return;
+  }
+  saveWorkspaceView("account");
+  setStatus(canAccessDashboard()
+    ? `${statusMessage} Accept the legal terms to continue.`
+    : `${statusMessage} Connect Sandbox data to finish your dashboard.`, "account");
 }
 
 function getInitialAccountDraft() {
@@ -377,6 +411,13 @@ function saveCurrentStepValue(form) {
     state.verificationWarning = "";
     state.verificationMaskedEmail = "";
     state.verificationExpiresAt = "";
+    state.verificationCheckStatus = "";
+    state.verificationCheckMessage = "";
+    state.lastCheckedVerificationCode = "";
+  }
+  if (step.key === "verificationCode" && String(value) !== previousValue) {
+    state.verificationCheckStatus = "";
+    state.verificationCheckMessage = "";
   }
   return draft;
 }
@@ -403,6 +444,9 @@ function validateAccountStep(stepIndex = state.createAccountStep, draft = ensure
     }
     if (!/^\d{6}$/.test(value)) {
       return "Enter the 6-digit verification code.";
+    }
+    if (state.verificationCheckStatus === "invalid") {
+      return "Enter the correct verification code.";
     }
   }
 
@@ -519,6 +563,9 @@ async function restoreSessionAccount() {
     return null;
   }
   state.account = payload.account;
+  if (payload.baseline) {
+    saveBaseline(payload.baseline);
+  }
   return payload.account;
 }
 
@@ -816,6 +863,11 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   });
   setStatus(`${statusMessage} PAM advisor is refining the explanation...`, "decision");
   render();
+  requestAnimationFrame(() => {
+    if (window.matchMedia?.("(max-width: 760px)").matches) {
+      document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
 
   try {
     const guidance = await requestDecisionGuidance(question, state.result);
@@ -997,6 +1049,9 @@ async function handleCreateAccount(event) {
   state.verificationWarning = "";
   state.verificationMaskedEmail = "";
   state.verificationExpiresAt = "";
+  state.verificationCheckStatus = "";
+  state.verificationCheckMessage = "";
+  state.lastCheckedVerificationCode = "";
   setStatus("Account created. Connect Sandbox data next.", "account");
   saveAuthView("signin");
   saveWorkspaceView("account");
@@ -1038,12 +1093,9 @@ async function handleLogin(event) {
 
   saveSessionToken(payload.sessionToken);
   state.account = payload.account;
-  saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
+  saveBaseline(syncAccountIntoBaseline(payload.account, payload.baseline || state.baseline));
   state.aiGuidance = null;
-  state.legalAcceptance = loadLegalAcceptance();
-  setStatus("Signed in. Connect Sandbox data to finish your dashboard.", "account");
-  saveAuthView("signin");
-  saveWorkspaceView("account");
+  routeSignedInUser("Signed in.");
   trackEvent("account_signed_in", {
     stateCode: payload.account?.stateCode || "",
     employmentStatus: payload.account?.employmentStatus || ""
@@ -1084,11 +1136,64 @@ async function handleSendVerificationCode(options = {}) {
 
   draft.verificationRequestId = String(payload.requestId || "");
   draft.verificationToken = String(payload.verificationToken || "");
+  draft.verificationCode = "";
   state.verificationMaskedEmail = String(payload.maskedEmail || emailAddress);
   state.verificationPreviewCode = String(payload.previewCode || "");
   state.verificationWarning = String(payload.warning || "");
   state.verificationExpiresAt = String(payload.expiresAt || "");
+  state.verificationCheckStatus = "";
+  state.verificationCheckMessage = "";
+  state.lastCheckedVerificationCode = "";
   setStatus(payload.deliveryMode === "prototype_preview" ? "Code ready." : "Code sent.", "account");
+  render();
+}
+
+async function handleVerificationCodeInput(event) {
+  const input = event.currentTarget;
+  const draft = ensureAccountDraft();
+  const normalized = String(input.value || "").replace(/\D/g, "").slice(0, 6);
+  input.value = normalized;
+  draft.verificationCode = normalized;
+
+  if (normalized.length < 6) {
+    state.verificationCheckStatus = "";
+    state.verificationCheckMessage = "";
+    state.lastCheckedVerificationCode = "";
+    return;
+  }
+
+  if (!draft.verificationRequestId || state.lastCheckedVerificationCode === normalized) {
+    return;
+  }
+
+  state.lastCheckedVerificationCode = normalized;
+  state.verificationCheckBusy = true;
+  state.verificationCheckStatus = "checking";
+  state.verificationCheckMessage = "Checking code...";
+  render();
+
+  const { payload, error } = await requestJson("/api/account/request-code", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      action: "check_code",
+      emailAddress: draft.emailAddress,
+      verificationRequestId: draft.verificationRequestId,
+      verificationCode: normalized,
+      ...(draft.verificationToken ? { verificationToken: draft.verificationToken } : {})
+    })
+  });
+
+  state.verificationCheckBusy = false;
+  if (error || !payload?.ok || !payload?.verified) {
+    state.verificationCheckStatus = "invalid";
+    state.verificationCheckMessage = payload?.error || error || "That code is incorrect.";
+  } else {
+    state.verificationCheckStatus = "valid";
+    state.verificationCheckMessage = payload.message || "Code confirmed.";
+  }
   render();
 }
 
@@ -1894,10 +1999,10 @@ function renderDailyDashboardHome() {
         </div>
         <div class="ask-pam-card">
           <h3>Ask PAM</h3>
-          ${askPrompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)} ↗</button>`).join("")}
+          ${askPrompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
           <form class="ask-pam-mini-form" data-question-form>
             <input name="question" placeholder="Ask anything..." />
-            <button type="submit" aria-label="Analyze question">↗</button>
+            <button type="submit" aria-label="Analyze question">Ask</button>
           </form>
         </div>
       </aside>
@@ -1955,7 +2060,7 @@ function renderDailyDashboardHome() {
         <div class="daily-side-card">
           <h3>Liabilities</h3>
           <p>${liabilities.length ? `${liabilities.length} connected liabilities · ${formatCurrency(getMonthlyObligations(state.baseline))}/mo minimums.` : "No connected liabilities detected."}</p>
-          <button type="button" data-question-example="Should I pay down debt faster?">Should I pay these off faster? ↗</button>
+          <button type="button" data-question-example="Should I pay down debt faster?">Should I pay these off faster?</button>
         </div>
       </aside>
     </section>
@@ -2134,6 +2239,7 @@ function renderBaselinePanel() {
                           ${step.min ? `min="${step.min}"` : ""}
                           ${step.max ? `max="${step.max}"` : ""}
                           ${step.step ? `step="${step.step}"` : ""}
+                          ${step.key === "verificationCode" ? `inputmode="numeric" pattern="[0-9]*" maxlength="6" data-verification-code-input` : ""}
                         />
                       `}
                     </label>
@@ -2144,6 +2250,7 @@ function renderBaselinePanel() {
                           ${state.verificationPreviewCode ? `<strong>Code: ${escapeHtml(state.verificationPreviewCode)}</strong>` : ""}
                           ${state.verificationWarning ? `<span>${escapeHtml(state.verificationWarning)}</span>` : ""}
                         </div>
+                        ${state.verificationCheckMessage ? `<p class="verification-check-message ${escapeHtml(state.verificationCheckStatus)}">${escapeHtml(state.verificationCheckMessage)}</p>` : ""}
                         ${draft.verificationRequestId ? `<button class="button button-secondary verification-resend-button" type="button" data-send-verification-code>Resend</button>` : ""}
                       </div>
                     ` : ""}
@@ -2236,7 +2343,7 @@ function renderResult() {
   state.result = result;
   const goalLabel = getGoalLabel(state.baseline);
   return `
-    <section class="foresee-panel result-panel">
+    <section class="foresee-panel result-panel" id="decision-result">
       <div class="result-header">
         <div>
           <div class="panel-kicker">Result</div>
@@ -2600,9 +2707,6 @@ function render() {
           <button type="button" data-scroll-target="#taxes">Taxes</button>
           <button type="button" data-scroll-target="#growth">Growth</button>
           <button type="button" data-scroll-target="#how-it-works">How it works</button>
-          <button type="button" data-open-waitlist>Waitlist</button>
-          <button type="button" data-legal-route="/faq">FAQ</button>
-          <button type="button" data-legal-route="/terms">Terms</button>
         </nav>
         <div class="foresee-header-actions">
           <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
@@ -2702,6 +2806,7 @@ function wireInteractions() {
   document.querySelector("[data-create-back]")?.addEventListener("click", handleCreateAccountBack);
   document.querySelector("[data-create-submit]")?.addEventListener("click", handleCreateAccountSubmitClick);
   document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
+  document.querySelector("[data-verification-code-input]")?.addEventListener("input", handleVerificationCodeInput);
   document.querySelectorAll("[data-open-waitlist]").forEach((button) => button.addEventListener("click", () => {
     state.waitlistOpen = true;
     state.waitlistMessage = "";

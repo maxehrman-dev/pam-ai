@@ -204,6 +204,12 @@ async function upsertBaseline({ accountId, baseline }) {
   });
 }
 
+async function findBaselineByAccountId(accountId) {
+  if (!accountId) return null;
+  const rows = await supabaseRequest(`pam_baselines?account_id=eq.${encodeFilter(accountId)}&select=baseline&limit=1`);
+  return rows?.[0]?.baseline || null;
+}
+
 async function insertTelemetryEvent({ eventType, eventName, sessionId = "", page = "", properties = {} }) {
   await supabaseRequest("pam_events", {
     method: "POST",
@@ -296,6 +302,7 @@ module.exports = {
   deleteSession,
   findAccountByEmail,
   findAccountById,
+  findBaselineByAccountId,
   findVerificationRequest,
   getSession,
   hasSupabaseConfig,

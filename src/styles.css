@@ -127,10 +127,10 @@ input:disabled {
 }
 
 .foresee-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(320px, 1fr) minmax(260px, auto);
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   padding: 16px 18px;
   margin-bottom: 22px;
   border-radius: 28px;
@@ -142,12 +142,22 @@ input:disabled {
 
 .foresee-nav {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
   gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.foresee-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .foresee-nav button {
+  flex: 0 0 auto;
   padding: 9px 10px;
   border-radius: 999px;
   color: var(--ink-3);
@@ -164,18 +174,21 @@ input:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .foresee-header-actions .button {
-  padding: 0.72rem 1rem;
+  padding: 0.72rem 0.95rem;
+  white-space: nowrap;
 }
 
 .foresee-brand {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .foresee-brand > span {
@@ -216,6 +229,22 @@ input:disabled {
   font-weight: 850;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+@media (max-width: 1100px) {
+  .foresee-header {
+    grid-template-columns: minmax(210px, auto) minmax(0, 1fr);
+  }
+
+  .foresee-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .foresee-header-actions {
+    justify-self: end;
+  }
 }
 
 .foresee-truth {
@@ -1551,25 +1580,28 @@ input:disabled {
 
 .ask-pam-card {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .ask-pam-card button,
 .daily-side-card button {
   width: 100%;
-  padding: 13px 14px;
-  border-radius: 16px;
+  min-height: 44px;
+  padding: 10px 13px;
+  border-radius: 14px;
   text-align: left;
   color: var(--ink-4);
   background: rgba(246, 239, 226, 0.62);
   border: 1px solid rgba(12, 21, 18, 0.1);
   font-weight: 850;
+  font-size: 0.96rem;
+  line-height: 1.18;
 }
 
 .ask-pam-mini-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 70px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  gap: 8px;
 }
 
 .ask-pam-mini-form input {
@@ -1584,7 +1616,26 @@ input:disabled {
   display: grid;
   place-items: center;
   text-align: center;
-  font-size: 1.4rem;
+  font-size: 0.88rem;
+}
+
+.verification-check-message {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.verification-check-message.valid {
+  color: #0b6b4e;
+}
+
+.verification-check-message.invalid {
+  color: #9f1d1d;
+}
+
+.verification-check-message.checking {
+  color: var(--ink-3);
 }
 
 .daily-chart-header,
@@ -1989,6 +2040,10 @@ input:disabled {
   backdrop-filter: blur(16px);
 }
 
+.cookie-actions .button {
+  white-space: nowrap;
+}
+
 .cookie-consent-banner strong {
   display: block;
   color: var(--forest);
@@ -2389,6 +2444,7 @@ input:disabled {
     gap: 12px;
     padding: 14px;
     border-radius: 24px;
+    grid-template-columns: 1fr;
   }
 
   .foresee-brand {
@@ -2435,6 +2491,7 @@ input:disabled {
     display: grid;
     grid-template-columns: 1fr 1fr;
     width: 100%;
+    justify-self: stretch;
   }
 
   .foresee-header-actions .button {
@@ -2694,6 +2751,43 @@ input:disabled {
     gap: 12px;
   }
 
+  .daily-advisor-card {
+    padding: 16px;
+  }
+
+  .daily-update {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px 0;
+  }
+
+  .daily-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
+  }
+
+  .ask-pam-card h3 {
+    margin: 2px 0 4px;
+    font-size: 1.08rem;
+  }
+
+  .ask-pam-card button {
+    min-height: 0;
+    padding: 9px 11px;
+    border-radius: 13px;
+    font-size: 0.9rem;
+  }
+
+  .ask-pam-mini-form {
+    grid-template-columns: minmax(0, 1fr) 52px;
+  }
+
+  .ask-pam-mini-form input {
+    padding: 11px 12px;
+    border-radius: 15px;
+  }
+
   .daily-advisor-card,
   .daily-main-card,
   .daily-side-card {
@@ -2715,5 +2809,17 @@ input:disabled {
     bottom: 10px;
     width: calc(100% - 20px);
     border-radius: 22px;
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .cookie-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .cookie-actions .button {
+    width: 100%;
   }
 }

@@ -7,6 +7,7 @@ const {
   deleteSession: deleteSupabaseSession,
   findAccountByEmail,
   findAccountById,
+  findBaselineByAccountId,
   findVerificationRequest,
   getSession: getSupabaseSession,
   hasSupabaseConfig,
@@ -373,6 +374,64 @@ async function consumeVerificationRequest(store, { emailAddress, requestId, veri
   delete store.verificationRequests[String(requestId || "")];
 }
 
+exports.checkVerificationRequest = async ({ emailAddress, requestId, verificationCode, verificationToken = "", purpose = "signup" }) => {
+  const email = normalizeEmail(emailAddress);
+
+  if (hasSupabaseConfig()) {
+    const request = await findVerificationRequest(String(requestId || ""));
+    if (!request) {
+      throw new Error("Request a fresh verification code.");
+    }
+
+    if (request.purpose !== purpose || request.email_address !== email) {
+      throw new Error("This verification code does not match the email you entered.");
+    }
+
+    if (new Date(request.expires_at).getTime() < Date.now()) {
+      await deleteVerificationRequests({ requestId });
+      throw new Error("That verification code expired. Request a new one.");
+    }
+
+    if (!verifyCodeHash(verificationCode, request.code_salt, request.code_hash)) {
+      throw new Error("That verification code is incorrect.");
+    }
+
+    return;
+  }
+
+  const store = readStore();
+  pruneVerificationRequests(store);
+  const request = store.verificationRequests[String(requestId || "")];
+
+  if (!request) {
+    writeStore(store);
+    if (!verificationToken) {
+      throw new Error("Request a fresh verification code.");
+    }
+    consumeVerificationToken({
+      emailAddress: email,
+      verificationCode,
+      verificationToken,
+      purpose
+    });
+    return;
+  }
+
+  writeStore(store);
+
+  if (request.purpose !== purpose || request.emailAddress !== email) {
+    throw new Error("This verification code does not match the email you entered.");
+  }
+
+  if (new Date(request.expiresAt).getTime() < Date.now()) {
+    throw new Error("That verification code expired. Request a new one.");
+  }
+
+  if (String(verificationCode || "").trim() !== String(request.code)) {
+    throw new Error("That verification code is incorrect.");
+  }
+};
+
 exports.createAccount = async ({
   firstName,
   emailAddress,
@@ -475,9 +534,19 @@ exports.loginAccount = async ({ emailAddress, password }) => {
     writeStore(store);
   }
 
+  let baseline = null;
+  if (hasSupabaseConfig()) {
+    try {
+      baseline = await findBaselineByAccountId(account.id);
+    } catch (_error) {
+      baseline = null;
+    }
+  }
+
   return {
     account: sanitizeAccount(account),
-    sessionToken
+    sessionToken,
+    baseline
   };
 };
 
@@ -495,6 +564,22 @@ exports.getSessionAccount = async (sessionToken) => {
   if (!session?.accountId) return null;
   const account = store.accounts.find((item) => item.id === session.accountId);
   return account ? sanitizeAccount(account) : null;
+};
+
+exports.getSessionAccountWithBaseline = async (sessionToken) => {
+  const account = await exports.getSessionAccount(sessionToken);
+  if (!account?.id || !hasSupabaseConfig()) {
+    return { account, baseline: null };
+  }
+
+  try {
+    return {
+      account,
+      baseline: await findBaselineByAccountId(account.id)
+    };
+  } catch (_error) {
+    return { account, baseline: null };
+  }
 };
 
 exports.clearSession = async (sessionToken) => {

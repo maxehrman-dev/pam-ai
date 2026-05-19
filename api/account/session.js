@@ -1,7 +1,7 @@
-const { clearSession, getSessionAccount } = require("../_lib/account-store.js");
+const { clearSession, getSessionAccount, getSessionAccountWithBaseline } = require("../_lib/account-store.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, sanitizeText, validatePayload } = require("../_lib/security.js");
-const { hasSupabaseConfig, insertLegalAcceptance, insertTelemetryEvent } = require("../_lib/supabase.js");
+const { hasSupabaseConfig, insertLegalAcceptance, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
 
 const querySchema = {
   properties: {
@@ -22,6 +22,15 @@ const legalAcceptanceSchema = {
   required: ["sessionToken", "action", "acceptedAdvisorDisclaimer", "acceptedTermsPrivacy", "termsVersion", "privacyVersion"]
 };
 
+const saveBaselineSchema = {
+  properties: {
+    sessionToken: { type: "string", minLength: 10, maxLength: 80 },
+    action: { type: "string", enum: ["save_baseline"] },
+    baseline: { type: "object", allowUnknown: true }
+  },
+  required: ["sessionToken", "action", "baseline"]
+};
+
 function getSessionToken(req) {
   return req.query?.sessionToken || req.body?.sessionToken || "";
 }
@@ -39,10 +48,11 @@ module.exports = async (req, res) => {
     ) {
       return;
     }
-    const account = await getSessionAccount(getSessionToken(req));
+    const { account, baseline } = await getSessionAccountWithBaseline(getSessionToken(req));
     return sendJson(res, 200, {
       ok: Boolean(account),
-      account
+      account,
+      baseline
     });
   }
 
@@ -63,6 +73,42 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === "POST") {
+    if (req.body?.action === "save_baseline") {
+      const body = validatePayload(req.body, saveBaselineSchema, "request body");
+      const account = await getSessionAccount(body.sessionToken);
+      if (!account?.id) {
+        return sendJson(res, 401, {
+          ok: false,
+          error: "Sign in again before saving baseline."
+        });
+      }
+      if (
+        !checkRateLimit(req, res, {
+          routeKey: "account:session:baseline",
+          userKey: account.emailAddress,
+          ipLimit: { windowMs: 60 * 1000, max: 60 },
+          userLimit: { windowMs: 60 * 1000, max: 30 }
+        })
+      ) {
+        return;
+      }
+
+      let stored = "local_only";
+      if (hasSupabaseConfig()) {
+        try {
+          await upsertBaseline({ accountId: account.id, baseline: body.baseline });
+          stored = "supabase";
+        } catch (_error) {
+          stored = "schema_pending";
+        }
+      }
+
+      return sendJson(res, 200, {
+        ok: true,
+        stored
+      });
+    }
+
     const body = validatePayload(req.body, legalAcceptanceSchema, "request body");
     const account = await getSessionAccount(body.sessionToken);
 

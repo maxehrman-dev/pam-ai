@@ -98,3 +98,42 @@ test("requesting a new verification code invalidates the previous one for the sa
     assert.ok(created.sessionToken);
   });
 });
+
+test("checking a verification code does not consume it", async () => {
+  await withFreshAccountStore(async (store) => {
+    const verification = await store.createVerificationRequest({
+      emailAddress: "jordan@example.com",
+      purpose: "signup"
+    });
+
+    await store.checkVerificationRequest({
+      emailAddress: "jordan@example.com",
+      requestId: verification.requestId,
+      verificationCode: verification.previewCode,
+      verificationToken: verification.verificationToken,
+      purpose: "signup"
+    });
+
+    await assert.rejects(async () => {
+      await store.checkVerificationRequest({
+        emailAddress: "jordan@example.com",
+        requestId: verification.requestId,
+        verificationCode: "000000",
+        verificationToken: verification.verificationToken,
+        purpose: "signup"
+      });
+    }, /incorrect/i);
+
+    const created = await store.createAccount({
+      firstName: "Jordan",
+      emailAddress: "jordan@example.com",
+      password: "strongpass1",
+      employmentStatus: "W-2 employee",
+      stateCode: "CA",
+      verificationRequestId: verification.requestId,
+      verificationCode: verification.previewCode
+    });
+
+    assert.ok(created.sessionToken);
+  });
+});
