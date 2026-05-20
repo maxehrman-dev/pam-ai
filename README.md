@@ -46,9 +46,59 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - The waitlist endpoint stores the signup, syncs the Resend audience when configured, then sends a notification email plus a confirmation email
 - Public signup links are `https://pamadvisor.com/waitlist` and legacy alias `https://pamadvisor.com/newsletter`
 - Waitlist signups collect email plus optional full name, age, current stage, and what the user wants PAM to help with
+- Supabase is the source-of-truth waitlist database. `public.pam_waitlist` stores `email_address`, `full_name`, `age`, `stage`, `goal`, `source`, `created_at`, and `updated_at`
+- Optional: set `GOOGLE_SHEETS_WAITLIST_WEBHOOK_URL` to mirror every waitlist signup into a Google Sheet
+- Optional: set `GOOGLE_SHEETS_WAITLIST_SECRET` and check it in the Apps Script before accepting rows
 - Deliverability note: inbox placement depends heavily on Resend domain verification, SPF/DKIM/DMARC alignment, domain age, and recipient engagement. Ask early testers to mark PAM emails as "Not Junk" if they land in spam while the domain reputation warms up
 - If those variables are missing, PAM falls back to prototype preview mode and shows the code in the UI instead of emailing it
 - Keep email provider credentials server-side only and rotate them immediately if they were ever exposed
+
+### Google Sheets waitlist mirror
+
+Use Supabase as the reliable database, then mirror rows into Google Sheets for easy demographic review.
+
+1. Create a Google Sheet with this header row:
+
+   `Signed up at | Email | Full name | Age | Stage | Purpose / intention | Source | Page | User agent | IP hint`
+
+2. In the Sheet, open Extensions -> Apps Script and deploy this as a Web App:
+
+```javascript
+const PAM_WAITLIST_SECRET = 'replace-with-a-long-random-secret';
+
+function doPost(e) {
+  const body = JSON.parse(e.postData.contents || '{}');
+  if (PAM_WAITLIST_SECRET && body.secret !== PAM_WAITLIST_SECRET) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+  sheet.appendRow([
+    body.signedUpAt || new Date().toISOString(),
+    body.emailAddress || '',
+    body.fullName || '',
+    body.age || '',
+    body.stage || '',
+    body.purposeIntention || '',
+    body.source || '',
+    body.page || '',
+    body.userAgent || '',
+    body.ipHint || ''
+  ]);
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok: true }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+3. Add the deployed Web App URL to Vercel as `GOOGLE_SHEETS_WAITLIST_WEBHOOK_URL`.
+4. Add the same long random secret in Vercel as `GOOGLE_SHEETS_WAITLIST_SECRET`.
+
+The app posts these fields to the Sheet mirror: email, full name, age, stage, purpose/intention, source, signup time, page, user agent, and IP hint. If the Sheet webhook fails, the signup still succeeds because Supabase remains the source of truth.
 
 ### Domain setup
 

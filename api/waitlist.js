@@ -14,18 +14,38 @@ const waitlistSchema = {
   required: ["emailAddress"]
 };
 
-async function syncWaitlistToSheet(entry) {
+function getRequestIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || String(req.headers["x-real-ip"] || "").trim() || "";
+}
+
+async function syncWaitlistToSheet(entry, req) {
   const webhookUrl = String(process.env.GOOGLE_SHEETS_WAITLIST_WEBHOOK_URL || "").trim();
   if (!webhookUrl) return "not_configured";
 
+  const signedUpAt = new Date().toISOString();
+  const webhookSecret = String(process.env.GOOGLE_SHEETS_WAITLIST_SECRET || "").trim();
+  const payload = {
+    signedUpAt,
+    emailAddress: entry.emailAddress,
+    fullName: entry.fullName || "",
+    age: entry.age ?? "",
+    stage: entry.stage || "",
+    purposeIntention: entry.goal || "",
+    source: "pamadvisor.com",
+    page: "/waitlist",
+    userAgent: String(req.headers["user-agent"] || "").slice(0, 300),
+    ipHint: getRequestIp(req).slice(0, 80),
+    ...(webhookSecret ? { secret: webhookSecret } : {})
+  };
+
   const response = await fetch(webhookUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...entry,
-      signedUpAt: new Date().toISOString(),
-      source: "pamadvisor.com"
-    })
+    headers: {
+      "Content-Type": "application/json",
+      ...(webhookSecret ? { "x-pam-sheets-secret": webhookSecret } : {})
+    },
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -120,7 +140,7 @@ module.exports = async (req, res) => {
         age: body.age ?? null,
         stage: body.stage || "",
         goal: body.goal || ""
-      });
+      }, req);
     } catch (_error) {
       googleSheet = "sync_failed";
     }
