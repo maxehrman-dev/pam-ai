@@ -333,7 +333,7 @@ function persistAccountBaseline(baseline) {
 
 function routeSignedInUser(statusMessage = "Signed in.") {
   saveAuthView("signin");
-  state.legalAcceptance = loadLegalAcceptance();
+  state.legalAcceptance = state.legalAcceptance || loadLegalAcceptance();
   if (canAccessDashboard() && hasAcceptedLegalTerms()) {
     saveWorkspaceView("dashboard");
     setStatus(`${statusMessage} Dashboard restored.`, "decision");
@@ -489,7 +489,10 @@ function validateAccountStep(stepIndex = state.createAccountStep, draft = ensure
     if (!/^\d{6}$/.test(value)) {
       return "Enter the 6-digit verification code.";
     }
-    if (state.verificationCheckStatus === "invalid") {
+    if (state.verificationCheckStatus === "checking") {
+      return "Checking code. Try again in a second.";
+    }
+    if (state.verificationCheckStatus !== "valid") {
       return "Enter the correct verification code.";
     }
   }
@@ -588,6 +591,27 @@ function getPrimaryActionLabel() {
 
 function getPrimaryActionView() {
   return canUseFinancialFeatures() ? "dashboard" : "account";
+}
+
+function getAccountPageTitle() {
+  if (canUseFinancialFeatures()) return "Your account.";
+  if (hasPrototypeAccount()) return "Finish setup.";
+  return "Create your account.";
+}
+
+function getWorkspaceTitle() {
+  const baseline = getUiBaseline(state.baseline);
+  if (canUseFinancialFeatures()) return `${escapeHtml(baseline.firstName || "Your")} dashboard`;
+  if (hasPrototypeAccount()) return "Finish setup";
+  return "Create your account";
+}
+
+function getWaitlistActionLabel() {
+  return state.waitlistJoined ? "On the waitlist" : "Join waitlist";
+}
+
+function isVerificationConfirmed() {
+  return state.verificationCheckStatus === "valid";
 }
 
 async function requestJson(url, options = {}) {
@@ -1052,6 +1076,12 @@ async function handleCreateAccount(event) {
 
   if (password !== confirmPassword) {
     setStatus("Passwords don't match.", "account");
+    render();
+    return;
+  }
+
+  if (!isVerificationConfirmed()) {
+    setStatus("Confirm the verification code before creating your account.", "account");
     render();
     return;
   }
@@ -1581,7 +1611,6 @@ function openWorkspaceView(view) {
 
 function renderHero() {
   const hasAccount = hasPrototypeAccount();
-  const joinedWaitlist = state.waitlistJoined;
   return `
     <section class="pam-hero foresee-panel">
       <div class="hero-copy">
@@ -1594,7 +1623,7 @@ function renderHero() {
         <div class="pam-hero-actions">
           <button class="button button-primary" type="button" data-open-view="${getPrimaryActionView()}">${escapeHtml(getPrimaryActionLabel())}</button>
           ${hasAccount ? `<button class="button button-secondary" type="button" data-open-view="account">Account</button>` : `<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`}
-          <button class="button button-secondary" type="button" data-open-waitlist>${joinedWaitlist ? "Waitlist joined" : "Join waitlist"}</button>
+          <button class="button button-secondary" type="button" data-open-waitlist>${escapeHtml(getWaitlistActionLabel())}</button>
           <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">Learn how it works</button>
         </div>
         <p class="founding-note">Free to join. Early members lock in founding pricing forever.</p>
@@ -1679,7 +1708,7 @@ function renderDecisionDemo() {
         <div class="panel-kicker">Decision engine</div>
         <h2>A preview of how PAM turns a question into a plan.</h2>
         <p>PAM is not a chatbot thread. It interprets the decision, runs deterministic math, and shows the tradeoff clearly.</p>
-        <button class="button button-primary" type="button" data-open-view="account">Start with your baseline</button>
+        <button class="button button-primary" type="button" data-open-view="${getPrimaryActionView()}">${escapeHtml(getPrimaryActionLabel())}</button>
       </div>
       <div class="advisor-demo-window">
         <div class="demo-window-header">
@@ -1761,7 +1790,7 @@ function renderPricingModel() {
           <div class="panel-kicker">Business model</div>
           <h2>Affordable guidance before you can afford an advisor.</h2>
         </div>
-        <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
+        <button class="button button-secondary" type="button" data-open-waitlist>${escapeHtml(getWaitlistActionLabel())}</button>
       </div>
       <div class="pricing-grid">
         ${tiers.map(([name, items]) => `
@@ -1866,7 +1895,7 @@ function renderWorkspaceHub() {
       <div class="workspace-header">
         <div>
           <div class="panel-kicker">Workspace</div>
-          <h2>${isComplete ? `${escapeHtml(baseline.firstName || "Your")} dashboard` : hasPrototypeAccount() ? "Finish setup" : "Create your account"}</h2>
+          <h2>${getWorkspaceTitle()}</h2>
         </div>
         ${hasPrototypeAccount() ? `<div class="workspace-account-chip"><strong>${escapeHtml(baseline.firstName || "Account")}</strong><span>${escapeHtml(baseline.emailAddress)}</span></div>` : ""}
       </div>
@@ -1901,7 +1930,7 @@ function renderAccountPage() {
           <button class="auth-page-back" type="button" data-open-view="landing">Back to homepage</button>
           <div>
             <div class="panel-kicker">PAM account</div>
-            <h1>${hasPrototypeAccount() ? "Finish your setup." : "Create your account."}</h1>
+            <h1>${getAccountPageTitle()}</h1>
           </div>
         </div>
         ${renderWorkspaceHub()}
@@ -1964,7 +1993,7 @@ function renderMobileAppChrome() {
         <span>PAM</span>
         <div><strong>PAM AI</strong><small>Personal Asset Manager</small></div>
       </div>
-      <button type="button" data-mobile-scroll="#feedback" aria-label="Open profile">Profile</button>
+      <button type="button" data-mobile-view="profile" aria-label="Open profile">Profile</button>
     </div>
     <div class="mobile-welcome-card">
       <p>Hi ${escapeHtml(ui.firstName || "there")}</p>
@@ -2419,14 +2448,14 @@ function renderBaselinePanel() {
                           ${state.verificationWarning ? `<span>${escapeHtml(state.verificationWarning)}</span>` : ""}
                         </div>
                         ${state.verificationCheckMessage ? `<p class="verification-check-message ${escapeHtml(state.verificationCheckStatus)}">${escapeHtml(state.verificationCheckMessage)}</p>` : ""}
-                        ${draft.verificationRequestId ? `<button class="button button-secondary verification-resend-button" type="button" data-send-verification-code>Resend</button>` : ""}
+                        ${draft.verificationRequestId && !isVerificationConfirmed() ? `<button class="button button-secondary verification-resend-button" type="button" data-send-verification-code>Send new code</button>` : ""}
                       </div>
                     ` : ""}
                     ${getStatus("account") ? `<p class="auth-status-message">${escapeHtml(getStatus("account"))}</p>` : ""}
                     <div class="form-actions">
                       ${state.createAccountStep > 0 ? `<button class="button button-secondary" type="button" data-create-back>Back</button>` : `<button class="button button-secondary" type="button" data-open-view="landing">Cancel</button>`}
                       ${isLastStep
-                        ? `<button class="button button-primary" type="button" data-create-submit>Create account</button>`
+                        ? `<button class="button button-primary" type="button" data-create-submit ${!isVerificationConfirmed() ? "disabled" : ""}>Create account</button>`
                         : `<button class="button button-primary" type="button" data-create-next>Continue</button>`}
                     </div>
                   </form>
