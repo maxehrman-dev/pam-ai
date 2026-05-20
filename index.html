@@ -13,6 +13,7 @@
     />
     <meta name="application-name" content="PAM AI" />
     <meta name="apple-mobile-web-app-title" content="PAM AI" />
+    <meta name="author" content="PAM AI" />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#143729" />
     <link rel="canonical" href="https://pamadvisor.com/" />
@@ -42,10 +43,108 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="stylesheet" href="/src/styles.css?v=pam-ai-20260512-brand" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "PAM AI",
+        "alternateName": "Personal Asset Manager",
+        "url": "https://pamadvisor.com/",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Web",
+        "description": "PAM AI helps young adults model financial decisions before making them, including monthly buffer, taxes, savings, risk, and long-term goals.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "Free waitlist access for early members."
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "PAM AI",
+          "url": "https://pamadvisor.com/"
+        }
+      }
+    </script>
   </head>
   <body>
-    <div id="app"></div>
-    <noscript>PAM AI needs JavaScript enabled to analyze financial decisions.</noscript>
+    <div id="app">
+      <main class="static-fallback-shell" aria-label="PAM AI overview">
+        <header class="static-fallback-header">
+          <a class="static-fallback-brand" href="/" aria-label="PAM AI home">
+            <span class="static-fallback-logo">PAM</span>
+            <span>
+              <strong>PAM AI</strong>
+              <small>Personal Asset Manager</small>
+            </span>
+          </a>
+          <nav class="static-fallback-nav" aria-label="Primary">
+            <a href="/waitlist">Join waitlist</a>
+            <a href="/faq">FAQ</a>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+          </nav>
+        </header>
+
+        <section class="static-fallback-hero">
+          <p class="eyebrow">PAM AI • Personal Asset Manager</p>
+          <h1>Know what happens before you decide.</h1>
+          <p>
+            PAM AI helps young adults understand how money decisions affect monthly buffer, taxes, savings, risk,
+            compound growth, and long-term goals before they commit.
+          </p>
+          <div class="static-fallback-actions">
+            <a class="button button-primary" href="/waitlist">Join the waitlist</a>
+            <a class="button button-secondary" href="/faq">Learn how PAM works</a>
+          </div>
+        </section>
+
+        <section class="static-fallback-grid" aria-label="What PAM models">
+          <article>
+            <p class="eyebrow">Decision engine</p>
+            <h2>Most money tools show the past. PAM shows what happens next.</h2>
+            <p>
+              PAM is not a budgeting tracker or spreadsheet. It models choices like rent, cars, trips, job changes,
+              taxes, investing, and moving out.
+            </p>
+          </article>
+          <article>
+            <p class="eyebrow">Example</p>
+            <h2>Can I buy a car with a $400/month payment?</h2>
+            <ul>
+              <li>Monthly impact: -$400</li>
+              <li>Risk: Medium</li>
+              <li>Goal impact: moving out may be delayed by 6-9 months</li>
+              <li>Explanation: affordable, but your monthly buffer gets tighter</li>
+            </ul>
+          </article>
+          <article>
+            <p class="eyebrow">Future baseline</p>
+            <h2>Built to understand your money automatically.</h2>
+            <p>
+              Future versions can build a baseline from connected balances, income, recurring expenses, and liabilities
+              so decisions are modeled against a clearer financial picture.
+            </p>
+          </article>
+        </section>
+
+        <footer class="static-fallback-footer">
+          <p>
+            PAM AI is a financial modeling tool, not a licensed financial advisor, investment adviser, tax professional,
+            attorney, or RIA. Nothing in PAM is financial, tax, legal, or investment advice.
+          </p>
+        </footer>
+      </main>
+    </div>
+    <noscript>
+      <section class="noscript-panel" aria-label="JavaScript notice">
+        <strong>JavaScript is needed for the interactive PAM app.</strong>
+        <span>
+          You can still read this overview, join the waitlist, and review legal pages. Enable JavaScript to create an
+          account, connect Sandbox data, and run financial decision models.
+        </span>
+      </section>
+    </noscript>
     <script type="module" src="/src/bootstrap.js?v=pam-ai-20260512-brand"></script>
   </body>
   </html>
