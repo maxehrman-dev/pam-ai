@@ -262,6 +262,23 @@ async function insertLegalAcceptance({
   });
 }
 
+async function findLatestLegalAcceptanceByAccountId(accountId) {
+  if (!accountId) return null;
+  const rows = await supabaseRequest(
+    `pam_legal_acceptances?account_id=eq.${encodeFilter(accountId)}&select=accepted_advisor_disclaimer,accepted_terms_privacy,terms_version,privacy_version,accepted_at&order=accepted_at.desc&limit=1`
+  );
+  const row = rows?.[0];
+  if (!row) return null;
+  return {
+    acceptedAdvisorDisclaimer: Boolean(row.accepted_advisor_disclaimer),
+    acceptedTermsPrivacy: Boolean(row.accepted_terms_privacy),
+    termsVersion: row.terms_version,
+    privacyVersion: row.privacy_version,
+    acceptedAt: row.accepted_at,
+    stored: "supabase"
+  };
+}
+
 async function checkSupabaseConnection() {
   if (!hasSupabaseConfig()) {
     return {
@@ -303,6 +320,7 @@ module.exports = {
   findAccountByEmail,
   findAccountById,
   findBaselineByAccountId,
+  findLatestLegalAcceptanceByAccountId,
   findVerificationRequest,
   getSession,
   hasSupabaseConfig,

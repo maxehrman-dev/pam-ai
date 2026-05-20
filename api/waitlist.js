@@ -14,6 +14,26 @@ const waitlistSchema = {
   required: ["emailAddress"]
 };
 
+async function syncWaitlistToSheet(entry) {
+  const webhookUrl = String(process.env.GOOGLE_SHEETS_WAITLIST_WEBHOOK_URL || "").trim();
+  if (!webhookUrl) return "not_configured";
+
+  const response = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...entry,
+      signedUpAt: new Date().toISOString(),
+      source: "pamadvisor.com"
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error("Google Sheets waitlist sync failed.");
+  }
+  return "synced";
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
@@ -36,6 +56,7 @@ module.exports = async (req, res) => {
     let warning = "";
     let stored = hasSupabaseConfig() ? "supabase" : "prototype";
     let newsletter = "not_configured";
+    let googleSheet = "not_configured";
 
     if (hasSupabaseConfig()) {
       try {
@@ -92,11 +113,24 @@ module.exports = async (req, res) => {
       warning = warning || "Email delivery is not configured.";
     }
 
+    try {
+      googleSheet = await syncWaitlistToSheet({
+        emailAddress: body.emailAddress,
+        fullName: body.fullName || "",
+        age: body.age ?? null,
+        stage: body.stage || "",
+        goal: body.goal || ""
+      });
+    } catch (_error) {
+      googleSheet = "sync_failed";
+    }
+
     return sendJson(res, 200, {
       ok: true,
       deliveryMode,
       stored,
       newsletter,
+      googleSheet,
       warning
     });
   } catch (error) {

@@ -1485,7 +1485,8 @@ input:disabled {
 
 .mobile-app-chrome,
 .mobile-welcome-card,
-.mobile-bottom-nav {
+.mobile-bottom-nav,
+.mobile-only-screen {
   display: none;
 }
 
@@ -2884,9 +2885,36 @@ input:disabled {
   }
 
   .mobile-bottom-nav button:focus,
-  .mobile-bottom-nav button:hover {
+  .mobile-bottom-nav button:hover,
+  .mobile-bottom-nav button.active {
     color: var(--mint-5);
     background: rgba(216, 243, 229, 0.72);
+  }
+
+  .mobile-dashboard-view .mobile-screen {
+    display: none;
+  }
+
+  .mobile-dashboard-view.mobile-view-home .mobile-screen-home,
+  .mobile-dashboard-view.mobile-view-ask .mobile-screen-ask,
+  .mobile-dashboard-view.mobile-view-result .mobile-screen-result,
+  .mobile-dashboard-view.mobile-view-goals .mobile-screen-goals,
+  .mobile-dashboard-view.mobile-view-accounts .mobile-screen-accounts,
+  .mobile-dashboard-view.mobile-view-profile .mobile-screen-profile {
+    display: block;
+  }
+
+  .mobile-dashboard-view.mobile-view-home .daily-home-shell {
+    display: grid;
+  }
+
+  .mobile-dashboard-view.mobile-view-home .daily-advisor-card .ask-pam-card,
+  .mobile-dashboard-view.mobile-view-home .daily-column:last-child {
+    display: none;
+  }
+
+  .mobile-only-screen {
+    margin: 0;
   }
 
   .pam-hero {
@@ -2990,6 +3018,59 @@ input:disabled {
 
   .daily-side-card {
     padding: 14px;
+  }
+
+  .mobile-goal-stack {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .mobile-goal-card {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(30, 138, 102, 0.12);
+  }
+
+  .mobile-goal-card strong,
+  .mobile-goal-card span {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-goal-card strong {
+    color: var(--ink-5);
+    font-size: 1.1rem;
+  }
+
+  .mobile-goal-card span {
+    color: var(--ink-3);
+    margin-top: 3px;
+  }
+
+  .mobile-goal-track {
+    height: 9px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(12, 21, 18, 0.08);
+  }
+
+  .mobile-goal-track b {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--mint-4);
+  }
+
+  .mobile-goal-card.blue .mobile-goal-track b {
+    background: #3b82d6;
+  }
+
+  .mobile-goal-card.amber .mobile-goal-track b {
+    background: #c27a13;
   }
 
   .spending-header {

@@ -8,6 +8,7 @@ const {
   findAccountByEmail,
   findAccountById,
   findBaselineByAccountId,
+  findLatestLegalAcceptanceByAccountId,
   findVerificationRequest,
   getSession: getSupabaseSession,
   hasSupabaseConfig,
@@ -535,18 +536,25 @@ exports.loginAccount = async ({ emailAddress, password }) => {
   }
 
   let baseline = null;
+  let legalAcceptance = null;
   if (hasSupabaseConfig()) {
     try {
       baseline = await findBaselineByAccountId(account.id);
     } catch (_error) {
       baseline = null;
     }
+    try {
+      legalAcceptance = await findLatestLegalAcceptanceByAccountId(account.id);
+    } catch (_error) {
+      legalAcceptance = null;
+    }
   }
 
   return {
     account: sanitizeAccount(account),
     sessionToken,
-    baseline
+    baseline,
+    legalAcceptance
   };
 };
 
@@ -575,10 +583,11 @@ exports.getSessionAccountWithBaseline = async (sessionToken) => {
   try {
     return {
       account,
-      baseline: await findBaselineByAccountId(account.id)
+      baseline: await findBaselineByAccountId(account.id),
+      legalAcceptance: await findLatestLegalAcceptanceByAccountId(account.id)
     };
   } catch (_error) {
-    return { account, baseline: null };
+    return { account, baseline: null, legalAcceptance: null };
   }
 };
 

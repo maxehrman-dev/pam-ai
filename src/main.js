@@ -29,10 +29,12 @@ const SESSION_STORAGE_KEY = "pam:session:v1";
 const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 const AUTH_VIEW_KEY = "pam-ai-auth-view-v1";
+const MOBILE_VIEW_KEY = "pam-ai-mobile-view-v1";
 const TELEMETRY_SESSION_KEY = "pam:telemetry-session:v1";
 const COOKIE_CONSENT_KEY = "pam:cookie-consent:v1";
 const LEGAL_ACCEPTANCE_KEY = "pam:legal-acceptance:v1";
 const WALKTHROUGH_DISMISSED_KEY = "pam:walkthrough-dismissed:v1";
+const WAITLIST_STORAGE_KEY = "pam:waitlist:v1";
 const TERMS_VERSION = "2026-05-18";
 const PRIVACY_VERSION = "2026-05-18";
 const LEGAL_DISCLAIMER =
@@ -125,6 +127,7 @@ const state = {
   sessionToken: loadSessionToken(),
   workspaceView: loadWorkspaceView(),
   authView: loadAuthView(),
+  mobileView: loadMobileView(),
   createAccountStep: 0,
   accountDraft: null,
   question: loadQuestion(),
@@ -135,7 +138,7 @@ const state = {
   statusScope: "",
   inlineGoalError: "",
   waitlistOpen: false,
-  waitlistJoined: false,
+  waitlistJoined: loadWaitlistJoined(),
   waitlistMessage: "",
   waitlistBusy: false,
   waitlistDraft: {
@@ -219,6 +222,24 @@ function loadWalkthroughDismissed() {
     return window.localStorage.getItem(WALKTHROUGH_DISMISSED_KEY) === "true";
   } catch (_error) {
     return false;
+  }
+}
+
+function loadWaitlistJoined() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(WAITLIST_STORAGE_KEY) === "joined";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function saveWaitlistJoined() {
+  state.waitlistJoined = true;
+  try {
+    window.localStorage.setItem(WAITLIST_STORAGE_KEY, "joined");
+  } catch (_error) {
+    // The current render still knows the user joined.
   }
 }
 
@@ -382,6 +403,12 @@ function loadAuthView() {
   return ["create", "signin"].includes(stored || "") ? stored : "create";
 }
 
+function loadMobileView() {
+  if (typeof window === "undefined") return "home";
+  const stored = window.localStorage.getItem(MOBILE_VIEW_KEY);
+  return ["home", "ask", "result", "goals", "accounts", "profile"].includes(stored || "") ? stored : "home";
+}
+
 function saveWorkspaceView(view) {
   state.workspaceView = ["landing", "account", "dashboard"].includes(view) ? view : "landing";
   try {
@@ -397,6 +424,15 @@ function saveAuthView(view) {
     window.localStorage.setItem(AUTH_VIEW_KEY, state.authView);
   } catch (_error) {
     // Auth view persistence is helpful, not required.
+  }
+}
+
+function saveMobileView(view) {
+  state.mobileView = ["home", "ask", "result", "goals", "accounts", "profile"].includes(view) ? view : "home";
+  try {
+    window.localStorage.setItem(MOBILE_VIEW_KEY, state.mobileView);
+  } catch (_error) {
+    // Mobile screen state can fall back to in-memory.
   }
 }
 
@@ -544,6 +580,16 @@ function canUseFinancialFeatures() {
   return canAccessDashboard() && hasAcceptedLegalTerms();
 }
 
+function getPrimaryActionLabel() {
+  if (canUseFinancialFeatures()) return "Open dashboard";
+  if (hasPrototypeAccount()) return "Finish setup";
+  return "Create your account";
+}
+
+function getPrimaryActionView() {
+  return canUseFinancialFeatures() ? "dashboard" : "account";
+}
+
 async function requestJson(url, options = {}) {
   try {
     const response = await fetch(url, options);
@@ -573,6 +619,9 @@ async function restoreSessionAccount() {
   state.account = payload.account;
   if (payload.baseline) {
     saveBaseline(payload.baseline);
+  }
+  if (payload.legalAcceptance) {
+    saveLegalAcceptance(payload.legalAcceptance);
   }
   return payload.account;
 }
@@ -861,6 +910,7 @@ async function requestDecisionGuidance(question, result) {
 async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.") {
   saveQuestion(question);
   saveWorkspaceView("dashboard");
+  saveMobileView("result");
   state.result = analyzeQuestion(question);
   state.aiGuidance = null;
   state.decisionBusy = true;
@@ -1102,6 +1152,9 @@ async function handleLogin(event) {
   saveSessionToken(payload.sessionToken);
   state.account = payload.account;
   saveBaseline(syncAccountIntoBaseline(payload.account, payload.baseline || state.baseline));
+  if (payload.legalAcceptance) {
+    saveLegalAcceptance(payload.legalAcceptance);
+  }
   state.aiGuidance = null;
   routeSignedInUser("Signed in.");
   trackEvent("account_signed_in", {
@@ -1390,7 +1443,13 @@ async function handleLegalAcceptance(event) {
     stored: payload.stored || "none"
   });
   state.legalAcceptanceError = "";
-  setStatus("Legal terms accepted. You can now connect Sandbox data and model decisions.", "account");
+  if (canAccessDashboard()) {
+    saveWorkspaceView("dashboard");
+    saveMobileView("home");
+    setStatus("Legal terms accepted. Dashboard unlocked.", "decision");
+  } else {
+    setStatus("Legal terms accepted. Connect Sandbox data next.", "account");
+  }
   trackEvent("legal_terms_accepted", { stored: payload.stored || "none" }, "security");
   render();
 }
@@ -1521,7 +1580,8 @@ function openWorkspaceView(view) {
 }
 
 function renderHero() {
-  const isComplete = canUseFinancialFeatures();
+  const hasAccount = hasPrototypeAccount();
+  const joinedWaitlist = state.waitlistJoined;
   return `
     <section class="pam-hero foresee-panel">
       <div class="hero-copy">
@@ -1532,8 +1592,9 @@ function renderHero() {
           monthly buffer, taxes, savings, risk, and long-term goals before you commit.
         </p>
         <div class="pam-hero-actions">
-          <button class="button button-primary" type="button" data-open-view="${isComplete ? "dashboard" : "account"}">${isComplete ? "Open dashboard" : "Create your account"}</button>
-          <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
+          <button class="button button-primary" type="button" data-open-view="${getPrimaryActionView()}">${escapeHtml(getPrimaryActionLabel())}</button>
+          ${hasAccount ? `<button class="button button-secondary" type="button" data-open-view="account">Account</button>` : `<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`}
+          <button class="button button-secondary" type="button" data-open-waitlist>${joinedWaitlist ? "Waitlist joined" : "Join waitlist"}</button>
           <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">Learn how it works</button>
         </div>
         <p class="founding-note">Free to join. Early members lock in founding pricing forever.</p>
@@ -1879,10 +1940,11 @@ function renderDashboardWorkspace() {
   }
 
   return `
-    <div class="workspace-guide-grid compact-workspace-view" id="dashboard-section">
+    <div class="workspace-guide-grid compact-workspace-view mobile-dashboard-view mobile-view-${escapeHtml(state.mobileView)}" id="dashboard-section">
       ${renderMobileAppChrome()}
       ${renderOnboardingWalkthrough()}
       ${renderDailyDashboardHome()}
+      ${renderMobileGoalsScreen()}
       ${renderConnectedInsights()}
       <div class="workspace-grid-simulator">
         ${renderDecisionPanel()}
@@ -1912,13 +1974,18 @@ function renderMobileAppChrome() {
 }
 
 function renderMobileBottomNav() {
+  const items = [
+    ["home", "Home"],
+    ["ask", "Ask"],
+    ["goals", "Goals"],
+    ["accounts", "Accounts"],
+    ["profile", "Profile"]
+  ];
   return `
     <nav class="mobile-bottom-nav" aria-label="PAM mobile navigation">
-      <button type="button" data-mobile-scroll="#daily-home"><span>Home</span></button>
-      <button type="button" data-mobile-scroll="#decision-input"><span>Ask</span></button>
-      <button type="button" data-mobile-scroll="#mobile-goals"><span>Goals</span></button>
-      <button type="button" data-mobile-scroll="#mobile-accounts"><span>Accounts</span></button>
-      <button type="button" data-mobile-scroll="#feedback"><span>Profile</span></button>
+      ${items.map(([id, label]) => `
+        <button class="${state.mobileView === id ? "active" : ""}" type="button" data-mobile-view="${id}" aria-current="${state.mobileView === id ? "page" : "false"}"><span>${label}</span></button>
+      `).join("")}
     </nav>
   `;
 }
@@ -1943,7 +2010,7 @@ function renderOnboardingWalkthrough() {
 
 function renderFeedbackPanel() {
   return `
-    <section class="foresee-panel feedback-panel" id="feedback">
+    <section class="foresee-panel feedback-panel mobile-screen mobile-screen-profile" id="feedback">
       <div>
         <div class="panel-kicker">Feedback</div>
         <h2>Help shape PAM.</h2>
@@ -2015,7 +2082,7 @@ function renderDailyDashboardHome() {
   const colors = ["#1e9f78", "#3b82d6", "#c27a13", "#d4507d"];
 
   return `
-    <section class="daily-home-shell" id="daily-home">
+    <section class="daily-home-shell mobile-screen mobile-screen-home" id="daily-home">
       <aside class="daily-column daily-advisor-card">
         <div>
           <div class="panel-kicker">Today</div>
@@ -2106,6 +2173,57 @@ function renderDailyDashboardHome() {
   `;
 }
 
+function renderMobileGoalsScreen() {
+  const goalLabel = getGoalLabel(state.baseline) || "Move out safely";
+  const currentSavings = getCurrentSavings(state.baseline);
+  const monthlyExpenses = getMonthlyExpenses(state.baseline);
+  const connectedAccounts = getConnectedAccounts(state.baseline);
+  const investmentBalance = connectedAccounts
+    .filter((account) => String(account.type || "").includes("investment"))
+    .reduce((sum, account) => sum + Number(account.current || 0), 0);
+  const goalTarget = Math.max(toNumber(state.baseline.goals.goalTargetAmount), currentSavings + 1);
+  const emergencyTarget = Math.max(Math.round(monthlyExpenses * 3), 1);
+  const retirementStarter = Math.max(Math.round((investmentBalance || 1800) / 0.3), 6000);
+  const goals = [
+    {
+      title: goalLabel,
+      amount: `${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}`,
+      progress: getProgressPercent(currentSavings, goalTarget),
+      tone: "mint"
+    },
+    {
+      title: "Emergency fund",
+      amount: `${formatCurrency(Math.min(currentSavings, emergencyTarget))} of ${formatCurrency(emergencyTarget)}`,
+      progress: getProgressPercent(currentSavings, emergencyTarget),
+      tone: "blue"
+    },
+    {
+      title: "Roth IRA starter",
+      amount: `${formatCurrency(investmentBalance || 1800)} of ${formatCurrency(retirementStarter)}`,
+      progress: getProgressPercent(investmentBalance || 1800, retirementStarter),
+      tone: "amber"
+    }
+  ];
+
+  return `
+    <section class="foresee-panel mobile-only-screen mobile-screen mobile-screen-goals" id="mobile-goals-page">
+      <div class="panel-kicker">Goals</div>
+      <h2>Your goals</h2>
+      <div class="mobile-goal-stack">
+        ${goals.map((goal) => `
+          <article class="mobile-goal-card ${goal.tone}">
+            <div>
+              <strong>${escapeHtml(goal.title)}</strong>
+              <span>${escapeHtml(goal.amount)}</span>
+            </div>
+            <div class="mobile-goal-track"><b style="width:${goal.progress}%"></b></div>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderConnectedInsights() {
   if (!state.baseline.source.startsWith("plaid")) return "";
   const topExpenses = getTopConnectedExpenses(state.baseline, 3);
@@ -2114,7 +2232,7 @@ function renderConnectedInsights() {
   const connectedAccounts = getConnectedAccounts(state.baseline);
 
   return `
-    <section class="foresee-panel" id="mobile-accounts">
+    <section class="foresee-panel mobile-screen mobile-screen-accounts" id="mobile-accounts">
       <div class="panel-kicker">Connected baseline</div>
       <h2>Your Sandbox data is feeding PAM.</h2>
       <div class="feature-grid">
@@ -2224,17 +2342,28 @@ function renderBaselinePanel() {
               </div>
             </div>
             ${!hasAcceptedLegalTerms() ? renderLegalGate() : ""}
-            <div class="connect-actions-header">
-              <h3>${isComplete ? "Dashboard ready." : "Connect Sandbox data to unlock your dashboard."}</h3>
-            </div>
-            <div class="plaid-security-note">
-              <strong>Data security</strong>
-              <p>We never see or store your bank login credentials. Plaid handles bank connections. Financial data is encrypted in transit and at rest by our infrastructure providers, and PAM does not use financial data to train AI models.</p>
-            </div>
-            <div class="connect-action-grid">
-              <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
-              <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>Use Sandbox-style sample data</button>
-            </div>
+            ${isComplete && hasAcceptedLegalTerms() ? `
+              <div class="connect-actions-header">
+                <h3>Your dashboard is ready.</h3>
+                <p>PAM has enough baseline data to model decisions. You can refresh Sandbox data anytime.</p>
+              </div>
+              <div class="connect-action-grid">
+                <button class="button button-primary" type="button" data-open-view="dashboard">Open dashboard</button>
+                <button class="button button-secondary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Refreshing..." : "Refresh Sandbox data"}</button>
+              </div>
+            ` : `
+              <div class="connect-actions-header">
+                <h3>Connect Sandbox data to unlock your dashboard.</h3>
+              </div>
+              <div class="plaid-security-note">
+                <strong>Data security</strong>
+                <p>We never see or store your bank login credentials. Plaid handles bank connections.</p>
+              </div>
+              <div class="connect-action-grid">
+                <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
+                <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>Use Sandbox-style sample data</button>
+              </div>
+            `}
             <div class="form-actions">
               <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
               <button class="button button-secondary" type="button" data-logout>Sign out</button>
@@ -2328,7 +2457,7 @@ function renderBaselinePanel() {
 
 function renderDecisionPanel() {
   return `
-    <section class="foresee-panel decision-panel" id="decision-input">
+    <section class="foresee-panel decision-panel mobile-screen mobile-screen-ask" id="decision-input">
       <div class="panel-kicker">Decision simulator</div>
       <h2>Ask a financial question</h2>
       <p>Run one decision at a time. PAM estimates the outcome from your baseline.</p>
@@ -2382,7 +2511,7 @@ function renderResult() {
   state.result = result;
   const goalLabel = getGoalLabel(state.baseline);
   return `
-    <section class="foresee-panel result-panel" id="decision-result">
+    <section class="foresee-panel result-panel mobile-screen mobile-screen-result" id="decision-result">
       <div class="result-header">
         <div>
           <div class="panel-kicker">Result</div>
@@ -2749,8 +2878,11 @@ function render() {
           <button type="button" data-scroll-target="#how-it-works">How it works</button>
         </nav>
         <div class="foresee-header-actions">
-          <button class="button button-secondary" type="button" data-open-waitlist>Join waitlist</button>
-          <button class="button button-primary" type="button" data-open-view="${canAccessDashboard() ? "dashboard" : "account"}">${canAccessDashboard() ? "Open dashboard" : "Create account"}</button>
+          ${hasPrototypeAccount()
+            ? `<button class="button button-secondary" type="button" data-open-view="account">Account</button>`
+            : `<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`}
+          <button class="button button-secondary" type="button" data-open-waitlist>${state.waitlistJoined ? "Waitlist joined" : "Join waitlist"}</button>
+          <button class="button button-primary" type="button" data-open-view="${getPrimaryActionView()}">${escapeHtml(getPrimaryActionLabel())}</button>
         </div>
       </header>
       <main class="pam-homepage">
@@ -2837,7 +2969,7 @@ function wireInteractions() {
       return;
     }
 
-    state.waitlistJoined = true;
+    saveWaitlistJoined();
     state.waitlistBusy = false;
     state.waitlistMessage = payload.deliveryMode === "email"
       ? WAITLIST_FOUNDING_NOTE
@@ -2857,9 +2989,18 @@ function wireInteractions() {
   document.querySelector("[data-create-submit]")?.addEventListener("click", handleCreateAccountSubmitClick);
   document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
   document.querySelector("[data-verification-code-input]")?.addEventListener("input", handleVerificationCodeInput);
+  document.querySelectorAll("[data-open-signin]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveAuthView("signin");
+      saveWorkspaceView("account");
+      clearStatus("account");
+      render();
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    });
+  });
   document.querySelectorAll("[data-open-waitlist]").forEach((button) => button.addEventListener("click", () => {
     state.waitlistOpen = true;
-    state.waitlistMessage = "";
+    state.waitlistMessage = state.waitlistJoined ? WAITLIST_FOUNDING_NOTE : "";
     state.waitlistBusy = false;
     trackEvent("waitlist_opened");
     render();
@@ -2893,6 +3034,13 @@ function wireInteractions() {
       document.querySelector(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
+  document.querySelectorAll("[data-mobile-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveMobileView(button.dataset.mobileView || "home");
+      render();
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    });
+  });
   document.querySelectorAll("[data-open-view]").forEach((button) => {
     button.addEventListener("click", () => openWorkspaceView(button.dataset.openView || "account"));
   });
@@ -2905,8 +3053,9 @@ function wireInteractions() {
       if (canUseFinancialFeatures()) {
         runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
       } else {
-        saveQuestion(question);
-        saveWorkspaceView("account");
+      saveQuestion(question);
+      saveWorkspaceView("account");
+      saveMobileView("ask");
         state.result = null;
         state.aiGuidance = null;
         setStatus(canAccessDashboard()
@@ -2939,6 +3088,7 @@ export async function startApp() {
   }
   if (canAccessDashboard()) {
     saveWorkspaceView(hasAcceptedLegalTerms() ? "dashboard" : "account");
+    if (hasAcceptedLegalTerms()) saveMobileView("home");
   } else if (hasPrototypeAccount()) {
     saveWorkspaceView("account");
   } else {

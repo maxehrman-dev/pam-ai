@@ -48,11 +48,12 @@ module.exports = async (req, res) => {
     ) {
       return;
     }
-    const { account, baseline } = await getSessionAccountWithBaseline(getSessionToken(req));
+    const { account, baseline, legalAcceptance } = await getSessionAccountWithBaseline(getSessionToken(req));
     return sendJson(res, 200, {
       ok: Boolean(account),
       account,
-      baseline
+      baseline,
+      legalAcceptance
     });
   }
 
