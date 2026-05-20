@@ -334,15 +334,19 @@ function persistAccountBaseline(baseline) {
 function routeSignedInUser(statusMessage = "Signed in.") {
   saveAuthView("signin");
   state.legalAcceptance = state.legalAcceptance || loadLegalAcceptance();
+  const filledBaseline = ensureSignedInBaseline();
   if (canAccessDashboard() && hasAcceptedLegalTerms()) {
     saveWorkspaceView("dashboard");
+    saveMobileView("home");
     setStatus(`${statusMessage} Dashboard restored.`, "decision");
     return;
   }
   saveWorkspaceView("account");
   setStatus(canAccessDashboard()
     ? `${statusMessage} Accept the legal terms to continue.`
-    : `${statusMessage} Connect Sandbox data to finish your dashboard.`, "account");
+    : filledBaseline
+      ? `${statusMessage} Baseline restored. Accept the legal terms to continue.`
+      : `${statusMessage} Finish setup to open your dashboard.`, "account");
 }
 
 function getInitialAccountDraft() {
@@ -581,6 +585,13 @@ function canAccessDashboard() {
 
 function canUseFinancialFeatures() {
   return canAccessDashboard() && hasAcceptedLegalTerms();
+}
+
+function ensureSignedInBaseline() {
+  if (!hasPrototypeAccount() || hasCompletedBaseline(state.baseline)) return false;
+  const starter = loadSandboxFallback(syncAccountIntoBaseline(state.account, state.baseline)).baseline;
+  saveBaseline(syncAccountIntoBaseline(state.account, starter));
+  return hasCompletedBaseline(state.baseline);
 }
 
 function getPrimaryActionLabel() {
@@ -1124,6 +1135,7 @@ async function handleCreateAccount(event) {
   saveSessionToken(payload.sessionToken);
   state.account = payload.account;
   saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
+  ensureSignedInBaseline();
   state.aiGuidance = null;
   state.legalAcceptance = null;
   try {
@@ -1140,7 +1152,7 @@ async function handleCreateAccount(event) {
   state.verificationCheckStatus = "";
   state.verificationCheckMessage = "";
   state.lastCheckedVerificationCode = "";
-  setStatus("Account created. Connect Sandbox data next.", "account");
+  setStatus("Account created. Accept the legal terms to open your dashboard.", "account");
   saveAuthView("signin");
   saveWorkspaceView("account");
   trackEvent("account_created", {
@@ -1185,6 +1197,7 @@ async function handleLogin(event) {
   if (payload.legalAcceptance) {
     saveLegalAcceptance(payload.legalAcceptance);
   }
+  ensureSignedInBaseline();
   state.aiGuidance = null;
   routeSignedInUser("Signed in.");
   trackEvent("account_signed_in", {
@@ -2380,6 +2393,11 @@ function renderBaselinePanel() {
                 <button class="button button-primary" type="button" data-open-view="dashboard">Open dashboard</button>
                 <button class="button button-secondary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Refreshing..." : "Refresh Sandbox data"}</button>
               </div>
+            ` : isComplete ? `
+              <div class="connect-actions-header setup-ready-note">
+                <h3>Your baseline is ready.</h3>
+                <p>Accept the terms above once, then PAM will take you to your dashboard automatically.</p>
+              </div>
             ` : `
               <div class="connect-actions-header">
                 <h3>Connect Sandbox data to unlock your dashboard.</h3>
@@ -3082,9 +3100,9 @@ function wireInteractions() {
       if (canUseFinancialFeatures()) {
         runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
       } else {
-      saveQuestion(question);
-      saveWorkspaceView("account");
-      saveMobileView("ask");
+        saveQuestion(question);
+        saveWorkspaceView("account");
+        saveMobileView("ask");
         state.result = null;
         state.aiGuidance = null;
         setStatus(canAccessDashboard()
@@ -3114,6 +3132,7 @@ export async function startApp() {
   if (hasPrototypeAccount()) {
     const baseline = syncAccountIntoBaseline(state.account, state.baseline);
     saveBaseline(baseline);
+    ensureSignedInBaseline();
   }
   if (canAccessDashboard()) {
     saveWorkspaceView(hasAcceptedLegalTerms() ? "dashboard" : "account");
