@@ -35,6 +35,7 @@ const COOKIE_CONSENT_KEY = "pam:cookie-consent:v1";
 const LEGAL_ACCEPTANCE_KEY = "pam:legal-acceptance:v1";
 const WALKTHROUGH_DISMISSED_KEY = "pam:walkthrough-dismissed:v1";
 const WAITLIST_STORAGE_KEY = "pam:waitlist:v1";
+const DEMO_ACCESS_KEY = "pam:demo-access:v1";
 const TERMS_VERSION = "2026-05-18";
 const PRIVACY_VERSION = "2026-05-18";
 const LEGAL_DISCLAIMER =
@@ -163,6 +164,8 @@ const state = {
   verificationCheckMessage: "",
   verificationCheckBusy: false,
   lastCheckedVerificationCode: "",
+  demoAccessBusy: false,
+  demoAccessMessage: "",
   plaidBusy: false
 };
 
@@ -232,6 +235,44 @@ function loadWaitlistJoined() {
   } catch (_error) {
     return false;
   }
+}
+
+function loadDemoAccess() {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DEMO_ACCESS_KEY) || "null");
+    if (!parsed?.unlockedAt) return null;
+    const expiresAt = Number(parsed.expiresAt || 0);
+    if (expiresAt && expiresAt <= Date.now()) {
+      window.localStorage.removeItem(DEMO_ACCESS_KEY);
+      return null;
+    }
+    return parsed;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function hasDemoAccess() {
+  return Boolean(loadDemoAccess());
+}
+
+function saveDemoAccess(expiresDays = 30) {
+  try {
+    const now = Date.now();
+    window.localStorage.setItem(DEMO_ACCESS_KEY, JSON.stringify({
+      unlockedAt: new Date(now).toISOString(),
+      expiresAt: now + Number(expiresDays || 30) * 24 * 60 * 60 * 1000
+    }));
+  } catch (_error) {
+    // Demo access persistence is device-local and can be retried if storage is unavailable.
+  }
+}
+
+function shouldShowPublicLaunchGate() {
+  if (typeof window === "undefined") return false;
+  if (getLegalRoute() || isWaitlistRoute()) return false;
+  return !hasDemoAccess();
 }
 
 function saveWaitlistJoined() {
@@ -637,6 +678,40 @@ async function requestJson(url, options = {}) {
       error: error instanceof Error ? error.message : "Network request failed."
     };
   }
+}
+
+async function handleDemoAccessSubmit(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const code = String(formData.get("demoAccessCode") || "").trim();
+
+  if (!code) {
+    state.demoAccessMessage = "Enter the demo tester code.";
+    render();
+    return;
+  }
+
+  state.demoAccessBusy = true;
+  state.demoAccessMessage = "";
+  render();
+
+  const { payload, error } = await requestJson("/api/account/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "demo_access", code })
+  });
+
+  state.demoAccessBusy = false;
+  if (error || !payload?.ok) {
+    state.demoAccessMessage = payload?.error || error || "That demo code does not work yet.";
+    render();
+    return;
+  }
+
+  saveDemoAccess(payload.expiresDays || 30);
+  state.demoAccessMessage = "Preview unlocked. Loading PAM.";
+  trackEvent("demo_access_unlocked");
+  window.location.reload();
 }
 
 async function restoreSessionAccount() {
@@ -2893,6 +2968,54 @@ function renderLegalPage(route) {
   `;
 }
 
+function renderPublicLaunchGate() {
+  return `
+    <div class="foresee-shell launch-gate-shell">
+      ${renderDisclaimerBanner()}
+      <main class="launch-gate-card" aria-label="PAM AI private preview">
+        <div class="launch-gate-brand">
+          <span>PAM</span>
+          <div>
+            <strong>PAM AI</strong>
+            <small>Personal Asset Manager</small>
+          </div>
+        </div>
+        <p class="eyebrow">Private preview</p>
+        <h1>Oops, not time yet.</h1>
+        <p class="launch-gate-copy">
+          PAM is still in a closed working preview. Join the waitlist for launch access, or enter a demo tester code if
+          you are reviewing the prototype with the team.
+        </p>
+        <div class="launch-gate-actions">
+          <button class="button button-primary" type="button" data-open-waitlist>
+            ${state.waitlistJoined ? "You're on the waitlist" : "Join waitlist"}
+          </button>
+        </div>
+        <form class="launch-gate-form" data-demo-access-form>
+          <label for="demoAccessCode">Demo tester</label>
+          <div>
+            <input
+              id="demoAccessCode"
+              name="demoAccessCode"
+              type="password"
+              autocomplete="off"
+              placeholder="Enter demo code"
+              ${state.demoAccessBusy ? "disabled" : ""}
+            />
+            <button class="button button-secondary" type="submit" ${state.demoAccessBusy ? "disabled" : ""}>
+              ${state.demoAccessBusy ? "Checking..." : "Unlock preview"}
+            </button>
+          </div>
+        </form>
+        ${state.demoAccessMessage ? `<p class="auth-status-message launch-gate-message">${escapeHtml(state.demoAccessMessage)}</p>` : ""}
+      </main>
+      ${renderLegalFooter()}
+      ${renderCookieConsentBanner()}
+      ${renderWaitlistModal()}
+    </div>
+  `;
+}
+
 function render() {
   if (!app) return;
   const legalRoute = getLegalRoute();
@@ -2903,6 +3026,11 @@ function render() {
   }
   if (isWaitlistRoute()) {
     app.innerHTML = renderWaitlistPage();
+    wireInteractions();
+    return;
+  }
+  if (shouldShowPublicLaunchGate()) {
+    app.innerHTML = renderPublicLaunchGate();
     wireInteractions();
     return;
   }
@@ -2948,6 +3076,7 @@ function render() {
 }
 
 function wireInteractions() {
+  document.querySelector("[data-demo-access-form]")?.addEventListener("submit", handleDemoAccessSubmit);
   document.querySelector("[data-account-form]")?.addEventListener("submit", handleCreateAccount);
   document.querySelector("[data-login-form]")?.addEventListener("submit", handleLogin);
   document.querySelectorAll("[data-question-form]").forEach((form) => {
@@ -3128,6 +3257,13 @@ export async function startApp() {
       message: String(event.reason?.message || event.reason || "Unhandled rejection")
     }, "error");
   });
+  if (shouldShowPublicLaunchGate()) {
+    trackEvent("launch_gate_viewed", {
+      path: window.location.pathname || "/"
+    });
+    render();
+    return;
+  }
   await restoreSessionAccount();
   if (hasPrototypeAccount()) {
     const baseline = syncAccountIntoBaseline(state.account, state.baseline);

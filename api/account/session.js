@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { clearSession, getSessionAccount, getSessionAccountWithBaseline } = require("../_lib/account-store.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, sanitizeText, validatePayload } = require("../_lib/security.js");
@@ -31,8 +32,37 @@ const saveBaselineSchema = {
   required: ["sessionToken", "action", "baseline"]
 };
 
+const demoAccessSchema = {
+  properties: {
+    action: { type: "string", enum: ["demo_access"] },
+    code: { type: "string", minLength: 3, maxLength: 80 }
+  },
+  required: ["action", "code"]
+};
+
 function getSessionToken(req) {
   return req.query?.sessionToken || req.body?.sessionToken || "";
+}
+
+function normalizeDemoCode(value) {
+  return sanitizeText(value).toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function timingSafeEqualText(left, right) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function getAllowedDemoCodes() {
+  const configured = String(process.env.DEMO_ACCESS_CODE || "")
+    .split(",")
+    .map(normalizeDemoCode)
+    .filter(Boolean);
+
+  // Prototype fallback so the founder can still demo if the env var is not set yet.
+  return configured.length ? configured : ["demo tester", "demotester", "pam demo"];
 }
 
 module.exports = async (req, res) => {
@@ -74,6 +104,36 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === "POST") {
+    if (req.body?.action === "demo_access") {
+      const body = validatePayload(req.body, demoAccessSchema, "request body");
+      if (
+        !checkRateLimit(req, res, {
+          routeKey: "demo-access",
+          userKey: body.code,
+          ipLimit: { windowMs: 10 * 60 * 1000, max: 25 },
+          userLimit: { windowMs: 10 * 60 * 1000, max: 10 }
+        })
+      ) {
+        return;
+      }
+
+      const providedCode = normalizeDemoCode(body.code);
+      const ok = getAllowedDemoCodes().some((code) => timingSafeEqualText(providedCode, code));
+
+      if (!ok) {
+        return sendJson(res, 401, {
+          ok: false,
+          error: "That demo code does not work yet."
+        });
+      }
+
+      return sendJson(res, 200, {
+        ok: true,
+        message: "Demo access unlocked.",
+        expiresDays: 30
+      });
+    }
+
     if (req.body?.action === "save_baseline") {
       const body = validatePayload(req.body, saveBaselineSchema, "request body");
       const account = await getSessionAccount(body.sessionToken);

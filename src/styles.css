@@ -195,6 +195,115 @@ body {
   background: rgba(216, 243, 229, 0.88);
 }
 
+.launch-gate-shell {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+}
+
+.launch-gate-card {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: clamp(28px, 6vw, 64px);
+  border-radius: 36px;
+  border: 1px solid rgba(30, 138, 102, 0.14);
+  background:
+    radial-gradient(circle at top right, rgba(111, 224, 190, 0.22), transparent 32%),
+    rgba(255, 253, 247, 0.92);
+  box-shadow: 0 34px 90px rgba(20, 55, 41, 0.14);
+}
+
+.launch-gate-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.launch-gate-brand > span {
+  display: inline-grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  color: var(--cream-0);
+  background: var(--forest);
+  font-weight: 950;
+  letter-spacing: 0.04em;
+}
+
+.launch-gate-brand strong,
+.launch-gate-brand small {
+  display: block;
+}
+
+.launch-gate-brand strong {
+  color: var(--forest);
+  font-weight: 950;
+}
+
+.launch-gate-brand small {
+  color: var(--ink-2);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.launch-gate-card h1 {
+  margin: 0;
+  color: var(--forest);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(4rem, 12vw, 8.5rem);
+  line-height: 0.86;
+  letter-spacing: -0.08em;
+}
+
+.launch-gate-copy {
+  max-width: 620px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: clamp(1.08rem, 2vw, 1.35rem);
+  line-height: 1.55;
+}
+
+.launch-gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.launch-gate-form {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.launch-gate-form label {
+  color: var(--forest);
+  font-weight: 900;
+}
+
+.launch-gate-form > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.launch-gate-form input {
+  min-width: 0;
+  padding: 0.95rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(30, 138, 102, 0.18);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink-4);
+}
+
+.launch-gate-message {
+  margin: 0;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -2627,6 +2736,19 @@ input:disabled {
   .static-fallback-hero {
     padding: 28px 20px;
     border-radius: 28px;
+  }
+
+  .launch-gate-shell {
+    min-height: auto;
+  }
+
+  .launch-gate-card {
+    border-radius: 28px;
+    padding: 28px 20px;
+  }
+
+  .launch-gate-form > div {
+    grid-template-columns: 1fr;
   }
 
   .foresee-shell {

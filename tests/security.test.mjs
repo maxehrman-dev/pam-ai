@@ -8,6 +8,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const securityModulePath = "/Users/iwillfixthis/Documents/New project/pam-ai/api/_lib/security.js";
 const accountStoreModulePath = "/Users/iwillfixthis/Documents/New project/pam-ai/api/_lib/account-store.js";
+const accountSessionModulePath = "/Users/iwillfixthis/Documents/New project/pam-ai/api/account/session.js";
 
 function freshSecurity() {
   global.__PAM_RATE_LIMIT_STORE__ = new Map();
@@ -133,6 +134,33 @@ test("checkRateLimit returns a graceful 429 after the configured threshold", () 
   assert.equal(secondRes.statusCode, 429);
   assert.match(secondRes.body, /Too many requests/i);
   assert.ok(secondRes.getHeader("retry-after"));
+});
+
+test("demo access accepts the fallback tester code without exposing app access by default", async () => {
+  const originalCode = process.env.DEMO_ACCESS_CODE;
+  delete process.env.DEMO_ACCESS_CODE;
+  global.__PAM_RATE_LIMIT_STORE__ = new Map();
+  delete require.cache[require.resolve(accountSessionModulePath)];
+  const handler = require(accountSessionModulePath);
+  const req = {
+    method: "POST",
+    clientIp: "127.0.0.1",
+    body: { action: "demo_access", code: "demo tester" }
+  };
+  const res = createMockResponse();
+
+  try {
+    await handler(req, res);
+    assert.equal(res.statusCode, 200);
+    assert.match(res.body, /Demo access unlocked/i);
+  } finally {
+    if (originalCode === undefined) {
+      delete process.env.DEMO_ACCESS_CODE;
+    } else {
+      process.env.DEMO_ACCESS_CODE = originalCode;
+    }
+    delete require.cache[require.resolve(accountSessionModulePath)];
+  }
 });
 
 test("account passwords are hashed at rest and never persisted in plaintext", async () => {
