@@ -62,7 +62,7 @@ function getAllowedDemoCodes() {
     .filter(Boolean);
 
   // Prototype fallback so the founder can still demo if the env var is not set yet.
-  return configured.length ? configured : ["demo tester", "demotester", "pam demo"];
+  return configured.length ? configured : ["pamdevteam", "pam dev team", "pam demo"];
 }
 
 module.exports = async (req, res) => {

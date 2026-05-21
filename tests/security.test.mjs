@@ -145,7 +145,7 @@ test("demo access accepts the fallback tester code without exposing app access b
   const req = {
     method: "POST",
     clientIp: "127.0.0.1",
-    body: { action: "demo_access", code: "demo tester" }
+    body: { action: "demo_access", code: "PAMDEVTEAM" }
   };
   const res = createMockResponse();
 

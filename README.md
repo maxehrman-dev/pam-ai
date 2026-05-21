@@ -31,7 +31,7 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 - Unknown devices see a branded "Oops, not time yet" screen with waitlist access
 - Demo testers can unlock the working app by entering the demo access code
 - Set `DEMO_ACCESS_CODE` in Vercel to control the code without changing frontend code
-- If `DEMO_ACCESS_CODE` is missing, the prototype fallback accepts `demo tester`, `demotester`, or `pam demo`
+- If `DEMO_ACCESS_CODE` is missing, the prototype fallback accepts `PAMDEVTEAM`, `pam dev team`, or `pam demo`
 - The unlock is stored locally on that browser for 30 days; clearing browser storage makes the device unknown again
 - Public pages remain available: `/waitlist`, `/newsletter`, `/terms`, `/privacy`, `/content-policy`, and `/faq`
 
