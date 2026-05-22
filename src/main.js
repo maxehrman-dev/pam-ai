@@ -2578,17 +2578,65 @@ function renderBaselinePanel() {
 }
 
 function renderDecisionPanel() {
+  const currentSavings = getCurrentSavings(state.baseline);
+  const monthlyBuffer = getMonthlyBuffer(state.baseline);
+  const monthlyExpenses = getMonthlyExpenses(state.baseline);
+  const goalLabel = getGoalLabel(state.baseline) || "Move out safely";
+  const goalTarget = Math.max(toNumber(state.baseline.goals.goalTargetAmount), currentSavings + 1);
+  const spendingPlan = Math.max(monthlyExpenses + 120, 1);
+  const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
+  const underPlan = Math.max(spendingPlan - monthlyExpenses, 0);
+  const prompts = [
+    "Can I afford a $400 car payment?",
+    "Am I on track to move out this year?",
+    "Should I start a Roth IRA now?",
+    "What happens if I go on a $2,500 trip?",
+    "Can I deduct a $1,200 laptop for freelance work?",
+    "What if I invest $200/month?",
+    "How would freelance income affect my taxes?",
+    "Will this delay my emergency fund goal?",
+    "What happens if I switch from W-2 to 1099 work?"
+  ];
+
   return `
     <section class="foresee-panel decision-panel mobile-screen mobile-screen-ask" id="decision-input">
-      <div class="panel-kicker">Decision simulator</div>
-      <h2>Ask a financial question</h2>
-      <p>Run one decision at a time. PAM estimates the outcome from your baseline.</p>
-      <form class="foresee-question-form" data-question-form>
-        <label for="pam-question">Ask a financial question</label>
-        <textarea id="pam-question" name="question" rows="4" placeholder="Can I afford to move out if rent is $1,800?">${escapeHtml(state.question)}</textarea>
+      <div class="decision-advisor-intro">
+        <div>
+          <div class="panel-kicker">Decision simulator</div>
+          <h2>Ask a financial question</h2>
+          <p>Run one decision at a time. PAM estimates the outcome from your baseline.</p>
+        </div>
+        <span class="decision-mode-pill">Advisor mode</span>
+      </div>
+      <div class="decision-mobile-brief" aria-label="Current money context">
+        <p>Here’s what changed in your money.</p>
+        <div class="daily-update-list">
+          <div class="daily-update">
+            <span class="daily-icon mint">↗</span>
+            <div><strong>Monthly buffer ${monthlyBuffer >= 0 ? "up" : "down"} to ${formatCurrency(monthlyBuffer)}</strong><p>${monthlyBuffer >= 500 ? "You have room to test decisions." : "Keep decisions conservative until buffer improves."}</p></div>
+          </div>
+          <div class="daily-update">
+            <span class="daily-icon blue">⌂</span>
+            <div><strong>${escapeHtml(goalLabel)} ${currentSavings >= goalTarget ? "funded" : "in progress"}</strong><p>${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}</p></div>
+          </div>
+          <div class="daily-update">
+            <span class="daily-icon amber">▤</span>
+            <div><strong>Spending ${formatCurrency(underPlan)} under plan</strong><p>${spendingPercent}% of ${formatCurrency(spendingPlan)} plan used.</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="ask-pam-card decision-ask-card">
+        <h3>Ask PAM</h3>
+        <div class="quick-question-row decision-prompt-stack">
+          ${prompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
+        </div>
+        <form class="foresee-question-form ask-pam-mini-form decision-question-form" data-question-form>
+          <label for="pam-question">Ask a financial question</label>
+          <textarea id="pam-question" name="question" rows="2" placeholder="Ask anything...">${escapeHtml(state.question)}</textarea>
+          <button class="button button-primary" type="submit" ${state.decisionBusy ? "disabled" : ""}>${state.decisionBusy ? "Analyzing..." : "Analyze"}</button>
+        </form>
         ${state.inputWarning ? `<p class="input-warning">${escapeHtml(state.inputWarning)}</p>` : ""}
-        <button class="button button-primary" type="submit" ${state.decisionBusy ? "disabled" : ""}>${state.decisionBusy ? "Analyzing..." : "Analyze decision"}</button>
-      </form>
+      </div>
       ${state.decisionBusy ? `
         <div class="ai-loading-state" role="status" aria-live="polite">
           <span></span>
@@ -2598,17 +2646,6 @@ function renderDecisionPanel() {
           </div>
         </div>
       ` : ""}
-      <div class="quick-question-row">
-        ${[
-          "What happens if I go on a $2,500 trip?",
-          "Can I buy a car with a $400/month payment?",
-          "Can I deduct a $1,200 laptop for freelance work?",
-          "What if I invest $200/month?",
-          "How would freelance income affect my taxes?",
-          "Will this delay my emergency fund goal?",
-          "What happens if I switch from W-2 to 1099 work?"
-        ].map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
-      </div>
       ${getStatus("decision") ? `<p class="foresee-status">${escapeHtml(getStatus("decision"))}</p>` : ""}
       <p class="disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
     </section>

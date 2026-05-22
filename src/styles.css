@@ -1894,6 +1894,64 @@ input:disabled {
   font-size: 0.88rem;
 }
 
+.decision-advisor-intro {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.decision-advisor-intro h2 {
+  margin: 8px 0 10px;
+}
+
+.decision-mode-pill {
+  flex: 0 0 auto;
+  padding: 0.8rem 1rem;
+  border-radius: 999px;
+  color: var(--mint-5);
+  background: rgba(216, 243, 229, 0.88);
+  font-weight: 950;
+}
+
+.decision-mobile-brief {
+  display: none;
+}
+
+.decision-ask-card {
+  margin-top: 18px;
+}
+
+.decision-prompt-stack {
+  margin-top: 0;
+}
+
+.decision-question-form {
+  align-items: stretch;
+}
+
+.decision-question-form label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.decision-question-form textarea {
+  min-height: 58px;
+  resize: vertical;
+}
+
+.ask-pam-card .decision-question-form .button-primary {
+  justify-content: center;
+  text-align: center;
+  color: white;
+  background: linear-gradient(135deg, var(--mint-4), var(--mint-5));
+  border-color: transparent;
+}
+
 .verification-check-message {
   grid-column: 1 / -1;
   margin: 0;
@@ -3249,7 +3307,6 @@ input:disabled {
     display: grid;
   }
 
-  .mobile-dashboard-view.mobile-view-home .daily-advisor-card .ask-pam-card,
   .mobile-dashboard-view.mobile-view-home .daily-column:last-child {
     display: none;
   }
@@ -3279,6 +3336,121 @@ input:disabled {
   .quick-question-row button {
     width: 100%;
     text-align: left;
+  }
+
+  .decision-panel.mobile-screen-ask {
+    padding: 18px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.88);
+  }
+
+  .decision-advisor-intro {
+    display: block;
+  }
+
+  .decision-advisor-intro > div > p {
+    display: none;
+  }
+
+  .decision-mode-pill {
+    display: none;
+  }
+
+  .decision-mobile-brief {
+    display: grid;
+    gap: 10px;
+    margin: 10px 0 22px;
+  }
+
+  .decision-mobile-brief > p {
+    margin: 0 0 8px;
+    color: var(--ink-3);
+    font-size: 1.12rem;
+    line-height: 1.35;
+  }
+
+  .decision-mobile-brief .daily-update-list {
+    gap: 0;
+  }
+
+  .decision-mobile-brief .daily-update {
+    grid-template-columns: 60px minmax(0, 1fr);
+    gap: 18px;
+    padding: 22px 0;
+  }
+
+  .decision-mobile-brief .daily-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .decision-mobile-brief .daily-update strong {
+    font-size: clamp(1.35rem, 7vw, 1.9rem);
+    line-height: 1.12;
+    letter-spacing: -0.045em;
+  }
+
+  .decision-mobile-brief .daily-update p {
+    font-size: 1.05rem;
+    line-height: 1.4;
+  }
+
+  .decision-ask-card {
+    gap: 12px;
+    margin-top: 0;
+  }
+
+  .decision-ask-card h3 {
+    margin: 6px 0 2px;
+    font-size: clamp(1.8rem, 10vw, 2.4rem);
+    letter-spacing: -0.05em;
+  }
+
+  .decision-prompt-stack {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .decision-prompt-stack button,
+  .ask-pam-card.decision-ask-card button {
+    min-height: 58px;
+    padding: 16px 18px;
+    border-radius: 20px;
+    background: rgba(246, 239, 226, 0.76);
+    border: 1px solid rgba(12, 21, 18, 0.12);
+    font-size: clamp(1.05rem, 5.6vw, 1.35rem);
+    line-height: 1.18;
+    letter-spacing: -0.035em;
+  }
+
+  .decision-question-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 86px;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .decision-question-form textarea {
+    min-height: 64px;
+    max-height: 96px;
+    padding: 18px;
+    border-radius: 22px;
+    resize: none;
+    font-size: 1rem;
+  }
+
+  .decision-question-form .button {
+    min-height: 64px;
+    padding: 0 14px;
+    border-radius: 22px;
+    font-size: 1rem;
+  }
+
+  .ask-pam-card.decision-ask-card .decision-question-form .button-primary {
+    color: white;
+    background: linear-gradient(135deg, var(--mint-4), var(--mint-5));
+    border-color: transparent;
   }
 
   .daily-home-shell {
