@@ -2083,14 +2083,15 @@ function renderDashboardWorkspace() {
   return `
     <div class="workspace-guide-grid compact-workspace-view mobile-dashboard-view mobile-view-${escapeHtml(state.mobileView)}" id="dashboard-section">
       ${renderMobileAppChrome()}
-      ${renderOnboardingWalkthrough()}
-      ${renderDailyDashboardHome()}
+      <div class="dashboard-primary-grid">
+        ${renderDailyDashboardHome()}
+        <div class="dashboard-simulator-stack">
+          ${renderDecisionPanel()}
+          ${renderResult()}
+        </div>
+      </div>
       ${renderMobileGoalsScreen()}
       ${renderConnectedInsights()}
-      <div class="workspace-grid-simulator">
-        ${renderDecisionPanel()}
-        ${renderResult()}
-      </div>
       ${renderFeedbackPanel()}
       ${renderMobileBottomNav()}
     </div>
