@@ -2139,13 +2139,25 @@ input:disabled {
   font-weight: 900;
 }
 
-.daily-range-tabs span,
-.daily-range-tabs strong {
+.daily-range-tabs button {
   padding: 9px 13px;
   border-radius: 999px;
+  color: var(--ink-3);
+  background: transparent;
+  font: inherit;
+  line-height: 1;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
-.daily-range-tabs strong {
+.daily-range-tabs button:hover,
+.daily-range-tabs button:focus-visible {
+  color: var(--mint-5);
+  background: rgba(216, 243, 229, 0.72);
+  outline: none;
+}
+
+.daily-range-tabs button.active {
+  color: var(--ink-4);
   background: rgba(246, 239, 226, 0.88);
   border: 1px solid rgba(12, 21, 18, 0.08);
 }

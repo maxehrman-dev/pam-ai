@@ -30,6 +30,7 @@ const LAST_QUESTION_KEY = "pam-ai-last-question-v2";
 const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 const AUTH_VIEW_KEY = "pam-ai-auth-view-v1";
 const MOBILE_VIEW_KEY = "pam-ai-mobile-view-v1";
+const NET_WORTH_RANGE_KEY = "pam-ai-net-worth-range-v1";
 const TELEMETRY_SESSION_KEY = "pam:telemetry-session:v1";
 const COOKIE_CONSENT_KEY = "pam:cookie-consent:v1";
 const LEGAL_ACCEPTANCE_KEY = "pam:legal-acceptance:v1";
@@ -152,6 +153,7 @@ const state = {
   workspaceView: loadWorkspaceView(),
   authView: loadAuthView(),
   mobileView: loadMobileView(),
+  netWorthRange: loadNetWorthRange(),
   createAccountStep: 0,
   accountDraft: null,
   question: loadQuestion(),
@@ -476,6 +478,16 @@ function loadMobileView() {
   return ["home", "ask", "result", "goals", "accounts", "profile"].includes(stored || "") ? stored : "home";
 }
 
+function loadNetWorthRange() {
+  if (typeof window === "undefined") return "3M";
+  try {
+    const stored = window.localStorage.getItem(NET_WORTH_RANGE_KEY);
+    return ["1M", "3M", "6M", "1Y", "All"].includes(stored || "") ? stored : "3M";
+  } catch (_error) {
+    return "3M";
+  }
+}
+
 function saveWorkspaceView(view) {
   state.workspaceView = ["landing", "account", "dashboard"].includes(view) ? view : "landing";
   try {
@@ -500,6 +512,15 @@ function saveMobileView(view) {
     window.localStorage.setItem(MOBILE_VIEW_KEY, state.mobileView);
   } catch (_error) {
     // Mobile screen state can fall back to in-memory.
+  }
+}
+
+function saveNetWorthRange(range) {
+  state.netWorthRange = ["1M", "3M", "6M", "1Y", "All"].includes(range) ? range : "3M";
+  try {
+    window.localStorage.setItem(NET_WORTH_RANGE_KEY, state.netWorthRange);
+  } catch (_error) {
+    // Chart range state can fall back to the default.
   }
 }
 
@@ -2338,7 +2359,17 @@ function renderDailyDashboardHome() {
   const spendingPlan = Math.max(monthlyExpenses + 120, 1);
   const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
   const underPlan = Math.max(spendingPlan - monthlyExpenses, 0);
-  const chartPoints = [30, 34, 42, 48, 57, 66, 78, 92];
+  const netWorthRanges = {
+    "1M": { multiplier: 0.35, points: [44, 46, 45, 49, 51, 54, 56, 59], label: "1 month" },
+    "3M": { multiplier: 1, points: [30, 34, 42, 48, 57, 66, 78, 92], label: "3 months" },
+    "6M": { multiplier: 2.1, points: [24, 27, 31, 39, 47, 58, 73, 94], label: "6 months" },
+    "1Y": { multiplier: 4.4, points: [18, 22, 28, 36, 49, 63, 81, 96], label: "1 year" },
+    All: { multiplier: 9.2, points: [12, 18, 24, 35, 48, 61, 80, 98], label: "all time" }
+  };
+  const activeRange = netWorthRanges[state.netWorthRange] ? state.netWorthRange : "3M";
+  const rangeConfig = netWorthRanges[activeRange];
+  const chartPoints = rangeConfig.points;
+  const rangeGain = Math.max(Math.round(monthlyBuffer * rangeConfig.multiplier), 0);
   const askPrompts = [
     "Can I afford a $400 car payment?",
     "Am I on track to move out this year?",
@@ -2389,9 +2420,19 @@ function renderDailyDashboardHome() {
           <div>
             <div class="panel-kicker">Net worth</div>
             <h2>${formatCurrency(netWorth)}</h2>
-            <p><strong>↗ ${formatCurrency(Math.max(monthlyBuffer, 0))}</strong> monthly buffer after goals</p>
+            <p><strong>↗ ${formatCurrency(rangeGain)}</strong> modeled change over ${rangeConfig.label}</p>
           </div>
-          <div class="daily-range-tabs"><span>1M</span><strong>3M</strong><span>6M</span><span>1Y</span><span>All</span></div>
+          <div class="daily-range-tabs" role="tablist" aria-label="Net worth range">
+            ${Object.keys(netWorthRanges).map((range) => `
+              <button
+                class="${activeRange === range ? "active" : ""}"
+                type="button"
+                data-net-worth-range="${range}"
+                role="tab"
+                aria-selected="${activeRange === range ? "true" : "false"}"
+              >${range}</button>
+            `).join("")}
+          </div>
         </div>
         <div class="daily-chart" aria-hidden="true">
           ${chartPoints.map((point) => `<span style="height:${point}%"></span>`).join("")}
@@ -3420,6 +3461,13 @@ function wireInteractions() {
       saveMobileView(button.dataset.mobileView || "home");
       render();
       requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    });
+  });
+  document.querySelectorAll("[data-net-worth-range]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveNetWorthRange(button.dataset.netWorthRange || "3M");
+      trackEvent("net_worth_range_changed", { range: state.netWorthRange });
+      render();
     });
   });
   document.querySelectorAll("[data-open-view]").forEach((button) => {
