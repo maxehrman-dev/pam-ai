@@ -883,6 +883,17 @@ input:disabled {
   background: rgba(216, 243, 229, 0.46);
 }
 
+.single-plan-card {
+  margin-top: 14px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(216, 243, 229, 0.8), transparent 34%),
+    rgba(255, 255, 255, 0.74);
+}
+
+.single-plan-card p {
+  max-width: 760px;
+}
+
 .integrations-section {
   background:
     radial-gradient(circle at 90% 10%, rgba(216, 243, 229, 0.74), transparent 32%),
@@ -1340,6 +1351,28 @@ input:disabled {
   padding: 6px 0;
 }
 
+.wizard-field textarea {
+  min-height: 130px;
+  resize: vertical;
+}
+
+.wizard-suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wizard-suggestion-row button {
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.86);
+  border: 1px solid rgba(30, 138, 102, 0.14);
+  color: var(--mint-5);
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-align: left;
+}
+
 .wizard-hint {
   padding: 12px 14px;
   border-radius: 16px;
@@ -1593,6 +1626,71 @@ input:disabled {
     var(--mint-5);
   color: white;
   box-shadow: 0 24px 55px rgba(13, 101, 73, 0.18);
+}
+
+.model-interpretation-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(216, 243, 229, 0.58), transparent 32%),
+    rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 138, 102, 0.13);
+  box-shadow: var(--shadow-soft);
+}
+
+.model-interpretation-card h3 {
+  margin: 0;
+  color: var(--ink-5);
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.model-interpretation-card p {
+  margin: 0;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.model-signal-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.model-signal-grid div {
+  padding: 13px;
+  border-radius: 18px;
+  background: rgba(255, 253, 249, 0.78);
+  border: 1px solid rgba(30, 138, 102, 0.1);
+}
+
+.model-signal-grid span,
+.model-signal-grid strong,
+.model-signal-grid small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.model-signal-grid span {
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.model-signal-grid strong {
+  margin-top: 4px;
+  color: var(--ink-5);
+  font-size: 1rem;
+}
+
+.model-signal-grid small {
+  margin-top: 5px;
+  color: var(--ink-3);
+  line-height: 1.35;
 }
 
 .cash-flow-preview.incomplete-preview {

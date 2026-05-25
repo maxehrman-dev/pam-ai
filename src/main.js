@@ -98,6 +98,29 @@ const CREATE_ACCOUNT_STEPS = [
     step: "1"
   },
   {
+    key: "cityOrZip",
+    label: "Where are you planning from?",
+    detail: "PAM uses this for local rent, state tax, and cost assumptions.",
+    type: "text",
+    placeholder: "Los Angeles or 90210",
+    required: false,
+    autocomplete: "postal-code"
+  },
+  {
+    key: "firstDecision",
+    label: "What decision should PAM help with first?",
+    detail: "Write one sentence, or tap a starter and edit it.",
+    type: "textarea",
+    placeholder: "I want to move out this year and understand what rent I can afford.",
+    required: true,
+    suggestions: [
+      "I want to move out this year.",
+      "I want to know if I can afford a car payment.",
+      "I want to start investing without slowing my savings.",
+      "I want to understand how freelance income changes taxes."
+    ]
+  },
+  {
     key: "employmentStatus",
     label: "What is your main source of income?",
     detail: "",
@@ -375,7 +398,6 @@ function persistAccountBaseline(baseline) {
 function routeSignedInUser(statusMessage = "Signed in.") {
   saveAuthView("signin");
   state.legalAcceptance = state.legalAcceptance || loadLegalAcceptance();
-  const filledBaseline = ensureSignedInBaseline();
   if (canAccessDashboard() && hasAcceptedLegalTerms()) {
     saveWorkspaceView("dashboard");
     saveMobileView("home");
@@ -385,9 +407,7 @@ function routeSignedInUser(statusMessage = "Signed in.") {
   saveWorkspaceView("account");
   setStatus(canAccessDashboard()
     ? `${statusMessage} Accept the legal terms to continue.`
-    : filledBaseline
-      ? `${statusMessage} Baseline restored. Accept the legal terms to continue.`
-      : `${statusMessage} Finish setup to open your dashboard.`, "account");
+    : `${statusMessage} Connect your financial baseline to open your dashboard.`, "account");
 }
 
 function getInitialAccountDraft() {
@@ -402,6 +422,8 @@ function getInitialAccountDraft() {
     password: "",
     confirmPassword: "",
     age: hasValue(account.age) ? String(account.age) : hasValue(baseline.age) ? String(baseline.age) : "",
+    cityOrZip: String(account.cityOrZip || baseline.cityOrZip || state.baseline.profile?.cityOrZip || ""),
+    firstDecision: String(state.question && !/^Can I afford to move out if rent is \$1,800\?$/.test(state.question) ? state.question : ""),
     employmentStatus: String(account.employmentStatus || baseline.employmentStatus || "Not sure yet"),
     stateCode: String(account.stateCode || baseline.stateCode || "OTHER")
   };
@@ -628,13 +650,6 @@ function canUseFinancialFeatures() {
   return canAccessDashboard() && hasAcceptedLegalTerms();
 }
 
-function ensureSignedInBaseline() {
-  if (!hasPrototypeAccount() || hasCompletedBaseline(state.baseline)) return false;
-  const starter = loadSandboxFallback(syncAccountIntoBaseline(state.account, state.baseline)).baseline;
-  saveBaseline(syncAccountIntoBaseline(state.account, starter));
-  return hasCompletedBaseline(state.baseline);
-}
-
 function getPrimaryActionLabel() {
   if (canUseFinancialFeatures()) return "Open dashboard";
   if (hasPrototypeAccount()) return "Finish setup";
@@ -802,6 +817,51 @@ function syncAccountIntoBaseline(account, baseline = state.baseline) {
   nextBaseline.profile.state = account.stateCode || nextBaseline.profile.state || "OTHER";
   nextBaseline.metadata = nextBaseline.metadata || {};
   nextBaseline.metadata.updatedAt = new Date().toISOString();
+  return nextBaseline;
+}
+
+function inferGoalFromDecision(decision = "") {
+  const normalized = String(decision || "").toLowerCase();
+  if (/move|apartment|rent|independent|parents/.test(normalized)) return "Move out safely";
+  if (/car|auto|vehicle|payment/.test(normalized)) return "Buy a car safely";
+  if (/invest|roth|ira|compound|retire|stock/.test(normalized)) return "Start investing";
+  if (/debt|loan|credit card|pay down/.test(normalized)) return "Pay down debt";
+  if (/emergency|buffer|runway|savings/.test(normalized)) return "Build emergency savings";
+  return decision ? "Make a safer money decision" : "";
+}
+
+function applyOnboardingContextToBaseline(account, draft = {}, baseline = state.baseline) {
+  const nextBaseline = syncAccountIntoBaseline(account, baseline);
+  const cityOrZip = String(draft.cityOrZip || nextBaseline.profile?.cityOrZip || "").trim();
+  const firstDecision = String(draft.firstDecision || state.question || "").trim();
+  const inferredGoal = inferGoalFromDecision(firstDecision);
+
+  nextBaseline.profile.cityOrZip = cityOrZip;
+  nextBaseline.metadata = nextBaseline.metadata || {};
+  nextBaseline.metadata.onboarding = {
+    cityOrZip,
+    firstDecision,
+    inferredGoal,
+    updatedAt: new Date().toISOString()
+  };
+  nextBaseline.metadata.notes = Array.from(new Set([
+    ...(nextBaseline.metadata.notes || []),
+    cityOrZip ? `Location context: ${cityOrZip} informs local rent, cost, and tax assumptions.` : "",
+    firstDecision ? `First decision: ${firstDecision}` : ""
+  ].filter(Boolean)));
+
+  if (inferredGoal && !nextBaseline.goals?.primaryGoal) {
+    const emergencyFloor = nextBaseline.savings?.emergencyFundFloor || getMonthlyExpenses(nextBaseline) * 3 || null;
+    const defaults = estimateGoalDefaults(inferredGoal, emergencyFloor);
+    nextBaseline.goals = nextBaseline.goals || {};
+    nextBaseline.goals.primaryGoal = inferredGoal;
+    nextBaseline.goals.customGoalLabel = "";
+    nextBaseline.goals.goalTargetAmount = nextBaseline.goals.goalTargetAmount || defaults?.target || null;
+    nextBaseline.goals.goalTimelineMonths = nextBaseline.goals.goalTimelineMonths || defaults?.timeline || null;
+    nextBaseline.goals.goalTargetEstimated = !hasValue(nextBaseline.goals.goalTargetAmount);
+    nextBaseline.goals.goalTimelineEstimated = !hasValue(nextBaseline.goals.goalTimelineMonths);
+  }
+
   return nextBaseline;
 }
 
@@ -1197,6 +1257,11 @@ async function handleCreateAccount(event) {
     return;
   }
 
+  const onboardingContext = {
+    cityOrZip: String(draft.cityOrZip || "").trim(),
+    firstDecision: String(draft.firstDecision || "").trim()
+  };
+
   const { payload, error } = await requestJson("/api/account/register", {
     method: "POST",
     headers: {
@@ -1234,8 +1299,10 @@ async function handleCreateAccount(event) {
 
   saveSessionToken(payload.sessionToken);
   state.account = payload.account;
-  saveBaseline(syncAccountIntoBaseline(payload.account, state.baseline));
-  ensureSignedInBaseline();
+  if (onboardingContext.firstDecision) {
+    saveQuestion(onboardingContext.firstDecision);
+  }
+  saveBaseline(applyOnboardingContextToBaseline(payload.account, onboardingContext, state.baseline));
   state.aiGuidance = null;
   state.legalAcceptance = null;
   try {
@@ -1252,7 +1319,7 @@ async function handleCreateAccount(event) {
   state.verificationCheckStatus = "";
   state.verificationCheckMessage = "";
   state.lastCheckedVerificationCode = "";
-  setStatus("Account created. Accept the legal terms to open your dashboard.", "account");
+  setStatus("PAM model started. Accept the legal terms, then connect your financial baseline.", "account");
   saveAuthView("signin");
   saveWorkspaceView("account");
   trackEvent("account_created", {
@@ -1297,7 +1364,6 @@ async function handleLogin(event) {
   if (payload.legalAcceptance) {
     saveLegalAcceptance(payload.legalAcceptance);
   }
-  ensureSignedInBaseline();
   state.aiGuidance = null;
   routeSignedInUser("Signed in.");
   trackEvent("account_signed_in", {
@@ -1443,6 +1509,19 @@ function handleCreateAccountBack(event) {
   const form = event.currentTarget.closest("form");
   saveCurrentStepValue(form);
   state.createAccountStep = Math.max(state.createAccountStep - 1, 0);
+  clearStatus("account");
+  render();
+}
+
+function handleDraftSuggestionClick(event) {
+  const button = event.currentTarget;
+  const value = button.dataset.draftSuggestion || "";
+  const form = button.closest("form");
+  const step = getCreateAccountStepConfig();
+  const field = form?.elements.namedItem(step.key);
+  if (!field) return;
+  field.value = value;
+  saveCurrentStepValue(form);
   clearStatus("account");
   render();
 }
@@ -1889,32 +1968,82 @@ function renderFutureIntegrations() {
 }
 
 function renderPricingModel() {
-  const tiers = [
-    ["Free", ["Manual baseline", "Basic decision simulations", "Goal delay estimates"]],
-    ["Premium", ["More scenarios", "Tax and compound growth modules", "Saved goals", "Comparison planning"]],
-    ["Future", ["Account integrations", "School/employer financial wellness partnerships", "Advisor/expert review options later"]]
-  ];
-
   return `
     <section class="foresee-panel pricing-section">
       <div class="section-heading-row">
         <div>
-          <div class="panel-kicker">Business model</div>
-          <h2>Affordable guidance before you can afford an advisor.</h2>
+          <div class="panel-kicker">One plan</div>
+          <h2>Try PAM free. Keep one simple plan.</h2>
         </div>
         <button class="button button-secondary" type="button" data-open-waitlist>${escapeHtml(getWaitlistActionLabel())}</button>
       </div>
-      <div class="pricing-grid">
-        ${tiers.map(([name, items]) => `
-          <article class="pricing-card">
-            <h3>${name}</h3>
-            <ul>
-              ${items.map((item) => `<li>${item}</li>`).join("")}
-            </ul>
-          </article>
+      <article class="pricing-card single-plan-card">
+        <h3>Founding plan</h3>
+        <p>One membership for decision modeling, tax-aware estimates, goal impact, compound-growth projections, and saved scenarios.</p>
+        <ul>
+          <li>Free trial before billing</li>
+          <li>Founding members lock in early pricing</li>
+          <li>No separate free tier cluttering the product</li>
+        </ul>
+      </article>
+    </section>
+  `;
+}
+
+function getDraftModelSignals(draft = ensureAccountDraft()) {
+  const age = toNumber(draft.age, null);
+  const stateCode = String(draft.stateCode || "OTHER");
+  const cityOrZip = String(draft.cityOrZip || "").trim();
+  const firstDecision = String(draft.firstDecision || state.question || "").trim();
+  const employmentStatus = String(draft.employmentStatus || "Not sure yet");
+  const goal = inferGoalFromDecision(firstDecision);
+  const taxSignal = /1099|self|freelance/i.test(employmentStatus)
+    ? "PAM will model self-employment tax and possible deductible work expenses."
+    : /w-2/i.test(employmentStatus)
+      ? "PAM will treat taxes as mostly withheld and focus on take-home impact."
+      : "PAM will keep income assumptions flexible until connected data confirms them.";
+
+  return [
+    {
+      label: "Location",
+      value: cityOrZip || stateCode,
+      note: cityOrZip ? "Changes rent, cost, and local tax assumptions." : "State helps estimate taxes; city or ZIP improves rent assumptions."
+    },
+    {
+      label: "Age",
+      value: hasValue(age) ? `${age}` : "Not set",
+      note: hasValue(age) ? "Changes compound-growth runway and long-term planning horizon." : "Optional, but useful for growth and retirement projections."
+    },
+    {
+      label: "Income source",
+      value: employmentStatus,
+      note: taxSignal
+    },
+    {
+      label: "First decision",
+      value: firstDecision || "Not set",
+      note: goal ? `PAM will protect: ${goal}.` : "This sets the first dashboard goal and suggested prompts."
+    }
+  ];
+}
+
+function renderModelInterpretation(draft = ensureAccountDraft()) {
+  const signals = getDraftModelSignals(draft);
+  return `
+    <aside class="model-interpretation-card">
+      <div class="panel-kicker">PAM interpretation</div>
+      <h3>Create your PAM model.</h3>
+      <p>Every answer changes the model PAM uses for affordability, taxes, goals, and growth.</p>
+      <div class="model-signal-grid">
+        ${signals.map((signal) => `
+          <div>
+            <span>${escapeHtml(signal.label)}</span>
+            <strong>${escapeHtml(signal.value)}</strong>
+            <small>${escapeHtml(signal.note)}</small>
+          </div>
         `).join("")}
       </div>
-    </section>
+    </aside>
   `;
 }
 
@@ -2467,8 +2596,8 @@ function renderBaselinePanel() {
   const isLastStep = state.createAccountStep === CREATE_ACCOUNT_STEPS.length - 1;
   return `
     <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
-      <div class="panel-kicker">Account setup</div>
-      <h2>${isSignedIn ? "Finish your PAM setup." : "Create your account."}</h2>
+      <div class="panel-kicker">Create your PAM model</div>
+      <h2>${isSignedIn ? "Finish your financial baseline." : "Build the model PAM will use."}</h2>
       <div class="onboarding-layout">
         <div class="baseline-form onboarding-form sandbox-connect-panel">
           ${isSignedIn ? `
@@ -2487,11 +2616,11 @@ function renderBaselinePanel() {
             ${isComplete && hasAcceptedLegalTerms() ? `
               <div class="connect-actions-header">
                 <h3>Your dashboard is ready.</h3>
-                <p>PAM has enough baseline data to model decisions. You can refresh Sandbox data anytime.</p>
+                <p>PAM has enough baseline data to model decisions. You can refresh connected data anytime.</p>
               </div>
               <div class="connect-action-grid">
                 <button class="button button-primary" type="button" data-open-view="dashboard">Open dashboard</button>
-                <button class="button button-secondary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Refreshing..." : "Refresh Sandbox data"}</button>
+                <button class="button button-secondary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Refreshing..." : "Refresh financial baseline"}</button>
               </div>
             ` : isComplete ? `
               <div class="connect-actions-header setup-ready-note">
@@ -2500,15 +2629,16 @@ function renderBaselinePanel() {
               </div>
             ` : `
               <div class="connect-actions-header">
-                <h3>Connect Sandbox data to unlock your dashboard.</h3>
+                <h3>Connect your financial baseline.</h3>
+                <p>PAM turns balances, income deposits, spending, and obligations into the model behind every answer.</p>
               </div>
               <div class="plaid-security-note">
                 <strong>Data security</strong>
                 <p>We never see or store your bank login credentials. Plaid handles bank connections.</p>
               </div>
               <div class="connect-action-grid">
-                <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect Sandbox account"}</button>
-                <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>Use Sandbox-style sample data</button>
+                <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect prototype baseline"}</button>
+                <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>Preview with prototype data</button>
               </div>
             `}
             <div class="form-actions">
@@ -2537,6 +2667,8 @@ function renderBaselinePanel() {
                           <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "—")}</strong></div>
                           <div><span>Verification</span><strong>${draft.verificationRequestId && String(draft.verificationCode || "").trim().length === 6 ? "Ready" : "Incomplete"}</strong></div>
                           <div><span>Age</span><strong>${escapeHtml(draft.age || "—")}</strong></div>
+                          <div><span>Location</span><strong>${escapeHtml(draft.cityOrZip || "—")}</strong></div>
+                          <div><span>First decision</span><strong>${escapeHtml(draft.firstDecision || "—")}</strong></div>
                           <div><span>Main income</span><strong>${escapeHtml(draft.employmentStatus || "—")}</strong></div>
                           <div><span>State</span><strong>${escapeHtml(draft.stateCode || "OTHER")}</strong></div>
                         </div>
@@ -2544,6 +2676,12 @@ function renderBaselinePanel() {
                         <select name="${step.key}">
                           ${step.options.map((option) => `<option value="${option}" ${stepValue === option ? "selected" : ""}>${option}</option>`).join("")}
                         </select>
+                      ` : step.type === "textarea" ? `
+                        <textarea
+                          name="${step.key}"
+                          rows="4"
+                          placeholder="${escapeHtml(step.placeholder || "")}"
+                        >${escapeHtml(stepValue)}</textarea>
                       ` : `
                         <input
                           type="${step.type}"
@@ -2557,6 +2695,11 @@ function renderBaselinePanel() {
                           ${step.key === "verificationCode" ? `inputmode="numeric" pattern="[0-9]*" maxlength="6" data-verification-code-input` : ""}
                         />
                       `}
+                      ${step.suggestions?.length ? `
+                        <div class="wizard-suggestion-row">
+                          ${step.suggestions.map((suggestion) => `<button type="button" data-draft-suggestion="${escapeHtml(suggestion)}">${escapeHtml(suggestion)}</button>`).join("")}
+                        </div>
+                      ` : ""}
                     </label>
                     ${step.key === "verificationCode" ? `
                       <div class="verification-panel">
@@ -2595,7 +2738,7 @@ function renderBaselinePanel() {
             </div>
           `}
         </div>
-        ${renderAccountPreview()}
+        ${renderModelInterpretation(draft)}
       </div>
       <p class="disclaimer">Educational estimate only. Not financial, tax, legal, or investment advice.</p>
     </section>
@@ -3222,6 +3365,9 @@ function wireInteractions() {
   document.querySelector("[data-create-next]")?.addEventListener("click", handleCreateAccountNext);
   document.querySelector("[data-create-back]")?.addEventListener("click", handleCreateAccountBack);
   document.querySelector("[data-create-submit]")?.addEventListener("click", handleCreateAccountSubmitClick);
+  document.querySelectorAll("[data-draft-suggestion]").forEach((button) => {
+    button.addEventListener("click", handleDraftSuggestionClick);
+  });
   document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
   document.querySelector("[data-verification-code-input]")?.addEventListener("input", handleVerificationCodeInput);
   document.querySelectorAll("[data-open-signin]").forEach((button) => {
@@ -3327,7 +3473,6 @@ export async function startApp() {
   if (hasPrototypeAccount()) {
     const baseline = syncAccountIntoBaseline(state.account, state.baseline);
     saveBaseline(baseline);
-    ensureSignedInBaseline();
   }
   if (canAccessDashboard()) {
     saveWorkspaceView(hasAcceptedLegalTerms() ? "dashboard" : "account");
