@@ -394,6 +394,10 @@ input:disabled {
   color: var(--mint-2);
 }
 
+.disclaimer-compact {
+  display: none;
+}
+
 .foresee-header {
   display: grid;
   grid-template-columns: minmax(220px, 0.7fr) minmax(320px, 1fr) minmax(260px, auto);
@@ -2814,6 +2818,10 @@ input:disabled {
     padding: 12px 0 28px;
   }
 
+  .app-mode-dashboard {
+    padding-bottom: 96px;
+  }
+
   .foresee-panel {
     padding: 18px;
     border-radius: 26px;
@@ -2825,12 +2833,24 @@ input:disabled {
     font-size: 0.78rem;
   }
 
+  .legal-disclaimer-banner .disclaimer-full {
+    display: none;
+  }
+
+  .legal-disclaimer-banner .disclaimer-compact {
+    display: inline;
+  }
+
   .foresee-header {
     display: grid;
     gap: 12px;
     padding: 14px;
     border-radius: 24px;
     grid-template-columns: 1fr;
+  }
+
+  .app-mode-dashboard .foresee-header {
+    display: none;
   }
 
   .foresee-brand {
@@ -2851,33 +2871,20 @@ input:disabled {
     letter-spacing: 0.1em;
   }
 
-  .foresee-nav {
-    width: 100%;
-    display: flex;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    padding: 2px 0 6px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .foresee-nav::-webkit-scrollbar {
+  .foresee-nav,
+  .optional-header-action {
     display: none;
-  }
-
-  .foresee-nav button {
-    flex: 0 0 auto;
-    padding: 9px 12px;
-    background: rgba(255, 255, 255, 0.68);
-    border: 1px solid rgba(30, 138, 102, 0.1);
   }
 
   .foresee-header-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
     justify-self: stretch;
+  }
+
+  .foresee-header-actions .button:only-child {
+    grid-column: 1 / -1;
   }
 
   .foresee-header-actions .button {
@@ -2936,6 +2943,15 @@ input:disabled {
   .pam-hero-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .pam-hero-actions .optional-hero-action,
+  .pam-hero-actions .button-secondary {
+    display: none;
+  }
+
+  .has-account .pam-hero-actions {
+    display: none;
   }
 
   .pam-hero-actions .button,
@@ -3129,7 +3145,11 @@ input:disabled {
   }
 
   .foresee-header-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .foresee-header-actions .button:only-child {
+    grid-column: 1 / -1;
   }
 
   .foresee-truth {

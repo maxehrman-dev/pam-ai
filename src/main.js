@@ -662,6 +662,31 @@ function getWaitlistActionLabel() {
   return state.waitlistJoined ? "On the waitlist" : "Join waitlist";
 }
 
+function renderHeaderActions() {
+  const isDashboard = state.workspaceView === "dashboard";
+  const canUseApp = canUseFinancialFeatures();
+  const hasAccount = hasPrototypeAccount();
+  const actions = [];
+
+  if (!hasAccount) {
+    actions.push(`<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`);
+    if (!state.waitlistJoined) {
+      actions.push(`<button class="button button-secondary optional-header-action" type="button" data-open-waitlist>Join waitlist</button>`);
+    }
+    actions.push(`<button class="button button-primary" type="button" data-open-view="account">Create account</button>`);
+  } else if (canUseApp) {
+    if (!isDashboard) {
+      actions.push(`<button class="button button-primary" type="button" data-open-view="dashboard">Open dashboard</button>`);
+    }
+    actions.push(`<button class="button button-secondary" type="button" data-open-view="account">Profile</button>`);
+  } else {
+    actions.push(`<button class="button button-primary" type="button" data-open-view="account">Finish setup</button>`);
+    actions.push(`<button class="button button-secondary" type="button" data-open-view="account">Profile</button>`);
+  }
+
+  return actions.join("");
+}
+
 function isVerificationConfirmed() {
   return state.verificationCheckStatus === "valid";
 }
@@ -1710,9 +1735,8 @@ function renderHero() {
         </p>
         <div class="pam-hero-actions">
           <button class="button button-primary" type="button" data-open-view="${getPrimaryActionView()}">${escapeHtml(getPrimaryActionLabel())}</button>
-          ${hasAccount ? `<button class="button button-secondary" type="button" data-open-view="account">Account</button>` : `<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`}
-          <button class="button button-secondary" type="button" data-open-waitlist>${escapeHtml(getWaitlistActionLabel())}</button>
-          <button class="button button-secondary" type="button" data-scroll-target="#how-it-works">Learn how it works</button>
+          ${hasAccount ? `<button class="button button-secondary" type="button" data-open-view="account">Profile</button>` : `<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`}
+          ${!state.waitlistJoined && !hasAccount ? `<button class="button button-secondary optional-hero-action" type="button" data-open-waitlist>${escapeHtml(getWaitlistActionLabel())}</button>` : ""}
         </div>
         <p class="founding-note">Free to join. Early members lock in founding pricing forever.</p>
       </div>
@@ -2840,7 +2864,8 @@ function renderWaitlistPage() {
 function renderDisclaimerBanner() {
   return `
     <div class="legal-disclaimer-banner" role="note">
-      <strong>Important:</strong> ${escapeHtml(LEGAL_DISCLAIMER)}
+      <span class="disclaimer-full"><strong>Important:</strong> ${escapeHtml(LEGAL_DISCLAIMER)}</span>
+      <span class="disclaimer-compact"><strong>Important:</strong> PAM is a modeling tool, not financial advice.</span>
     </div>
   `;
 }
@@ -3072,7 +3097,7 @@ function render() {
     return;
   }
   app.innerHTML = `
-    <div class="foresee-shell">
+    <div class="foresee-shell app-mode-${escapeHtml(state.workspaceView)} ${hasPrototypeAccount() ? "has-account" : "is-public"} ${canUseFinancialFeatures() ? "has-dashboard-access" : "needs-setup"}">
       ${renderDisclaimerBanner()}
       <header class="foresee-header">
         <a class="foresee-brand" href="/">
@@ -3090,11 +3115,7 @@ function render() {
           <button type="button" data-scroll-target="#how-it-works">How it works</button>
         </nav>
         <div class="foresee-header-actions">
-          ${hasPrototypeAccount()
-            ? `<button class="button button-secondary" type="button" data-open-view="account">Account</button>`
-            : `<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`}
-          <button class="button button-secondary" type="button" data-open-waitlist>${state.waitlistJoined ? "Waitlist joined" : "Join waitlist"}</button>
-          <button class="button button-primary" type="button" data-open-view="${getPrimaryActionView()}">${escapeHtml(getPrimaryActionLabel())}</button>
+          ${renderHeaderActions()}
         </div>
       </header>
       <main class="pam-homepage">
