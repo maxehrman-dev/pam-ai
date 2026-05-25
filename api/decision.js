@@ -101,9 +101,9 @@ const decisionSchema = {
           type: "object",
           allowUnknown: true,
           properties: {
-            estimatedIncomeTaxRate: { type: "number", minimum: 0, maximum: 1, allowNull: true },
-            payrollTaxRate: { type: "number", minimum: 0, maximum: 1, allowNull: true },
-            combinedTaxRate: { type: "number", minimum: 0, maximum: 1, allowNull: true },
+            estimatedIncomeTaxRate: { type: "number", minimum: 0, maximum: 100, allowNull: true },
+            payrollTaxRate: { type: "number", minimum: 0, maximum: 100, allowNull: true },
+            combinedTaxRate: { type: "number", minimum: 0, maximum: 100, allowNull: true },
             annualDeductions: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
             retirementContributionMonthly: { type: "number", minimum: 0, maximum: 1000000, allowNull: true }
           }
@@ -138,6 +138,7 @@ const decisionSchema = {
         goalDelay: { type: "number", minimum: 0, maximum: 1200, allowNull: true },
         decision: {
           type: "object",
+          allowUnknown: true,
           properties: {
             type: { type: "string", maxLength: 80 },
             monthlyImpact: { type: "number", minimum: -1000000, maximum: 1000000, allowNull: true },
@@ -147,6 +148,7 @@ const decisionSchema = {
         },
         risk: {
           type: "object",
+          allowUnknown: true,
           properties: {
             label: { type: "string", maxLength: 30 }
           }
