@@ -8,19 +8,25 @@ const decisionSchema = {
     prompt: { type: "string", minLength: 1, maxLength: 500 },
     baseline: {
       type: "object",
+      allowUnknown: true,
       properties: {
         source: { type: "string", maxLength: 40 },
         profile: {
           type: "object",
+          allowUnknown: true,
           properties: {
             firstName: { type: "string", maxLength: 60 },
+            name: { type: "string", maxLength: 80 },
             emailAddress: { type: "string", format: "email", maxLength: 254 },
             employmentStatus: { type: "string", maxLength: 40 },
-            state: { type: "string", maxLength: 10 }
+            state: { type: "string", maxLength: 10 },
+            age: { type: "number", minimum: 0, maximum: 120, allowNull: true },
+            cityOrZip: { type: "string", maxLength: 80 }
           }
         },
         income: {
           type: "object",
+          allowUnknown: true,
           properties: {
             grossMonthlyIncome: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
             knownTakeHomeMonthlyIncome: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
@@ -30,6 +36,7 @@ const decisionSchema = {
               maxItems: 10,
               items: {
                 type: "object",
+                allowUnknown: true,
                 properties: {
                   label: { type: "string", maxLength: 80 },
                   amount: { type: "number", minimum: 0, maximum: 1000000, allowNull: true }
@@ -40,6 +47,7 @@ const decisionSchema = {
         },
         expenses: {
           type: "object",
+          allowUnknown: true,
           properties: {
             monthlyExpenses: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
             recurringExpenses: {
@@ -47,9 +55,11 @@ const decisionSchema = {
               maxItems: 10,
               items: {
                 type: "object",
+                allowUnknown: true,
                 properties: {
                   name: { type: "string", maxLength: 80 },
-                  amount: { type: "number", minimum: 0, maximum: 1000000, allowNull: true }
+                  amount: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
+                  category: { type: "string", maxLength: 80 }
                 }
               }
             }
@@ -57,6 +67,7 @@ const decisionSchema = {
         },
         obligations: {
           type: "object",
+          allowUnknown: true,
           properties: {
             monthlyDebtPayments: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
             liabilities: {
@@ -64,6 +75,7 @@ const decisionSchema = {
               maxItems: 10,
               items: {
                 type: "object",
+                allowUnknown: true,
                 properties: {
                   name: { type: "string", maxLength: 80 },
                   balance: { type: "number", minimum: 0, maximum: 10000000, allowNull: true },
@@ -76,13 +88,29 @@ const decisionSchema = {
         },
         savings: {
           type: "object",
+          allowUnknown: true,
           properties: {
             currentSavings: { type: "number", minimum: 0, maximum: 100000000, allowNull: true },
-            savingsBalance: { type: "number", minimum: 0, maximum: 100000000, allowNull: true }
+            savingsBalance: { type: "number", minimum: 0, maximum: 100000000, allowNull: true },
+            checkingBalance: { type: "number", minimum: 0, maximum: 100000000, allowNull: true },
+            emergencyFundFloor: { type: "number", minimum: 0, maximum: 100000000, allowNull: true },
+            connectedAccounts: { type: "array", maxItems: 25, items: { type: "object", allowUnknown: true, properties: {} } }
+          }
+        },
+        tax: {
+          type: "object",
+          allowUnknown: true,
+          properties: {
+            estimatedIncomeTaxRate: { type: "number", minimum: 0, maximum: 1, allowNull: true },
+            payrollTaxRate: { type: "number", minimum: 0, maximum: 1, allowNull: true },
+            combinedTaxRate: { type: "number", minimum: 0, maximum: 1, allowNull: true },
+            annualDeductions: { type: "number", minimum: 0, maximum: 1000000, allowNull: true },
+            retirementContributionMonthly: { type: "number", minimum: 0, maximum: 1000000, allowNull: true }
           }
         },
         goals: {
           type: "object",
+          allowUnknown: true,
           properties: {
             primaryGoal: { type: "string", maxLength: 80 },
             customGoalLabel: { type: "string", maxLength: 120 },
@@ -219,6 +247,7 @@ function buildInput(payload) {
           type: "input_text",
           text:
             "You write UX guidance for PAM AI, a premium financial decision engine for young adults. Keep tone calm, helpful, slightly authoritative, and concise. Never say you need more structure. Use the connected baseline details and the deterministic math result to explain the real tradeoff. If the prompt is vague, still move forward with a useful first pass and ask only one clarifying follow-up. Avoid generic chatbot phrasing. Keep assistant headline under 90 characters and body under 260 characters."
+            + " Treat taxes as educational estimates, not tax advice. Be aware of W-2 vs 1099/self-employment differences, payroll tax, estimated tax set-asides, state tax, retirement contributions, and potentially deductible ordinary/necessary business expenses, but do not claim to know every tax code or guarantee eligibility. If a deduction or tax outcome depends on facts PAM does not have, say what assumption is being used and recommend verification with a qualified tax professional."
         }
       ]
     },
@@ -232,10 +261,16 @@ function buildInput(payload) {
             `Baseline source: ${sanitizeString(baseline?.source, "unknown")}`,
             `Employment status: ${sanitizeString(baseline?.profile?.employmentStatus, "unknown")}`,
             `State: ${sanitizeString(baseline?.profile?.state, "OTHER")}`,
+            `City or ZIP context: ${sanitizeString(baseline?.profile?.cityOrZip, "unknown")}`,
             `Monthly income used: ${sanitizeString(String(baseline?.income?.knownTakeHomeMonthlyIncome ?? baseline?.income?.detectedMonthlyIncome ?? baseline?.income?.grossMonthlyIncome ?? ""), "unknown")}`,
             `Monthly expenses: ${sanitizeString(String(baseline?.expenses?.monthlyExpenses ?? ""), "unknown")}`,
             `Monthly obligations: ${sanitizeString(String(baseline?.obligations?.monthlyDebtPayments ?? ""), "unknown")}`,
             `Current savings: ${sanitizeString(String(baseline?.savings?.currentSavings ?? baseline?.savings?.savingsBalance ?? ""), "unknown")}`,
+            `Estimated income tax rate: ${sanitizeString(String(baseline?.tax?.estimatedIncomeTaxRate ?? ""), "unknown")}`,
+            `Payroll/self-employment tax estimate: ${sanitizeString(String(baseline?.tax?.payrollTaxRate ?? ""), "unknown")}`,
+            `Combined tax/payroll estimate: ${sanitizeString(String(baseline?.tax?.combinedTaxRate ?? ""), "unknown")}`,
+            `Annual deductions estimate: ${sanitizeString(String(baseline?.tax?.annualDeductions ?? ""), "unknown")}`,
+            `Retirement contribution monthly: ${sanitizeString(String(baseline?.tax?.retirementContributionMonthly ?? ""), "unknown")}`,
             `Goal: ${sanitizeString(baseline?.goals?.customGoalLabel || baseline?.goals?.primaryGoal, "unknown")}`,
             `Goal target amount: ${sanitizeString(String(baseline?.goals?.goalTargetAmount ?? ""), "unknown")}`,
             `Goal timeline months: ${sanitizeString(String(baseline?.goals?.goalTimelineMonths ?? ""), "unknown")}`,
