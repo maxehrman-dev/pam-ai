@@ -2885,6 +2885,23 @@ input:disabled {
   flex: 1 1 130px;
 }
 
+.account-action-message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inline-action-button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  color: var(--cream-0);
+  background: var(--mint-5);
+  font-weight: 900;
+}
+
 .legal-page-shell {
   min-height: 100vh;
   padding: 24px;
@@ -3829,6 +3846,14 @@ input:disabled {
 
   .compact-password-form {
     gap: 8px;
+  }
+
+  .account-action-message {
+    display: grid;
+  }
+
+  .inline-action-button {
+    width: 100%;
   }
 
   .decision-question-form textarea {

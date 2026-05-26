@@ -165,6 +165,7 @@ const state = {
   decisionBusy: false,
   status: "",
   statusScope: "",
+  accountErrorAction: "",
   inlineGoalError: "",
   waitlistOpen: false,
   waitlistJoined: loadWaitlistJoined(),
@@ -369,12 +370,18 @@ function trackEvent(eventName, properties = {}, eventType = "product") {
 function setStatus(message, scope = "account") {
   state.status = message;
   state.statusScope = message ? scope : "";
+  if (!message || scope !== "account") {
+    state.accountErrorAction = "";
+  }
 }
 
 function clearStatus(scope = "") {
   if (!scope || state.statusScope === scope) {
     state.status = "";
     state.statusScope = "";
+    if (!scope || scope === "account") {
+      state.accountErrorAction = "";
+    }
   }
 }
 
@@ -565,6 +572,9 @@ function saveCurrentStepValue(form) {
   const value = form.elements.namedItem(step.key)?.value ?? "";
   const previousValue = String(draft[step.key] || "");
   draft[step.key] = String(value);
+  if (String(value) !== previousValue) {
+    clearStatus("account");
+  }
   if (step.key === "emailAddress" && String(value) !== previousValue) {
     draft.verificationCode = "";
     draft.verificationRequestId = "";
@@ -1344,6 +1354,12 @@ async function handleCreateAccount(event) {
       await handleSendVerificationCode({ quiet: true });
       return;
     }
+    if (/account with that email already exists|email already exists|already exists/i.test(message)) {
+      state.accountErrorAction = "signin";
+      setStatus("An account already exists for this email.", "account");
+      render();
+      return;
+    }
     setStatus(message, "account");
     render();
     return;
@@ -1532,6 +1548,7 @@ function handleAuthModeClick(event) {
     state.verificationExpiresAt = "";
   }
   clearStatus("account");
+  state.passwordMessage = "";
   render();
 }
 
@@ -1580,7 +1597,22 @@ function handleDraftSuggestionClick(event) {
 
 function handleCreateAccountSubmitClick(event) {
   const form = event.currentTarget.closest("form");
+  saveCurrentStepValue(form);
   form?.requestSubmit();
+}
+
+function handleSigninInsteadClick() {
+  const draft = ensureAccountDraft();
+  saveAuthView("signin");
+  clearStatus("account");
+  render();
+  requestAnimationFrame(() => {
+    const emailInput = document.querySelector("[name='loginEmailAddress']");
+    if (emailInput && draft.emailAddress) {
+      emailInput.value = draft.emailAddress;
+    }
+    document.querySelector("[name='loginPassword']")?.focus();
+  });
 }
 
 async function handleSandboxSampleData() {
@@ -2914,7 +2946,12 @@ function renderBaselinePanel() {
                         ${draft.verificationRequestId && !isVerificationConfirmed() ? `<button class="button button-secondary verification-resend-button" type="button" data-send-verification-code>Send new code</button>` : ""}
                       </div>
                     ` : ""}
-                    ${getStatus("account") ? `<p class="auth-status-message">${escapeHtml(getStatus("account"))}</p>` : ""}
+                    ${getStatus("account") ? `
+                      <div class="auth-status-message account-action-message">
+                        <span>${escapeHtml(getStatus("account"))}</span>
+                        ${state.accountErrorAction === "signin" ? `<button class="inline-action-button" type="button" data-signin-instead>Sign in instead</button>` : ""}
+                      </div>
+                    ` : ""}
                     <div class="form-actions">
                       ${state.createAccountStep > 0 ? `<button class="button button-secondary" type="button" data-create-back>Back</button>` : `<button class="button button-secondary" type="button" data-open-view="landing">Cancel</button>`}
                       ${isLastStep
@@ -3574,6 +3611,7 @@ function wireInteractions() {
   });
   document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
   document.querySelector("[data-verification-code-input]")?.addEventListener("input", handleVerificationCodeInput);
+  document.querySelector("[data-signin-instead]")?.addEventListener("click", handleSigninInsteadClick);
   document.querySelectorAll("[data-open-signin]").forEach((button) => {
     button.addEventListener("click", () => {
       saveAuthView("signin");
