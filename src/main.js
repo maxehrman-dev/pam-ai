@@ -102,10 +102,10 @@ const CREATE_ACCOUNT_STEPS = [
   },
   {
     key: "cityOrZip",
-    label: "Where are you planning from?",
-    detail: "PAM uses this for local rent, state tax, and cost assumptions.",
+    label: "What ZIP code or state should PAM use?",
+    detail: "",
     type: "text",
-    placeholder: "Los Angeles or 90210",
+    placeholder: "90210 or CA",
     required: false,
     autocomplete: "postal-code"
   },
@@ -130,14 +130,6 @@ const CREATE_ACCOUNT_STEPS = [
     type: "select",
     required: true,
     options: ["W-2 employee", "1099 / self-employed", "Student worker", "Mixed income", "Not sure yet"]
-  },
-  {
-    key: "stateCode",
-    label: "What state do you live in?",
-    detail: "",
-    type: "select",
-    required: false,
-    options: ["OTHER", "CA", "NY", "NJ", "MA", "IL", "PA", "TX", "FL", "WA", "NV", "TN"]
   },
   {
     key: "review",
@@ -441,6 +433,27 @@ function getInitialAccountDraft() {
     employmentStatus: String(account.employmentStatus || baseline.employmentStatus || "Not sure yet"),
     stateCode: String(account.stateCode || baseline.stateCode || "OTHER")
   };
+}
+
+function inferStateFromLocation(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  const stateMatch = normalized.match(/\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY|DC)\b/);
+  if (stateMatch) return stateMatch[1];
+  const zipMatch = normalized.match(/\b(\d{5})(?:-\d{4})?\b/);
+  if (!zipMatch) return "";
+  const prefix = Number(zipMatch[1].slice(0, 3));
+  if (prefix >= 900 && prefix <= 961) return "CA";
+  if ((prefix >= 100 && prefix <= 149) || prefix === 5 || prefix === 63) return "NY";
+  if (prefix >= 70 && prefix <= 89) return "NJ";
+  if (prefix >= 10 && prefix <= 27) return "MA";
+  if (prefix >= 600 && prefix <= 629) return "IL";
+  if (prefix >= 150 && prefix <= 196) return "PA";
+  if (prefix >= 750 && prefix <= 799) return "TX";
+  if (prefix >= 320 && prefix <= 349) return "FL";
+  if (prefix >= 980 && prefix <= 994) return "WA";
+  if (prefix >= 889 && prefix <= 898) return "NV";
+  if (prefix >= 370 && prefix <= 385) return "TN";
+  return "";
 }
 
 function ensureAccountDraft() {
@@ -894,20 +907,25 @@ function inferGoalFromDecision(decision = "") {
 function applyOnboardingContextToBaseline(account, draft = {}, baseline = state.baseline) {
   const nextBaseline = syncAccountIntoBaseline(account, baseline);
   const cityOrZip = String(draft.cityOrZip || nextBaseline.profile?.cityOrZip || "").trim();
+  const inferredState = inferStateFromLocation(cityOrZip);
   const firstDecision = String(draft.firstDecision || state.question || "").trim();
   const inferredGoal = inferGoalFromDecision(firstDecision);
 
   nextBaseline.profile.cityOrZip = cityOrZip;
+  if (inferredState && (!nextBaseline.profile.state || nextBaseline.profile.state === "OTHER")) {
+    nextBaseline.profile.state = inferredState;
+  }
   nextBaseline.metadata = nextBaseline.metadata || {};
   nextBaseline.metadata.onboarding = {
     cityOrZip,
+    inferredState: inferredState || nextBaseline.profile.state || "OTHER",
     firstDecision,
     inferredGoal,
     updatedAt: new Date().toISOString()
   };
   nextBaseline.metadata.notes = Array.from(new Set([
     ...(nextBaseline.metadata.notes || []),
-    cityOrZip ? `Location context: ${cityOrZip} informs local rent, cost, and tax assumptions.` : "",
+    cityOrZip ? `Location: ${cityOrZip}` : "",
     firstDecision ? `First decision: ${firstDecision}` : ""
   ].filter(Boolean)));
 
@@ -1293,7 +1311,7 @@ async function handleCreateAccount(event) {
   const confirmPassword = String(draft.confirmPassword || "");
   const age = hasValue(draft.age) ? toNumber(draft.age, null) : null;
   const employmentStatus = String(draft.employmentStatus || "Not sure yet");
-  const stateCode = String(draft.stateCode || "OTHER");
+  const stateCode = inferStateFromLocation(draft.cityOrZip) || String(draft.stateCode || "OTHER");
 
   if (!firstName || !emailAddress || !password) {
     setStatus("Add your first name, email, and password before creating your account.", "account");
@@ -2164,7 +2182,7 @@ function renderPricingModel() {
 
 function getDraftModelSignals(draft = ensureAccountDraft()) {
   const age = toNumber(draft.age, null);
-  const stateCode = String(draft.stateCode || "OTHER");
+  const stateCode = inferStateFromLocation(draft.cityOrZip) || String(draft.stateCode || "OTHER");
   const cityOrZip = String(draft.cityOrZip || "").trim();
   const firstDecision = String(draft.firstDecision || state.question || "").trim();
   const employmentStatus = String(draft.employmentStatus || "Not sure yet");
@@ -2179,7 +2197,7 @@ function getDraftModelSignals(draft = ensureAccountDraft()) {
     {
       label: "Location",
       value: cityOrZip || stateCode,
-      note: cityOrZip ? "Changes rent, cost, and local tax assumptions." : "State helps estimate taxes; city or ZIP improves rent assumptions."
+      note: cityOrZip ? "Used for local assumptions." : "Optional, but useful for taxes and local costs."
     },
     {
       label: "Age",
@@ -2901,10 +2919,10 @@ function renderBaselinePanel() {
                           <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "—")}</strong></div>
                           <div><span>Verification</span><strong>${draft.verificationRequestId && String(draft.verificationCode || "").trim().length === 6 ? "Ready" : "Incomplete"}</strong></div>
                           <div><span>Age</span><strong>${escapeHtml(draft.age || "—")}</strong></div>
-                          <div><span>Location</span><strong>${escapeHtml(draft.cityOrZip || "—")}</strong></div>
+                          <div><span>ZIP / state</span><strong>${escapeHtml(draft.cityOrZip || "—")}</strong></div>
                           <div><span>First decision</span><strong>${escapeHtml(draft.firstDecision || "—")}</strong></div>
                           <div><span>Main income</span><strong>${escapeHtml(draft.employmentStatus || "—")}</strong></div>
-                          <div><span>State</span><strong>${escapeHtml(draft.stateCode || "OTHER")}</strong></div>
+                          <div><span>Tax state</span><strong>${escapeHtml(inferStateFromLocation(draft.cityOrZip) || draft.stateCode || "OTHER")}</strong></div>
                         </div>
                       ` : step.type === "select" ? `
                         <select name="${step.key}">
