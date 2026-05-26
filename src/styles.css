@@ -2183,6 +2183,16 @@ input:disabled {
   color: var(--mint-5);
 }
 
+.range-change-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.range-change-copy span {
+  display: block;
+  color: var(--ink-3);
+}
+
 .daily-range-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -2212,6 +2222,14 @@ input:disabled {
   color: var(--ink-4);
   background: rgba(246, 239, 226, 0.88);
   border: 1px solid rgba(12, 21, 18, 0.08);
+}
+
+.range-live-note {
+  flex-basis: 100%;
+  color: var(--mint-5);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .daily-chart {

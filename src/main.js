@@ -2538,6 +2538,8 @@ function renderDailyDashboardHome() {
   const rangeConfig = netWorthRanges[activeRange];
   const chartPoints = rangeConfig.points;
   const rangeGain = Math.max(Math.round(monthlyBuffer * rangeConfig.multiplier), 0);
+  const rangeStartNetWorth = Math.max(netWorth - rangeGain, 0);
+  const rangePercent = netWorth > 0 ? ((rangeGain / netWorth) * 100).toFixed(rangeGain >= 1000 ? 1 : 2) : "0.0";
   const askPrompts = [
     "Can I afford a $400 car payment?",
     "Am I on track to move out this year?",
@@ -2588,7 +2590,7 @@ function renderDailyDashboardHome() {
           <div>
             <div class="panel-kicker">Net worth</div>
             <h2>${formatCurrency(netWorth)}</h2>
-            <p><strong>↗ ${formatCurrency(rangeGain)}</strong> modeled change over ${rangeConfig.label}</p>
+            <p class="range-change-copy"><strong>↗ ${formatCurrency(rangeGain)} (${rangePercent}%)</strong><span>${rangeConfig.label} change · from ${formatCurrency(rangeStartNetWorth)}</span></p>
           </div>
           <div class="daily-range-tabs" role="tablist" aria-label="Net worth range">
             ${Object.keys(netWorthRanges).map((range) => `
@@ -2600,6 +2602,7 @@ function renderDailyDashboardHome() {
                 aria-selected="${activeRange === range ? "true" : "false"}"
               >${range}</button>
             `).join("")}
+            <span class="range-live-note" aria-live="polite">${activeRange} selected</span>
           </div>
         </div>
         <div class="daily-chart" aria-hidden="true">
@@ -2917,7 +2920,7 @@ function renderBaselinePanel() {
                         <div class="review-panel">
                           <div><span>Name</span><strong>${escapeHtml(draft.firstName || "—")}</strong></div>
                           <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "—")}</strong></div>
-                          <div><span>Verification</span><strong>${draft.verificationRequestId && String(draft.verificationCode || "").trim().length === 6 ? "Ready" : "Incomplete"}</strong></div>
+                          <div><span>Verification</span><strong>${isVerificationConfirmed() ? "Verified" : "Incomplete"}</strong></div>
                           <div><span>Age</span><strong>${escapeHtml(draft.age || "—")}</strong></div>
                           <div><span>ZIP / state</span><strong>${escapeHtml(draft.cityOrZip || "—")}</strong></div>
                           <div><span>First decision</span><strong>${escapeHtml(draft.firstDecision || "—")}</strong></div>
@@ -3536,16 +3539,16 @@ function render() {
 }
 
 function wireInteractions() {
-  document.querySelector("[data-demo-access-form]")?.addEventListener("submit", handleDemoAccessSubmit);
-  document.querySelector("[data-account-form]")?.addEventListener("submit", handleCreateAccount);
-  document.querySelector("[data-login-form]")?.addEventListener("submit", handleLogin);
+  document.querySelectorAll("[data-demo-access-form]").forEach((form) => form.addEventListener("submit", handleDemoAccessSubmit));
+  document.querySelectorAll("[data-account-form]").forEach((form) => form.addEventListener("submit", handleCreateAccount));
+  document.querySelectorAll("[data-login-form]").forEach((form) => form.addEventListener("submit", handleLogin));
   document.querySelectorAll("[data-question-form]").forEach((form) => {
     form.addEventListener("submit", handleQuestionSubmit);
   });
-  document.querySelector("[data-legal-acceptance-form]")?.addEventListener("submit", handleLegalAcceptance);
-  document.querySelector("[data-feedback-form]")?.addEventListener("submit", handleFeedbackSubmit);
-  document.querySelector("[data-password-form]")?.addEventListener("submit", handlePasswordChange);
-  document.querySelector("[data-dismiss-walkthrough]")?.addEventListener("click", handleDismissWalkthrough);
+  document.querySelectorAll("[data-legal-acceptance-form]").forEach((form) => form.addEventListener("submit", handleLegalAcceptance));
+  document.querySelectorAll("[data-feedback-form]").forEach((form) => form.addEventListener("submit", handleFeedbackSubmit));
+  document.querySelectorAll("[data-password-form]").forEach((form) => form.addEventListener("submit", handlePasswordChange));
+  document.querySelectorAll("[data-dismiss-walkthrough]").forEach((button) => button.addEventListener("click", handleDismissWalkthrough));
   document.querySelectorAll("[data-cookie-consent]").forEach((button) => {
     button.addEventListener("click", () => {
       saveCookieConsent(button.dataset.cookieConsent || "declined");
@@ -3617,19 +3620,19 @@ function wireInteractions() {
     });
     render();
   }));
-  document.querySelector("[data-reset-baseline]")?.addEventListener("click", resetBaseline);
-  document.querySelector("[data-logout]")?.addEventListener("click", logoutAccount);
-  document.querySelector("[data-load-sandbox]")?.addEventListener("click", handleSandboxSampleData);
-  document.querySelector("[data-connect-sandbox]")?.addEventListener("click", handleConnectSandboxAccount);
-  document.querySelector("[data-create-next]")?.addEventListener("click", handleCreateAccountNext);
-  document.querySelector("[data-create-back]")?.addEventListener("click", handleCreateAccountBack);
-  document.querySelector("[data-create-submit]")?.addEventListener("click", handleCreateAccountSubmitClick);
+  document.querySelectorAll("[data-reset-baseline]").forEach((button) => button.addEventListener("click", resetBaseline));
+  document.querySelectorAll("[data-logout]").forEach((button) => button.addEventListener("click", logoutAccount));
+  document.querySelectorAll("[data-load-sandbox]").forEach((button) => button.addEventListener("click", handleSandboxSampleData));
+  document.querySelectorAll("[data-connect-sandbox]").forEach((button) => button.addEventListener("click", handleConnectSandboxAccount));
+  document.querySelectorAll("[data-create-next]").forEach((button) => button.addEventListener("click", handleCreateAccountNext));
+  document.querySelectorAll("[data-create-back]").forEach((button) => button.addEventListener("click", handleCreateAccountBack));
+  document.querySelectorAll("[data-create-submit]").forEach((button) => button.addEventListener("click", handleCreateAccountSubmitClick));
   document.querySelectorAll("[data-draft-suggestion]").forEach((button) => {
     button.addEventListener("click", handleDraftSuggestionClick);
   });
-  document.querySelector("[data-send-verification-code]")?.addEventListener("click", handleSendVerificationCode);
-  document.querySelector("[data-verification-code-input]")?.addEventListener("input", handleVerificationCodeInput);
-  document.querySelector("[data-signin-instead]")?.addEventListener("click", handleSigninInsteadClick);
+  document.querySelectorAll("[data-send-verification-code]").forEach((button) => button.addEventListener("click", handleSendVerificationCode));
+  document.querySelectorAll("[data-verification-code-input]").forEach((input) => input.addEventListener("input", handleVerificationCodeInput));
+  document.querySelectorAll("[data-signin-instead]").forEach((button) => button.addEventListener("click", handleSigninInsteadClick));
   document.querySelectorAll("[data-open-signin]").forEach((button) => {
     button.addEventListener("click", () => {
       saveAuthView("signin");
@@ -3646,16 +3649,16 @@ function wireInteractions() {
     trackEvent("waitlist_opened");
     render();
   }));
-  document.querySelector("[data-close-waitlist-button]")?.addEventListener("click", () => {
+  document.querySelectorAll("[data-close-waitlist-button]").forEach((button) => button.addEventListener("click", () => {
     state.waitlistOpen = false;
     render();
-  });
-  document.querySelector("[data-close-waitlist]")?.addEventListener("click", (event) => {
+  }));
+  document.querySelectorAll("[data-close-waitlist]").forEach((modal) => modal.addEventListener("click", (event) => {
     if (event.target.matches("[data-close-waitlist]")) {
       state.waitlistOpen = false;
       render();
     }
-  });
+  }));
   document.querySelectorAll("[data-open-waitlist-link]").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
