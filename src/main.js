@@ -152,6 +152,13 @@ const state = {
   createAccountStep: 0,
   accountDraft: null,
   question: loadQuestion(),
+  decisionMode: "expense",
+  structuredDecisionDraft: {
+    expense: { name: "", amount: "", priority: "Medium" },
+    recurring: { name: "", amount: "", duration: "Ongoing" },
+    invest: { amount: "200", years: "10", returnRate: "7" },
+    income: { delta: "500", timing: "Immediately", workType: "W-2 employee" }
+  },
   result: null,
   aiGuidance: null,
   decisionBusy: false,
@@ -708,6 +715,26 @@ function parseMonthlyAmount(question) {
   return 0;
 }
 
+function parseSignedMonthlyAmount(question) {
+  const monthlyPatterns = [
+    /([+-])\s*(?:\$|usd\s*)\s*(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?\s*(?:\/|per)\s*(?:month|mo)\b/i,
+    /(?:\$|usd\s*)\s*([+-])\s*(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?\s*(?:\/|per)\s*(?:month|mo)\b/i,
+    /(increase|raise|more|extra|gain|up|decrease|cut|drop|less|lose|loss|down)\s+(?:by\s+)?(?:\$|usd\s*)?\s*(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?\s*(?:\/|per)?\s*(?:month|mo|monthly)?\b/i
+  ];
+
+  for (const pattern of monthlyPatterns) {
+    const match = question.match(pattern);
+    if (!match) continue;
+    const signOrWord = String(match[1] || "").toLowerCase();
+    const amount = parseMoneyValue(match[2], match[3] || "");
+    if (!amount) continue;
+    const isNegative = signOrWord === "-" || /decrease|cut|drop|less|lose|loss|down/.test(signOrWord);
+    return isNegative ? -amount : amount;
+  }
+
+  return 0;
+}
+
 function isSelfEmployedBaseline() {
   return state.baseline.profile.employmentStatus === "1099";
 }
@@ -996,6 +1023,17 @@ function inferDecision(question) {
     compoundMonthlyDelta: 0,
     assumptions: []
   };
+
+  if (/income change|raise|pay cut|income drop|lose income|lost income|more income|extra income|salary change|part[- ]?time|hours cut/.test(normalized)) {
+    decision.type = "Income change";
+    const signedMonthlyChange = parseSignedMonthlyAmount(question) || (/(lose|loss|drop|cut|less|down)/.test(normalized) ? -Math.abs(monthlyAmount || firstAmount || 500) : Math.abs(monthlyAmount || firstAmount || 500));
+    decision.monthlyImpact = signedMonthlyChange;
+    decision.taxImpact = signedMonthlyChange > 0
+      ? "Additional income may increase estimated taxes, so PAM treats this as a pre-tax planning signal unless exact withholding is known."
+      : "Lower income may reduce estimated taxes, but the cash-flow drop usually matters first.";
+    decision.assumptions.push({ label: "Monthly income change", value: `${signedMonthlyChange >= 0 ? "+" : "-"}${formatCurrency(Math.abs(signedMonthlyChange))}/month` });
+    return decision;
+  }
 
   if (/1099|freelance|contractor|self[- ]?employ|side hustle/.test(normalized)) {
     decision.type = "Employment / tax change";
@@ -1752,6 +1790,46 @@ async function handleQuestionSubmit(event) {
   }
   state.inputWarning = "";
   await runDecisionAnalysis(question);
+}
+
+function handleDecisionModeClick(event) {
+  const mode = event.currentTarget.dataset.decisionMode || "expense";
+  if (!getStructuredDecisionModeConfig()[mode]) return;
+  state.decisionMode = mode;
+  state.inputWarning = "";
+  render();
+}
+
+function handleStructuredPresetClick(event) {
+  const mode = event.currentTarget.dataset.presetMode || state.decisionMode || "expense";
+  const presetIndex = Number(event.currentTarget.dataset.structuredPreset || 0);
+  const config = getStructuredDecisionModeConfig()[mode];
+  const preset = config?.presets?.[presetIndex];
+  if (!preset) return;
+  state.decisionMode = mode;
+  state.structuredDecisionDraft[mode] = {
+    ...getStructuredDecisionDraft(mode),
+    ...preset.draft
+  };
+  state.inputWarning = "";
+  render();
+}
+
+async function handleStructuredDecisionSubmit(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const mode = String(formData.get("mode") || state.decisionMode || "expense");
+  const draft = {};
+  for (const [key, value] of formData.entries()) {
+    if (key !== "mode") draft[key] = String(value || "").trim();
+  }
+  state.decisionMode = mode;
+  state.structuredDecisionDraft[mode] = {
+    ...getStructuredDecisionDraft(mode),
+    ...draft
+  };
+  const question = buildStructuredDecisionQuestion(mode, formData);
+  await runDecisionAnalysis(question, "Structured scenario analyzed against your baseline.");
 }
 
 async function handleLegalAcceptance(event) {
@@ -2743,6 +2821,175 @@ function renderConnectedInsights() {
   `;
 }
 
+function getStructuredDecisionModeConfig() {
+  return {
+    expense: {
+      label: "Expense",
+      title: "One-time spend",
+      presets: [
+        { label: "$2,500 trip", draft: { name: "vacation", amount: "2500", priority: "Optional" } },
+        { label: "$1,200 laptop", draft: { name: "laptop for freelance work", amount: "1200", priority: "Medium" } },
+        { label: "$800 emergency", draft: { name: "emergency repair", amount: "800", priority: "Essential" } }
+      ]
+    },
+    recurring: {
+      label: "Recurring",
+      title: "Monthly commitment",
+      presets: [
+        { label: "$400 car", draft: { name: "car payment", amount: "400", duration: "Ongoing" } },
+        { label: "$50 gym", draft: { name: "gym membership", amount: "50", duration: "Ongoing" } },
+        { label: "$2,200 rent", draft: { name: "new apartment rent", amount: "2200", duration: "12 months" } }
+      ]
+    },
+    invest: {
+      label: "Invest",
+      title: "Growth projection",
+      presets: [
+        { label: "$200/mo", draft: { amount: "200", years: "10", returnRate: "7" } },
+        { label: "$500/mo", draft: { amount: "500", years: "10", returnRate: "7" } },
+        { label: "Roth pace", draft: { amount: "583", years: "20", returnRate: "7" } }
+      ]
+    },
+    income: {
+      label: "Income ±",
+      title: "Income change",
+      presets: [
+        { label: "+$500 raise", draft: { delta: "500", timing: "Immediately", workType: "W-2 employee" } },
+        { label: "+$1,500 freelance", draft: { delta: "1500", timing: "Immediately", workType: "1099 / self-employed" } },
+        { label: "-$1,000 hours cut", draft: { delta: "-1000", timing: "Next month", workType: "W-2 employee" } }
+      ]
+    }
+  };
+}
+
+function getStructuredDecisionDraft(mode = state.decisionMode) {
+  state.structuredDecisionDraft = state.structuredDecisionDraft || {};
+  if (!state.structuredDecisionDraft[mode]) {
+    state.structuredDecisionDraft[mode] = {};
+  }
+  return state.structuredDecisionDraft[mode];
+}
+
+function renderStructuredDecisionFields(mode, draft) {
+  if (mode === "recurring") {
+    return `
+      <label><span>What is the monthly cost?</span><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Car payment, rent increase, subscription" /></label>
+      <label><span>Monthly amount</span><input name="amount" type="number" min="0" inputmode="decimal" value="${escapeHtml(draft.amount || "")}" placeholder="400" /></label>
+      <label><span>Duration</span><select name="duration">
+        ${["Ongoing", "6 months", "12 months", "24 months", "36 months", "60 months"].map((option) => `<option value="${option}" ${draft.duration === option ? "selected" : ""}>${option}</option>`).join("")}
+      </select></label>
+    `;
+  }
+
+  if (mode === "invest") {
+    return `
+      <label><span>Monthly investment</span><input name="amount" type="number" min="0" inputmode="decimal" value="${escapeHtml(draft.amount || "200")}" placeholder="200" /></label>
+      <label><span>Years</span><input name="years" type="number" min="1" max="45" inputmode="numeric" value="${escapeHtml(draft.years || "10")}" placeholder="10" /></label>
+      <label><span>Hypothetical return</span><select name="returnRate">
+        ${["5", "7", "10"].map((option) => `<option value="${option}" ${String(draft.returnRate || "7") === option ? "selected" : ""}>${option}% / year</option>`).join("")}
+      </select></label>
+    `;
+  }
+
+  if (mode === "income") {
+    return `
+      <label><span>Monthly income change</span><input name="delta" type="number" inputmode="decimal" value="${escapeHtml(draft.delta || "500")}" placeholder="+500 or -1000" /></label>
+      <label><span>Starting when</span><select name="timing">
+        ${["Immediately", "Next month", "In 3 months"].map((option) => `<option value="${option}" ${draft.timing === option ? "selected" : ""}>${option}</option>`).join("")}
+      </select></label>
+      <label><span>Work type</span><select name="workType">
+        ${["W-2 employee", "1099 / self-employed", "Mixed income"].map((option) => `<option value="${option}" ${draft.workType === option ? "selected" : ""}>${option}</option>`).join("")}
+      </select></label>
+    `;
+  }
+
+  return `
+    <label><span>What is the purchase?</span><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Trip, laptop, emergency repair" /></label>
+    <label><span>Amount</span><input name="amount" type="number" min="0" inputmode="decimal" value="${escapeHtml(draft.amount || "")}" placeholder="2500" /></label>
+    <label><span>Priority</span><select name="priority">
+      ${["Optional", "Medium", "Essential"].map((option) => `<option value="${option}" ${draft.priority === option ? "selected" : ""}>${option}</option>`).join("")}
+    </select></label>
+  `;
+}
+
+function buildStructuredDecisionQuestion(mode, formData) {
+  if (mode === "recurring") {
+    const name = String(formData.get("name") || "new recurring cost").trim();
+    const amount = toNumber(formData.get("amount"), 0);
+    const duration = String(formData.get("duration") || "Ongoing");
+    return `Can I afford ${name} with a ${formatCurrency(amount)}/month payment for ${duration}?`;
+  }
+
+  if (mode === "invest") {
+    const amount = toNumber(formData.get("amount"), 0);
+    const years = toNumber(formData.get("years"), 10);
+    const returnRate = toNumber(formData.get("returnRate"), 7);
+    return `What if I invest ${formatCurrency(amount)}/month for ${years} years with a hypothetical ${returnRate}% annual return?`;
+  }
+
+  if (mode === "income") {
+    const delta = toNumber(formData.get("delta"), 0);
+    const timing = String(formData.get("timing") || "Immediately");
+    const workType = String(formData.get("workType") || "W-2 employee");
+    const direction = delta >= 0 ? "increase" : "decrease";
+    return `How would an income change ${direction} of ${delta >= 0 ? "+" : "-"}${formatCurrency(Math.abs(delta))}/month affect my taxes, buffer, and goals? It starts ${timing.toLowerCase()} and the work type is ${workType}.`;
+  }
+
+  const name = String(formData.get("name") || "this purchase").trim();
+  const amount = toNumber(formData.get("amount"), 0);
+  const priority = String(formData.get("priority") || "Medium");
+  return `What happens if I spend ${formatCurrency(amount)} on ${name}? Priority: ${priority}.`;
+}
+
+function renderStructuredDecisionBuilder() {
+  const modes = getStructuredDecisionModeConfig();
+  const activeMode = modes[state.decisionMode] ? state.decisionMode : "expense";
+  const config = modes[activeMode];
+  const draft = getStructuredDecisionDraft(activeMode);
+
+  return `
+    <div class="structured-simulator" aria-label="Structured decision builder">
+      <div class="decision-type-tabs" role="tablist" aria-label="Decision type">
+        ${Object.entries(modes).map(([key, item]) => `
+          <button class="${activeMode === key ? "active" : ""}" type="button" data-decision-mode="${key}" role="tab" aria-selected="${activeMode === key ? "true" : "false"}">${item.label}</button>
+        `).join("")}
+      </div>
+      <div class="structured-sim-card">
+        <div class="structured-sim-header">
+          <span>${escapeHtml(config.title)}</span>
+          <small>Uses your saved baseline</small>
+        </div>
+        <div class="structured-preset-row">
+          ${config.presets.map((preset, index) => `<button type="button" data-structured-preset="${index}" data-preset-mode="${activeMode}">${escapeHtml(preset.label)}</button>`).join("")}
+        </div>
+        <form class="structured-decision-form" data-structured-decision-form>
+          <input type="hidden" name="mode" value="${activeMode}" />
+          <div class="structured-field-grid">
+            ${renderStructuredDecisionFields(activeMode, draft)}
+          </div>
+          <button class="button button-primary" type="submit" ${state.decisionBusy ? "disabled" : ""}>${state.decisionBusy ? "Analyzing..." : "Run scenario"}</button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function getDecisionNextSteps(result) {
+  const baseQuestion = result?.question || state.question || "this decision";
+  const monthlyImpact = Math.abs(toNumber(result?.decision?.monthlyImpact));
+  const oneTimeImpact = Math.abs(toNumber(result?.decision?.oneTimeImpact));
+  const smallerMonthly = monthlyImpact ? Math.max(Math.round(monthlyImpact * 0.7), 25) : 0;
+  const smallerOneTime = oneTimeImpact ? Math.max(Math.round(oneTimeImpact * 0.75), 100) : 0;
+
+  return [
+    monthlyImpact
+      ? `Compare this with a ${formatCurrency(smallerMonthly)}/month version.`
+      : `Compare this with a ${formatCurrency(smallerOneTime || 1000)} version.`,
+    `What would I need to cut to make ${baseQuestion} safer?`,
+    `What is the safest timing for ${baseQuestion}?`
+  ];
+}
+
 function renderDashboardSummary() {
   if (!state.baseline.source.startsWith("plaid")) return "";
   const ui = getUiBaseline(state.baseline);
@@ -3055,6 +3302,7 @@ function renderDecisionPanel() {
       </div>
       <div class="ask-pam-card decision-ask-card">
         <h3>Ask PAM</h3>
+        ${renderStructuredDecisionBuilder()}
         <div class="quick-question-row decision-prompt-stack">
           ${prompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
         </div>
@@ -3126,6 +3374,13 @@ function renderResult() {
           <div><span>Goal timeline</span><strong>${formatMonths(result.newGoalMonths)}</strong></div>
           <div><span>Cash runway</span><strong>${typeof result.runwayMonths === "number" ? formatMonths(result.runwayMonths) : "Stable"}</strong></div>
           <div><span>Most impacted goal</span><strong>${escapeHtml(result.mostImpactedGoal)}</strong></div>
+        </div>
+      </div>
+      <div class="result-section next-step-box">
+        <h3>Next step</h3>
+        <p>${result.risk.label === "Low" ? "This looks workable. PAM can still help test a cleaner version before you commit." : result.risk.label === "Medium" ? "This is possible, but the safer move is to compare a lower-cost version or a better time to do it." : "This needs a safer version before it becomes realistic."}</p>
+        <div class="quick-question-row next-step-actions">
+          ${getDecisionNextSteps(result).map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
         </div>
       </div>
       ${state.aiGuidance?.guidance ? `
@@ -3544,6 +3799,15 @@ function wireInteractions() {
   document.querySelectorAll("[data-login-form]").forEach((form) => form.addEventListener("submit", handleLogin));
   document.querySelectorAll("[data-question-form]").forEach((form) => {
     form.addEventListener("submit", handleQuestionSubmit);
+  });
+  document.querySelectorAll("[data-structured-decision-form]").forEach((form) => {
+    form.addEventListener("submit", handleStructuredDecisionSubmit);
+  });
+  document.querySelectorAll("[data-decision-mode]").forEach((button) => {
+    button.addEventListener("click", handleDecisionModeClick);
+  });
+  document.querySelectorAll("[data-structured-preset]").forEach((button) => {
+    button.addEventListener("click", handleStructuredPresetClick);
   });
   document.querySelectorAll("[data-legal-acceptance-form]").forEach((form) => form.addEventListener("submit", handleLegalAcceptance));
   document.querySelectorAll("[data-feedback-form]").forEach((form) => form.addEventListener("submit", handleFeedbackSubmit));

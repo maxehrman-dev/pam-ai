@@ -2139,6 +2139,153 @@ input:disabled {
   resize: vertical;
 }
 
+.structured-simulator {
+  display: grid;
+  gap: 10px;
+}
+
+.decision-type-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  overflow-x: auto;
+  border-radius: 18px;
+  background: rgba(216, 243, 229, 0.42);
+  scrollbar-width: none;
+}
+
+.decision-type-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.decision-type-tabs button {
+  width: auto;
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 8px 13px;
+  border-radius: 14px;
+  color: var(--ink-3);
+  background: transparent;
+  border-color: transparent;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.decision-type-tabs button.active {
+  color: var(--mint-5);
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(30, 138, 102, 0.16);
+}
+
+.structured-sim-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(30, 138, 102, 0.12);
+}
+
+.structured-sim-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.structured-sim-header span {
+  color: var(--ink-5);
+  font-weight: 950;
+}
+
+.structured-sim-header small {
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.structured-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ask-pam-card .structured-preset-row button {
+  width: auto;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: var(--mint-5);
+  background: rgba(216, 243, 229, 0.62);
+  font-size: 0.78rem;
+}
+
+.structured-decision-form {
+  display: grid;
+  gap: 10px;
+}
+
+.structured-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.structured-field-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.structured-field-grid span {
+  color: var(--ink-3);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.structured-field-grid input,
+.structured-field-grid select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 15px;
+  color: var(--ink-5);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(30, 138, 102, 0.16);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.structured-field-grid input:focus,
+.structured-field-grid select:focus {
+  outline: 2px solid rgba(30, 138, 102, 0.2);
+  border-color: rgba(30, 138, 102, 0.42);
+}
+
+.structured-decision-form .button {
+  justify-content: center;
+}
+
+.next-step-box {
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(246, 239, 226, 0.62);
+  border: 1px solid rgba(12, 21, 18, 0.08);
+}
+
+.next-step-box p {
+  margin: 6px 0 12px;
+  color: var(--ink-3);
+}
+
+.next-step-actions button {
+  background: rgba(255, 255, 255, 0.74);
+}
+
 .ask-pam-card .decision-question-form .button-primary {
   justify-content: center;
   text-align: center;
@@ -3813,6 +3960,24 @@ input:disabled {
     margin: 6px 0 2px;
     font-size: clamp(1.8rem, 10vw, 2.4rem);
     letter-spacing: -0.05em;
+  }
+
+  .structured-sim-card {
+    padding: 12px;
+    border-radius: 20px;
+  }
+
+  .structured-sim-header {
+    align-items: flex-start;
+  }
+
+  .structured-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-type-tabs button {
+    min-height: 36px;
+    font-size: 0.72rem;
   }
 
   .decision-prompt-stack {
