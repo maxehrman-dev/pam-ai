@@ -1951,7 +1951,7 @@ input:disabled {
 
 .dashboard-primary-grid .daily-column:last-child,
 .dashboard-primary-grid .daily-advisor-card > div:first-child,
-.dashboard-primary-grid .ask-pam-card {
+.dashboard-primary-grid .daily-advisor-card > .ask-pam-card {
   display: none;
 }
 
