@@ -1153,24 +1153,92 @@ input:disabled {
 
 .dashboard-primary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.02fr) minmax(360px, 0.98fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(390px, 0.74fr);
+  gap: 14px;
   align-items: start;
 }
 
 .dashboard-simulator-stack {
   display: grid;
-  gap: 16px;
+  gap: 12px;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .dashboard-simulator-stack .result-panel {
-  max-height: 58vh;
+  max-height: none;
   overflow: auto;
 }
 
 .dashboard-simulator-stack .result-panel .explanation-box {
-  max-height: 280px;
+  max-height: 220px;
   overflow: auto;
+}
+
+.dashboard-simulator-stack .decision-panel,
+.dashboard-simulator-stack .result-panel {
+  padding: 18px;
+  border-radius: 28px;
+}
+
+.dashboard-simulator-stack .decision-advisor-intro {
+  align-items: center;
+}
+
+.dashboard-simulator-stack .decision-advisor-intro h2,
+.dashboard-simulator-stack .result-header h2 {
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+}
+
+.dashboard-simulator-stack .decision-advisor-intro p {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.dashboard-simulator-stack .decision-mode-pill,
+.dashboard-simulator-stack .structured-sim-header small {
+  display: none;
+}
+
+.dashboard-simulator-stack .decision-ask-card {
+  margin-top: 12px;
+}
+
+.dashboard-simulator-stack .decision-prompt-stack {
+  display: none;
+}
+
+.dashboard-simulator-stack .structured-sim-card {
+  padding: 12px;
+}
+
+.dashboard-simulator-stack .structured-field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-simulator-stack .structured-field-grid label:first-child {
+  grid-column: 1 / -1;
+}
+
+.dashboard-simulator-stack .assumption-grid-foresee,
+.dashboard-simulator-stack .outcome-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-simulator-stack .result-section {
+  margin-top: 12px;
+}
+
+.dashboard-simulator-stack .result-section h3 {
+  font-size: 1.05rem;
+}
+
+.dashboard-simulator-stack .outcome-grid strong {
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
 }
 
 .workspace-guide-grid {
@@ -1943,16 +2011,22 @@ input:disabled {
 
 .dashboard-primary-grid .daily-home-shell {
   grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .dashboard-primary-grid .daily-main-card {
   order: -1;
 }
 
-.dashboard-primary-grid .daily-column:last-child,
 .dashboard-primary-grid .daily-advisor-card > div:first-child,
 .dashboard-primary-grid .daily-advisor-card > .ask-pam-card {
   display: none;
+}
+
+.dashboard-primary-grid .daily-column:last-child {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .daily-column,
@@ -1979,6 +2053,45 @@ input:disabled {
 .dashboard-primary-grid .daily-advisor-card,
 .dashboard-primary-grid .daily-main-card {
   padding: 18px;
+}
+
+.dashboard-primary-grid .daily-side-card {
+  padding: 16px;
+  border-radius: 22px;
+  box-shadow: none;
+}
+
+.dashboard-primary-grid .daily-side-card h3 {
+  font-size: 1.05rem;
+}
+
+.dashboard-primary-grid .daily-side-card p {
+  font-size: 0.9rem;
+}
+
+.dashboard-primary-grid .daily-side-card .ai-output-disclaimer {
+  display: none;
+}
+
+.dashboard-primary-grid .goal-row {
+  gap: 5px;
+}
+
+.dashboard-primary-grid .goal-row p,
+.dashboard-primary-grid .insight-pill p {
+  font-size: 0.82rem;
+}
+
+.dashboard-primary-grid .insight-pill {
+  padding: 10px;
+  border-radius: 16px;
+}
+
+.dashboard-primary-grid .daily-side-card button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 0.82rem;
 }
 
 .daily-advisor-card h2,
@@ -2393,8 +2506,8 @@ input:disabled {
 }
 
 .dashboard-primary-grid .daily-chart {
-  height: 170px;
-  margin: 14px 0;
+  height: 136px;
+  margin: 12px 0;
   padding: 16px;
 }
 
@@ -2419,11 +2532,16 @@ input:disabled {
 }
 
 .dashboard-primary-grid .daily-metric-strip div {
-  padding: 12px;
+  padding: 11px;
 }
 
 .dashboard-primary-grid .daily-metric-strip strong {
-  font-size: 1.2rem;
+  font-size: 1.14rem;
+}
+
+.dashboard-primary-grid .daily-spending-card {
+  margin-top: 14px;
+  padding-top: 14px;
 }
 
 .daily-metric-strip span,
@@ -2484,7 +2602,7 @@ input:disabled {
 .dashboard-primary-grid .spending-row {
   grid-template-columns: 14px minmax(0, 1fr) auto;
   gap: 10px;
-  padding: 9px 0;
+  padding: 8px 0;
 }
 
 .dashboard-primary-grid .spending-row i {
@@ -3438,6 +3556,13 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-simulator-stack {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
   .dashboard-simulator-stack .result-panel {
     max-height: none;
     overflow: visible;
@@ -4119,6 +4244,31 @@ input:disabled {
     border-radius: 16px;
     font-size: 0.92rem;
     background: rgba(255, 253, 249, 0.92);
+  }
+
+  .ask-pam-card.decision-ask-card .decision-type-tabs button {
+    min-height: 34px;
+    padding: 7px 10px;
+    border-radius: 13px;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+
+  .ask-pam-card.decision-ask-card .structured-preset-row button {
+    min-height: 34px;
+    width: auto;
+    padding: 7px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    letter-spacing: -0.01em;
+  }
+
+  .ask-pam-card.decision-ask-card .structured-decision-form .button-primary {
+    min-height: 50px;
+    padding: 0 16px;
+    border-radius: 18px;
+    font-size: 1rem;
+    letter-spacing: -0.01em;
   }
 
   .ask-pam-mini-form {
