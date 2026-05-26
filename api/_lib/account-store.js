@@ -13,7 +13,8 @@ const {
   getSession: getSupabaseSession,
   hasSupabaseConfig,
   insertAccount,
-  insertVerificationRequest
+  insertVerificationRequest,
+  updateAccountPassword
 } = require("./supabase.js");
 
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -555,6 +556,60 @@ exports.loginAccount = async ({ emailAddress, password }) => {
     sessionToken,
     baseline,
     legalAcceptance
+  };
+};
+
+exports.changePassword = async ({ sessionToken, currentPassword, newPassword }) => {
+  if (!newPassword || String(newPassword).length < 8) {
+    throw new Error("Use at least 8 characters for your new password.");
+  }
+
+  const store = readStore();
+  pruneSessions(store);
+  let account = null;
+
+  if (hasSupabaseConfig()) {
+    const session = await getSupabaseSession(sessionToken);
+    if (session?.account_id) {
+      account = await findAccountById(session.account_id);
+    }
+  } else {
+    const session = store.sessions[String(sessionToken || "")];
+    if (session?.accountId) {
+      account = store.accounts.find((item) => item.id === session.accountId);
+    }
+  }
+
+  if (!account) {
+    throw new Error("Sign in again before changing your password.");
+  }
+
+  if (!verifyPassword(currentPassword, account)) {
+    throw new Error("Current password is incorrect.");
+  }
+
+  const passwordRecord = hashPassword(newPassword);
+  account.passwordAlgorithm = passwordRecord.algorithm;
+  account.passwordSalt = passwordRecord.salt;
+  account.passwordHash = passwordRecord.hash;
+
+  if (hasSupabaseConfig()) {
+    await updateAccountPassword({
+      accountId: account.id,
+      passwordAlgorithm: account.passwordAlgorithm,
+      passwordSalt: account.passwordSalt,
+      passwordHash: account.passwordHash
+    });
+  } else {
+    const index = store.accounts.findIndex((item) => item.id === account.id);
+    if (index >= 0) {
+      store.accounts[index] = account;
+      writeStore(store);
+    }
+  }
+
+  return {
+    account: sanitizeAccount(account)
   };
 };
 

@@ -31,6 +31,8 @@ const WORKSPACE_VIEW_KEY = "pam-ai-workspace-view-v1";
 const AUTH_VIEW_KEY = "pam-ai-auth-view-v1";
 const MOBILE_VIEW_KEY = "pam-ai-mobile-view-v1";
 const NET_WORTH_RANGE_KEY = "pam-ai-net-worth-range-v1";
+const DISPLAY_THEME_KEY = "pam-ai-display-theme-v1";
+const LAST_AUTO_SYNC_KEY = "pam-ai-last-auto-sync-v1";
 const TELEMETRY_SESSION_KEY = "pam:telemetry-session:v1";
 const COOKIE_CONSENT_KEY = "pam:cookie-consent:v1";
 const LEGAL_ACCEPTANCE_KEY = "pam:legal-acceptance:v1";
@@ -154,6 +156,7 @@ const state = {
   authView: loadAuthView(),
   mobileView: loadMobileView(),
   netWorthRange: loadNetWorthRange(),
+  displayTheme: loadDisplayTheme(),
   createAccountStep: 0,
   accountDraft: null,
   question: loadQuestion(),
@@ -181,6 +184,8 @@ const state = {
   walkthroughDismissed: loadWalkthroughDismissed(),
   feedbackMessage: "",
   feedbackBusy: false,
+  passwordMessage: "",
+  passwordBusy: false,
   verificationPreviewCode: "",
   verificationWarning: "",
   verificationMaskedEmail: "",
@@ -488,6 +493,21 @@ function loadNetWorthRange() {
   }
 }
 
+function loadDisplayTheme() {
+  if (typeof window === "undefined") return "light";
+  try {
+    const stored = window.localStorage.getItem(DISPLAY_THEME_KEY);
+    return ["light", "dark", "system"].includes(stored || "") ? stored : "light";
+  } catch (_error) {
+    return "light";
+  }
+}
+
+function applyDisplayTheme() {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.theme = state.displayTheme || "light";
+}
+
 function saveWorkspaceView(view) {
   state.workspaceView = ["landing", "account", "dashboard"].includes(view) ? view : "landing";
   try {
@@ -522,6 +542,16 @@ function saveNetWorthRange(range) {
   } catch (_error) {
     // Chart range state can fall back to the default.
   }
+}
+
+function saveDisplayTheme(theme) {
+  state.displayTheme = ["light", "dark", "system"].includes(theme) ? theme : "light";
+  try {
+    window.localStorage.setItem(DISPLAY_THEME_KEY, state.displayTheme);
+  } catch (_error) {
+    // Display preferences can fall back to the default theme.
+  }
+  applyDisplayTheme();
 }
 
 function getCreateAccountStepConfig(stepIndex = state.createAccountStep) {
@@ -594,7 +624,7 @@ function resetBaseline() {
     saveBaseline(syncAccountIntoBaseline(state.account, getEmptyBaseline()));
   }
   saveWorkspaceView("account");
-  setStatus("Baseline reset. Connect Sandbox data again when ready.", "account");
+  setStatus("Financial data disconnected. Reconnect accounts when you are ready.", "account");
   state.result = null;
   state.aiGuidance = null;
   state.inlineGoalError = "";
@@ -1138,9 +1168,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   setStatus(`${statusMessage} PAM advisor is refining the explanation...`, "decision");
   render();
   requestAnimationFrame(() => {
-    if (window.matchMedia?.("(max-width: 760px)").matches) {
-      document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   try {
@@ -1157,6 +1185,9 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
 
   state.decisionBusy = false;
   render();
+  requestAnimationFrame(() => {
+    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function analyzeQuestion(question) {
@@ -1574,7 +1605,8 @@ async function handleSandboxSampleData() {
   render();
 }
 
-async function handleConnectSandboxAccount() {
+async function handleConnectSandboxAccount(options = {}) {
+  const { silent = false } = options;
   if (!hasPrototypeAccount()) {
     setStatus("Create your account first, then connect Sandbox data.", "account");
     render();
@@ -1586,27 +1618,61 @@ async function handleConnectSandboxAccount() {
     return;
   }
   state.plaidBusy = true;
-  setStatus("Connecting Sandbox account...", "account");
-  render();
+  if (!silent) {
+    setStatus("Connecting accounts...", "account");
+    render();
+  }
 
   try {
     const payload = await connectSandboxAccount(state.baseline.profile);
     saveBaseline(payload.baseline);
-    setStatus(payload.status, "account");
+    if (!silent) setStatus(payload.status, "account");
     state.inlineGoalError = "";
-    await runDecisionAnalysis(state.question, payload.status);
+    if (silent) {
+      state.result = analyzeQuestion(state.question);
+    } else {
+      await runDecisionAnalysis(state.question, payload.status);
+    }
   } catch (error) {
     const fallbackPayload = loadSandboxFallback(state.baseline);
     saveBaseline(fallbackPayload.baseline);
-    setStatus(error instanceof Error && error.message
-      ? `${error.message} ${fallbackPayload.status}`
-      : fallbackPayload.status, "account");
+    if (!silent) {
+      setStatus(error instanceof Error && error.message
+        ? `${error.message} ${fallbackPayload.status}`
+        : fallbackPayload.status, "account");
+    }
     state.inlineGoalError = "";
-    await runDecisionAnalysis(state.question, fallbackPayload.status);
+    if (silent) {
+      state.result = analyzeQuestion(state.question);
+    } else {
+      await runDecisionAnalysis(state.question, fallbackPayload.status);
+    }
   } finally {
     state.plaidBusy = false;
-    render();
+    if (!silent) render();
   }
+}
+
+function shouldAutoRefreshFinancialData() {
+  if (!canUseFinancialFeatures()) return false;
+  if (!state.baseline.source?.startsWith("plaid")) return false;
+  try {
+    const lastSync = Number(window.localStorage.getItem(LAST_AUTO_SYNC_KEY) || 0);
+    return Date.now() - lastSync > 24 * 60 * 60 * 1000;
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function maybeAutoRefreshFinancialData() {
+  if (!shouldAutoRefreshFinancialData()) return;
+  try {
+    window.localStorage.setItem(LAST_AUTO_SYNC_KEY, String(Date.now()));
+  } catch (_error) {
+    // Auto refresh is best-effort.
+  }
+  await handleConnectSandboxAccount({ silent: true });
+  render();
 }
 
 async function handleQuestionSubmit(event) {
@@ -1741,6 +1807,59 @@ async function handleFeedbackSubmit(event) {
   state.feedbackMessage = payload.feedbackStored === "schema_pending"
     ? "Thanks. PAM received your feedback locally, but the feedback table still needs the latest Supabase schema."
     : "Thanks. PAM received your feedback.";
+  render();
+}
+
+async function handlePasswordChange(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const currentPassword = String(formData.get("currentPassword") || "");
+  const newPassword = String(formData.get("newPassword") || "");
+  const confirmNewPassword = String(formData.get("confirmNewPassword") || "");
+
+  if (!state.sessionToken) {
+    state.passwordMessage = "Sign in again before changing your password.";
+    render();
+    return;
+  }
+
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    state.passwordMessage = "Fill out all password fields.";
+    render();
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    state.passwordMessage = "Use at least 8 characters for your new password.";
+    render();
+    return;
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    state.passwordMessage = "New passwords don't match.";
+    render();
+    return;
+  }
+
+  state.passwordBusy = true;
+  state.passwordMessage = "Updating password...";
+  render();
+
+  const { payload, error } = await requestJson("/api/account/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "change_password",
+      sessionToken: state.sessionToken,
+      currentPassword,
+      newPassword
+    })
+  });
+
+  state.passwordBusy = false;
+  state.passwordMessage = payload?.ok
+    ? "Password updated."
+    : payload?.error || error || "Could not update password.";
   render();
 }
 
@@ -2305,26 +2424,25 @@ function renderFeedbackPanel() {
     <section class="foresee-panel feedback-panel mobile-screen mobile-screen-profile" id="feedback">
       <div>
         <div class="panel-kicker">Feedback</div>
-        <h2>Help shape PAM.</h2>
-        <p>Tell us what felt confusing, missing, or surprisingly useful.</p>
+        <h2>Send a note.</h2>
+        <p>Quick product feedback goes straight to the team.</p>
       </div>
       <form class="feedback-form" data-feedback-form>
         <label>
-          <span>Rating</span>
-          <select name="feedbackRating">
-            <option value="">Optional</option>
-            <option value="5">5 - Very useful</option>
-            <option value="4">4 - Useful</option>
+          <span>Your feedback</span>
+          <textarea name="feedbackMessage" rows="3" placeholder="What should feel clearer, faster, or more useful?"></textarea>
+        </label>
+        <div class="feedback-inline-actions">
+          <select name="feedbackRating" aria-label="Feedback rating">
+            <option value="">Rating</option>
+            <option value="5">5 - Great</option>
+            <option value="4">4 - Good</option>
             <option value="3">3 - Okay</option>
             <option value="2">2 - Needs work</option>
-            <option value="1">1 - Not useful</option>
+            <option value="1">1 - Broken</option>
           </select>
-        </label>
-        <label>
-          <span>Your feedback</span>
-          <textarea name="feedbackMessage" rows="4" placeholder="What should PAM improve next?"></textarea>
-        </label>
-        <button class="button button-primary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send feedback"}</button>
+          <button class="button button-primary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send"}</button>
+        </div>
         ${state.feedbackMessage ? `<p class="auth-status-message">${escapeHtml(state.feedbackMessage)}</p>` : ""}
       </form>
     </section>
@@ -2542,11 +2660,16 @@ function renderConnectedInsights() {
   const incomeStreams = state.baseline.income?.incomeStreams || [];
   const liabilities = state.baseline.obligations?.liabilities || [];
   const connectedAccounts = getConnectedAccounts(state.baseline);
+  const updatedAt = state.baseline.metadata?.updatedAt ? new Date(state.baseline.metadata.updatedAt) : null;
+  const updatedLabel = updatedAt && Number.isFinite(updatedAt.getTime())
+    ? updatedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : "recently";
 
   return `
     <section class="foresee-panel mobile-screen mobile-screen-accounts" id="mobile-accounts">
-      <div class="panel-kicker">Connected baseline</div>
-      <h2>Your Sandbox data is feeding PAM.</h2>
+      <div class="panel-kicker">Accounts</div>
+      <h2>Your financial baseline.</h2>
+      <p class="section-compact-note">Last updated ${escapeHtml(updatedLabel)}. PAM uses this snapshot for decisions, spending, goals, and runway.</p>
       <div class="feature-grid">
         <article><h3>Detected income</h3><p>${incomeStreams[0] ? `${formatCurrency(incomeStreams[0].amount)}/month from connected deposits.` : "No recurring income pattern detected yet."}</p></article>
         <article><h3>Largest recurring costs</h3><p>${topExpenses.length ? topExpenses.map((item) => `${item.name} ${formatCurrency(item.amount)}`).join(" • ") : "No recurring expenses detected yet."}</p></article>
@@ -2563,7 +2686,6 @@ function renderConnectedInsights() {
           `).join("")}
         </div>
       ` : ""}
-      <p class="disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
     </section>
   `;
 }
@@ -2585,7 +2707,7 @@ function renderDashboardSummary() {
   return `
     <section class="foresee-panel">
       <div class="panel-kicker">Dashboard snapshot</div>
-      <h2>${state.baseline.source === "plaid_mock" ? "Sandbox sample data is enough to power a mock dashboard." : "Your connected Sandbox accounts are shaping the dashboard."}</h2>
+      <h2>Accounts, spending, goals, and risk in one view.</h2>
       <div class="outcome-grid dashboard-metric-grid">
         <div><span>Connected accounts</span><strong>${connectedAccounts.length}</strong><small>Checking, savings, credit, and investing can all flow in here.</small></div>
         <div><span>Available cash</span><strong>${formatCurrency(availableCash)}</strong><small>Across connected cash accounts.</small></div>
@@ -2620,9 +2742,93 @@ function renderDashboardSummary() {
           </div>
         </div>
       </div>
-      <p class="disclaimer">${state.baseline.source === "plaid_mock" ? "This is a mock dashboard powered by Sandbox-style sample data." : "This is a mock dashboard powered by Plaid Sandbox data."}</p>
       <p class="disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
     </section>
+  `;
+}
+
+function renderAccountSettingsPanel(baseline, account, isComplete) {
+  const updatedAt = state.baseline.metadata?.updatedAt ? new Date(state.baseline.metadata.updatedAt) : null;
+  const updatedLabel = updatedAt && Number.isFinite(updatedAt.getTime())
+    ? updatedAt.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "Not synced yet";
+  const themeOptions = [
+    ["light", "Light"],
+    ["dark", "Dark"],
+    ["system", "System"]
+  ];
+
+  return `
+    <div class="account-settings-shell">
+      <div class="account-status-card">
+        <div class="account-status-main">
+          <div class="panel-kicker">Signed in</div>
+          <h3>${escapeHtml(account.firstName || baseline.firstName || "Your")} account</h3>
+          <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
+        </div>
+        <div class="account-status-meta">
+          <span>${escapeHtml(account.employmentStatus || baseline.employmentStatus || "Income not set")}</span>
+          <span>${escapeHtml(account.stateCode || baseline.stateCode || "State not set")}</span>
+        </div>
+      </div>
+      ${!hasAcceptedLegalTerms() ? renderLegalGate() : ""}
+      <div class="settings-grid">
+        <article class="settings-card">
+          <div>
+            <span>Personal info</span>
+            <strong>${escapeHtml(account.firstName || baseline.firstName || "Account")}</strong>
+          </div>
+          <p>${hasValue(account.age || baseline.age) ? `${escapeHtml(account.age || baseline.age)} years old` : "Age not set"} · ${escapeHtml(account.stateCode || baseline.stateCode || "State not set")}</p>
+        </article>
+        <article class="settings-card">
+          <div>
+            <span>Security</span>
+            <strong>Password</strong>
+          </div>
+          <form class="compact-password-form" data-password-form>
+            <input type="password" name="currentPassword" placeholder="Current password" autocomplete="current-password" />
+            <input type="password" name="newPassword" placeholder="New password" autocomplete="new-password" />
+            <input type="password" name="confirmNewPassword" placeholder="Confirm new password" autocomplete="new-password" />
+            <button class="button button-secondary" type="submit" ${state.passwordBusy ? "disabled" : ""}>${state.passwordBusy ? "Updating..." : "Change password"}</button>
+          </form>
+          ${state.passwordMessage ? `<p class="auth-status-message">${escapeHtml(state.passwordMessage)}</p>` : ""}
+        </article>
+        <article class="settings-card settings-card-wide">
+          <div>
+            <span>Financial data</span>
+            <strong>${isComplete ? "Connected baseline ready" : "Connect your baseline"}</strong>
+          </div>
+          <p>Last updated: ${escapeHtml(updatedLabel)}. Production sync should run roughly daily; use manual refresh before testing an important decision.</p>
+          <div class="settings-action-row">
+            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>${state.plaidBusy ? "Refreshing..." : isComplete ? "Sync accounts" : "Connect accounts"}</button>
+            <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>Use sample baseline</button>
+            ${isComplete ? `<button class="button button-secondary" type="button" data-open-view="dashboard">Open dashboard</button>` : ""}
+          </div>
+        </article>
+        <article class="settings-card">
+          <div>
+            <span>Display</span>
+            <strong>Theme</strong>
+          </div>
+          <div class="theme-toggle-row" role="group" aria-label="Display theme">
+            ${themeOptions.map(([value, label]) => `
+              <button class="${state.displayTheme === value ? "active" : ""}" type="button" data-display-theme="${value}">${label}</button>
+            `).join("")}
+          </div>
+        </article>
+        <article class="settings-card">
+          <div>
+            <span>Account actions</span>
+            <strong>Manage access</strong>
+          </div>
+          <div class="settings-action-row small">
+            <button class="button button-secondary" type="button" data-reset-baseline>Disconnect financial data</button>
+            <button class="button button-secondary" type="button" data-logout>Sign out</button>
+          </div>
+        </article>
+      </div>
+      ${getStatus("account") ? `<p class="auth-status-message">${escapeHtml(getStatus("account"))}</p>` : ""}
+    </div>
   `;
 }
 
@@ -2637,56 +2843,11 @@ function renderBaselinePanel() {
   const isLastStep = state.createAccountStep === CREATE_ACCOUNT_STEPS.length - 1;
   return `
     <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
-      <div class="panel-kicker">Create your PAM model</div>
-      <h2>${isSignedIn ? "Finish your financial baseline." : "Build the model PAM will use."}</h2>
+      <div class="panel-kicker">${isSignedIn ? "Account" : "Create your PAM model"}</div>
+      <h2>${isSignedIn ? "Profile, security, and settings." : "Build the model PAM will use."}</h2>
       <div class="onboarding-layout">
         <div class="baseline-form onboarding-form sandbox-connect-panel">
-          ${isSignedIn ? `
-            <div class="account-status-card">
-              <div class="account-status-main">
-                <div class="panel-kicker">Signed in</div>
-                <h3>${escapeHtml(account.firstName || baseline.firstName || "Your")} account is ready.</h3>
-                <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
-              </div>
-              <div class="account-status-meta">
-                <span>${escapeHtml(account.employmentStatus || baseline.employmentStatus || "Not sure yet")}</span>
-                <span>${escapeHtml(account.stateCode || baseline.stateCode || "OTHER")}</span>
-              </div>
-            </div>
-            ${!hasAcceptedLegalTerms() ? renderLegalGate() : ""}
-            ${isComplete && hasAcceptedLegalTerms() ? `
-              <div class="connect-actions-header">
-                <h3>Your dashboard is ready.</h3>
-                <p>PAM has enough baseline data to model decisions. You can refresh connected data anytime.</p>
-              </div>
-              <div class="connect-action-grid">
-                <button class="button button-primary" type="button" data-open-view="dashboard">Open dashboard</button>
-                <button class="button button-secondary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Refreshing..." : "Refresh financial baseline"}</button>
-              </div>
-            ` : isComplete ? `
-              <div class="connect-actions-header setup-ready-note">
-                <h3>Your baseline is ready.</h3>
-                <p>Accept the terms above once, then PAM will take you to your dashboard automatically.</p>
-              </div>
-            ` : `
-              <div class="connect-actions-header">
-                <h3>Connect your financial baseline.</h3>
-                <p>PAM turns balances, income deposits, spending, and obligations into the model behind every answer.</p>
-              </div>
-              <div class="plaid-security-note">
-                <strong>Data security</strong>
-                <p>We never see or store your bank login credentials. Plaid handles bank connections.</p>
-              </div>
-              <div class="connect-action-grid">
-                <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect prototype baseline"}</button>
-                <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>Preview with prototype data</button>
-              </div>
-            `}
-            <div class="form-actions">
-              <button class="button button-secondary" type="button" data-reset-baseline>Reset baseline</button>
-              <button class="button button-secondary" type="button" data-logout>Sign out</button>
-            </div>
-          ` : `
+          ${isSignedIn ? renderAccountSettingsPanel(baseline, account, isComplete) : `
             <div class="auth-shell">
               <div class="auth-switcher" role="tablist" aria-label="Account access">
                 <button class="auth-switch ${state.authView === "create" ? "active" : ""}" type="button" data-auth-mode="create" role="tab" aria-selected="${state.authView === "create" ? "true" : "false"}">Create account</button>
@@ -3265,6 +3426,7 @@ function renderPublicLaunchGate() {
 
 function render() {
   if (!app) return;
+  applyDisplayTheme();
   const legalRoute = getLegalRoute();
   if (legalRoute) {
     app.innerHTML = renderLegalPage(legalRoute);
@@ -3327,6 +3489,7 @@ function wireInteractions() {
   });
   document.querySelector("[data-legal-acceptance-form]")?.addEventListener("submit", handleLegalAcceptance);
   document.querySelector("[data-feedback-form]")?.addEventListener("submit", handleFeedbackSubmit);
+  document.querySelector("[data-password-form]")?.addEventListener("submit", handlePasswordChange);
   document.querySelector("[data-dismiss-walkthrough]")?.addEventListener("click", handleDismissWalkthrough);
   document.querySelectorAll("[data-cookie-consent]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -3470,6 +3633,13 @@ function wireInteractions() {
       render();
     });
   });
+  document.querySelectorAll("[data-display-theme]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveDisplayTheme(button.dataset.displayTheme || "light");
+      trackEvent("display_theme_changed", { theme: state.displayTheme });
+      render();
+    });
+  });
   document.querySelectorAll("[data-open-view]").forEach((button) => {
     button.addEventListener("click", () => openWorkspaceView(button.dataset.openView || "account"));
   });
@@ -3477,10 +3647,13 @@ function wireInteractions() {
     button.addEventListener("click", handleAuthModeClick);
   });
   document.querySelectorAll("[data-question-example]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const question = button.dataset.questionExample || "";
       if (canUseFinancialFeatures()) {
-        runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
+        await runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
+        requestAnimationFrame(() => {
+          document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
       } else {
         saveQuestion(question);
         saveWorkspaceView("account");
@@ -3541,4 +3714,7 @@ export async function startApp() {
     hasDashboard: canAccessDashboard()
   });
   render();
+  setTimeout(() => {
+    maybeAutoRefreshFinancialData().catch(() => null);
+  }, 800);
 }

@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { clearSession, getSessionAccount, getSessionAccountWithBaseline } = require("../_lib/account-store.js");
+const { changePassword, clearSession, getSessionAccount, getSessionAccountWithBaseline } = require("../_lib/account-store.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, sanitizeText, validatePayload } = require("../_lib/security.js");
 const { hasSupabaseConfig, insertLegalAcceptance, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
@@ -38,6 +38,16 @@ const demoAccessSchema = {
     code: { type: "string", minLength: 3, maxLength: 80 }
   },
   required: ["action", "code"]
+};
+
+const changePasswordSchema = {
+  properties: {
+    sessionToken: { type: "string", minLength: 10, maxLength: 80 },
+    action: { type: "string", enum: ["change_password"] },
+    currentPassword: { type: "string", minLength: 1, maxLength: 128, trim: false },
+    newPassword: { type: "string", minLength: 8, maxLength: 128, trim: false }
+  },
+  required: ["sessionToken", "action", "currentPassword", "newPassword"]
 };
 
 function getSessionToken(req) {
@@ -168,6 +178,45 @@ module.exports = async (req, res) => {
         ok: true,
         stored
       });
+    }
+
+    if (req.body?.action === "change_password") {
+      const body = validatePayload(req.body, changePasswordSchema, "request body");
+      const account = await getSessionAccount(body.sessionToken);
+      if (!account?.id) {
+        return sendJson(res, 401, {
+          ok: false,
+          error: "Sign in again before changing your password."
+        });
+      }
+      if (
+        !checkRateLimit(req, res, {
+          routeKey: "account:session:password",
+          userKey: account.emailAddress,
+          ipLimit: { windowMs: 15 * 60 * 1000, max: 20 },
+          userLimit: { windowMs: 15 * 60 * 1000, max: 8 }
+        })
+      ) {
+        return;
+      }
+
+      try {
+        const result = await changePassword({
+          sessionToken: body.sessionToken,
+          currentPassword: body.currentPassword,
+          newPassword: body.newPassword
+        });
+
+        return sendJson(res, 200, {
+          ok: true,
+          account: result.account
+        });
+      } catch (error) {
+        return sendJson(res, 200, {
+          ok: false,
+          error: error.message || "Could not update password."
+        });
+      }
     }
 
     const body = validatePayload(req.body, legalAcceptanceSchema, "request body");

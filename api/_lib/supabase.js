@@ -101,6 +101,20 @@ async function insertAccount(account) {
   return fromDbAccount(rows?.[0]);
 }
 
+async function updateAccountPassword({ accountId, passwordAlgorithm, passwordSalt, passwordHash }) {
+  if (!accountId) return null;
+  const rows = await supabaseRequest(`pam_accounts?id=eq.${encodeFilter(accountId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      password_algorithm: passwordAlgorithm,
+      password_salt: passwordSalt,
+      password_hash: passwordHash
+    })
+  });
+  return fromDbAccount(rows?.[0]);
+}
+
 async function createSession({ sessionToken, accountId, createdAt }) {
   await supabaseRequest("pam_sessions", {
     method: "POST",
@@ -330,6 +344,7 @@ module.exports = {
   insertTelemetryEvent,
   insertAccount,
   isRecoverableSupabaseStorageError,
+  updateAccountPassword,
   upsertBaseline,
   upsertWaitlistEntry,
   upsertWaitlistEntryLegacy
