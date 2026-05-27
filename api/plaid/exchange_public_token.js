@@ -1,10 +1,12 @@
 const { exchangePublicToken, hasPlaidConfig, storeAccessTokenForSession } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { STATE_PATTERN, checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { hasSupabaseConfig, upsertPlaidItem } = require("../_lib/supabase.js");
 
 const exchangeSchema = {
   properties: {
     clientUserId: { type: "string", minLength: 3, maxLength: 128 },
+    accountId: { type: "string", minLength: 3, maxLength: 128 },
     public_token: { type: "string", minLength: 10, maxLength: 256 },
     institution: {
       type: "object",
@@ -58,6 +60,8 @@ module.exports = async (req, res) => {
       institution: body.institution || null
     });
 
+    const accountId = body.accountId || body.profile?.accountId || "";
+
     storeAccessTokenForSession({
       clientUserId: body.clientUserId,
       accessToken: exchange.accessToken,
@@ -65,6 +69,15 @@ module.exports = async (req, res) => {
       institutionName: exchange.institutionName,
       profile: body.profile || {}
     });
+
+    if (accountId && hasSupabaseConfig()) {
+      await upsertPlaidItem({
+        accountId,
+        plaidItemId: exchange.itemId,
+        institutionName: exchange.institutionName,
+        accessTokenReference: exchange.accessToken
+      });
+    }
 
     return sendJson(res, 200, {
       ok: true,

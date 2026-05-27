@@ -23,6 +23,8 @@ import {
   validateBaseline
 } from "./utils/baseline.mjs";
 import { connectSandboxAccount, loadSandboxFallback } from "./services/plaidClient.js";
+import { defaultGoals, starterScenarios } from "./data/mockData.js";
+import { buildDecisionSession } from "./utils/scenarioEngine.js";
 import {
   CREATE_ACCOUNT_STEPS,
   LEGAL_DISCLAIMER,
@@ -49,6 +51,7 @@ const {
   waitlist: WAITLIST_STORAGE_KEY,
   demoAccess: DEMO_ACCESS_KEY
 } = STORAGE_KEYS;
+const GOALS_STORAGE_KEY = "pam:goals:v1";
 
 const state = {
   baseline: loadStoredBaseline(),
@@ -71,6 +74,8 @@ const state = {
   },
   result: null,
   aiGuidance: null,
+  goals: [],
+  dataFresh: false,
   decisionBusy: false,
   status: "",
   statusScope: "",
@@ -585,6 +590,204 @@ function saveQuestion(question) {
   }
 }
 
+function loadUserGoals() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(GOALS_STORAGE_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((goal) => goal && typeof goal === "object") : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveUserGoals(goals) {
+  state.goals = Array.isArray(goals) ? goals : [];
+  try {
+    window.localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(state.goals));
+  } catch (_error) {
+    // Goal persistence is device-local for the prototype and can fail safely.
+  }
+}
+
+function getScenarioProfileFromBaseline(baseline) {
+  const ui = getUiBaseline(baseline);
+  const connectedAccounts = getConnectedAccounts(baseline);
+  const recurringExpenses = getTopConnectedExpenses(baseline, 12);
+  const liabilities = Array.isArray(baseline?.obligations?.liabilities) ? baseline.obligations.liabilities : [];
+  const monthlyIncome = getSpendableIncome(baseline);
+  const monthlyExpenses = getMonthlyExpenses(baseline);
+  const monthlyObligations = getMonthlyObligations(baseline);
+  const retirementContribution = toNumber(baseline?.tax?.retirementContributionMonthly, 0);
+  const fixed = [];
+  const variable = [];
+
+  if (recurringExpenses.length) {
+    recurringExpenses.forEach((item) => {
+      const category = String(item.category || item.name || "").toLowerCase();
+      const entry = {
+        label: item.name || item.category || "Connected spending",
+        amount: toNumber(item.amount, 0),
+        essential: /rent|housing|mortgage|utility|utilities|insurance|loan|debt|student|transport|grocer|food/.test(category)
+      };
+      if (/rent|housing|mortgage|utility|utilities|insurance|loan|debt|student/.test(category)) fixed.push(entry);
+      else variable.push(entry);
+    });
+  } else if (monthlyExpenses > 0) {
+    fixed.push({ label: "Estimated fixed expenses", amount: Math.round(monthlyExpenses * 0.65), essential: true });
+    variable.push({ label: "Estimated variable spending", amount: Math.round(monthlyExpenses * 0.35), essential: false });
+  }
+
+  if (monthlyObligations > 0 && !fixed.some((entry) => /debt|loan/i.test(entry.label))) {
+    fixed.push({ label: "Debt obligations", amount: monthlyObligations, essential: true });
+  }
+
+  const accountAssets = connectedAccounts
+    .filter((account) => toNumber(account.current, 0) > 0)
+    .map((account) => {
+      const type = String(account.type || "").toLowerCase();
+      return {
+        label: account.name || "Connected account",
+        value: toNumber(account.current, 0),
+        bucket: type.includes("invest") || type.includes("retirement") ? "invest" : "cash",
+        liquid: !type.includes("invest") && !type.includes("retirement"),
+        note: account.subtype || account.type || "Connected"
+      };
+    });
+  const assets = accountAssets.length
+    ? accountAssets
+    : [{ label: "Current savings", value: getCurrentSavings(baseline), bucket: "cash", liquid: true, note: "Saved baseline" }];
+
+  return {
+    user: {
+      name: ui.firstName || "PAM user",
+      archetype: "Connected Sandbox profile",
+      city: baseline?.profile?.state || ui.stateCode || "US",
+      objective: getGoalLabel(baseline) || "Make better money decisions before committing."
+    },
+    monthly: {
+      income: [{ label: "Spendable income", amount: monthlyIncome }],
+      fixed,
+      variable,
+      contributions: retirementContribution
+        ? [{ label: "Retirement contributions", amount: retirementContribution, bucket: "invest" }]
+        : []
+    },
+    assets,
+    liabilities: liabilities.map((item) => ({
+      label: item.name || item.type || "Liability",
+      balance: toNumber(item.balance, 0),
+      rate: toNumber(item.rate, 0),
+      monthlyPayment: toNumber(item.minimumPayment ?? item.monthlyPayment, 0),
+      principalShare: Math.max(Math.round(toNumber(item.minimumPayment ?? item.monthlyPayment, 0) * 0.68), 0)
+    })),
+    healthSignals: baseline?.metadata?.notes || []
+  };
+}
+
+function normalizeGoalForScenario(goal, index = 0) {
+  const targetAmount = Math.max(toNumber(goal.targetAmount ?? goal.goalTargetAmount, 0), 1);
+  const currentAmount = Math.max(toNumber(goal.currentAmount, getCurrentSavings(state.baseline)), 0);
+  const timeline = toNumber(goal.targetTimelineMonths ?? goal.goalTimelineMonths, 18);
+  const monthlyContribution = Math.max(toNumber(goal.monthlyContribution, 0), Math.ceil(Math.max(targetAmount - currentAmount, 0) / Math.max(timeline, 1)));
+  return {
+    id: goal.id || `goal-${index}`,
+    title: goal.title || goal.primaryGoal || getGoalLabel(state.baseline) || "Main goal",
+    category: goal.category || "Personal goal",
+    targetAmount,
+    currentAmount,
+    monthlyContribution,
+    priority: goal.priority || "high",
+    fundingSource: goal.fundingSource || "cash",
+    targetTimelineMonths: timeline || 18,
+    annualReturn: toNumber(goal.annualReturn, goal.fundingSource === "invest" ? 0.066 : 0.024)
+  };
+}
+
+function getGoalsFromBaseline(baseline) {
+  const savedGoals = Array.isArray(state.goals) ? state.goals : [];
+  if (savedGoals.length) return savedGoals.map(normalizeGoalForScenario);
+
+  const label = getGoalLabel(baseline);
+  const targetAmount = toNumber(baseline?.goals?.goalTargetAmount, 0);
+  if (label && targetAmount > 0) {
+    return [
+      normalizeGoalForScenario({
+        id: "primary-goal",
+        title: label,
+        category: label,
+        targetAmount,
+        currentAmount: getCurrentSavings(baseline),
+        goalTimelineMonths: toNumber(baseline?.goals?.goalTimelineMonths, 18),
+        priority: "high",
+        fundingSource: "cash"
+      })
+    ];
+  }
+
+  const currentSavings = getCurrentSavings(baseline);
+  return defaultGoals.slice(0, 3).map((goal) => normalizeGoalForScenario({
+    ...goal,
+    currentAmount: Math.min(currentSavings, goal.targetAmount)
+  }));
+}
+
+function buildScenarioSession({ prompt = state.question, draft = null } = {}) {
+  const profile = getScenarioProfileFromBaseline(state.baseline);
+  const goals = getGoalsFromBaseline(state.baseline);
+  return buildDecisionSession({
+    prompt,
+    draft,
+    profile,
+    goals,
+    catalog: starterScenarios
+  });
+}
+
+function toLegacyDecisionFromSession(session) {
+  const result = session.result;
+  const draft = session.draft || result.draft || {};
+  const monthlyImpact = result.monthlyCashFlowImpact || 0;
+  const oneTimeImpact = -Math.abs(toNumber(draft.oneTimeCost || draft.upfrontCost || draft.moveCost || draft.legalCost, 0));
+  const mostImpactedGoal = result.goalsSummary?.mostImpactedGoal;
+  return {
+    question: session.prompt || draft.prompt || state.question,
+    scenarioSession: session,
+    decision: {
+      type: result.scenario?.title || draft.type || "Decision",
+      monthlyImpact,
+      oneTimeImpact,
+      taxSavingsMonthly: 0,
+      taxSavingsOneTime: 0,
+      taxImpact: "Educational estimate only. Verify tax treatment with a qualified professional.",
+      assumptions: (result.scenario?.assumptions || []).slice(0, 6).map((value, index) => ({
+        label: `Assumption ${index + 1}`,
+        value
+      })),
+      compoundMonthlyDelta: Math.max(toNumber(draft.monthlyInvestingDelta, 0), 0)
+    },
+    currentBuffer: result.currentPath?.monthlyFreeCash ?? getMonthlyBuffer(state.baseline),
+    newBuffer: result.scenarioPath?.monthlyFreeCash ?? getMonthlyBuffer(state.baseline),
+    projectedSavings12: Math.max((result.scenarioPath?.liquidAssets ?? getCurrentSavings(state.baseline)) + Math.max(result.scenarioPath?.monthlyFreeCash ?? 0, 0) * 12, 0),
+    taxAdjustedMonthlyImpact: monthlyImpact,
+    taxAdjustedOneTimeImpact: oneTimeImpact,
+    risk: {
+      label: result.risk?.label || "Medium",
+      className: result.risk?.label === "High" ? "risk-high" : result.risk?.label === "Medium" ? "risk-medium" : "risk-low"
+    },
+    goalDelay: Number.isFinite(mostImpactedGoal?.deltaMonths) ? Math.max(Math.round(mostImpactedGoal.deltaMonths), 0) : 0,
+    currentGoalMonths: Number.isFinite(mostImpactedGoal?.baselineMonths) ? Math.round(mostImpactedGoal.baselineMonths) : 0,
+    newGoalMonths: Number.isFinite(mostImpactedGoal?.scenarioMonths) ? Math.round(mostImpactedGoal.scenarioMonths) : 0,
+    compoundGrowth: 0,
+    compoundOpportunity: null,
+    explanation: `${result.ahaMoment} ${result.nextStep}`,
+    runwayMonths: Number.isFinite(result.scenarioPath?.runwayMonths) ? Math.round(result.scenarioPath.runwayMonths) : "stable",
+    sandboxInsight: getTopConnectedExpenses(state.baseline, 1)[0]
+      ? `Connected data shows ${getTopConnectedExpenses(state.baseline, 1)[0].name.toLowerCase()} as a major recurring cost.`
+      : "Connected baseline data is shaping this outcome.",
+    mostImpactedGoal: mostImpactedGoal?.title || getGoalLabel(state.baseline) || "Main goal"
+  };
+}
+
 function parseMoneyValue(value, suffix = "") {
   const numeric = Number(String(value || "").replace(/,/g, ""));
   if (!Number.isFinite(numeric)) return 0;
@@ -779,7 +982,7 @@ async function restoreSessionAccount() {
   }
   state.account = payload.account;
   if (payload.baseline) {
-    saveBaseline(payload.baseline);
+    saveBaseline(state.account ? syncAccountIntoBaseline(state.account, payload.baseline) : payload.baseline);
   }
   if (payload.legalAcceptance) {
     saveLegalAcceptance(payload.legalAcceptance);
@@ -1129,11 +1332,12 @@ async function requestDecisionGuidance(question, result) {
   return payload;
 }
 
-async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.") {
+async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.", options = {}) {
   saveQuestion(question);
   saveWorkspaceView("dashboard");
   saveMobileView("result");
-  state.result = analyzeQuestion(question);
+  const session = options.session || buildScenarioSession({ prompt: question, draft: options.draft || null });
+  state.result = toLegacyDecisionFromSession(session);
   state.aiGuidance = null;
   state.decisionBusy = true;
   trackEvent("decision_analyzed", {
@@ -1593,11 +1797,23 @@ async function handleSandboxSampleData() {
     return;
   }
   const sandboxPayload = loadSandboxFallback(state.baseline);
-  saveBaseline(sandboxPayload.baseline);
+  saveBaseline(state.account ? syncAccountIntoBaseline(state.account, sandboxPayload.baseline) : sandboxPayload.baseline);
+  state.dataFresh = true;
+  saveWorkspaceView("dashboard");
+  saveMobileView("home");
   setStatus(sandboxPayload.status, "account");
   state.inlineGoalError = "";
+  render();
+  await new Promise((resolve) => setTimeout(resolve, 300));
   if (hasCompletedBaseline(state.baseline)) {
     await runDecisionAnalysis(state.question, sandboxPayload.status);
+    saveMobileView("home");
+    render();
+    requestAnimationFrame(() => document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setTimeout(() => {
+      state.dataFresh = false;
+      render();
+    }, 2000);
     return;
   }
   render();
@@ -1622,28 +1838,59 @@ async function handleConnectSandboxAccount(options = {}) {
   }
 
   try {
-    const payload = await connectSandboxAccount(state.baseline.profile);
+    const payload = await connectSandboxAccount({
+      ...state.baseline.profile,
+      accountId: state.account?.id || ""
+    });
     saveBaseline(payload.baseline);
+    state.dataFresh = true;
+    saveWorkspaceView("dashboard");
+    saveMobileView("home");
     if (!silent) setStatus(payload.status, "account");
     state.inlineGoalError = "";
+    if (!silent) {
+      render();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
     if (silent) {
-      state.result = analyzeQuestion(state.question);
+      state.result = toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question }));
     } else {
       await runDecisionAnalysis(state.question, payload.status);
+      saveMobileView("home");
+      render();
+      requestAnimationFrame(() => document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      setTimeout(() => {
+        state.dataFresh = false;
+        render();
+      }, 2000);
     }
   } catch (error) {
     const fallbackPayload = loadSandboxFallback(state.baseline);
-    saveBaseline(fallbackPayload.baseline);
+    saveBaseline(state.account ? syncAccountIntoBaseline(state.account, fallbackPayload.baseline) : fallbackPayload.baseline);
+    state.dataFresh = true;
+    saveWorkspaceView("dashboard");
+    saveMobileView("home");
     if (!silent) {
       setStatus(error instanceof Error && error.message
         ? `${error.message} ${fallbackPayload.status}`
         : fallbackPayload.status, "account");
     }
     state.inlineGoalError = "";
+    if (!silent) {
+      render();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
     if (silent) {
-      state.result = analyzeQuestion(state.question);
+      state.result = toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question }));
     } else {
       await runDecisionAnalysis(state.question, fallbackPayload.status);
+      saveMobileView("home");
+      render();
+      requestAnimationFrame(() => document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      setTimeout(() => {
+        state.dataFresh = false;
+        render();
+      }, 2000);
     }
   } finally {
     state.plaidBusy = false;
@@ -1738,8 +1985,39 @@ async function handleStructuredDecisionSubmit(event) {
     ...getStructuredDecisionDraft(mode),
     ...draft
   };
-  const question = buildStructuredDecisionQuestion(mode, formData);
-  await runDecisionAnalysis(question, "Structured scenario analyzed against your baseline.");
+  const scenarioDraft = buildStructuredScenarioDraft(mode, formData);
+  const session = buildScenarioSession({ prompt: scenarioDraft.prompt, draft: scenarioDraft });
+  await runDecisionAnalysis(scenarioDraft.prompt, "Structured scenario analyzed against your baseline.", { session });
+}
+
+function handleGoalFormSubmit(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const title = String(formData.get("goalTitle") || "").trim();
+  const targetAmount = toNumber(formData.get("goalTargetAmount"), 0);
+  if (!title || targetAmount <= 0) {
+    setStatus("Add a goal name and target amount.", "account");
+    render();
+    return;
+  }
+  const currentSavings = getCurrentSavings(state.baseline);
+  saveUserGoals([
+    ...state.goals,
+    {
+      id: `goal-${Date.now()}`,
+      title,
+      category: title,
+      targetAmount,
+      currentAmount: Math.min(currentSavings, targetAmount),
+      monthlyContribution: Math.ceil(Math.max(targetAmount - currentSavings, 0) / 18),
+      priority: "high",
+      fundingSource: "cash",
+      targetTimelineMonths: 18,
+      annualReturn: 0.024
+    }
+  ]);
+  setStatus("Goal saved. PAM will use it in decision modeling.", "account");
+  render();
 }
 
 async function handleLegalAcceptance(event) {
@@ -2498,44 +2776,45 @@ function renderDailyDashboardHome() {
   const monthlyBuffer = getMonthlyBuffer(state.baseline);
   const monthlyExpenses = getMonthlyExpenses(state.baseline);
   const obligations = getMonthlyObligations(state.baseline);
-  const investmentBalance = connectedAccounts
-    .filter((account) => String(account.type || "").includes("investment"))
-    .reduce((sum, account) => sum + Number(account.current || 0), 0);
+  const totalLiabilityBalance = liabilities.reduce((sum, item) => sum + toNumber(item.balance, 0), 0);
+  const connectedBalanceTotal = connectedAccounts.reduce((sum, account) => sum + toNumber(account.current, 0), 0);
   const checkingBalance = connectedAccounts
     .filter((account) => String(account.type || "").includes("checking"))
     .reduce((sum, account) => sum + Number(account.available ?? account.current ?? 0), 0);
-  const netWorth = Math.max(currentSavings + checkingBalance + investmentBalance - obligations * 18, 0);
+  const netWorth = connectedAccounts.length ? connectedBalanceTotal - totalLiabilityBalance : 0;
   const goalLabel = getGoalLabel(state.baseline) || "Move-out fund";
   const goalTarget = Math.max(toNumber(state.baseline.goals.goalTargetAmount), currentSavings + 1);
-  const emergencyTarget = Math.max(Math.round(monthlyExpenses * 3), 1);
-  const retirementStarter = Math.max(Math.round((investmentBalance || 1800) / 0.3), 6000);
-  const spendingPlan = Math.max(monthlyExpenses + 120, 1);
+  const dashboardGoals = getGoalsFromBaseline(state.baseline).slice(0, 3);
+  const spendingPlan = Math.max(monthlyExpenses + Math.max(Math.round(Math.abs(monthlyBuffer) * 0.1), 1), 1);
   const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
   const underPlan = Math.max(spendingPlan - monthlyExpenses, 0);
+  const hasConnectedData = connectedAccounts.length > 0;
   const netWorthRanges = {
-    "1M": { multiplier: 0.35, points: [44, 46, 45, 49, 51, 54, 56, 59], label: "1 month" },
-    "3M": { multiplier: 1, points: [30, 34, 42, 48, 57, 66, 78, 92], label: "3 months" },
-    "6M": { multiplier: 2.1, points: [24, 27, 31, 39, 47, 58, 73, 94], label: "6 months" },
-    "1Y": { multiplier: 4.4, points: [18, 22, 28, 36, 49, 63, 81, 96], label: "1 year" },
-    All: { multiplier: 9.2, points: [12, 18, 24, 35, 48, 61, 80, 98], label: "all time" }
+    "1M": { multiplier: 0.35, label: "1 month" },
+    "3M": { multiplier: 1, label: "3 months" },
+    "6M": { multiplier: 2.1, label: "6 months" },
+    "1Y": { multiplier: 4.4, label: "1 year" },
+    All: { multiplier: 9.2, label: "all time" }
   };
   const activeRange = netWorthRanges[state.netWorthRange] ? state.netWorthRange : "3M";
   const rangeConfig = netWorthRanges[activeRange];
-  const chartPoints = rangeConfig.points;
   const rangeGain = Math.max(Math.round(monthlyBuffer * rangeConfig.multiplier), 0);
   const rangeStartNetWorth = Math.max(netWorth - rangeGain, 0);
   const rangePercent = netWorth > 0 ? ((rangeGain / netWorth) * 100).toFixed(rangeGain >= 1000 ? 1 : 2) : "0.0";
+  const accountValues = connectedAccounts
+    .map((account) => Math.abs(toNumber(account.current, 0)))
+    .filter((value) => value > 0);
+  const maxAccountValue = Math.max(...accountValues, 1);
+  const chartPoints = accountValues.length
+    ? accountValues.slice(0, 8).map((value) => Math.max(14, Math.round((value / maxAccountValue) * 96)))
+    : [12, 12, 12, 12];
   const askPrompts = [
     "Can I afford a $400 car payment?",
     "Am I on track to move out this year?",
     "Should I start a Roth IRA now?"
   ];
-  const expenseRows = topExpenses.length ? topExpenses : [
-    { name: "Housing", amount: Math.round(monthlyExpenses * 0.46), category: "fixed" },
-    { name: "Food & drink", amount: Math.round(monthlyExpenses * 0.2), category: "monthly" },
-    { name: "Transport", amount: Math.round(monthlyExpenses * 0.13), category: "monthly" },
-    { name: "Other", amount: Math.round(monthlyExpenses * 0.21), category: "flex" }
-  ];
+  const expenseRows = topExpenses.length ? topExpenses : [];
+  const dashboardFreshClass = state.dataFresh ? " data-fresh" : "";
   const colors = ["#1e9f78", "#3b82d6", "#c27a13", "#d4507d"];
 
   return `
@@ -2557,7 +2836,7 @@ function renderDailyDashboardHome() {
           </div>
           <div class="daily-update">
             <span class="daily-icon amber">▤</span>
-            <div><strong>Spending ${formatCurrency(underPlan)} under plan</strong><p>${spendingPercent}% of ${formatCurrency(spendingPlan)} plan used.</p></div>
+          <div><strong>${hasConnectedData ? `Spending ${formatCurrency(underPlan)} under plan` : "Connect accounts to see spending"}</strong><p>${hasConnectedData ? `${spendingPercent}% of ${formatCurrency(spendingPlan)} plan used.` : "PAM will build this from connected transactions."}</p></div>
           </div>
         </div>
         <div class="ask-pam-card">
@@ -2570,12 +2849,12 @@ function renderDailyDashboardHome() {
         </div>
       </aside>
 
-      <div class="daily-main-card">
+      <div class="daily-main-card${dashboardFreshClass}">
         <div class="daily-chart-header">
           <div>
             <div class="panel-kicker">Net worth</div>
             <h2>${formatCurrency(netWorth)}</h2>
-            <p class="range-change-copy"><strong>↗ ${formatCurrency(rangeGain)} (${rangePercent}%)</strong><span>${rangeConfig.label} change · from ${formatCurrency(rangeStartNetWorth)}</span></p>
+            <p class="range-change-copy"><strong>${hasConnectedData ? `↗ ${formatCurrency(rangeGain)} (${rangePercent}%)` : "Connect accounts to see your net worth"}</strong><span>${hasConnectedData ? `${rangeConfig.label} change · from ${formatCurrency(rangeStartNetWorth)}` : "No connected account balances are available yet."}</span></p>
           </div>
           <div class="daily-range-tabs" role="tablist" aria-label="Net worth range">
             ${Object.keys(netWorthRanges).map((range) => `
@@ -2599,20 +2878,50 @@ function renderDailyDashboardHome() {
           <div><span>Monthly buffer</span><strong>${formatCurrency(monthlyBuffer)}</strong><small>After goals</small></div>
         </div>
 
-        <div class="daily-spending-card">
+        <div class="daily-spending-card${dashboardFreshClass}">
           <div class="spending-header">
             <div><h3>This month’s spending</h3><p>${formatCurrency(monthlyExpenses)} of ${formatCurrency(spendingPlan)} plan · ${spendingPercent}%</p></div>
             <strong>${formatCurrency(underPlan)} under plan</strong>
           </div>
           <div class="spending-list">
-            ${expenseRows.slice(0, 4).map((item, index) => `
+            ${expenseRows.length ? expenseRows.slice(0, 4).map((item, index) => `
               <div class="spending-row">
                 <span class="spending-dot" style="background:${colors[index % colors.length]}"></span>
                 <strong>${escapeHtml(item.name)}</strong>
                 <em>${formatCurrency(item.amount)}</em>
                 <i><b style="width:${Math.min(100, Math.round((toNumber(item.amount) / spendingPlan) * 100))}%; background:${colors[index % colors.length]}"></b></i>
               </div>
-            `).join("")}
+            `).join("") : `
+              <div class="spending-row placeholder-row">
+                <span class="spending-dot" style="background:${colors[0]}"></span>
+                <strong>Connect accounts to see spending</strong>
+                <em>${formatCurrency(0)}</em>
+                <i><b style="width:0%; background:${colors[0]}"></b></i>
+              </div>
+            `}
+          </div>
+        </div>
+
+        <div class="daily-spending-card accounts-strip${dashboardFreshClass}">
+          <div class="spending-header">
+            <div><h3>Connected accounts</h3><p>${connectedAccounts.length ? `${connectedAccounts.length} accounts feeding PAM` : "Connect accounts to populate this view."}</p></div>
+          </div>
+          <div class="spending-list">
+            ${connectedAccounts.length ? connectedAccounts.slice(0, 5).map((account, index) => `
+              <div class="spending-row">
+                <span class="spending-dot" style="background:${colors[index % colors.length]}"></span>
+                <strong>${escapeHtml(account.name || "Connected account")}</strong>
+                <em>${formatCurrency(toNumber(account.current, 0))}</em>
+                <i><b style="width:${Math.max(8, Math.round((Math.abs(toNumber(account.current, 0)) / maxAccountValue) * 100))}%; background:${colors[index % colors.length]}"></b></i>
+              </div>
+            `).join("") : `
+              <div class="spending-row placeholder-row">
+                <span class="spending-dot" style="background:${colors[0]}"></span>
+                <strong>Connect accounts to see balances</strong>
+                <em>${formatCurrency(0)}</em>
+                <i><b style="width:0%; background:${colors[0]}"></b></i>
+              </div>
+            `}
           </div>
         </div>
       </div>
@@ -2620,9 +2929,15 @@ function renderDailyDashboardHome() {
       <aside class="daily-column">
         <div class="daily-side-card" id="mobile-goals">
           <h3>Your goals</h3>
-          <div class="goal-row"><strong>${escapeHtml(goalLabel)}</strong><span><b style="width:${getProgressPercent(currentSavings, goalTarget)}%"></b></span><p>${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}</p></div>
-          <div class="goal-row blue"><strong>Emergency fund</strong><span><b style="width:${getProgressPercent(currentSavings, emergencyTarget)}%"></b></span><p>${formatCurrency(Math.min(currentSavings, emergencyTarget))} of ${formatCurrency(emergencyTarget)}</p></div>
-          <div class="goal-row amber"><strong>Roth IRA starter</strong><span><b style="width:${getProgressPercent(investmentBalance || 1800, retirementStarter)}%"></b></span><p>${formatCurrency(investmentBalance || 1800)} of ${formatCurrency(retirementStarter)}</p></div>
+          ${dashboardGoals.length ? dashboardGoals.map((goal, index) => `
+            <div class="goal-row ${index === 1 ? "blue" : index === 2 ? "amber" : ""}">
+              <strong>${escapeHtml(goal.title)}</strong>
+              <span><b style="width:${getProgressPercent(goal.currentAmount, goal.targetAmount)}%"></b></span>
+              <p>${formatCurrency(goal.currentAmount)} of ${formatCurrency(goal.targetAmount)}</p>
+            </div>
+          `).join("") : `
+            <div class="goal-row"><strong>No goal yet</strong><span><b style="width:0%"></b></span><p>Add a goal to see progress.</p></div>
+          `}
         </div>
         <div class="daily-side-card insights-stack" id="mobile-insights">
           <h3>PAM insights</h3>
@@ -2642,36 +2957,13 @@ function renderDailyDashboardHome() {
 }
 
 function renderMobileGoalsScreen() {
-  const goalLabel = getGoalLabel(state.baseline) || "Move out safely";
-  const currentSavings = getCurrentSavings(state.baseline);
-  const monthlyExpenses = getMonthlyExpenses(state.baseline);
-  const connectedAccounts = getConnectedAccounts(state.baseline);
-  const investmentBalance = connectedAccounts
-    .filter((account) => String(account.type || "").includes("investment"))
-    .reduce((sum, account) => sum + Number(account.current || 0), 0);
-  const goalTarget = Math.max(toNumber(state.baseline.goals.goalTargetAmount), currentSavings + 1);
-  const emergencyTarget = Math.max(Math.round(monthlyExpenses * 3), 1);
-  const retirementStarter = Math.max(Math.round((investmentBalance || 1800) / 0.3), 6000);
-  const goals = [
-    {
-      title: goalLabel,
-      amount: `${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}`,
-      progress: getProgressPercent(currentSavings, goalTarget),
-      tone: "mint"
-    },
-    {
-      title: "Emergency fund",
-      amount: `${formatCurrency(Math.min(currentSavings, emergencyTarget))} of ${formatCurrency(emergencyTarget)}`,
-      progress: getProgressPercent(currentSavings, emergencyTarget),
-      tone: "blue"
-    },
-    {
-      title: "Roth IRA starter",
-      amount: `${formatCurrency(investmentBalance || 1800)} of ${formatCurrency(retirementStarter)}`,
-      progress: getProgressPercent(investmentBalance || 1800, retirementStarter),
-      tone: "amber"
-    }
-  ];
+  const tones = ["mint", "blue", "amber"];
+  const goals = getGoalsFromBaseline(state.baseline).slice(0, 3).map((goal, index) => ({
+    title: goal.title,
+    amount: `${formatCurrency(goal.currentAmount)} of ${formatCurrency(goal.targetAmount)}`,
+    progress: getProgressPercent(goal.currentAmount, goal.targetAmount),
+    tone: tones[index % tones.length]
+  }));
 
   return `
     <section class="foresee-panel mobile-only-screen mobile-screen mobile-screen-goals" id="mobile-goals-page">
@@ -2688,6 +2980,13 @@ function renderMobileGoalsScreen() {
           </article>
         `).join("")}
       </div>
+      <form class="feedback-form goal-save-form" data-goal-form>
+        <label><span>Add goal</span><input name="goalTitle" placeholder="Move out safely" maxlength="80" /></label>
+        <div class="feedback-inline-actions">
+          <input name="goalTargetAmount" type="number" min="1" placeholder="Target $" />
+          <button class="button button-primary" type="submit">Save goal</button>
+        </div>
+      </form>
     </section>
   `;
 }
@@ -2848,6 +3147,54 @@ function buildStructuredDecisionQuestion(mode, formData) {
   return `What happens if I spend ${formatCurrency(amount)} on ${name}? Priority: ${priority}.`;
 }
 
+function parseDurationMonths(value) {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("ongoing")) return 60;
+  const match = text.match(/(\d+)/);
+  return match ? Math.max(Number(match[1]), 1) : 12;
+}
+
+function buildStructuredScenarioDraft(mode, formData) {
+  if (mode === "recurring") {
+    const name = String(formData.get("name") || "new recurring cost").trim();
+    return {
+      type: "rentIncrease",
+      monthlyExpenseDelta: toNumber(formData.get("amount"), 0),
+      durationMonths: parseDurationMonths(formData.get("duration")),
+      prompt: name
+    };
+  }
+
+  if (mode === "invest") {
+    const amount = toNumber(formData.get("amount"), 0);
+    const years = Math.max(toNumber(formData.get("years"), 10), 1);
+    return {
+      type: "invest",
+      monthlyInvestingDelta: amount,
+      durationMonths: Math.round(years * 12),
+      prompt: `Invest ${formatCurrency(amount)} per month`
+    };
+  }
+
+  if (mode === "income") {
+    const delta = toNumber(formData.get("delta"), 0);
+    return {
+      type: delta > 0 ? "custom" : "incomeReduction",
+      monthlyIncomeDelta: delta,
+      durationMonths: parseDurationMonths(formData.get("timing")),
+      prompt: `Income change ${formatSignedCurrency(delta)} per month`
+    };
+  }
+
+  const name = String(formData.get("name") || "this purchase").trim();
+  return {
+    type: "emergency",
+    oneTimeCost: toNumber(formData.get("amount"), 0),
+    durationMonths: 12,
+    prompt: name
+  };
+}
+
 function renderStructuredDecisionBuilder() {
   const modes = getStructuredDecisionModeConfig();
   const activeMode = modes[state.decisionMode] ? state.decisionMode : "expense";
@@ -2936,6 +3283,55 @@ function getAdvisorSummary(result, goalLabel) {
     followUpPrompt: "Next, compare one safer version before you decide.",
     followUpChoiceLabels: getDecisionNextSteps(result).slice(0, 3)
   };
+}
+
+function renderScenarioEngineDetails(result) {
+  const session = result?.scenarioSession;
+  const scenario = session?.result;
+  if (!scenario) return "";
+  const goals = scenario.goalsSummary?.goals || [];
+  const offsetActions = scenario.offsetPlan?.actions || [];
+  const trace = scenario.reasoningTrace || [];
+
+  return `
+    <div class="result-section scenario-engine-output">
+      <h3>Aha moment</h3>
+      <p>${escapeHtml(scenario.ahaMoment || result.explanation)}</p>
+      <div class="outcome-grid">
+        ${(scenario.impactCards || []).map((card) => `
+          <div><span>${escapeHtml(card.label)}</span><strong>${escapeHtml(card.value)}</strong><small>${escapeHtml(card.detail || "")}</small></div>
+        `).join("")}
+      </div>
+      ${goals.length ? `
+        <h3>Goal impact</h3>
+        <div class="goal-impact-stack">
+          ${goals.slice(0, 3).map((goal) => `
+            <div class="goal-impact-row">
+              <span class="gi-name">${escapeHtml(goal.title)}</span>
+              <span class="gi-change ${goal.deltaMonths > 0 ? "bad" : "neutral"}">${Number.isFinite(goal.deltaMonths) ? formatMonths(Math.max(Math.round(goal.deltaMonths), 0)) : escapeHtml(goal.status || "At risk")}</span>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${offsetActions.length ? `
+        <h3>Offset plan</h3>
+        <div class="goal-impact-stack">
+          ${offsetActions.map((action) => `
+            <div class="goal-impact-row">
+              <span class="gi-name">${escapeHtml(action.label)}</span>
+              <span class="gi-change neutral">${action.amount ? `${formatCurrency(action.amount)} ${escapeHtml(action.cadence || "")}` : escapeHtml(action.cadence || "No cut")}</span>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${trace.length ? `
+        <h3>Reasoning trace</h3>
+        <div class="reasoning-trace-list">
+          ${trace.map((step) => `<p><strong>${escapeHtml(step.label)}</strong> ${escapeHtml(step.detail)}</p>`).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
 }
 
 function renderDashboardSummary() {
@@ -3290,7 +3686,7 @@ function renderResult() {
     </section>
   `;
   }
-  const result = state.result || analyzeQuestion(state.question);
+  const result = state.result || toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question }));
   state.result = result;
   const goalLabel = getGoalLabel(state.baseline);
   const advisorSummary = getAdvisorSummary(result, goalLabel);
@@ -3357,6 +3753,7 @@ function renderResult() {
           <div><span>Most impacted goal</span><strong>${escapeHtml(result.mostImpactedGoal)}</strong></div>
         </div>
       </div>
+      ${renderScenarioEngineDetails(result)}
       <div class="result-section next-step-box">
         <h3>Next step</h3>
         <p>${result.risk.label === "Low" ? "This looks workable. PAM can still help test a cleaner version before you commit." : result.risk.label === "Medium" ? "This is possible, but the safer move is to compare a lower-cost version or a better time to do it." : "This needs a safer version before it becomes realistic."}</p>
@@ -3773,6 +4170,9 @@ function wireInteractions() {
   document.querySelectorAll("[data-structured-decision-form]").forEach((form) => {
     form.addEventListener("submit", handleStructuredDecisionSubmit);
   });
+  document.querySelectorAll("[data-goal-form]").forEach((form) => {
+    form.addEventListener("submit", handleGoalFormSubmit);
+  });
   document.querySelectorAll("[data-decision-mode]").forEach((button) => {
     button.addEventListener("click", handleDecisionModeClick);
   });
@@ -4000,7 +4400,8 @@ export async function startApp() {
     saveWorkspaceView("landing");
     state.waitlistOpen = false;
   }
-  state.result = canAccessDashboard() ? analyzeQuestion(state.question) : null;
+  state.goals = loadUserGoals();
+  state.result = canAccessDashboard() ? toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question })) : null;
   trackEvent("app_loaded", {
     view: state.workspaceView,
     hasAccount: hasPrototypeAccount(),

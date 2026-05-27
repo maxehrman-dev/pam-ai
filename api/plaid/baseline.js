@@ -1,10 +1,12 @@
 const { buildNormalizedBaseline, getStoredSession, hasPlaidConfig } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { findLatestPlaidItemByAccountId, hasSupabaseConfig } = require("../_lib/supabase.js");
 
 const baselineQuerySchema = {
   properties: {
-    clientUserId: { type: "string", minLength: 3, maxLength: 128 }
+    clientUserId: { type: "string", minLength: 3, maxLength: 128 },
+    accountId: { type: "string", minLength: 3, maxLength: 128 }
   },
   required: ["clientUserId"]
 };
@@ -37,7 +39,19 @@ module.exports = async (req, res) => {
     }
 
     const clientUserId = query.clientUserId;
-    const session = getStoredSession(clientUserId);
+    let session = getStoredSession(clientUserId);
+    if (query.accountId && hasSupabaseConfig()) {
+      const plaidItem = await findLatestPlaidItemByAccountId(query.accountId);
+      if (plaidItem?.access_token_reference) {
+        session = {
+          accessToken: plaidItem.access_token_reference,
+          itemId: plaidItem.plaid_item_id,
+          institutionName: plaidItem.institution_name,
+          profile: {}
+        };
+      }
+    }
+
     if (!session?.accessToken) {
       return sendJson(res, 200, {
         ok: false,
@@ -47,7 +61,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    const baseline = await buildNormalizedBaseline({ clientUserId });
+    const baseline = await buildNormalizedBaseline({ clientUserId, session });
     return sendJson(res, 200, {
       ok: true,
       mode: "sandbox",

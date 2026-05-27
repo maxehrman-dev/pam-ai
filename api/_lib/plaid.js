@@ -419,8 +419,8 @@ exports.storeAccessTokenForSession = ({ clientUserId, accessToken, itemId, insti
 
 exports.getStoredSession = (clientUserId) => SANDBOX_ACCESS_TOKENS.get(getSessionKey(clientUserId));
 
-exports.buildNormalizedBaseline = async ({ clientUserId }) => {
-  const session = SANDBOX_ACCESS_TOKENS.get(getSessionKey(clientUserId));
+exports.buildNormalizedBaseline = async ({ clientUserId, session: providedSession }) => {
+  const session = providedSession || SANDBOX_ACCESS_TOKENS.get(getSessionKey(clientUserId));
   if (!session?.accessToken) {
     throw new Error("No sandbox session available.");
   }

@@ -73,15 +73,18 @@ async function createLinkToken(profile) {
 }
 
 async function exchangePublicToken(publicToken, metadata, profile) {
+  const { accountId: _accountId, ...safeProfile } = profile || {};
+  const body = {
+    clientUserId: getPlaidClientUserId(),
+    public_token: publicToken,
+    institution: metadata?.institution || null,
+    profile: safeProfile
+  };
+  if (profile?.accountId) body.accountId = profile.accountId;
   const response = await fetch("/api/plaid/exchange_public_token", {
     method: "POST",
     headers: getJsonHeaders(),
-    body: JSON.stringify({
-      clientUserId: getPlaidClientUserId(),
-      public_token: publicToken,
-      institution: metadata?.institution || null,
-      profile
-    })
+    body: JSON.stringify(body)
   });
 
   const payload = await readJsonSafe(response);
@@ -92,8 +95,12 @@ async function exchangePublicToken(publicToken, metadata, profile) {
   return payload;
 }
 
-async function fetchBaseline() {
-  const response = await fetch(`/api/plaid/baseline?clientUserId=${encodeURIComponent(getPlaidClientUserId())}`);
+async function fetchBaseline(profile) {
+  const params = new URLSearchParams({
+    clientUserId: getPlaidClientUserId()
+  });
+  if (profile?.accountId) params.set("accountId", profile.accountId);
+  const response = await fetch(`/api/plaid/baseline?${params.toString()}`);
   const payload = await readJsonSafe(response);
   if (!response.ok || !payload?.ok || !payload?.baseline) {
     throw new Error(payload?.error || "Unable to build a baseline from Plaid Sandbox.");
@@ -124,7 +131,7 @@ export async function connectSandboxAccount(profile) {
   const linkToken = await createLinkToken(profile);
   const { publicToken, metadata } = await openPlaidLink(plaid, linkToken);
   await exchangePublicToken(publicToken, metadata, profile);
-  const baseline = await fetchBaseline();
+  const baseline = await fetchBaseline(profile);
 
   return {
     baseline,

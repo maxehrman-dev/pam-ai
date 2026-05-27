@@ -224,6 +224,38 @@ async function findBaselineByAccountId(accountId) {
   return rows?.[0]?.baseline || null;
 }
 
+async function upsertPlaidItem({ accountId, plaidItemId = "", institutionName = "", accessTokenReference = "" }) {
+  if (!accountId || !accessTokenReference) return null;
+
+  await supabaseRequest(`pam_plaid_items?account_id=eq.${encodeFilter(accountId)}`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" }
+  });
+
+  // Sandbox-only shortcut: production must encrypt/tokenize access tokens before storage.
+  const rows = await supabaseRequest("pam_plaid_items", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      account_id: accountId,
+      plaid_item_id: plaidItemId || null,
+      institution_name: institutionName || null,
+      access_token_reference: accessTokenReference,
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  return rows?.[0] || null;
+}
+
+async function findLatestPlaidItemByAccountId(accountId) {
+  if (!accountId) return null;
+  const rows = await supabaseRequest(
+    `pam_plaid_items?account_id=eq.${encodeFilter(accountId)}&select=account_id,plaid_item_id,institution_name,access_token_reference,updated_at&order=updated_at.desc&limit=1`
+  );
+  return rows?.[0] || null;
+}
+
 async function insertTelemetryEvent({ eventType, eventName, sessionId = "", page = "", properties = {} }) {
   await supabaseRequest("pam_events", {
     method: "POST",
@@ -334,6 +366,7 @@ module.exports = {
   findAccountByEmail,
   findAccountById,
   findBaselineByAccountId,
+  findLatestPlaidItemByAccountId,
   findLatestLegalAcceptanceByAccountId,
   findVerificationRequest,
   getSession,
@@ -346,6 +379,7 @@ module.exports = {
   isRecoverableSupabaseStorageError,
   updateAccountPassword,
   upsertBaseline,
+  upsertPlaidItem,
   upsertWaitlistEntry,
   upsertWaitlistEntryLegacy
 };
