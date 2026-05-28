@@ -115,6 +115,7 @@ const state = {
 };
 
 let isStarted = false;
+let lastMobileViewportState = null;
 
 function loadCookieConsent() {
   if (typeof window === "undefined") return "";
@@ -422,7 +423,7 @@ function loadAuthView() {
 function loadMobileView() {
   if (typeof window === "undefined") return "home";
   const stored = window.localStorage.getItem(MOBILE_VIEW_KEY);
-  return ["home", "ask", "result", "goals", "accounts", "profile"].includes(stored || "") ? stored : "home";
+  return ["home", "ask", "result", "goals", "profile"].includes(stored || "") ? stored : "home";
 }
 
 function loadNetWorthRange() {
@@ -469,12 +470,22 @@ function saveAuthView(view) {
 }
 
 function saveMobileView(view) {
-  state.mobileView = ["home", "ask", "result", "goals", "accounts", "profile"].includes(view) ? view : "home";
+  state.mobileView = ["home", "ask", "result", "goals", "profile"].includes(view) ? view : "home";
   try {
     window.localStorage.setItem(MOBILE_VIEW_KEY, state.mobileView);
   } catch (_error) {
     // Mobile screen state can fall back to in-memory.
   }
+}
+
+function isMobileDashboardViewport() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches;
+}
+
+function scrollMobileScreenTop() {
+  if (!isMobileDashboardViewport()) return false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  return true;
 }
 
 function saveNetWorthRange(range) {
@@ -1348,7 +1359,9 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   setStatus(`${statusMessage} PAM advisor is refining the explanation...`, "decision");
   render();
   requestAnimationFrame(() => {
-    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!scrollMobileScreenTop()) {
+      document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   });
 
   try {
@@ -1366,7 +1379,9 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   state.decisionBusy = false;
   render();
   requestAnimationFrame(() => {
-    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!scrollMobileScreenTop()) {
+      document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   });
 }
 
@@ -2662,6 +2677,10 @@ function renderDashboardWorkspace() {
     `;
   }
 
+  if (isMobileDashboardViewport()) {
+    return renderMobileDashboardWorkspace();
+  }
+
   return `
     <div class="workspace-guide-grid compact-workspace-view mobile-dashboard-view mobile-view-${escapeHtml(state.mobileView)}" id="dashboard-section">
       ${renderMobileAppChrome()}
@@ -2680,8 +2699,35 @@ function renderDashboardWorkspace() {
   `;
 }
 
+function renderMobileDashboardWorkspace() {
+  return `
+    <div class="workspace-guide-grid compact-workspace-view mobile-dashboard-view mobile-app-router mobile-view-${escapeHtml(state.mobileView)}" id="dashboard-section">
+      ${renderMobileAppChrome()}
+      <main class="mobile-active-screen" data-active-mobile-screen="${escapeHtml(state.mobileView)}">
+        ${renderMobileActiveScreen()}
+      </main>
+      ${renderMobileBottomNav()}
+    </div>
+  `;
+}
+
+function renderMobileActiveScreen() {
+  switch (state.mobileView) {
+    case "ask":
+      return renderDecisionPanel();
+    case "result":
+      return renderResult();
+    case "goals":
+      return renderMobileGoalsScreen();
+    case "profile":
+      return renderMobileProfileScreen();
+    case "home":
+    default:
+      return renderMobileHomeScreen();
+  }
+}
+
 function renderMobileAppChrome() {
-  const ui = getUiBaseline(state.baseline);
   return `
     <div class="mobile-app-chrome" aria-label="PAM mobile app header">
       <div class="mobile-brand-lockup">
@@ -2690,10 +2736,6 @@ function renderMobileAppChrome() {
       </div>
       <button type="button" data-mobile-view="profile" aria-label="Open profile">Profile</button>
     </div>
-    <div class="mobile-welcome-card">
-      <p>Hi ${escapeHtml(ui.firstName || "there")}</p>
-      <strong>Here’s your financial overview.</strong>
-    </div>
   `;
 }
 
@@ -2701,8 +2743,8 @@ function renderMobileBottomNav() {
   const items = [
     ["home", "Home"],
     ["ask", "Ask"],
+    ["result", "Result"],
     ["goals", "Goals"],
-    ["accounts", "Accounts"],
     ["profile", "Profile"]
   ];
   return `
@@ -2765,6 +2807,146 @@ function renderFeedbackPanel() {
 function getProgressPercent(current, target) {
   const safeTarget = Math.max(toNumber(target), 1);
   return Math.max(4, Math.min(100, Math.round((toNumber(current) / safeTarget) * 100)));
+}
+
+function renderMobileHomeScreen() {
+  const ui = getUiBaseline(state.baseline);
+  const connectedAccounts = getConnectedAccounts(state.baseline);
+  const topExpenses = getTopConnectedExpenses(state.baseline, 3);
+  const liabilities = state.baseline.obligations?.liabilities || [];
+  const currentSavings = getCurrentSavings(state.baseline);
+  const monthlyBuffer = getMonthlyBuffer(state.baseline);
+  const monthlyExpenses = getMonthlyExpenses(state.baseline);
+  const totalLiabilityBalance = liabilities.reduce((sum, item) => sum + toNumber(item.balance, 0), 0);
+  const connectedBalanceTotal = connectedAccounts.reduce((sum, account) => sum + toNumber(account.current, 0), 0);
+  const checkingBalance = connectedAccounts
+    .filter((account) => String(account.type || "").includes("checking"))
+    .reduce((sum, account) => sum + Number(account.available ?? account.current ?? 0), 0);
+  const netWorth = connectedAccounts.length ? connectedBalanceTotal - totalLiabilityBalance : 0;
+  const firstGoal = getGoalsFromBaseline(state.baseline)[0];
+  const goalProgress = firstGoal ? getProgressPercent(firstGoal.currentAmount, firstGoal.targetAmount) : 0;
+  const spendingPlan = Math.max(monthlyExpenses + Math.max(Math.round(Math.abs(monthlyBuffer) * 0.1), 1), 1);
+  const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
+  const dashboardFreshClass = state.dataFresh ? " data-fresh" : "";
+  const chartValues = connectedAccounts
+    .map((account) => Math.abs(toNumber(account.current, 0)))
+    .filter((value) => value > 0);
+  const maxChartValue = Math.max(...chartValues, 1);
+  const chartPoints = chartValues.length
+    ? chartValues.slice(0, 6).map((value) => Math.max(18, Math.round((value / maxChartValue) * 100)))
+    : [24, 32, 44, 58, 72, 88];
+
+  return `
+    <section class="mobile-home-screen mobile-screen mobile-screen-home${dashboardFreshClass}" id="daily-home">
+      <div class="mobile-home-hero">
+        <div>
+          <span>Hi ${escapeHtml(ui.firstName || "there")}</span>
+          <h2>${connectedAccounts.length ? formatCurrency(netWorth) : "Connect accounts"}</h2>
+          <p>${connectedAccounts.length ? `${formatCurrency(monthlyBuffer)} monthly buffer after goals.` : "Connect Sandbox data to build your dashboard."}</p>
+        </div>
+        <button type="button" data-mobile-view="ask">Ask PAM</button>
+      </div>
+
+      <div class="mobile-home-chart" aria-hidden="true">
+        ${chartPoints.map((point) => `<span style="height:${point}%"></span>`).join("")}
+      </div>
+
+      <div class="mobile-kpi-grid">
+        <article><span>Monthly buffer</span><strong>${formatCurrency(monthlyBuffer)}</strong><small>${monthlyBuffer >= 500 ? "Room to test decisions" : "Keep decisions conservative"}</small></article>
+        <article><span>Checking</span><strong>${formatCurrency(checkingBalance)}</strong><small>Available cash</small></article>
+        <article><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${netWorth > 0 ? `${getProgressPercent(currentSavings, netWorth)}% of net worth` : "From connected data"}</small></article>
+        <article><span>Spending</span><strong>${spendingPercent}%</strong><small>${formatCurrency(monthlyExpenses)} this month</small></article>
+      </div>
+
+      ${firstGoal ? `
+        <article class="mobile-goal-card mint mobile-home-goal">
+          <div>
+            <strong>${escapeHtml(firstGoal.title)}</strong>
+            <span>${formatCurrency(firstGoal.currentAmount)} of ${formatCurrency(firstGoal.targetAmount)}</span>
+          </div>
+          <div class="mobile-goal-track"><b style="width:${goalProgress}%"></b></div>
+        </article>
+      ` : ""}
+
+      <div class="mobile-home-section">
+        <div class="mobile-home-section-header">
+          <h3>Top spending</h3>
+          <button type="button" data-mobile-view="ask">Test a decision</button>
+        </div>
+        <div class="mobile-compact-list">
+          ${topExpenses.length ? topExpenses.map((item) => `
+            <div><strong>${escapeHtml(item.name)}</strong><span>${formatCurrency(item.amount)}</span></div>
+          `).join("") : `<div><strong>Connect accounts to see spending</strong><span>${formatCurrency(0)}</span></div>`}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderMobileProfileScreen() {
+  const baseline = getUiBaseline(state.baseline);
+  const account = state.account || {};
+  const connectedAccounts = getConnectedAccounts(state.baseline);
+  const updatedAt = state.baseline.metadata?.updatedAt ? new Date(state.baseline.metadata.updatedAt) : null;
+  const updatedLabel = updatedAt && Number.isFinite(updatedAt.getTime())
+    ? updatedAt.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "Not synced yet";
+
+  return `
+    <section class="foresee-panel mobile-profile-screen mobile-screen mobile-screen-profile" id="mobile-profile-page">
+      <div class="panel-kicker">Profile</div>
+      <h2>${escapeHtml(account.firstName || baseline.firstName || "Your")} account</h2>
+      <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
+
+      <div class="mobile-profile-stack">
+        <article>
+          <span>Financial data</span>
+          <strong>${connectedAccounts.length ? `${connectedAccounts.length} accounts connected` : "No accounts connected"}</strong>
+          <small>Last sync: ${escapeHtml(updatedLabel)}</small>
+          <div class="settings-action-row">
+            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Syncing..." : connectedAccounts.length ? "Sync accounts" : "Connect accounts"}</button>
+            ${connectedAccounts.length ? "" : `<button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy ? "disabled" : ""}>Use sample baseline</button>`}
+          </div>
+        </article>
+        <article>
+          <span>Display</span>
+          <strong>Theme</strong>
+          <div class="theme-toggle-row" role="group" aria-label="Display theme">
+            ${[["light", "Light"], ["dark", "Dark"], ["system", "System"]].map(([value, label]) => `
+              <button class="${state.displayTheme === value ? "active" : ""}" type="button" data-display-theme="${value}">${label}</button>
+            `).join("")}
+          </div>
+        </article>
+        <article>
+          <span>Security</span>
+          <strong>Password</strong>
+          <form class="compact-password-form" data-password-form>
+            <input type="password" name="currentPassword" placeholder="Current password" autocomplete="current-password" />
+            <input type="password" name="newPassword" placeholder="New password" autocomplete="new-password" />
+            <input type="password" name="confirmNewPassword" placeholder="Confirm new password" autocomplete="new-password" />
+            <button class="button button-secondary" type="submit" ${state.passwordBusy ? "disabled" : ""}>${state.passwordBusy ? "Updating..." : "Change password"}</button>
+          </form>
+          ${state.passwordMessage ? `<p class="auth-status-message">${escapeHtml(state.passwordMessage)}</p>` : ""}
+        </article>
+        <article>
+          <span>Feedback</span>
+          <strong>Help shape PAM</strong>
+          <form class="feedback-form compact-feedback-form" data-feedback-form>
+            <textarea name="feedback" rows="3" maxlength="600" placeholder="What felt confusing or useful?"></textarea>
+            <button class="button button-secondary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send feedback"}</button>
+          </form>
+          ${state.feedbackMessage ? `<p class="auth-status-message">${escapeHtml(state.feedbackMessage)}</p>` : ""}
+        </article>
+        <article>
+          <span>Account</span>
+          <strong>Session</strong>
+          <div class="settings-action-row small">
+            <button class="button button-secondary" type="button" data-logout>Sign out</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
 }
 
 function renderDailyDashboardHome() {
@@ -4345,7 +4527,9 @@ function wireInteractions() {
       if (canUseFinancialFeatures()) {
         await runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
         requestAnimationFrame(() => {
-          document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          if (!scrollMobileScreenTop()) {
+            document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
         });
       } else {
         saveQuestion(question);
@@ -4375,6 +4559,13 @@ export async function startApp() {
     trackEvent("client_unhandled_rejection", {
       message: String(event.reason?.message || event.reason || "Unhandled rejection")
     }, "error");
+  });
+  lastMobileViewportState = isMobileDashboardViewport();
+  window.addEventListener("resize", () => {
+    const nextMobileState = isMobileDashboardViewport();
+    if (nextMobileState === lastMobileViewportState) return;
+    lastMobileViewportState = nextMobileState;
+    render();
   });
   if (shouldShowPublicLaunchGate()) {
     trackEvent("launch_gate_viewed", {

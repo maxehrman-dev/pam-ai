@@ -4505,3 +4505,298 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 900px) {
+  body {
+    padding-bottom: 0;
+  }
+
+  .app-mode-dashboard {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-app-router {
+    gap: 12px;
+  }
+
+  .mobile-app-router .dashboard-primary-grid,
+  .mobile-app-router .dashboard-simulator-stack {
+    display: block;
+  }
+
+  .mobile-app-router .mobile-screen {
+    display: block;
+    animation: mobileScreenIn 180ms ease both;
+  }
+
+  .mobile-active-screen {
+    min-height: calc(100dvh - 176px);
+  }
+
+  .mobile-app-chrome {
+    position: sticky;
+    top: calc(8px + env(safe-area-inset-top));
+    z-index: 60;
+    display: flex;
+    min-height: 64px;
+  }
+
+  .mobile-brand-lockup small {
+    font-size: 0.72rem;
+    line-height: 1.1;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 80;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: 64px;
+    padding: 8px;
+  }
+
+  .mobile-bottom-nav button {
+    min-height: 48px;
+    font-size: 0.88rem;
+  }
+
+  .mobile-home-screen {
+    display: grid;
+    gap: 12px;
+  }
+
+  .mobile-home-hero,
+  .mobile-kpi-grid article,
+  .mobile-home-section,
+  .mobile-profile-stack article {
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(30, 138, 102, 0.12);
+    box-shadow: 0 14px 34px rgba(20, 55, 41, 0.08);
+  }
+
+  .mobile-home-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: end;
+    padding: 18px;
+  }
+
+  .mobile-home-hero span,
+  .mobile-kpi-grid span,
+  .mobile-profile-stack span {
+    color: var(--mint-5);
+    font-size: 0.86rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mobile-home-hero h2 {
+    margin: 6px 0 4px;
+    color: var(--ink-5);
+    font-size: clamp(2.5rem, 13vw, 4rem);
+    line-height: 0.92;
+    letter-spacing: -0.065em;
+  }
+
+  .mobile-home-hero p,
+  .mobile-kpi-grid small,
+  .mobile-profile-stack small {
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .mobile-home-hero button,
+  .mobile-home-section-header button {
+    min-height: 48px;
+    border-radius: 999px;
+    padding: 0 16px;
+    color: white;
+    background: linear-gradient(135deg, var(--mint-4), var(--mint-5));
+    font-size: 1rem;
+    font-weight: 850;
+  }
+
+  .mobile-home-chart {
+    height: 150px;
+    display: flex;
+    align-items: end;
+    gap: 10px;
+    padding: 18px;
+    overflow: hidden;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.8), rgba(216,243,229,0.32));
+    border: 1px solid rgba(30, 138, 102, 0.1);
+  }
+
+  .mobile-home-chart span {
+    flex: 1;
+    min-height: 18%;
+    border-radius: 999px 999px 0 0;
+    background: linear-gradient(180deg, rgba(30, 159, 120, 0.9), rgba(30, 159, 120, 0.08));
+  }
+
+  .mobile-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .mobile-kpi-grid article {
+    display: grid;
+    gap: 6px;
+    min-height: 124px;
+    padding: 16px;
+  }
+
+  .mobile-kpi-grid strong {
+    color: var(--ink-5);
+    font-size: clamp(1.55rem, 7vw, 2.2rem);
+    line-height: 1;
+    letter-spacing: -0.045em;
+  }
+
+  .mobile-home-goal {
+    box-shadow: 0 14px 34px rgba(20, 55, 41, 0.08);
+  }
+
+  .mobile-home-section {
+    padding: 16px;
+  }
+
+  .mobile-home-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .mobile-home-section-header h3 {
+    margin: 0;
+    color: var(--ink-5);
+    font-size: 1.25rem;
+  }
+
+  .mobile-compact-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .mobile-compact-list div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    padding: 10px 0;
+    border-top: 1px solid rgba(12, 21, 18, 0.08);
+    color: var(--ink-5);
+    font-size: 1rem;
+  }
+
+  .decision-panel.mobile-screen-ask,
+  .result-panel.mobile-screen-result,
+  .mobile-only-screen,
+  .mobile-profile-screen {
+    margin: 0;
+    padding: 18px;
+    border-radius: 28px;
+  }
+
+  .structured-field-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .decision-question-form {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-question-form textarea {
+    max-height: none;
+    min-height: 132px;
+    font-size: 1.08rem;
+  }
+
+  .decision-question-form .button {
+    width: 100%;
+    min-height: 54px;
+  }
+
+  .decision-type-tabs button,
+  .structured-field label,
+  .mobile-goal-card span,
+  .connected-account-card small {
+    font-size: 0.9rem;
+  }
+
+  .decision-prompt-stack button:nth-child(n + 4) {
+    display: none;
+  }
+
+  .mobile-profile-stack {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .mobile-profile-stack article {
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .mobile-profile-stack strong {
+    color: var(--ink-5);
+    font-size: 1.25rem;
+  }
+
+  .mobile-profile-stack .settings-action-row,
+  .mobile-profile-stack .theme-toggle-row,
+  .mobile-profile-stack .compact-password-form {
+    width: 100%;
+  }
+
+  .mobile-profile-stack .settings-action-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-profile-stack .button,
+  .mobile-profile-stack input,
+  .mobile-profile-stack textarea {
+    width: 100%;
+  }
+}
+
+@media (max-width: 430px) {
+  .mobile-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-home-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-home-hero button {
+    width: 100%;
+  }
+}
+
+@keyframes mobileScreenIn {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
