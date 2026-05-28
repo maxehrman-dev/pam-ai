@@ -36,6 +36,7 @@ test("manual baseline saves into normalized format", () => {
     firstName: "Jordan",
     emailAddress: "jordan@example.com",
     age: 24,
+    creditScore: 720,
     grossMonthlyIncome: 5600,
     employmentStatus: "W-2 employee",
     stateCode: "CA",
@@ -49,6 +50,7 @@ test("manual baseline saves into normalized format", () => {
 
   assert.equal(baseline.source, "manual");
   assert.equal(baseline.profile.firstName, "Jordan");
+  assert.equal(baseline.profile.creditScore, 720);
   assert.equal(baseline.profile.employmentStatus, "w2");
   assert.equal(baseline.income.grossMonthlyIncome, 5600);
   assert.equal(baseline.goals.goalTargetAmount, 17000);
@@ -62,6 +64,7 @@ test("sandbox-style sample data saves into normalized format", () => {
   assert.equal(getMonthlyExpenses(baseline), 2885);
   assert.equal(getMonthlyObligations(baseline), 330);
   assert.equal(getCurrentSavings(baseline), 17400);
+  assert.equal(baseline.profile.creditScore, 720);
   assert.equal(baseline.savings.connectedAccounts.length >= 4, true);
   assert.equal(baseline.savings.connectedAccounts.some((account) => account.type === "investment"), true);
 });

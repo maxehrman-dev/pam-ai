@@ -917,6 +917,15 @@ function buildReasoningTrace(prompt, draft, result, metrics, followUp) {
     });
   }
 
+  if (result.creditReadiness) {
+    trace.push({
+      label: `${followUp ? "6" : "5"}. Check credit fit`,
+      detail: result.creditReadiness.score
+        ? `Used credit score ${result.creditReadiness.score}, debt-to-income ${formatPercent(result.creditReadiness.debtToIncome)}, and remaining buffer to estimate ${result.creditReadiness.approvalStrength.toLowerCase()}.`
+        : "This decision may involve approval or borrowing, but no credit score is saved yet."
+    });
+  }
+
   return trace;
 }
 
@@ -1242,6 +1251,79 @@ function getRiskLabel(runoutMonths, scenarioMonthlyFreeCash, mostImpactedGoal, s
   };
 }
 
+function getCreditTier(score) {
+  if (!Number.isFinite(score)) {
+    return {
+      label: "Not provided",
+      rateRange: "Add score",
+      detail: "PAM can model cash flow, but loan/lease odds are directional until a credit score is added."
+    };
+  }
+
+  if (score >= 780) return { label: "Excellent", rateRange: "best available rates", detail: "Credit strength should help most approval conversations if income and debt also support it." };
+  if (score >= 720) return { label: "Strong", rateRange: "competitive rates", detail: "Credit score is likely a positive signal, but debt-to-income and income stability still matter." };
+  if (score >= 680) return { label: "Good", rateRange: "average to competitive rates", detail: "Approval can be realistic, though the rate may not be the lowest available." };
+  if (score >= 620) return { label: "Fair", rateRange: "higher rates likely", detail: "Approval may be possible, but pricing, deposit, down payment, or co-signer requirements can become material." };
+  return { label: "Weak", rateRange: "approval may be difficult", detail: "This score can make approval harder or materially more expensive unless income, collateral, or a co-signer offsets it." };
+}
+
+function isCreditSensitiveDecision(draft, prompt = "") {
+  const text = normalizePrompt(`${prompt || ""} ${draft.prompt || ""} ${draft.title || ""}`);
+  return (
+    ["car", "move", "rentIncrease"].includes(draft.type) ||
+    /\b(loan|finance|financing|lease|mortgage|credit|apr|interest|approval|approved|qualify|apartment|landlord|car payment|auto)\b/i.test(text)
+  );
+}
+
+function estimateCreditReadiness(profile, metrics, draft, scenarioMonthlyFreeCash, prompt) {
+  if (!isCreditSensitiveDecision(draft, prompt)) return null;
+
+  const rawScore = profile?.user?.creditScore;
+  const score = rawScore === null || rawScore === undefined || rawScore === "" ? Number.NaN : Number(rawScore);
+  const hasScore = Number.isFinite(score);
+  const tier = getCreditTier(score);
+  const monthlyDebtAfterDecision = metrics.debtPayment + Math.max(Number(draft.monthlyExpenseDelta || 0), 0);
+  const debtToIncome = metrics.monthlyIncome > 0 ? monthlyDebtAfterDecision / metrics.monthlyIncome : 1;
+  const downPayment =
+    draft.type === "car"
+      ? Math.max(Number(draft.upfrontCost || draft.oneTimeCost || 0), 0)
+      : Math.max(Number(draft.oneTimeCost || draft.moveCost || 0), 0);
+  const loanAmount =
+    draft.type === "car"
+      ? Math.max(Number(draft.purchaseAmount || 0) - downPayment, 0)
+      : Math.max(Number(draft.purchaseAmount || draft.oneTimeCost || 0), 0);
+
+  let strength = "Needs more info";
+  if (hasScore) {
+    if (score >= 720 && debtToIncome <= 0.36 && scenarioMonthlyFreeCash >= 600) strength = "Strong chance";
+    else if (score >= 680 && debtToIncome <= 0.43 && scenarioMonthlyFreeCash >= 300) strength = "Workable chance";
+    else if (score >= 620 && debtToIncome <= 0.5 && scenarioMonthlyFreeCash >= 0) strength = "Possible but expensive";
+    else strength = "Low chance";
+  }
+
+  const constraints = [];
+  if (!hasScore) constraints.push("Credit score missing");
+  if (debtToIncome > 0.43) constraints.push("Debt-to-income looks high");
+  if (scenarioMonthlyFreeCash < 300) constraints.push("Monthly buffer is tight");
+  if (draft.type === "car" && loanAmount > 0 && downPayment / Math.max(Number(draft.purchaseAmount || loanAmount), 1) < 0.1) {
+    constraints.push("Down payment may be light");
+  }
+
+  return {
+    score: hasScore ? score : null,
+    tier: tier.label,
+    rateRange: tier.rateRange,
+    approvalStrength: strength,
+    debtToIncome,
+    loanAmount,
+    monthlyDebtAfterDecision,
+    constraints,
+    detail: hasScore
+      ? `${strength}. Score is ${tier.label.toLowerCase()}, debt-to-income would be ${formatPercent(debtToIncome)}, and buffer after the decision is ${formatCurrency(scenarioMonthlyFreeCash)}.`
+      : `Add an approximate credit score to estimate approval strength. Cash-flow risk still uses the connected baseline.`
+  };
+}
+
 function getConfidence(draft, followUp, prompt) {
   let score = 84;
   if (!collectMoneyCandidates(prompt).length) score -= 6;
@@ -1319,6 +1401,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
 
   const goalsSummary = evaluateGoals(goals, normalizedDraft);
   const risk = getRiskLabel(runoutMonths, scenarioMonthlyFreeCash, goalsSummary.mostImpactedGoal, scenarioRunwayMonths);
+  const creditReadiness = estimateCreditReadiness(profile, metrics, normalizedDraft, scenarioMonthlyFreeCash, prompt);
   const confidence = getConfidence(normalizedDraft, null, prompt);
   const healthScore = Math.round(
     clamp(metrics.healthScore + (scenarioMonthlyFreeCash - metrics.monthlyFreeCash) / 40 + longTermNetWorthDelta / 4500, 34, 97)
@@ -1354,6 +1437,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     monthlyCashFlowImpact: scenarioMonthlyFreeCash - metrics.monthlyFreeCash,
     savingsRunoutMonths: runoutMonths,
     risk,
+    creditReadiness,
     confidence,
     goalsSummary,
     ahaMoment: buildAhaMoment(goalsSummary, runoutMonths, scenarioPath, currentPath),
@@ -1382,7 +1466,12 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
         label: "Risk level",
         value: risk.label,
         detail: risk.detail
-      }
+      },
+      ...(creditReadiness ? [{
+        label: "Loan / approval",
+        value: creditReadiness.approvalStrength,
+        detail: creditReadiness.detail
+      }] : [])
     ]
   };
 

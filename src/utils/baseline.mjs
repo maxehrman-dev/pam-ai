@@ -66,6 +66,7 @@ export function getEmptyBaseline() {
       emailAddress: "",
       name: "",
       age: null,
+      creditScore: null,
       state: "OTHER",
       employmentStatus: "unknown"
     },
@@ -307,6 +308,7 @@ export function normalizeManualBaseline(input, previousBaseline = getEmptyBaseli
     emailAddress,
     name: firstName,
     age: hasValue(input.age) ? toNumber(input.age, null) : previousBaseline?.profile?.age ?? null,
+    creditScore: hasValue(input.creditScore) ? toNumber(input.creditScore, null) : previousBaseline?.profile?.creditScore ?? null,
     state,
     employmentStatus
   };
@@ -430,6 +432,7 @@ export function deriveBaselineFromTransactions(transactions = [], accounts = [],
       emailAddress: normalizeString(profileOverrides.emailAddress),
       name: normalizeString(profileOverrides.firstName),
       age: hasValue(profileOverrides.age) ? toNumber(profileOverrides.age, null) : null,
+      creditScore: hasValue(profileOverrides.creditScore) ? toNumber(profileOverrides.creditScore, null) : 720,
       state: normalizeString(profileOverrides.state || "CA") || "CA",
       employmentStatus: profileOverrides.employmentStatus || "w2"
     },
@@ -520,6 +523,7 @@ export function migrateLegacyBaseline(rawBaseline) {
     firstName: rawBaseline.firstName,
     emailAddress: rawBaseline.emailAddress,
     age: rawBaseline.age,
+    creditScore: rawBaseline.creditScore,
     grossMonthlyIncome: rawBaseline.grossMonthlyIncome,
     knownTakeHomeMonthlyIncome: rawBaseline.knownTakeHomeMonthlyIncome || rawBaseline.takeHomeIncome,
     employmentStatus: rawBaseline.employmentStatus,
@@ -621,6 +625,7 @@ export function getUiBaseline(baseline) {
     firstName: baseline?.profile?.firstName || "",
     emailAddress: baseline?.profile?.emailAddress || "",
     age: hasValue(baseline?.profile?.age) ? baseline.profile.age : "",
+    creditScore: hasValue(baseline?.profile?.creditScore) ? baseline.profile.creditScore : "",
     stateCode: baseline?.profile?.state || "OTHER",
     employmentStatus: employmentStatusToLabel(baseline?.profile?.employmentStatus || "unknown"),
     grossMonthlyIncome: hasValue(baseline?.income?.grossMonthlyIncome) ? baseline.income.grossMonthlyIncome : "",

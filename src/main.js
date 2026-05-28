@@ -1,4 +1,4 @@
-import { escapeHtml, formatCurrency, formatSignedCurrency } from "./utils/formatters.js";
+import { escapeHtml, formatCurrency, formatPercent, formatSignedCurrency } from "./utils/formatters.js";
 import {
   estimateGoalDefaults,
   estimateTaxProfile,
@@ -351,6 +351,7 @@ function getInitialAccountDraft() {
     password: "",
     confirmPassword: "",
     age: hasValue(account.age) ? String(account.age) : hasValue(baseline.age) ? String(baseline.age) : "",
+    creditScore: hasValue(baseline.creditScore) ? String(baseline.creditScore) : "",
     cityOrZip: String(account.cityOrZip || baseline.cityOrZip || state.baseline.profile?.cityOrZip || ""),
     firstDecision: String(state.question && !/^Can I afford to move out if rent is \$1,800\?$/.test(state.question) ? state.question : ""),
     employmentStatus: String(account.employmentStatus || baseline.employmentStatus || "Not sure yet"),
@@ -673,6 +674,7 @@ function getScenarioProfileFromBaseline(baseline) {
       name: ui.firstName || "PAM user",
       archetype: "Connected Sandbox profile",
       city: baseline?.profile?.state || ui.stateCode || "US",
+      creditScore: hasValue(baseline?.profile?.creditScore) ? toNumber(baseline.profile.creditScore, null) : null,
       objective: getGoalLabel(baseline) || "Make better money decisions before committing."
     },
     monthly: {
@@ -1038,6 +1040,7 @@ function syncAccountIntoBaseline(account, baseline = state.baseline) {
   nextBaseline.profile.emailAddress = account.emailAddress || nextBaseline.profile.emailAddress || "";
   nextBaseline.profile.name = nextBaseline.profile.firstName;
   nextBaseline.profile.age = hasValue(account.age) ? toNumber(account.age, null) : nextBaseline.profile.age ?? null;
+  nextBaseline.profile.creditScore = hasValue(account.creditScore) ? toNumber(account.creditScore, null) : nextBaseline.profile.creditScore ?? null;
   nextBaseline.profile.employmentStatus = labelToEmploymentStatus(account.employmentStatus || nextBaseline.profile.employmentStatus);
   nextBaseline.profile.state = account.stateCode || nextBaseline.profile.state || "OTHER";
   nextBaseline.metadata = nextBaseline.metadata || {};
@@ -1061,8 +1064,10 @@ function applyOnboardingContextToBaseline(account, draft = {}, baseline = state.
   const inferredState = inferStateFromLocation(cityOrZip);
   const firstDecision = String(draft.firstDecision || state.question || "").trim();
   const inferredGoal = inferGoalFromDecision(firstDecision);
+  const creditScore = hasValue(draft.creditScore) ? toNumber(draft.creditScore, null) : nextBaseline.profile?.creditScore ?? null;
 
   nextBaseline.profile.cityOrZip = cityOrZip;
+  nextBaseline.profile.creditScore = creditScore;
   if (inferredState && (!nextBaseline.profile.state || nextBaseline.profile.state === "OTHER")) {
     nextBaseline.profile.state = inferredState;
   }
@@ -1070,6 +1075,7 @@ function applyOnboardingContextToBaseline(account, draft = {}, baseline = state.
   nextBaseline.metadata.onboarding = {
     cityOrZip,
     inferredState: inferredState || nextBaseline.profile.state || "OTHER",
+    creditScoreProvided: hasValue(creditScore),
     firstDecision,
     inferredGoal,
     updatedAt: new Date().toISOString()
@@ -1077,6 +1083,7 @@ function applyOnboardingContextToBaseline(account, draft = {}, baseline = state.
   nextBaseline.metadata.notes = Array.from(new Set([
     ...(nextBaseline.metadata.notes || []),
     cityOrZip ? `Location: ${cityOrZip}` : "",
+    hasValue(creditScore) ? `Credit score range: ${creditScore}` : "",
     firstDecision ? `First decision: ${firstDecision}` : ""
   ].filter(Boolean)));
 
@@ -1447,6 +1454,7 @@ function readBaselineForm(form) {
     firstName: String(formData.get("firstName") || baseline.firstName),
     emailAddress: String(formData.get("emailAddress") || baseline.emailAddress),
     age: formData.has("age") ? toNumber(formData.get("age")) : baseline.age,
+    creditScore: formData.has("creditScore") ? toNumber(formData.get("creditScore")) : baseline.creditScore,
     grossMonthlyIncome: fieldNumber("grossMonthlyIncome"),
     knownTakeHomeMonthlyIncome: fieldNumber("knownTakeHomeMonthlyIncome"),
     employmentStatus: String(formData.get("employmentStatus") || baseline.employmentStatus),
@@ -1506,6 +1514,7 @@ async function handleCreateAccount(event) {
 
   const onboardingContext = {
     cityOrZip: String(draft.cityOrZip || "").trim(),
+    creditScore: hasValue(draft.creditScore) ? toNumber(draft.creditScore, null) : null,
     firstDecision: String(draft.firstDecision || "").trim()
   };
 
@@ -2464,6 +2473,7 @@ function getDraftModelSignals(draft = ensureAccountDraft()) {
   const cityOrZip = String(draft.cityOrZip || "").trim();
   const firstDecision = String(draft.firstDecision || state.question || "").trim();
   const employmentStatus = String(draft.employmentStatus || "Not sure yet");
+  const creditScore = hasValue(draft.creditScore) ? toNumber(draft.creditScore, null) : null;
   const goal = inferGoalFromDecision(firstDecision);
   const taxSignal = /1099|self|freelance/i.test(employmentStatus)
     ? "PAM will model self-employment tax and possible deductible work expenses."
@@ -2481,6 +2491,11 @@ function getDraftModelSignals(draft = ensureAccountDraft()) {
       label: "Age",
       value: hasValue(age) ? `${age}` : "Not set",
       note: hasValue(age) ? "Changes compound-growth runway and long-term planning horizon." : "Optional, but useful for growth and retirement projections."
+    },
+    {
+      label: "Credit",
+      value: hasValue(creditScore) ? `${creditScore}` : "Not set",
+      note: hasValue(creditScore) ? "Loan, lease, and credit decisions can estimate approval strength." : "Optional, only used for borrowing or apartment-style decisions."
     },
     {
       label: "Income source",
@@ -3487,6 +3502,7 @@ function renderScenarioEngineDetails(result) {
   const goals = scenario.goalsSummary?.goals || [];
   const offsetActions = scenario.offsetPlan?.actions || [];
   const trace = scenario.reasoningTrace || [];
+  const credit = scenario.creditReadiness;
 
   return `
     <div class="result-section scenario-engine-output">
@@ -3507,6 +3523,24 @@ function renderScenarioEngineDetails(result) {
             </div>
           `).join("")}
         </div>
+      ` : ""}
+      ${credit ? `
+        <h3>Credit and approval fit</h3>
+        <div class="goal-impact-stack">
+          <div class="goal-impact-row">
+            <span class="gi-name">Approval strength</span>
+            <span class="gi-change neutral">${escapeHtml(credit.approvalStrength)}</span>
+          </div>
+          <div class="goal-impact-row">
+            <span class="gi-name">Credit profile</span>
+            <span class="gi-change neutral">${escapeHtml(credit.score ? `${credit.score} · ${credit.tier}` : credit.tier)}</span>
+          </div>
+          <div class="goal-impact-row">
+            <span class="gi-name">Debt-to-income after decision</span>
+            <span class="gi-change neutral">${escapeHtml(formatPercent(credit.debtToIncome || 0))}</span>
+          </div>
+        </div>
+        ${credit.constraints?.length ? `<p class="section-compact-note">${escapeHtml(credit.constraints.join(" · "))}</p>` : ""}
       ` : ""}
       ${offsetActions.length ? `
         <h3>Offset plan</h3>
@@ -3618,6 +3652,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             <strong>${escapeHtml(account.firstName || baseline.firstName || "Account")}</strong>
           </div>
           <p>${hasValue(account.age || baseline.age) ? `${escapeHtml(account.age || baseline.age)} years old` : "Age not set"} · ${escapeHtml(account.stateCode || baseline.stateCode || "State not set")}</p>
+          <p>${hasValue(baseline.creditScore) ? `Approx. credit score: ${escapeHtml(baseline.creditScore)}` : "Credit score not set"}</p>
         </article>
         <article class="settings-card">
           <div>
@@ -3708,6 +3743,7 @@ function renderBaselinePanel() {
                           <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "—")}</strong></div>
                           <div><span>Verification</span><strong>${isVerificationConfirmed() ? "Verified" : "Incomplete"}</strong></div>
                           <div><span>Age</span><strong>${escapeHtml(draft.age || "—")}</strong></div>
+                          <div><span>Credit score</span><strong>${escapeHtml(draft.creditScore || "—")}</strong></div>
                           <div><span>ZIP / state</span><strong>${escapeHtml(draft.cityOrZip || "—")}</strong></div>
                           <div><span>First decision</span><strong>${escapeHtml(draft.firstDecision || "—")}</strong></div>
                           <div><span>Main income</span><strong>${escapeHtml(draft.employmentStatus || "—")}</strong></div>

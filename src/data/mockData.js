@@ -3,6 +3,7 @@ export const financialProfile = {
     name: "Demo User",
     archetype: "Measured Builder",
     city: "Seattle, WA",
+    creditScore: 720,
     objective: "Stay liquid enough for real life decisions without sacrificing long-term wealth."
   },
   monthly: {

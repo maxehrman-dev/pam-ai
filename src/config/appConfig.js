@@ -82,6 +82,17 @@ export const CREATE_ACCOUNT_STEPS = [
     step: "1"
   },
   {
+    key: "creditScore",
+    label: "Approximate credit score?",
+    detail: "Optional. PAM uses this only when a decision may involve approval, interest rates, or lease/loan strength.",
+    type: "number",
+    placeholder: "720",
+    required: false,
+    min: "300",
+    max: "850",
+    step: "1"
+  },
+  {
     key: "cityOrZip",
     label: "What ZIP code or state should PAM use?",
     detail: "",
