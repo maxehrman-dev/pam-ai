@@ -118,7 +118,7 @@ module.exports = async (req, res) => {
     delete event.properties.sessionToken;
     const feedback = body.eventName === "feedback_submitted" ? getFeedbackPayload(body.properties) : null;
 
-    let stored = "none";
+    let stored = hasSupabaseConfig() ? "pending" : "not_configured";
     let feedbackStored = "none";
     let forwarded = false;
 
@@ -152,7 +152,8 @@ module.exports = async (req, res) => {
       ok: true,
       stored,
       feedbackStored,
-      forwarded
+      forwarded,
+      supabaseConfigured: hasSupabaseConfig()
     });
   } catch (error) {
     return sendJson(res, error.statusCode || 400, {
