@@ -15,6 +15,15 @@
   --ink-4: #1e2a24;
   --ink-5: #0c1512;
   --shadow-soft: 0 24px 60px rgba(15, 41, 31, 0.08);
+  --pam-surface: rgba(255, 255, 255, 0.76);
+  --pam-surface-strong: rgba(255, 253, 249, 0.92);
+  --pam-surface-soft: rgba(246, 239, 226, 0.68);
+  --pam-surface-tint: rgba(216, 243, 229, 0.42);
+  --pam-input-bg: rgba(255, 255, 255, 0.86);
+  --pam-border: rgba(30, 138, 102, 0.14);
+  --pam-border-strong: rgba(30, 138, 102, 0.22);
+  --pam-track: rgba(12, 21, 18, 0.08);
+  --pam-contrast-shadow: 0 18px 42px rgba(15, 41, 31, 0.08);
 }
 
 :root[data-theme="dark"] {
@@ -33,6 +42,15 @@
   --ink-4: #eef8f2;
   --ink-5: #ffffff;
   --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.28);
+  --pam-surface: rgba(17, 30, 24, 0.92);
+  --pam-surface-strong: rgba(20, 35, 28, 0.96);
+  --pam-surface-soft: rgba(255, 255, 255, 0.07);
+  --pam-surface-tint: rgba(94, 211, 178, 0.12);
+  --pam-input-bg: rgba(6, 13, 10, 0.86);
+  --pam-border: rgba(139, 231, 197, 0.2);
+  --pam-border-strong: rgba(139, 231, 197, 0.34);
+  --pam-track: rgba(255, 255, 255, 0.11);
+  --pam-contrast-shadow: 0 22px 50px rgba(0, 0, 0, 0.34);
 }
 
 * {
@@ -78,6 +96,15 @@ body {
     --ink-4: #eef8f2;
     --ink-5: #ffffff;
     --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.28);
+    --pam-surface: rgba(17, 30, 24, 0.92);
+    --pam-surface-strong: rgba(20, 35, 28, 0.96);
+    --pam-surface-soft: rgba(255, 255, 255, 0.07);
+    --pam-surface-tint: rgba(94, 211, 178, 0.12);
+    --pam-input-bg: rgba(6, 13, 10, 0.86);
+    --pam-border: rgba(139, 231, 197, 0.2);
+    --pam-border-strong: rgba(139, 231, 197, 0.34);
+    --pam-track: rgba(255, 255, 255, 0.11);
+    --pam-contrast-shadow: 0 22px 50px rgba(0, 0, 0, 0.34);
   }
 
   :root[data-theme="system"] body {
@@ -4812,5 +4839,205 @@ input:disabled {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* Theme surface pass: keeps dark mode high-contrast without changing layout. */
+.static-fallback-header,
+.static-fallback-hero,
+.static-fallback-grid article,
+.static-fallback-footer,
+.noscript-panel,
+.foresee-shell,
+.foresee-panel,
+.auth-card,
+.review-panel,
+.verification-panel,
+.waitlist-card,
+.legal-page-card,
+.cookie-banner,
+.daily-column,
+.daily-main-card,
+.daily-side-card,
+.connected-dashboard-card,
+.connected-account-card,
+.structured-sim-card,
+.settings-card,
+.mobile-app-chrome,
+.mobile-welcome-card,
+.mobile-bottom-nav,
+.mobile-only-screen,
+.mobile-active-screen,
+.mobile-goal-card,
+.mobile-kpi-card,
+.mobile-home-panel,
+.mobile-ask-panel,
+.mobile-result-panel {
+  background: var(--pam-surface);
+  border-color: var(--pam-border);
+  box-shadow: var(--pam-contrast-shadow);
+}
+
+.daily-metric-strip div,
+.daily-spending-card,
+.next-step-box,
+.result-section,
+.result-stat-card,
+.goal-impact-row,
+.profile-summary-card,
+.baseline-summary-card,
+.cash-flow-preview,
+.model-interpretation-card,
+.theme-toggle-row button,
+.decision-type-tabs,
+.decision-type-tabs button.active,
+.ask-pam-card button,
+.daily-side-card button,
+.structured-preset-row button,
+.daily-range-tabs button.active,
+.wizard-suggestion-row button,
+.account-pill {
+  background: var(--pam-surface-soft);
+  border-color: var(--pam-border);
+}
+
+input,
+textarea,
+select,
+.profile-form input,
+.profile-form select,
+.profile-form textarea,
+.baseline-form input,
+.baseline-form select,
+.baseline-form textarea,
+.compact-password-form input,
+.ask-pam-mini-form input,
+.structured-field-grid input,
+.structured-field-grid select,
+.decision-question-form textarea {
+  background: var(--pam-input-bg);
+  border-color: var(--pam-border);
+  color: var(--ink-5);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--ink-3) 70%, transparent);
+}
+
+.button-secondary,
+.secondary-action,
+.daily-range-tabs button,
+.theme-toggle-row button {
+  color: var(--ink-4);
+  background: var(--pam-surface);
+  border-color: var(--pam-border);
+}
+
+.decision-type-tabs {
+  background: var(--pam-surface-tint);
+}
+
+.daily-chart,
+.mobile-home-chart {
+  background:
+    linear-gradient(180deg, transparent 0 24%, rgba(111, 224, 190, 0.12) 24% 25%, transparent 25% 49%, rgba(111, 224, 190, 0.12) 49% 50%, transparent 50% 74%, rgba(111, 224, 190, 0.12) 74% 75%, transparent 75%),
+    linear-gradient(180deg, var(--pam-surface-tint), rgba(255, 255, 255, 0.03));
+}
+
+.spending-row i,
+.goal-row span,
+.goal-bar-track,
+.progress-track {
+  background: var(--pam-track);
+}
+
+:root[data-theme="dark"] .daily-icon.mint,
+:root[data-theme="dark"] .decision-mode-pill,
+:root[data-theme="dark"] .risk-low,
+:root[data-theme="dark"] .insight-pill.good {
+  color: #b9ffe2;
+  background: rgba(46, 139, 102, 0.24);
+}
+
+:root[data-theme="dark"] .daily-icon.blue,
+:root[data-theme="dark"] .insight-pill.info {
+  color: #bfddff;
+  background: rgba(59, 130, 214, 0.2);
+}
+
+:root[data-theme="dark"] .daily-icon.amber,
+:root[data-theme="dark"] .risk-medium,
+:root[data-theme="dark"] .insight-pill.warn {
+  color: #ffe0a6;
+  background: rgba(194, 122, 19, 0.22);
+}
+
+:root[data-theme="dark"] .risk-high,
+:root[data-theme="dark"] .error-message,
+:root[data-theme="dark"] .field-error {
+  color: #ffc7c7;
+  background: rgba(159, 29, 29, 0.2);
+}
+
+:root[data-theme="dark"] .button-primary,
+:root[data-theme="dark"] .theme-toggle-row button.active,
+:root[data-theme="dark"] .ask-pam-card .decision-question-form .button-primary {
+  color: #06100c;
+}
+
+:root[data-theme="dark"] .daily-column,
+:root[data-theme="dark"] .daily-main-card,
+:root[data-theme="dark"] .daily-side-card,
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .auth-card,
+:root[data-theme="dark"] .waitlist-card,
+:root[data-theme="dark"] .legal-page-card {
+  backdrop-filter: blur(18px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .daily-icon.mint,
+  :root[data-theme="system"] .decision-mode-pill,
+  :root[data-theme="system"] .risk-low,
+  :root[data-theme="system"] .insight-pill.good {
+    color: #b9ffe2;
+    background: rgba(46, 139, 102, 0.24);
+  }
+
+  :root[data-theme="system"] .daily-icon.blue,
+  :root[data-theme="system"] .insight-pill.info {
+    color: #bfddff;
+    background: rgba(59, 130, 214, 0.2);
+  }
+
+  :root[data-theme="system"] .daily-icon.amber,
+  :root[data-theme="system"] .risk-medium,
+  :root[data-theme="system"] .insight-pill.warn {
+    color: #ffe0a6;
+    background: rgba(194, 122, 19, 0.22);
+  }
+
+  :root[data-theme="system"] .risk-high,
+  :root[data-theme="system"] .error-message,
+  :root[data-theme="system"] .field-error {
+    color: #ffc7c7;
+    background: rgba(159, 29, 29, 0.2);
+  }
+
+  :root[data-theme="system"] .button-primary,
+  :root[data-theme="system"] .theme-toggle-row button.active,
+  :root[data-theme="system"] .ask-pam-card .decision-question-form .button-primary {
+    color: #06100c;
+  }
+
+  :root[data-theme="system"] .daily-column,
+  :root[data-theme="system"] .daily-main-card,
+  :root[data-theme="system"] .daily-side-card,
+  :root[data-theme="system"] .settings-card,
+  :root[data-theme="system"] .auth-card,
+  :root[data-theme="system"] .waitlist-card,
+  :root[data-theme="system"] .legal-page-card {
+    backdrop-filter: blur(18px);
   }
 }
