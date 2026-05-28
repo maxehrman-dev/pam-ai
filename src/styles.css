@@ -2494,7 +2494,7 @@ input:disabled {
 
 .daily-chart {
   height: 260px;
-  margin: 22px 0;
+  margin: 22px 0 34px;
   padding: 20px;
   display: flex;
   align-items: end;
@@ -2507,15 +2507,29 @@ input:disabled {
 
 .dashboard-primary-grid .daily-chart {
   height: 136px;
-  margin: 12px 0;
+  margin: 12px 0 30px;
   padding: 16px;
 }
 
 .daily-chart span {
+  position: relative;
   flex: 1;
   border-radius: 999px 999px 8px 8px;
   background: linear-gradient(180deg, var(--mint-4), rgba(216, 243, 229, 0.32));
   box-shadow: 0 14px 24px rgba(30, 138, 102, 0.12);
+}
+
+.daily-chart span small {
+  position: absolute;
+  right: 50%;
+  bottom: -22px;
+  transform: translateX(50%);
+  color: var(--ink-3);
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .daily-metric-strip {

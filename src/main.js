@@ -2972,24 +2972,37 @@ function renderDailyDashboardHome() {
   const underPlan = Math.max(spendingPlan - monthlyExpenses, 0);
   const hasConnectedData = connectedAccounts.length > 0;
   const netWorthRanges = {
-    "1M": { multiplier: 0.35, label: "1 month" },
-    "3M": { multiplier: 1, label: "3 months" },
-    "6M": { multiplier: 2.1, label: "6 months" },
-    "1Y": { multiplier: 4.4, label: "1 year" },
-    All: { multiplier: 9.2, label: "all time" }
+    "1M": { months: 1, label: "1 month" },
+    "3M": { months: 3, label: "3 months" },
+    "6M": { months: 6, label: "6 months" },
+    "1Y": { months: 12, label: "1 year" },
+    All: { months: 24, label: "24 months" }
   };
   const activeRange = netWorthRanges[state.netWorthRange] ? state.netWorthRange : "3M";
   const rangeConfig = netWorthRanges[activeRange];
-  const rangeGain = Math.max(Math.round(monthlyBuffer * rangeConfig.multiplier), 0);
-  const rangeStartNetWorth = Math.max(netWorth - rangeGain, 0);
-  const rangePercent = netWorth > 0 ? ((rangeGain / netWorth) * 100).toFixed(rangeGain >= 1000 ? 1 : 2) : "0.0";
+  const projectedChange = Math.round(monthlyBuffer * rangeConfig.months);
+  const projectedNetWorth = Math.max(netWorth + projectedChange, 0);
+  const projectedPercent = netWorth > 0 ? ((projectedChange / netWorth) * 100).toFixed(Math.abs(projectedChange) >= 1000 ? 1 : 2) : "0.0";
   const accountValues = connectedAccounts
     .map((account) => Math.abs(toNumber(account.current, 0)))
     .filter((value) => value > 0);
   const maxAccountValue = Math.max(...accountValues, 1);
-  const chartPoints = accountValues.length
-    ? accountValues.slice(0, 8).map((value) => Math.max(14, Math.round((value / maxAccountValue) * 96)))
+  const projectionSteps = activeRange === "1M" ? 4 : activeRange === "3M" ? 6 : 8;
+  const projectionValues = Array.from({ length: projectionSteps }, (_, index) => {
+    const progress = projectionSteps === 1 ? 1 : index / (projectionSteps - 1);
+    return Math.max(netWorth + projectedChange * progress, 0);
+  });
+  const maxProjectionValue = Math.max(...projectionValues, 1);
+  const chartPoints = hasConnectedData
+    ? projectionValues.map((value) => Math.max(14, Math.round((value / maxProjectionValue) * 96)))
     : [12, 12, 12, 12];
+  const chartLabels = hasConnectedData
+    ? projectionValues.map((_, index) => {
+      if (index === 0) return "Now";
+      if (index === projectionValues.length - 1) return activeRange;
+      return "";
+    })
+    : ["", "", "", ""];
   const askPrompts = [
     "Can I afford a $400 car payment?",
     "Am I on track to move out this year?",
@@ -3036,7 +3049,7 @@ function renderDailyDashboardHome() {
           <div>
             <div class="panel-kicker">Net worth</div>
             <h2>${formatCurrency(netWorth)}</h2>
-            <p class="range-change-copy"><strong>${hasConnectedData ? `↗ ${formatCurrency(rangeGain)} (${rangePercent}%)` : "Connect accounts to see your net worth"}</strong><span>${hasConnectedData ? `${rangeConfig.label} change · from ${formatCurrency(rangeStartNetWorth)}` : "No connected account balances are available yet."}</span></p>
+            <p class="range-change-copy"><strong>${hasConnectedData ? `${projectedChange >= 0 ? "↗" : "↘"} ${formatCurrency(Math.abs(projectedChange))} (${projectedPercent}%)` : "Connect accounts to see your net worth"}</strong><span>${hasConnectedData ? `Projected ${rangeConfig.label} path from today’s baseline · ${formatCurrency(projectedNetWorth)} ending estimate` : "No connected account balances are available yet."}</span></p>
           </div>
           <div class="daily-range-tabs" role="tablist" aria-label="Net worth range">
             ${Object.keys(netWorthRanges).map((range) => `
@@ -3052,7 +3065,7 @@ function renderDailyDashboardHome() {
           </div>
         </div>
         <div class="daily-chart" aria-hidden="true">
-          ${chartPoints.map((point) => `<span style="height:${point}%"></span>`).join("")}
+          ${chartPoints.map((point, index) => `<span style="height:${point}%"><small>${escapeHtml(chartLabels[index] || "")}</small></span>`).join("")}
         </div>
         <div class="daily-metric-strip">
           <div><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${getProgressPercent(currentSavings, netWorth)}% of net worth</small></div>
