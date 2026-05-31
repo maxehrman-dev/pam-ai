@@ -23,7 +23,7 @@ import {
   validateBaseline
 } from "./utils/baseline.mjs";
 import { connectSandboxAccount, loadSandboxFallback } from "./services/plaidClient.js";
-import { defaultGoals, starterScenarios } from "./data/mockData.js";
+import { defaultGoals, goalTemplates, starterScenarios } from "./data/mockData.js";
 import { buildDecisionSession } from "./utils/scenarioEngine.js";
 import {
   CREATE_ACCOUNT_STEPS,
@@ -52,6 +52,8 @@ const {
   demoAccess: DEMO_ACCESS_KEY
 } = STORAGE_KEYS;
 const GOALS_STORAGE_KEY = "pam:goals:v1";
+const DECISION_HISTORY_STORAGE_KEY = "pam:decision-history:v1";
+const SAVED_SCENARIOS_STORAGE_KEY = "pam:saved-scenarios:v1";
 
 const state = {
   baseline: loadStoredBaseline(),
@@ -75,6 +77,9 @@ const state = {
   result: null,
   aiGuidance: null,
   goals: [],
+  decisionHistory: [],
+  savedScenarios: [],
+  saveScenarioMessage: "",
   dataFresh: false,
   decisionBusy: false,
   status: "",
@@ -619,6 +624,204 @@ function saveUserGoals(goals) {
   } catch (_error) {
     // Goal persistence is device-local for the prototype and can fail safely.
   }
+}
+
+function readJsonArrayStorage(key) {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object") : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function writeJsonArrayStorage(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(Array.isArray(value) ? value : []));
+  } catch (_error) {
+    // These are product-memory helpers only; the core simulator can still work.
+  }
+}
+
+function loadDecisionHistory() {
+  return readJsonArrayStorage(DECISION_HISTORY_STORAGE_KEY).slice(0, 12);
+}
+
+function saveDecisionHistory(history) {
+  state.decisionHistory = Array.isArray(history) ? history.slice(0, 12) : [];
+  writeJsonArrayStorage(DECISION_HISTORY_STORAGE_KEY, state.decisionHistory);
+}
+
+function loadSavedScenarios() {
+  return readJsonArrayStorage(SAVED_SCENARIOS_STORAGE_KEY).slice(0, 12);
+}
+
+function saveSavedScenarios(scenarios) {
+  state.savedScenarios = Array.isArray(scenarios) ? scenarios.slice(0, 12) : [];
+  writeJsonArrayStorage(SAVED_SCENARIOS_STORAGE_KEY, state.savedScenarios);
+}
+
+function getDecisionMemoryEntry(result) {
+  const session = result?.scenarioSession;
+  const createdAt = new Date().toISOString();
+  return {
+    id: `decision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt,
+    question: result?.question || session?.prompt || state.question || "Decision",
+    decisionType: result?.decision?.type || session?.draft?.type || "Decision",
+    risk: result?.risk?.label || "Medium",
+    monthlyImpact: toNumber(result?.decision?.monthlyImpact, 0),
+    oneTimeImpact: toNumber(result?.decision?.oneTimeImpact, 0),
+    newBuffer: toNumber(result?.newBuffer, getMonthlyBuffer(state.baseline)),
+    goalDelay: toNumber(result?.goalDelay, 0),
+    mostImpactedGoal: result?.mostImpactedGoal || getGoalLabel(state.baseline) || "Main goal",
+    ahaMoment: session?.result?.ahaMoment || result?.explanation || ""
+  };
+}
+
+function recordDecisionHistory(result) {
+  if (!result) return;
+  const entry = getDecisionMemoryEntry(result);
+  const withoutDuplicate = state.decisionHistory.filter((item) => item.question !== entry.question);
+  saveDecisionHistory([entry, ...withoutDuplicate]);
+}
+
+function saveCurrentScenario() {
+  if (!state.result) {
+    state.saveScenarioMessage = "Run a decision first.";
+    return;
+  }
+  const entry = getDecisionMemoryEntry(state.result);
+  const withoutDuplicate = state.savedScenarios.filter((item) => item.question !== entry.question);
+  saveSavedScenarios([entry, ...withoutDuplicate]);
+  state.saveScenarioMessage = "Scenario saved.";
+  trackEvent("scenario_saved", {
+    risk: entry.risk,
+    decisionType: entry.decisionType
+  });
+}
+
+function removeSavedScenario(id) {
+  saveSavedScenarios(state.savedScenarios.filter((item) => item.id !== id));
+  state.saveScenarioMessage = "Saved scenario removed.";
+}
+
+function formatShortDate(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Recent";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function addGoalFromTemplate(templateId) {
+  const template = goalTemplates.find((goal) => goal.id === templateId);
+  if (!template) return;
+  const exists = state.goals.some((goal) => String(goal.title).toLowerCase() === String(template.title).toLowerCase());
+  if (exists) {
+    setStatus("That goal is already saved.", "account");
+    return;
+  }
+  const currentSavings = getCurrentSavings(state.baseline);
+  const targetAmount = Math.max(toNumber(template.targetAmount, 0), 1);
+  saveUserGoals([
+    ...state.goals,
+    {
+      ...template,
+      id: `goal-${Date.now()}`,
+      currentAmount: Math.min(currentSavings, targetAmount),
+      monthlyContribution: toNumber(template.monthlyContribution, Math.ceil(Math.max(targetAmount - currentSavings, 0) / 18)),
+      targetTimelineMonths: template.targetTimelineMonths || 18
+    }
+  ]);
+  setStatus("Goal added. PAM will use it in future decisions.", "account");
+  trackEvent("goal_template_added", { templateId });
+}
+
+function getProfileCompleteness() {
+  const ui = getUiBaseline(state.baseline);
+  const connectedAccounts = getConnectedAccounts(state.baseline);
+  const hasUserGoal = state.goals.length > 0 || (getGoalLabel(state.baseline) && toNumber(state.baseline?.goals?.goalTargetAmount, 0) > 0);
+  const checks = [
+    { label: "Account", complete: Boolean(state.account || ui.emailAddress) },
+    { label: "Legal", complete: hasAcceptedLegalTerms() },
+    { label: "Accounts", complete: connectedAccounts.length > 0 },
+    { label: "Income", complete: getSpendableIncome(state.baseline) > 0 },
+    { label: "Spending", complete: getMonthlyExpenses(state.baseline) > 0 },
+    { label: "Savings", complete: getCurrentSavings(state.baseline) > 0 },
+    { label: "Goal", complete: Boolean(hasUserGoal) },
+    { label: "Credit", complete: hasValue(state.baseline?.profile?.creditScore || ui.creditScore) }
+  ];
+  const completed = checks.filter((check) => check.complete).length;
+  const score = Math.round((completed / checks.length) * 100);
+  return {
+    score,
+    completed,
+    total: checks.length,
+    missing: checks.filter((check) => !check.complete).map((check) => check.label),
+    label: score >= 85 ? "Strong model" : score >= 60 ? "Good start" : "Needs data"
+  };
+}
+
+function getReadinessChecks() {
+  const monthlyBuffer = getMonthlyBuffer(state.baseline);
+  const monthlyExpenses = getMonthlyExpenses(state.baseline);
+  const currentSavings = getCurrentSavings(state.baseline);
+  const creditScore = toNumber(state.baseline?.profile?.creditScore, 0);
+  const goals = getGoalsFromBaseline(state.baseline);
+  const moveOutGoal = goals.find((goal) => /move|rent|apartment|place/i.test(goal.title)) || goals[0];
+  const emergencyTarget = Math.max(monthlyExpenses * 3, 1);
+  const moveOutProgress = moveOutGoal ? getProgressPercent(moveOutGoal.currentAmount, moveOutGoal.targetAmount) : 0;
+  const carReady = monthlyBuffer >= 500 && (!creditScore || creditScore >= 660);
+  const emergencyReady = currentSavings >= emergencyTarget;
+  const investReady = monthlyBuffer >= 300;
+
+  return [
+    {
+      label: "Move-out readiness",
+      status: moveOutProgress >= 80 && monthlyBuffer >= 500 ? "Ready" : "Build more cushion",
+      tone: moveOutProgress >= 80 && monthlyBuffer >= 500 ? "good" : "warn",
+      detail: moveOutGoal ? `${moveOutProgress}% funded · ${formatCurrency(monthlyBuffer)} buffer` : "Add a move-out goal"
+    },
+    {
+      label: "Car / loan readiness",
+      status: carReady ? "Worth testing" : "Needs caution",
+      tone: carReady ? "good" : "warn",
+      detail: creditScore ? `${creditScore} credit score · ${formatCurrency(monthlyBuffer)} buffer` : "Add credit score for better approval modeling"
+    },
+    {
+      label: "Emergency runway",
+      status: emergencyReady ? "Protected" : "Still building",
+      tone: emergencyReady ? "good" : "warn",
+      detail: `${formatCurrency(currentSavings)} saved · ${formatCurrency(emergencyTarget)} target`
+    },
+    {
+      label: "Investing capacity",
+      status: investReady ? "Can model growth" : "Protect cash first",
+      tone: investReady ? "good" : "warn",
+      detail: `${formatCurrency(monthlyBuffer)} monthly buffer`
+    }
+  ];
+}
+
+function exportProfileData() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    account: state.account,
+    baseline: state.baseline,
+    goals: state.goals,
+    decisionHistory: state.decisionHistory,
+    savedScenarios: state.savedScenarios
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "pam-profile-export.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  trackEvent("profile_exported", {}, "security");
 }
 
 function getScenarioProfileFromBaseline(baseline) {
@@ -1356,7 +1559,9 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   saveMobileView("result");
   const session = options.session || buildScenarioSession({ prompt: question, draft: options.draft || null });
   state.result = toLegacyDecisionFromSession(session);
+  recordDecisionHistory(state.result);
   state.aiGuidance = null;
+  state.saveScenarioMessage = "";
   state.decisionBusy = true;
   trackEvent("decision_analyzed", {
     source: state.baseline.source || "unknown",
@@ -2824,6 +3029,49 @@ function getProgressPercent(current, target) {
   return Math.max(4, Math.min(100, Math.round((toNumber(current) / safeTarget) * 100)));
 }
 
+function renderDecisionMemoryList(items, type = "history", emptyCopy = "Run a decision and PAM will remember it here.") {
+  const actionAttr = type === "saved" ? "data-run-saved-scenario" : "data-run-history-question";
+  if (!items.length) {
+    return `
+      <div class="decision-history-list empty">
+        <button type="button" data-mobile-view="ask">
+          <strong>No ${type === "saved" ? "saved scenarios" : "recent decisions"} yet</strong>
+          <span>${escapeHtml(emptyCopy)}</span>
+        </button>
+      </div>
+    `;
+  }
+  return `
+    <div class="decision-history-list">
+      ${items.map((item) => `
+        <div class="decision-history-item">
+          <button type="button" ${actionAttr}="${escapeHtml(item.question)}">
+            <strong>${escapeHtml(item.question)}</strong>
+            <span>${escapeHtml(formatShortDate(item.createdAt))} · ${escapeHtml(item.risk)} · ${formatCurrency(item.newBuffer)} buffer</span>
+          </button>
+          ${type === "saved" ? `<button class="tiny-remove-button" type="button" data-remove-saved-scenario="${escapeHtml(item.id)}" aria-label="Remove saved scenario">×</button>` : ""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderReadinessList(checks = getReadinessChecks()) {
+  return `
+    <div class="readiness-list">
+      ${checks.map((check) => `
+        <div class="readiness-item ${check.tone === "good" ? "good" : "warn"}">
+          <div>
+            <strong>${escapeHtml(check.label)}</strong>
+            <span>${escapeHtml(check.detail)}</span>
+          </div>
+          <em>${escapeHtml(check.status)}</em>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderMobileHomeScreen() {
   const ui = getUiBaseline(state.baseline);
   const connectedAccounts = getConnectedAccounts(state.baseline);
@@ -2843,6 +3091,8 @@ function renderMobileHomeScreen() {
   const spendingPlan = Math.max(monthlyExpenses + Math.max(Math.round(Math.abs(monthlyBuffer) * 0.1), 1), 1);
   const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
   const dashboardFreshClass = state.dataFresh ? " data-fresh" : "";
+  const profileCompleteness = getProfileCompleteness();
+  const recentDecisions = state.decisionHistory.slice(0, 2);
   const chartValues = connectedAccounts
     .map((account) => Math.abs(toNumber(account.current, 0)))
     .filter((value) => value > 0);
@@ -2873,6 +3123,15 @@ function renderMobileHomeScreen() {
         <article><span>Spending</span><strong>${spendingPercent}%</strong><small>${formatCurrency(monthlyExpenses)} this month</small></article>
       </div>
 
+      <div class="profile-completeness-card mobile-home-section">
+        <div class="mobile-home-section-header">
+          <h3>${escapeHtml(profileCompleteness.label)}</h3>
+          <span>${profileCompleteness.score}%</span>
+        </div>
+        <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
+        <p>${profileCompleteness.missing.length ? `Next: ${escapeHtml(profileCompleteness.missing.slice(0, 2).join(", "))}` : "PAM has enough context for stronger modeling."}</p>
+      </div>
+
       ${firstGoal ? `
         <article class="mobile-goal-card mint mobile-home-goal">
           <div>
@@ -2894,6 +3153,26 @@ function renderMobileHomeScreen() {
           `).join("") : `<div><strong>Connect accounts to see spending</strong><span>${formatCurrency(0)}</span></div>`}
         </div>
       </div>
+
+      <div class="mobile-home-section">
+        <div class="mobile-home-section-header">
+          <h3>Recent decisions</h3>
+          <button type="button" data-mobile-view="ask">Ask</button>
+        </div>
+        <div class="decision-history-list compact">
+          ${recentDecisions.length ? recentDecisions.map((item) => `
+            <button type="button" data-run-history-question="${escapeHtml(item.question)}">
+              <strong>${escapeHtml(item.question)}</strong>
+              <span>${escapeHtml(item.risk)} · ${formatCurrency(item.newBuffer)} buffer</span>
+            </button>
+          `).join("") : `
+            <button type="button" data-mobile-view="ask">
+              <strong>Ask your first question</strong>
+              <span>PAM will save recent decisions here.</span>
+            </button>
+          `}
+        </div>
+      </div>
     </section>
   `;
 }
@@ -2902,6 +3181,7 @@ function renderMobileProfileScreen() {
   const baseline = getUiBaseline(state.baseline);
   const account = state.account || {};
   const connectedAccounts = getConnectedAccounts(state.baseline);
+  const profileCompleteness = getProfileCompleteness();
   const updatedAt = state.baseline.metadata?.updatedAt ? new Date(state.baseline.metadata.updatedAt) : null;
   const updatedLabel = updatedAt && Number.isFinite(updatedAt.getTime())
     ? updatedAt.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
@@ -2914,6 +3194,12 @@ function renderMobileProfileScreen() {
       <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
 
       <div class="mobile-profile-stack">
+        <article>
+          <span>Model strength</span>
+          <strong>${escapeHtml(profileCompleteness.label)} · ${profileCompleteness.score}%</strong>
+          <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
+          <small>${profileCompleteness.missing.length ? `Missing: ${escapeHtml(profileCompleteness.missing.slice(0, 3).join(", "))}` : "Ready for stronger decision modeling."}</small>
+        </article>
         <article>
           <span>Financial data</span>
           <strong>${connectedAccounts.length ? `${connectedAccounts.length} accounts connected` : "No accounts connected"}</strong>
@@ -2947,10 +3233,18 @@ function renderMobileProfileScreen() {
           <span>Feedback</span>
           <strong>Help shape PAM</strong>
           <form class="feedback-form compact-feedback-form" data-feedback-form>
-            <textarea name="feedback" rows="3" maxlength="600" placeholder="What felt confusing or useful?"></textarea>
+            <textarea name="feedbackMessage" rows="3" maxlength="600" placeholder="What felt confusing or useful?"></textarea>
             <button class="button button-secondary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send feedback"}</button>
           </form>
           ${state.feedbackMessage ? `<p class="auth-status-message">${escapeHtml(state.feedbackMessage)}</p>` : ""}
+        </article>
+        <article>
+          <span>Saved scenarios</span>
+          <strong>${state.savedScenarios.length} saved</strong>
+          <div class="settings-action-row small">
+            <button class="button button-secondary" type="button" data-export-profile>Export profile</button>
+            ${state.savedScenarios.length ? `<button class="button button-secondary" type="button" data-clear-saved-scenarios>Clear saved</button>` : ""}
+          </div>
         </article>
         <article>
           <span>Account</span>
@@ -3025,6 +3319,10 @@ function renderDailyDashboardHome() {
   ];
   const expenseRows = topExpenses.length ? topExpenses : [];
   const dashboardFreshClass = state.dataFresh ? " data-fresh" : "";
+  const profileCompleteness = getProfileCompleteness();
+  const readinessChecks = getReadinessChecks();
+  const recentDecisions = state.decisionHistory.slice(0, 3);
+  const savedScenarios = state.savedScenarios.slice(0, 3);
   const colors = ["#1e9f78", "#3b82d6", "#c27a13", "#d4507d"];
 
   return `
@@ -3149,6 +3447,26 @@ function renderDailyDashboardHome() {
             <div class="goal-row"><strong>No goal yet</strong><span><b style="width:0%"></b></span><p>Add a goal to see progress.</p></div>
           `}
         </div>
+        <div class="daily-side-card profile-readiness-card">
+          <div class="side-card-heading">
+            <h3>Model strength</h3>
+            <span>${profileCompleteness.score}%</span>
+          </div>
+          <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
+          <p>${profileCompleteness.missing.length ? `Next: ${escapeHtml(profileCompleteness.missing.slice(0, 2).join(", "))}` : "PAM has the core context it needs."}</p>
+        </div>
+        <div class="daily-side-card">
+          <h3>Readiness checks</h3>
+          ${renderReadinessList(readinessChecks)}
+        </div>
+        <div class="daily-side-card">
+          <h3>Recent decisions</h3>
+          ${renderDecisionMemoryList(recentDecisions, "history")}
+        </div>
+        <div class="daily-side-card">
+          <h3>Saved scenarios</h3>
+          ${renderDecisionMemoryList(savedScenarios, "saved", "Save scenarios from a result to compare later.")}
+        </div>
         <div class="daily-side-card insights-stack" id="mobile-insights">
           <h3>PAM insights</h3>
           <p class="ai-output-disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
@@ -3188,6 +3506,11 @@ function renderMobileGoalsScreen() {
             </div>
             <div class="mobile-goal-track"><b style="width:${goal.progress}%"></b></div>
           </article>
+        `).join("")}
+      </div>
+      <div class="goal-template-row">
+        ${goalTemplates.slice(0, 5).map((template) => `
+          <button type="button" data-goal-template="${escapeHtml(template.id)}">${escapeHtml(template.title)}</button>
         `).join("")}
       </div>
       <form class="feedback-form goal-save-form" data-goal-form>
@@ -3630,6 +3953,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
     ["dark", "Dark"],
     ["system", "System"]
   ];
+  const profileCompleteness = getProfileCompleteness();
 
   return `
     <div class="account-settings-shell">
@@ -3646,6 +3970,14 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
       </div>
       ${!hasAcceptedLegalTerms() ? renderLegalGate() : ""}
       <div class="settings-grid">
+        <article class="settings-card">
+          <div>
+            <span>Model strength</span>
+            <strong>${escapeHtml(profileCompleteness.label)} · ${profileCompleteness.score}%</strong>
+          </div>
+          <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
+          <p>${profileCompleteness.missing.length ? `Next: ${escapeHtml(profileCompleteness.missing.slice(0, 3).join(", "))}` : "PAM has the core context it needs."}</p>
+        </article>
         <article class="settings-card">
           <div>
             <span>Personal info</span>
@@ -3696,6 +4028,8 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             <strong>Manage access</strong>
           </div>
           <div class="settings-action-row small">
+            <button class="button button-secondary" type="button" data-export-profile>Export profile</button>
+            ${state.savedScenarios.length ? `<button class="button button-secondary" type="button" data-clear-saved-scenarios>Clear saved scenarios</button>` : ""}
             <button class="button button-secondary" type="button" data-reset-baseline>Disconnect financial data</button>
             <button class="button button-secondary" type="button" data-logout>Sign out</button>
           </div>
@@ -3881,6 +4215,14 @@ function renderDecisionPanel() {
         <div class="quick-question-row decision-prompt-stack">
           ${prompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
         </div>
+        <div class="scenario-template-grid" aria-label="Scenario templates">
+          ${starterScenarios.slice(0, 6).map((scenario) => `
+            <button type="button" data-question-example="${escapeHtml(scenario.prompt)}">
+              <span>${escapeHtml(scenario.label)}</span>
+              <small>${escapeHtml(scenario.teaser || scenario.title || "Model this decision")}</small>
+            </button>
+          `).join("")}
+        </div>
         <form class="foresee-question-form ask-pam-mini-form decision-question-form" data-question-form>
           <label for="pam-question">Ask a financial question</label>
           <textarea id="pam-question" name="question" rows="2" placeholder="Ask anything...">${escapeHtml(state.question)}</textarea>
@@ -3935,8 +4277,12 @@ function renderResult() {
           <div class="panel-kicker">Result</div>
           <h2>Decision outcome</h2>
         </div>
-        <span class="risk-badge ${result.risk.className}">${result.risk.label} risk</span>
+        <div class="result-header-actions">
+          <button class="button button-secondary" type="button" data-save-scenario>Save scenario</button>
+          <span class="risk-badge ${result.risk.className}">${result.risk.label} risk</span>
+        </div>
       </div>
+      ${state.saveScenarioMessage ? `<p class="save-scenario-message">${escapeHtml(state.saveScenarioMessage)}</p>` : ""}
       <div class="result-section advisor-box advisor-summary-box">
         <div class="advisor-summary-topline">
           <h3>PAM summary</h3>
@@ -4570,6 +4916,41 @@ function wireInteractions() {
   document.querySelectorAll("[data-auth-mode]").forEach((button) => {
     button.addEventListener("click", handleAuthModeClick);
   });
+  document.querySelectorAll("[data-save-scenario]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveCurrentScenario();
+      render();
+    });
+  });
+  document.querySelectorAll("[data-run-history-question], [data-run-saved-scenario]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const question = button.dataset.runHistoryQuestion || button.dataset.runSavedScenario || "";
+      if (!question) return;
+      await runDecisionAnalysis(question, "Saved scenario analyzed against your current baseline.");
+    });
+  });
+  document.querySelectorAll("[data-remove-saved-scenario]").forEach((button) => {
+    button.addEventListener("click", () => {
+      removeSavedScenario(button.dataset.removeSavedScenario || "");
+      render();
+    });
+  });
+  document.querySelectorAll("[data-goal-template]").forEach((button) => {
+    button.addEventListener("click", () => {
+      addGoalFromTemplate(button.dataset.goalTemplate || "");
+      render();
+    });
+  });
+  document.querySelectorAll("[data-export-profile]").forEach((button) => {
+    button.addEventListener("click", exportProfileData);
+  });
+  document.querySelectorAll("[data-clear-saved-scenarios]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveSavedScenarios([]);
+      state.saveScenarioMessage = "Saved scenarios cleared.";
+      render();
+    });
+  });
   document.querySelectorAll("[data-question-example]").forEach((button) => {
     button.addEventListener("click", async () => {
       const question = button.dataset.questionExample || "";
@@ -4641,6 +5022,8 @@ export async function startApp() {
     state.waitlistOpen = false;
   }
   state.goals = loadUserGoals();
+  state.decisionHistory = loadDecisionHistory();
+  state.savedScenarios = loadSavedScenarios();
   state.result = canAccessDashboard() ? toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question })) : null;
   trackEvent("app_loaded", {
     view: state.workspaceView,
