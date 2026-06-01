@@ -68,6 +68,7 @@ const state = {
   accountDraft: null,
   question: loadQuestion(),
   decisionMode: "expense",
+  structuredBuilderExpanded: false,
   structuredDecisionDraft: {
     expense: { name: "", amount: "", priority: "Medium" },
     recurring: { name: "", amount: "", duration: "Ongoing" },
@@ -1556,7 +1557,7 @@ async function requestDecisionGuidance(question, result) {
 async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.", options = {}) {
   saveQuestion(question);
   saveWorkspaceView("dashboard");
-  saveMobileView("result");
+  saveMobileView("ask");
   const session = options.session || buildScenarioSession({ prompt: question, draft: options.draft || null });
   state.result = toLegacyDecisionFromSession(session);
   recordDecisionHistory(state.result);
@@ -1571,9 +1572,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   setStatus(`${statusMessage} PAM advisor is refining the explanation...`, "decision");
   render();
   requestAnimationFrame(() => {
-    if (!scrollMobileScreenTop()) {
-      document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 
   try {
@@ -1591,9 +1590,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   state.decisionBusy = false;
   render();
   requestAnimationFrame(() => {
-    if (!scrollMobileScreenTop()) {
-      document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 }
 
@@ -2182,6 +2179,7 @@ function handleDecisionModeClick(event) {
   const mode = event.currentTarget.dataset.decisionMode || "expense";
   if (!getStructuredDecisionModeConfig()[mode]) return;
   state.decisionMode = mode;
+  state.structuredBuilderExpanded = true;
   state.inputWarning = "";
   render();
 }
@@ -2197,6 +2195,7 @@ function handleStructuredPresetClick(event) {
     ...getStructuredDecisionDraft(mode),
     ...preset.draft
   };
+  state.structuredBuilderExpanded = true;
   state.inputWarning = "";
   render();
 }
@@ -2904,15 +2903,7 @@ function renderDashboardWorkspace() {
   return `
     <div class="workspace-guide-grid compact-workspace-view mobile-dashboard-view mobile-view-${escapeHtml(state.mobileView)}" id="dashboard-section">
       ${renderMobileAppChrome()}
-      <div class="dashboard-primary-grid">
-        ${renderDailyDashboardHome()}
-        <div class="dashboard-simulator-stack">
-          ${renderDecisionPanel()}
-          ${renderResult()}
-        </div>
-      </div>
-      ${renderMobileGoalsScreen()}
-      ${renderConnectedInsights()}
+      ${renderDailyDashboardHome()}
       ${renderFeedbackPanel()}
       ${renderMobileBottomNav()}
     </div>
@@ -2934,9 +2925,7 @@ function renderMobileDashboardWorkspace() {
 function renderMobileActiveScreen() {
   switch (state.mobileView) {
     case "ask":
-      return renderDecisionPanel();
-    case "result":
-      return renderResult();
+      return `${renderDecisionPanel()}${renderResult()}`;
     case "goals":
       return renderMobileGoalsScreen();
     case "profile":
@@ -2963,7 +2952,6 @@ function renderMobileBottomNav() {
   const items = [
     ["home", "Home"],
     ["ask", "Ask"],
-    ["result", "Result"],
     ["goals", "Goals"],
     ["profile", "Profile"]
   ];
@@ -3173,6 +3161,7 @@ function renderMobileHomeScreen() {
           `}
         </div>
       </div>
+      </div>
     </section>
   `;
 }
@@ -3312,11 +3301,6 @@ function renderDailyDashboardHome() {
       return "";
     })
     : ["", "", "", ""];
-  const askPrompts = [
-    "Can I afford a $400 car payment?",
-    "Am I on track to move out this year?",
-    "Should I start a Roth IRA now?"
-  ];
   const expenseRows = topExpenses.length ? topExpenses : [];
   const dashboardFreshClass = state.dataFresh ? " data-fresh" : "";
   const profileCompleteness = getProfileCompleteness();
@@ -3347,17 +3331,49 @@ function renderDailyDashboardHome() {
           <div><strong>${hasConnectedData ? `Spending ${formatCurrency(underPlan)} under plan` : "Connect accounts to see spending"}</strong><p>${hasConnectedData ? `${spendingPercent}% of ${formatCurrency(spendingPlan)} plan used.` : "PAM will build this from connected transactions."}</p></div>
           </div>
         </div>
-        <div class="ask-pam-card">
-          <h3>Ask PAM</h3>
-          ${askPrompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
-          <form class="ask-pam-mini-form" data-question-form>
-            <input name="question" placeholder="Ask anything..." />
-            <button type="submit" aria-label="Analyze question">Ask</button>
-          </form>
-        </div>
+        <details class="daily-context-section" open>
+          <summary>Your goals</summary>
+          <div class="daily-context-body">
+            ${dashboardGoals.length ? dashboardGoals.map((goal, index) => `
+              <div class="goal-row ${index === 1 ? "blue" : index === 2 ? "amber" : ""}">
+                <strong>${escapeHtml(goal.title)}</strong>
+                <span><b style="width:${getProgressPercent(goal.currentAmount, goal.targetAmount)}%"></b></span>
+                <p>${formatCurrency(goal.currentAmount)} of ${formatCurrency(goal.targetAmount)}</p>
+              </div>
+            `).join("") : `
+              <div class="goal-row"><strong>No goal yet</strong><span><b style="width:0%"></b></span><p>Add a goal to see progress.</p></div>
+            `}
+          </div>
+        </details>
+        <details class="daily-context-section">
+          <summary>Model strength</summary>
+          <div class="daily-context-body profile-readiness-card">
+            <div class="side-card-heading">
+              <h3>${profileCompleteness.label}</h3>
+              <span>${profileCompleteness.score}%</span>
+            </div>
+            <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
+            <p>${profileCompleteness.missing.length ? `Next: ${escapeHtml(profileCompleteness.missing.slice(0, 2).join(", "))}` : "PAM has the core context it needs."}</p>
+          </div>
+        </details>
+        <details class="daily-context-section">
+          <summary>Readiness</summary>
+          <div class="daily-context-body">${renderReadinessList(readinessChecks)}</div>
+        </details>
+        <details class="daily-context-section">
+          <summary>Recent decisions</summary>
+          <div class="daily-context-body">${renderDecisionMemoryList(recentDecisions, "history")}</div>
+        </details>
+        <details class="daily-context-section">
+          <summary>Saved scenarios</summary>
+          <div class="daily-context-body">${renderDecisionMemoryList(savedScenarios, "saved", "Save scenarios from a result to compare later.")}</div>
+        </details>
       </aside>
 
-      <div class="daily-main-card${dashboardFreshClass}">
+      <div class="daily-action-column">
+        ${renderDecisionPanel()}
+        ${renderResult()}
+        <div class="daily-main-card${dashboardFreshClass}">
         <div class="daily-chart-header">
           <div>
             <div class="panel-kicker">Net worth</div>
@@ -3377,9 +3393,16 @@ function renderDailyDashboardHome() {
             <span class="range-live-note" aria-live="polite">${activeRange} selected</span>
           </div>
         </div>
-        <div class="daily-chart" aria-hidden="true">
-          ${chartPoints.map((point, index) => `<span style="height:${point}%"><small>${escapeHtml(chartLabels[index] || "")}</small></span>`).join("")}
-        </div>
+        ${hasConnectedData ? `
+          <div class="daily-chart" aria-hidden="true">
+            ${chartPoints.map((point, index) => `<span style="height:${point}%"><small>${escapeHtml(chartLabels[index] || "")}</small></span>`).join("")}
+          </div>
+        ` : `
+          <div class="daily-chart-placeholder">
+            <strong>Connect accounts to see your net worth chart.</strong>
+            <span>PAM will replace this with balances from your connected baseline.</span>
+          </div>
+        `}
         <div class="daily-metric-strip">
           <div><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${getProgressPercent(currentSavings, netWorth)}% of net worth</small></div>
           <div><span>Checking</span><strong>${formatCurrency(checkingBalance)}</strong><small>Available</small></div>
@@ -3433,53 +3456,6 @@ function renderDailyDashboardHome() {
           </div>
         </div>
       </div>
-
-      <aside class="daily-column">
-        <div class="daily-side-card" id="mobile-goals">
-          <h3>Your goals</h3>
-          ${dashboardGoals.length ? dashboardGoals.map((goal, index) => `
-            <div class="goal-row ${index === 1 ? "blue" : index === 2 ? "amber" : ""}">
-              <strong>${escapeHtml(goal.title)}</strong>
-              <span><b style="width:${getProgressPercent(goal.currentAmount, goal.targetAmount)}%"></b></span>
-              <p>${formatCurrency(goal.currentAmount)} of ${formatCurrency(goal.targetAmount)}</p>
-            </div>
-          `).join("") : `
-            <div class="goal-row"><strong>No goal yet</strong><span><b style="width:0%"></b></span><p>Add a goal to see progress.</p></div>
-          `}
-        </div>
-        <div class="daily-side-card profile-readiness-card">
-          <div class="side-card-heading">
-            <h3>Model strength</h3>
-            <span>${profileCompleteness.score}%</span>
-          </div>
-          <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
-          <p>${profileCompleteness.missing.length ? `Next: ${escapeHtml(profileCompleteness.missing.slice(0, 2).join(", "))}` : "PAM has the core context it needs."}</p>
-        </div>
-        <div class="daily-side-card">
-          <h3>Readiness checks</h3>
-          ${renderReadinessList(readinessChecks)}
-        </div>
-        <div class="daily-side-card">
-          <h3>Recent decisions</h3>
-          ${renderDecisionMemoryList(recentDecisions, "history")}
-        </div>
-        <div class="daily-side-card">
-          <h3>Saved scenarios</h3>
-          ${renderDecisionMemoryList(savedScenarios, "saved", "Save scenarios from a result to compare later.")}
-        </div>
-        <div class="daily-side-card insights-stack" id="mobile-insights">
-          <h3>PAM insights</h3>
-          <p class="ai-output-disclaimer">PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information.</p>
-          <div class="insight-pill good"><strong>On track</strong><p>${escapeHtml(goalLabel)} is moving forward at your current savings rate.</p></div>
-          <div class="insight-pill warn"><strong>Watch out</strong><p>A $400 car payment could delay ${escapeHtml(goalLabel.toLowerCase())} by several months.</p></div>
-          <div class="insight-pill info"><strong>Opportunity</strong><p>$200/mo invested early could materially change your long-term options.</p></div>
-        </div>
-        <div class="daily-side-card" id="mobile-liabilities">
-          <h3>Liabilities</h3>
-          <p>${liabilities.length ? `${liabilities.length} connected liabilities · ${formatCurrency(getMonthlyObligations(state.baseline))}/mo minimums.` : "No connected liabilities detected."}</p>
-          <button type="button" data-question-example="Should I pay down debt faster?">Should I pay these off faster?</button>
-        </div>
-      </aside>
     </section>
   `;
 }
@@ -3733,18 +3709,19 @@ function renderStructuredDecisionBuilder() {
   const activeMode = modes[state.decisionMode] ? state.decisionMode : "expense";
   const config = modes[activeMode];
   const draft = getStructuredDecisionDraft(activeMode);
+  const expanded = Boolean(state.structuredBuilderExpanded);
 
   return `
-    <div class="structured-simulator" aria-label="Structured decision builder">
+    <div class="structured-simulator ${expanded ? "expanded" : "collapsed"}" aria-label="Structured decision builder">
       <div class="decision-type-tabs" role="tablist" aria-label="Decision type">
         ${Object.entries(modes).map(([key, item]) => `
           <button class="${activeMode === key ? "active" : ""}" type="button" data-decision-mode="${key}" role="tab" aria-selected="${activeMode === key ? "true" : "false"}">${item.label}</button>
         `).join("")}
       </div>
+      ${expanded ? `
       <div class="structured-sim-card">
         <div class="structured-sim-header">
           <span>${escapeHtml(config.title)}</span>
-          <small>Uses your saved baseline</small>
         </div>
         <div class="structured-preset-row">
           ${config.presets.map((preset, index) => `<button type="button" data-structured-preset="${index}" data-preset-mode="${activeMode}">${escapeHtml(preset.label)}</button>`).join("")}
@@ -3757,6 +3734,7 @@ function renderStructuredDecisionBuilder() {
           <button class="button button-primary" type="submit" ${state.decisionBusy ? "disabled" : ""}>${state.decisionBusy ? "Analyzing..." : "Run scenario"}</button>
         </form>
       </div>
+      ` : ""}
     </div>
   `;
 }
@@ -4216,7 +4194,7 @@ function renderDecisionPanel() {
           ${prompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
         </div>
         <div class="scenario-template-grid" aria-label="Scenario templates">
-          ${starterScenarios.slice(0, 6).map((scenario) => `
+          ${starterScenarios.slice(0, 4).map((scenario) => `
             <button type="button" data-question-example="${escapeHtml(scenario.prompt)}">
               <span>${escapeHtml(scenario.label)}</span>
               <small>${escapeHtml(scenario.teaser || scenario.title || "Model this decision")}</small>
@@ -4957,9 +4935,7 @@ function wireInteractions() {
       if (canUseFinancialFeatures()) {
         await runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
         requestAnimationFrame(() => {
-          if (!scrollMobileScreenTop()) {
-            document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
+          document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
         });
       } else {
         saveQuestion(question);
