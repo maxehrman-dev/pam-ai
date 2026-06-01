@@ -1,7 +1,7 @@
 const { checkVerificationRequest, createVerificationRequest } = require("../_lib/account-store.js");
 const { hasEmailProvider, isResendTestingRestriction, sendVerificationEmail } = require("../_lib/email.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
-const { checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 
 const requestCodeSchema = {
   properties: {
@@ -22,6 +22,10 @@ const checkCodeSchema = {
   required: ["action", "emailAddress", "verificationRequestId", "verificationCode"]
 };
 
+function isEmailPaused() {
+  return ["1", "true", "yes", "on"].includes(String(process.env.PAM_DISABLE_EMAIL || process.env.DISABLE_EMAIL || "").trim().toLowerCase());
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
@@ -34,8 +38,8 @@ module.exports = async (req, res) => {
         !checkRateLimit(req, res, {
           routeKey: "account:check-code",
           userKey: body.emailAddress,
-          ipLimit: { windowMs: 10 * 60 * 1000, max: 40 },
-          userLimit: { windowMs: 10 * 60 * 1000, max: 20 }
+          ipLimit: { windowMs: 10 * 60 * 1000, max: 20 },
+          userLimit: { windowMs: 10 * 60 * 1000, max: 10 }
         })
       ) {
         return;
@@ -61,8 +65,20 @@ module.exports = async (req, res) => {
       !checkRateLimit(req, res, {
         routeKey: "account:request-code",
         userKey: body.emailAddress,
-        ipLimit: { windowMs: 10 * 60 * 1000, max: 10 },
-        userLimit: { windowMs: 10 * 60 * 1000, max: 4 }
+        ipLimit: { windowMs: 10 * 60 * 1000, max: 6 },
+        userLimit: { windowMs: 10 * 60 * 1000, max: 3 }
+      })
+    ) {
+      return;
+    }
+
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "account:request-code",
+        userKey: body.emailAddress,
+        ipDailyLimit: 20,
+        userDailyLimit: 6,
+        envLimitKey: "PAM_EMAIL"
       })
     ) {
       return;
@@ -78,7 +94,7 @@ module.exports = async (req, res) => {
     let previewCode = result.previewCode;
     let warning = "";
 
-    if (hasEmailProvider()) {
+    if (hasEmailProvider() && !isEmailPaused()) {
       try {
         await sendVerificationEmail({
           emailAddress,
@@ -93,6 +109,8 @@ module.exports = async (req, res) => {
           throw error;
         }
       }
+    } else if (isEmailPaused()) {
+      warning = "Email verification is temporarily paused.";
     }
 
     return sendJson(res, 200, {

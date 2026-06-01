@@ -1,7 +1,7 @@
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
-const { checkRateLimit, validatePayload } = require("./_lib/security.js");
+const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("./_lib/security.js");
 
 const decisionSchema = {
   properties: {
@@ -403,14 +403,38 @@ module.exports = async (req, res) => {
   try {
     const payload = validatePayload(req.body, decisionSchema, "request body");
     if (
+      !assertServiceEnabled(res, {
+        serviceName: "AI guidance",
+        envKeys: ["PAM_DISABLE_AI", "DISABLE_AI"]
+      })
+    ) {
+      return;
+    }
+
+    if (
       !checkRateLimit(req, res, {
         routeKey: "decision",
         userKey:
           payload.baseline?.profile?.emailAddress ||
           payload.baseline?.profile?.firstName ||
           payload.prompt,
-        ipLimit: { windowMs: 60 * 1000, max: 40 },
-        userLimit: { windowMs: 60 * 1000, max: 20 }
+        ipLimit: { windowMs: 60 * 1000, max: 12 },
+        userLimit: { windowMs: 60 * 1000, max: 6 }
+      })
+    ) {
+      return;
+    }
+
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "decision",
+        userKey:
+          payload.baseline?.profile?.emailAddress ||
+          payload.baseline?.profile?.firstName ||
+          payload.prompt,
+        ipDailyLimit: 80,
+        userDailyLimit: 30,
+        envLimitKey: "PAM_AI"
       })
     ) {
       return;

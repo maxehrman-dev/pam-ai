@@ -136,6 +136,58 @@ test("checkRateLimit returns a graceful 429 after the configured threshold", () 
   assert.ok(secondRes.getHeader("retry-after"));
 });
 
+test("checkDailyUsageBudget returns a graceful 429 after the configured threshold", () => {
+  const { checkDailyUsageBudget } = freshSecurity();
+  const req = { clientIp: "127.0.0.1" };
+  const firstRes = createMockResponse();
+  const secondRes = createMockResponse();
+
+  assert.equal(
+    checkDailyUsageBudget(req, firstRes, {
+      routeKey: "budget-test",
+      ipDailyLimit: 1
+    }),
+    true
+  );
+
+  assert.equal(
+    checkDailyUsageBudget(req, secondRes, {
+      routeKey: "budget-test",
+      ipDailyLimit: 1
+    }),
+    false
+  );
+
+  assert.equal(secondRes.statusCode, 429);
+  assert.match(secondRes.body, /Daily request limit reached/i);
+  assert.ok(secondRes.getHeader("retry-after"));
+});
+
+test("assertServiceEnabled returns a cost-protection 503 when a kill switch is active", () => {
+  const originalValue = process.env.PAM_DISABLE_AI;
+  process.env.PAM_DISABLE_AI = "true";
+  const { assertServiceEnabled } = freshSecurity();
+  const res = createMockResponse();
+
+  try {
+    assert.equal(
+      assertServiceEnabled(res, {
+        serviceName: "AI guidance",
+        envKeys: ["PAM_DISABLE_AI"]
+      }),
+      false
+    );
+    assert.equal(res.statusCode, 503);
+    assert.match(res.body, /temporarily paused/i);
+  } finally {
+    if (originalValue === undefined) {
+      delete process.env.PAM_DISABLE_AI;
+    } else {
+      process.env.PAM_DISABLE_AI = originalValue;
+    }
+  }
+});
+
 test("demo access accepts the fallback tester code without exposing app access by default", async () => {
   const originalCode = process.env.DEMO_ACCESS_CODE;
   delete process.env.DEMO_ACCESS_CODE;

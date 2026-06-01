@@ -1,6 +1,6 @@
 const { buildNormalizedBaseline, getStoredSession, hasPlaidConfig } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
-const { checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 const { findLatestPlaidItemByAccountId, hasSupabaseConfig } = require("../_lib/supabase.js");
 
 const baselineQuerySchema = {
@@ -28,11 +28,32 @@ module.exports = async (req, res) => {
   try {
     const query = validatePayload(req.query, baselineQuerySchema, "query");
     if (
+      !assertServiceEnabled(res, {
+        serviceName: "Plaid Sandbox",
+        envKeys: ["PAM_DISABLE_PLAID", "DISABLE_PLAID"]
+      })
+    ) {
+      return;
+    }
+
+    if (
       !checkRateLimit(req, res, {
         routeKey: "plaid:baseline",
         userKey: query.clientUserId,
-        ipLimit: { windowMs: 5 * 60 * 1000, max: 30 },
-        userLimit: { windowMs: 5 * 60 * 1000, max: 20 }
+        ipLimit: { windowMs: 5 * 60 * 1000, max: 18 },
+        userLimit: { windowMs: 5 * 60 * 1000, max: 10 }
+      })
+    ) {
+      return;
+    }
+
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "plaid:baseline",
+        userKey: query.clientUserId,
+        ipDailyLimit: 80,
+        userDailyLimit: 30,
+        envLimitKey: "PAM_PLAID"
       })
     ) {
       return;

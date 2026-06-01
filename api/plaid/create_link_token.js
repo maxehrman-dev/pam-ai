@@ -1,6 +1,6 @@
 const { createLinkToken, hasPlaidConfig } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
-const { checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 
 const createLinkTokenSchema = {
   properties: {
@@ -28,11 +28,32 @@ module.exports = async (req, res) => {
   try {
     const body = validatePayload(req.body, createLinkTokenSchema, "request body");
     if (
+      !assertServiceEnabled(res, {
+        serviceName: "Plaid Sandbox",
+        envKeys: ["PAM_DISABLE_PLAID", "DISABLE_PLAID"]
+      })
+    ) {
+      return;
+    }
+
+    if (
       !checkRateLimit(req, res, {
         routeKey: "plaid:create-link-token",
         userKey: body.clientUserId,
-        ipLimit: { windowMs: 10 * 60 * 1000, max: 20 },
-        userLimit: { windowMs: 10 * 60 * 1000, max: 10 }
+        ipLimit: { windowMs: 10 * 60 * 1000, max: 10 },
+        userLimit: { windowMs: 10 * 60 * 1000, max: 5 }
+      })
+    ) {
+      return;
+    }
+
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "plaid:create-link-token",
+        userKey: body.clientUserId,
+        ipDailyLimit: 40,
+        userDailyLimit: 12,
+        envLimitKey: "PAM_PLAID"
       })
     ) {
       return;

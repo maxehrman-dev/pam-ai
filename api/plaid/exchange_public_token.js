@@ -1,6 +1,6 @@
 const { exchangePublicToken, hasPlaidConfig, storeAccessTokenForSession } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
-const { STATE_PATTERN, checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { STATE_PATTERN, assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 const { hasSupabaseConfig, upsertPlaidItem } = require("../_lib/supabase.js");
 
 const exchangeSchema = {
@@ -45,11 +45,32 @@ module.exports = async (req, res) => {
   try {
     const body = validatePayload(req.body, exchangeSchema, "request body");
     if (
+      !assertServiceEnabled(res, {
+        serviceName: "Plaid Sandbox",
+        envKeys: ["PAM_DISABLE_PLAID", "DISABLE_PLAID"]
+      })
+    ) {
+      return;
+    }
+
+    if (
       !checkRateLimit(req, res, {
         routeKey: "plaid:exchange-public-token",
         userKey: body.clientUserId,
-        ipLimit: { windowMs: 10 * 60 * 1000, max: 20 },
-        userLimit: { windowMs: 10 * 60 * 1000, max: 10 }
+        ipLimit: { windowMs: 10 * 60 * 1000, max: 10 },
+        userLimit: { windowMs: 10 * 60 * 1000, max: 5 }
+      })
+    ) {
+      return;
+    }
+
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "plaid:exchange-public-token",
+        userKey: body.clientUserId,
+        ipDailyLimit: 40,
+        userDailyLimit: 12,
+        envLimitKey: "PAM_PLAID"
       })
     ) {
       return;

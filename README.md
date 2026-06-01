@@ -132,6 +132,8 @@ The app posts these fields to the Sheet mirror: email, full name, age, stage, pu
 ## Security notes
 
 - Public API routes use strict payload validation, reject unexpected fields, and apply rate limiting by IP and user identifier
+- Cost-sensitive routes have stricter daily caps and emergency kill switches. See `security/cost-protection.md`
+- Set `PAM_DISABLE_AI=true`, `PAM_DISABLE_PLAID=true`, or `PAM_DISABLE_EMAIL=true` in Vercel to pause expensive services during suspicious traffic
 - Passwords are hashed server-side and are never stored in plaintext
 - Plaid and OpenAI credentials stay in environment variables only; never commit them and never expose them in frontend code
 - Plaid access tokens must remain server-side only and must never be written to `localStorage`

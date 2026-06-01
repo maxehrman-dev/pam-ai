@@ -1,6 +1,6 @@
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { getSessionAccount } = require("./_lib/account-store.js");
-const { checkRateLimit, sanitizeText, validatePayload } = require("./_lib/security.js");
+const { checkDailyUsageBudget, checkRateLimit, sanitizeText, validatePayload } = require("./_lib/security.js");
 const { hasSupabaseConfig, insertFeedback, insertTelemetryEvent } = require("./_lib/supabase.js");
 
 const POSTHOG_PROJECT_API_KEY = process.env.POSTHOG_PROJECT_API_KEY || "";
@@ -101,8 +101,20 @@ module.exports = async (req, res) => {
       !checkRateLimit(req, res, {
         routeKey: "telemetry",
         userKey,
-        ipLimit: { windowMs: 60 * 1000, max: 120 },
-        userLimit: { windowMs: 60 * 1000, max: 60 }
+        ipLimit: { windowMs: 60 * 1000, max: 60 },
+        userLimit: { windowMs: 60 * 1000, max: 30 }
+      })
+    ) {
+      return;
+    }
+
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "telemetry",
+        userKey,
+        ipDailyLimit: 500,
+        userDailyLimit: 250,
+        envLimitKey: "PAM_TELEMETRY"
       })
     ) {
       return;

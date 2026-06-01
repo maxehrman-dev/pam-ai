@@ -1,6 +1,6 @@
 const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification, syncWaitlistContact } = require("./_lib/email.js");
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
-const { checkRateLimit, validatePayload } = require("./_lib/security.js");
+const { checkDailyUsageBudget, checkRateLimit, validatePayload } = require("./_lib/security.js");
 const { hasSupabaseConfig, isRecoverableSupabaseStorageError, upsertWaitlistEntry, upsertWaitlistEntryLegacy } = require("./_lib/supabase.js");
 
 const waitlistSchema = {
@@ -17,6 +17,10 @@ const waitlistSchema = {
 function getRequestIp(req) {
   const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
   return forwarded || String(req.headers["x-real-ip"] || "").trim() || "";
+}
+
+function isEmailPaused() {
+  return ["1", "true", "yes", "on"].includes(String(process.env.PAM_DISABLE_EMAIL || process.env.DISABLE_EMAIL || "").trim().toLowerCase());
 }
 
 async function syncWaitlistToSheet(entry, req) {
@@ -65,8 +69,20 @@ module.exports = async (req, res) => {
       !checkRateLimit(req, res, {
         routeKey: "waitlist",
         userKey: body.emailAddress,
-        ipLimit: { windowMs: 10 * 60 * 1000, max: 20 },
-        userLimit: { windowMs: 60 * 60 * 1000, max: 5 }
+        ipLimit: { windowMs: 10 * 60 * 1000, max: 8 },
+        userLimit: { windowMs: 60 * 60 * 1000, max: 3 }
+      })
+    ) {
+      return;
+    }
+
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "waitlist",
+        userKey: body.emailAddress,
+        ipDailyLimit: 25,
+        userDailyLimit: 5,
+        envLimitKey: "PAM_EMAIL"
       })
     ) {
       return;
@@ -102,7 +118,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (hasEmailProvider()) {
+    if (hasEmailProvider() && !isEmailPaused()) {
       try {
         newsletter = await syncWaitlistContact({
           emailAddress: body.emailAddress,
@@ -130,7 +146,7 @@ module.exports = async (req, res) => {
         warning = warning || "Email confirmation needs a verified sending domain.";
       }
     } else {
-      warning = warning || "Email delivery is not configured.";
+      warning = warning || (isEmailPaused() ? "Email delivery is temporarily paused." : "Email delivery is not configured.");
     }
 
     try {

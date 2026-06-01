@@ -2,6 +2,8 @@ const { sendJson } = require("./http.js");
 
 const GLOBAL_RATE_LIMIT_STORE = global.__PAM_RATE_LIMIT_STORE__ || new Map();
 global.__PAM_RATE_LIMIT_STORE__ = GLOBAL_RATE_LIMIT_STORE;
+const GLOBAL_USAGE_BUDGET_STORE = global.__PAM_USAGE_BUDGET_STORE__ || new Map();
+global.__PAM_USAGE_BUDGET_STORE__ = GLOBAL_USAGE_BUDGET_STORE;
 
 const MAX_BODY_BYTES = 128 * 1024;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -190,6 +192,14 @@ function getRateLimitEntry(key, windowMs) {
   return existing;
 }
 
+function getClientIp(req) {
+  const forwarded = String(req?.headers?.["x-forwarded-for"] || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)[0];
+  return forwarded || String(req?.headers?.["x-real-ip"] || "").trim() || req?.clientIp || "unknown";
+}
+
 function pruneRateLimitStore() {
   const now = Date.now();
   for (const [key, entry] of GLOBAL_RATE_LIMIT_STORE.entries()) {
@@ -209,7 +219,7 @@ function checkRateLimit(req, res, config = {}) {
 
   pruneRateLimitStore();
 
-  const ipKey = `${routeKey}:ip:${req.clientIp || "unknown"}`;
+  const ipKey = `${routeKey}:ip:${getClientIp(req)}`;
   const ipEntry = getRateLimitEntry(ipKey, ipLimit.windowMs);
   ipEntry.count += 1;
 
@@ -257,6 +267,115 @@ function checkRateLimit(req, res, config = {}) {
   return true;
 }
 
+function envFlagEnabled(name) {
+  const value = String(process.env[name] || "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(value);
+}
+
+function assertServiceEnabled(res, { serviceName = "This service", envKeys = [] } = {}) {
+  const disabledBy = envKeys.find((key) => envFlagEnabled(key));
+  if (!disabledBy) return true;
+
+  sendJson(res, 503, {
+    ok: false,
+    error: `${serviceName} is temporarily paused to protect service costs.`,
+    disabledBy
+  });
+  return false;
+}
+
+function getUtcDayKey(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function pruneUsageBudgetStore() {
+  const today = getUtcDayKey();
+  for (const [key, entry] of GLOBAL_USAGE_BUDGET_STORE.entries()) {
+    if (!entry || entry.day !== today) {
+      GLOBAL_USAGE_BUDGET_STORE.delete(key);
+    }
+  }
+}
+
+function getUsageBudgetEntry(key) {
+  const day = getUtcDayKey();
+  const existing = GLOBAL_USAGE_BUDGET_STORE.get(key);
+  if (existing?.day === day) return existing;
+
+  const entry = { day, count: 0 };
+  GLOBAL_USAGE_BUDGET_STORE.set(key, entry);
+  return entry;
+}
+
+function readLimit(value, fallback) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function secondsUntilUtcMidnight() {
+  const now = new Date();
+  const tomorrow = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  return Math.max(1, Math.ceil((tomorrow - now.getTime()) / 1000));
+}
+
+function checkDailyUsageBudget(req, res, config = {}) {
+  const {
+    routeKey = "global",
+    userKey = "",
+    ipDailyLimit = 250,
+    userDailyLimit = null,
+    envLimitKey = ""
+  } = config;
+  const ipLimit = readLimit(envLimitKey ? process.env[`${envLimitKey}_IP_DAILY_LIMIT`] : "", ipDailyLimit);
+  const userLimit = userDailyLimit
+    ? readLimit(envLimitKey ? process.env[`${envLimitKey}_USER_DAILY_LIMIT`] : "", userDailyLimit)
+    : null;
+
+  pruneUsageBudgetStore();
+
+  const retryAfterSeconds = secondsUntilUtcMidnight();
+  const ipKey = `${routeKey}:daily:ip:${getClientIp(req)}`;
+  const ipEntry = getUsageBudgetEntry(ipKey);
+  ipEntry.count += 1;
+
+  if (ipEntry.count > ipLimit) {
+    sendJson(
+      res,
+      429,
+      {
+        ok: false,
+        error: "Daily request limit reached. Please try again tomorrow.",
+        retryAfterSeconds
+      },
+      { "Retry-After": String(retryAfterSeconds) }
+    );
+    return false;
+  }
+
+  if (userLimit && userKey) {
+    const normalizedUserKey = sanitizeText(userKey).toLowerCase();
+    if (normalizedUserKey) {
+      const userEntry = getUsageBudgetEntry(`${routeKey}:daily:user:${normalizedUserKey}`);
+      userEntry.count += 1;
+      if (userEntry.count > userLimit) {
+        sendJson(
+          res,
+          429,
+          {
+            ok: false,
+            error: "Daily limit reached for this account. Please try again tomorrow.",
+            retryAfterSeconds
+          },
+          { "Retry-After": String(retryAfterSeconds) }
+        );
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 function getOptionalString(value, maxLength = 160) {
   if (value === undefined || value === null || value === "") return "";
   return validateString(value, { type: "string", maxLength }, "value");
@@ -265,6 +384,8 @@ function getOptionalString(value, maxLength = 160) {
 module.exports = {
   MAX_BODY_BYTES,
   STATE_PATTERN,
+  assertServiceEnabled,
+  checkDailyUsageBudget,
   checkRateLimit,
   getOptionalString,
   sanitizeString,
