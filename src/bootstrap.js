@@ -42,9 +42,10 @@ function renderBootError(error) {
 
 async function loadConfig() {
   try {
-    const res = await fetch("/api/config");
+    const res = await fetch("/api/integrations/status");
     if (!res.ok) return {};
-    return await res.json();
+    const data = await res.json();
+    return data.clientConfig || {};
   } catch (_error) {
     return {};
   }

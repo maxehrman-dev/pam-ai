@@ -35,6 +35,11 @@ module.exports = async (req, res) => {
     openai: {
       configured: Boolean(process.env.OPENAI_API_KEY),
       model: process.env.OPENAI_MODEL || "default"
+    },
+    clientConfig: {
+      sentryDsn: process.env.SENTRY_DSN || "",
+      posthogKey: process.env.POSTHOG_KEY || "phc_qex4UsyDAYzV2YhWodw9ePHBLfA8pTJ7pSaWZdip3pfr",
+      posthogHost: process.env.POSTHOG_HOST || "https://us.i.posthog.com"
     }
   });
 };
