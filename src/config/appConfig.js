@@ -28,6 +28,7 @@ export const CREATE_ACCOUNT_STEPS = [
   {
     key: "firstName",
     label: "What should PAM call you?",
+    errorLabel: "your name",
     type: "text",
     placeholder: "Maya",
     required: true,
@@ -36,6 +37,7 @@ export const CREATE_ACCOUNT_STEPS = [
   {
     key: "emailAddress",
     label: "Your email address",
+    errorLabel: "your email",
     type: "email",
     placeholder: "you@example.com",
     required: true,
@@ -45,6 +47,7 @@ export const CREATE_ACCOUNT_STEPS = [
     key: "verificationCode",
     label: "Check your email",
     detail: "We sent a 6-digit code.",
+    errorLabel: "the 6-digit code",
     type: "text",
     placeholder: "123456",
     required: true,
@@ -53,6 +56,7 @@ export const CREATE_ACCOUNT_STEPS = [
   {
     key: "password",
     label: "Create a password",
+    errorLabel: "a password",
     type: "password",
     placeholder: "At least 8 characters",
     required: true,
@@ -63,6 +67,7 @@ export const CREATE_ACCOUNT_STEPS = [
     key: "firstDecision",
     label: "What do you want PAM to help with first?",
     detail: "One sentence is enough. PAM will connect to your accounts after.",
+    errorLabel: "your first question",
     type: "textarea",
     placeholder: "I want to move out this year and understand what rent I can afford.",
     required: true,

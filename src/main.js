@@ -576,7 +576,7 @@ function validateAccountStep(stepIndex = state.createAccountStep, draft = ensure
   const value = String(draft[step.key] || "").trim();
 
   if (step.required && !value) {
-    return `Add ${step.label.toLowerCase()} before continuing.`;
+    return `Enter ${step.errorLabel || step.key} to continue.`;
   }
 
   if (step.key === "password" && value && value.length < 8) {
