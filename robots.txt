@@ -1,4 +1,7 @@
 User-agent: *
-Allow: /
+Disallow: /
+
+# PAM AI is in private preview. Crawlers are blocked until public launch.
+# Public pages accessible directly: /waitlist, /terms, /privacy, /content-policy, /faq
 
 Sitemap: https://pamadvisor.com/sitemap.xml

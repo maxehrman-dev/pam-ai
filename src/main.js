@@ -3404,7 +3404,7 @@ function renderDailyDashboardHome() {
           </div>
         `}
         <div class="daily-metric-strip">
-          <div><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${getProgressPercent(currentSavings, netWorth)}% of net worth</small></div>
+          <div><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${hasConnectedData && netWorth > 0 ? `${getProgressPercent(currentSavings, netWorth)}% of net worth` : hasConnectedData ? "Connected data" : "Manual baseline"}</small></div>
           <div><span>Checking</span><strong>${formatCurrency(checkingBalance)}</strong><small>Available</small></div>
           <div><span>Monthly buffer</span><strong>${formatCurrency(monthlyBuffer)}</strong><small>After goals</small></div>
         </div>

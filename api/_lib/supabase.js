@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+
 // Prefer the official Vercel Marketplace Supabase integration when it is connected.
 // The legacy SUPABASE_* names remain supported so local/dev deployments do not break.
 const SUPABASE_URL = String(
@@ -9,6 +11,32 @@ const SUPABASE_SERVICE_ROLE_KEY =
   process.env.PAM_SUPABASE_SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   "";
+
+const TOKEN_SECRET = process.env.PAM_PLAID_TOKEN_SECRET || "";
+
+function encryptToken(plaintext) {
+  if (!TOKEN_SECRET || !plaintext) return plaintext;
+  const key = crypto.scryptSync(TOKEN_SECRET, "pam-plaid-token-salt", 32);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `enc:${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted.toString("hex")}`;
+}
+
+function decryptToken(value) {
+  if (!value || !value.startsWith("enc:")) return value;
+  if (!TOKEN_SECRET) return null;
+  try {
+    const [, ivHex, authTagHex, encryptedHex] = value.split(":");
+    const key = crypto.scryptSync(TOKEN_SECRET, "pam-plaid-token-salt", 32);
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
+    return decipher.update(Buffer.from(encryptedHex, "hex"), undefined, "utf8") + decipher.final("utf8");
+  } catch (_error) {
+    return null;
+  }
+}
 
 function hasSupabaseConfig() {
   return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
@@ -232,7 +260,6 @@ async function upsertPlaidItem({ accountId, plaidItemId = "", institutionName = 
     headers: { Prefer: "return=minimal" }
   });
 
-  // Sandbox-only shortcut: production must encrypt/tokenize access tokens before storage.
   const rows = await supabaseRequest("pam_plaid_items", {
     method: "POST",
     headers: { Prefer: "return=representation" },
@@ -240,7 +267,7 @@ async function upsertPlaidItem({ accountId, plaidItemId = "", institutionName = 
       account_id: accountId,
       plaid_item_id: plaidItemId || null,
       institution_name: institutionName || null,
-      access_token_reference: accessTokenReference,
+      access_token_reference: encryptToken(accessTokenReference),
       updated_at: new Date().toISOString()
     })
   });
@@ -253,7 +280,12 @@ async function findLatestPlaidItemByAccountId(accountId) {
   const rows = await supabaseRequest(
     `pam_plaid_items?account_id=eq.${encodeFilter(accountId)}&select=account_id,plaid_item_id,institution_name,access_token_reference,updated_at&order=updated_at.desc&limit=1`
   );
-  return rows?.[0] || null;
+  const row = rows?.[0];
+  if (!row) return null;
+  return {
+    ...row,
+    access_token_reference: decryptToken(row.access_token_reference)
+  };
 }
 
 async function insertTelemetryEvent({ eventType, eventName, sessionId = "", page = "", properties = {} }) {
