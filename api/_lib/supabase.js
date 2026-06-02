@@ -357,6 +357,31 @@ async function findLatestLegalAcceptanceByAccountId(accountId) {
   };
 }
 
+async function upsertSubscription({ clerkUserId, customerId, subscriptionId, status, priceId, isFoundingMember }) {
+  if (!clerkUserId) return;
+  await supabaseRequest("pam_subscriptions", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({
+      clerk_user_id: clerkUserId,
+      stripe_customer_id: customerId || null,
+      stripe_subscription_id: subscriptionId || null,
+      status: status || "unknown",
+      price_id: priceId || null,
+      is_founding_member: Boolean(isFoundingMember),
+      updated_at: new Date().toISOString()
+    })
+  });
+}
+
+async function findSubscriptionByClerkUserId(clerkUserId) {
+  if (!clerkUserId) return null;
+  const rows = await supabaseRequest(
+    `pam_subscriptions?clerk_user_id=eq.${encodeFilter(clerkUserId)}&order=updated_at.desc&limit=1`
+  );
+  return rows?.[0] || null;
+}
+
 async function checkSupabaseConnection() {
   if (!hasSupabaseConfig()) {
     return {
@@ -392,6 +417,8 @@ async function checkSupabaseConnection() {
 
 module.exports = {
   checkSupabaseConnection,
+  findSubscriptionByClerkUserId,
+  upsertSubscription,
   createSession,
   deleteVerificationRequests,
   deleteSession,

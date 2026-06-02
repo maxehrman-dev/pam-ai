@@ -123,3 +123,18 @@ create index if not exists pam_feedback_created_at_idx on public.pam_feedback(cr
 create index if not exists pam_feedback_account_id_idx on public.pam_feedback(account_id);
 create index if not exists pam_legal_acceptances_account_id_idx on public.pam_legal_acceptances(account_id);
 create index if not exists pam_legal_acceptances_accepted_at_idx on public.pam_legal_acceptances(accepted_at);
+
+-- Stripe subscriptions
+create table if not exists public.pam_subscriptions (
+  clerk_user_id text primary key,
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  status text not null default 'inactive',
+  price_id text,
+  is_founding_member boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.pam_subscriptions enable row level security;
+create index if not exists pam_subscriptions_status_idx on public.pam_subscriptions(status);
+create index if not exists pam_subscriptions_customer_id_idx on public.pam_subscriptions(stripe_customer_id);
