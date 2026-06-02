@@ -1472,24 +1472,35 @@ input:disabled {
 
 .wizard-progress {
   display: grid;
-  gap: 4px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(216, 243, 229, 0.32);
-  border: 1px solid rgba(30, 138, 102, 0.1);
+  gap: 8px;
+  padding: 0 0 4px;
 }
 
-.wizard-progress span {
-  color: var(--ink-2);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 900;
+.wizard-progress-bar {
+  height: 4px;
+  background: rgba(20, 55, 41, 0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.wizard-progress-bar div {
+  height: 100%;
+  background: var(--brand);
+  border-radius: 99px;
+  transition: width 0.35s ease;
+  min-width: 8%;
 }
 
 .wizard-progress strong {
   color: var(--ink-4);
-  font-size: 1.05rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.wizard-progress small {
+  color: var(--ink-2);
+  font-size: 0.85rem;
 }
 
 .wizard-field {

@@ -28,7 +28,6 @@ export const CREATE_ACCOUNT_STEPS = [
   {
     key: "firstName",
     label: "What should PAM call you?",
-    detail: "",
     type: "text",
     placeholder: "Maya",
     required: true,
@@ -36,8 +35,7 @@ export const CREATE_ACCOUNT_STEPS = [
   },
   {
     key: "emailAddress",
-    label: "What email should you sign in with?",
-    detail: "",
+    label: "Your email address",
     type: "email",
     placeholder: "you@example.com",
     required: true,
@@ -45,8 +43,8 @@ export const CREATE_ACCOUNT_STEPS = [
   },
   {
     key: "verificationCode",
-    label: "Enter the verification code",
-    detail: "",
+    label: "Check your email",
+    detail: "We sent a 6-digit code.",
     type: "text",
     placeholder: "123456",
     required: true,
@@ -55,79 +53,24 @@ export const CREATE_ACCOUNT_STEPS = [
   {
     key: "password",
     label: "Create a password",
-    detail: "",
     type: "password",
     placeholder: "At least 8 characters",
     required: true,
+    withConfirm: true,
     autocomplete: "new-password"
-  },
-  {
-    key: "confirmPassword",
-    label: "Confirm your password",
-    detail: "",
-    type: "password",
-    placeholder: "Repeat password",
-    required: true,
-    autocomplete: "new-password"
-  },
-  {
-    key: "age",
-    label: "How old are you?",
-    detail: "",
-    type: "number",
-    placeholder: "24",
-    required: false,
-    min: "18",
-    max: "35",
-    step: "1"
-  },
-  {
-    key: "creditScore",
-    label: "Approximate credit score?",
-    detail: "Optional. PAM uses this only when a decision may involve approval, interest rates, or lease/loan strength.",
-    type: "number",
-    placeholder: "720",
-    required: false,
-    min: "300",
-    max: "850",
-    step: "1"
-  },
-  {
-    key: "cityOrZip",
-    label: "What ZIP code or state should PAM use?",
-    detail: "",
-    type: "text",
-    placeholder: "90210 or CA",
-    required: false,
-    autocomplete: "postal-code"
   },
   {
     key: "firstDecision",
-    label: "What decision should PAM help with first?",
-    detail: "Write one sentence, or tap a starter and edit it.",
+    label: "What do you want PAM to help with first?",
+    detail: "One sentence is enough. PAM will connect to your accounts after.",
     type: "textarea",
     placeholder: "I want to move out this year and understand what rent I can afford.",
     required: true,
     suggestions: [
-      "I want to move out this year.",
-      "I want to know if I can afford a car payment.",
-      "I want to start investing without slowing my savings.",
-      "I want to understand how freelance income changes taxes."
+      "Can I afford to move out if rent is $1,800?",
+      "Can I afford a $400/month car payment?",
+      "Should I start investing $200/month now?",
+      "How would freelance income change my taxes?"
     ]
-  },
-  {
-    key: "employmentStatus",
-    label: "What is your main source of income?",
-    detail: "",
-    type: "select",
-    required: true,
-    options: ["W-2 employee", "1099 / self-employed", "Student worker", "Mixed income", "Not sure yet"]
-  },
-  {
-    key: "review",
-    label: "Review your account",
-    detail: "",
-    type: "review",
-    required: false
   }
 ];

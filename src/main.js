@@ -546,6 +546,9 @@ function saveCurrentStepValue(form) {
   const value = form.elements.namedItem(step.key)?.value ?? "";
   const previousValue = String(draft[step.key] || "");
   draft[step.key] = String(value);
+  if (step.withConfirm) {
+    draft.confirmPassword = String(form.elements.namedItem("confirmPassword")?.value ?? "");
+  }
   if (String(value) !== previousValue) {
     clearStatus("account");
   }
@@ -578,6 +581,12 @@ function validateAccountStep(stepIndex = state.createAccountStep, draft = ensure
 
   if (step.key === "password" && value && value.length < 8) {
     return "Use at least 8 characters for your password.";
+  }
+
+  if (step.withConfirm) {
+    const confirm = String(draft.confirmPassword || "").trim();
+    if (!confirm) return "Confirm your password before continuing.";
+    if (confirm !== value) return "Passwords don't match.";
   }
 
   if (step.key === "confirmPassword" && value !== String(draft.password || "")) {
@@ -4069,8 +4078,8 @@ function renderBaselinePanel() {
   const isLastStep = state.createAccountStep === CREATE_ACCOUNT_STEPS.length - 1;
   return `
     <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
-      <div class="panel-kicker">${isSignedIn ? "Account" : "Create your PAM model"}</div>
-      <h2>${isSignedIn ? "Profile, security, and settings." : "Build the model PAM will use."}</h2>
+      <div class="panel-kicker">${isSignedIn ? "Account" : "Get started"}</div>
+      <h2>${isSignedIn ? "Profile, security, and settings." : "Create your account."}</h2>
       <div class="onboarding-layout">
         <div class="baseline-form onboarding-form sandbox-connect-panel">
           ${isSignedIn ? renderAccountSettingsPanel(baseline, account, isComplete) : `
@@ -4083,25 +4092,12 @@ function renderBaselinePanel() {
                 <div class="auth-card">
                   <form class="profile-form auth-wizard-form" data-account-form>
                     <div class="wizard-progress">
-                      <span>Step ${state.createAccountStep + 1} of ${CREATE_ACCOUNT_STEPS.length}</span>
+                      <div class="wizard-progress-bar"><div style="width:${Math.round(((state.createAccountStep + 1) / CREATE_ACCOUNT_STEPS.length) * 100)}%"></div></div>
                       <strong>${escapeHtml(step.label)}</strong>
+                      ${step.detail ? `<small>${escapeHtml(step.detail)}</small>` : ""}
                     </div>
                     <label class="wizard-field">
-                      <span>${escapeHtml(step.label)}</span>
-                      ${step.detail ? `<small>${escapeHtml(step.detail)}</small>` : ""}
-                      ${step.type === "review" ? `
-                        <div class="review-panel">
-                          <div><span>Name</span><strong>${escapeHtml(draft.firstName || "—")}</strong></div>
-                          <div><span>Email</span><strong>${escapeHtml(draft.emailAddress || "—")}</strong></div>
-                          <div><span>Verification</span><strong>${isVerificationConfirmed() ? "Verified" : "Incomplete"}</strong></div>
-                          <div><span>Age</span><strong>${escapeHtml(draft.age || "—")}</strong></div>
-                          <div><span>Credit score</span><strong>${escapeHtml(draft.creditScore || "—")}</strong></div>
-                          <div><span>ZIP / state</span><strong>${escapeHtml(draft.cityOrZip || "—")}</strong></div>
-                          <div><span>First decision</span><strong>${escapeHtml(draft.firstDecision || "—")}</strong></div>
-                          <div><span>Main income</span><strong>${escapeHtml(draft.employmentStatus || "—")}</strong></div>
-                          <div><span>Tax state</span><strong>${escapeHtml(inferStateFromLocation(draft.cityOrZip) || draft.stateCode || "OTHER")}</strong></div>
-                        </div>
-                      ` : step.type === "select" ? `
+                      ${step.type === "select" ? `
                         <select name="${step.key}">
                           ${step.options.map((option) => `<option value="${option}" ${stepValue === option ? "selected" : ""}>${option}</option>`).join("")}
                         </select>
@@ -4118,11 +4114,9 @@ function renderBaselinePanel() {
                           value="${escapeHtml(stepValue)}"
                           placeholder="${escapeHtml(step.placeholder || "")}"
                           ${step.autocomplete ? `autocomplete="${step.autocomplete}"` : ""}
-                          ${step.min ? `min="${step.min}"` : ""}
-                          ${step.max ? `max="${step.max}"` : ""}
-                          ${step.step ? `step="${step.step}"` : ""}
                           ${step.key === "verificationCode" ? `inputmode="numeric" pattern="[0-9]*" maxlength="6" data-verification-code-input` : ""}
                         />
+                        ${step.withConfirm ? `<input type="password" name="confirmPassword" value="${escapeHtml(draft.confirmPassword || "")}" placeholder="Confirm password" autocomplete="new-password" style="margin-top:0.5rem" />` : ""}
                       `}
                       ${step.suggestions?.length ? `
                         <div class="wizard-suggestion-row">
@@ -4172,9 +4166,7 @@ function renderBaselinePanel() {
             </div>
           `}
         </div>
-        ${renderModelInterpretation(draft)}
       </div>
-      <p class="disclaimer">Educational estimate only. Not financial, tax, legal, or investment advice.</p>
     </section>
   `;
 }
