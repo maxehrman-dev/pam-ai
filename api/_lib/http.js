@@ -5,6 +5,7 @@ const DEFAULT_SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 };
 

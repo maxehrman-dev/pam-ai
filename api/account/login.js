@@ -1,6 +1,6 @@
 const { loginAccount } = require("../_lib/account-store.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
-const { checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 
 const loginSchema = {
   properties: {
@@ -28,13 +28,24 @@ module.exports = async (req, res) => {
       return;
     }
 
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "account:login",
+        userKey: body.emailAddress,
+        ipDailyLimit: 100,
+        userDailyLimit: 30
+      })
+    ) {
+      return;
+    }
+
     const result = await loginAccount({ emailAddress: body.emailAddress, password: body.password });
     return sendJson(res, 200, {
       ok: true,
       ...result
     });
   } catch (error) {
-    return sendJson(res, error.statusCode || 200, {
+    return sendJson(res, error.statusCode || 500, {
       ok: false,
       error: error.message || "Unable to sign in."
     });

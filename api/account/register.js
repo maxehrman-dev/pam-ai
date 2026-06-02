@@ -1,6 +1,6 @@
 const { createAccount } = require("../_lib/account-store.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
-const { STATE_PATTERN, checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { STATE_PATTERN, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 
 const registerSchema = {
   properties: {
@@ -35,6 +35,17 @@ module.exports = async (req, res) => {
       return;
     }
 
+    if (
+      !checkDailyUsageBudget(req, res, {
+        routeKey: "account:register",
+        userKey: body.emailAddress,
+        ipDailyLimit: 20,
+        userDailyLimit: 3
+      })
+    ) {
+      return;
+    }
+
     const result = await createAccount({
       firstName: body.firstName,
       emailAddress: body.emailAddress,
@@ -52,7 +63,7 @@ module.exports = async (req, res) => {
       ...result
     });
   } catch (error) {
-    return sendJson(res, error.statusCode || 200, {
+    return sendJson(res, error.statusCode || 500, {
       ok: false,
       error: error.message || "Unable to create account."
     });

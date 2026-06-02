@@ -4566,47 +4566,51 @@ function renderLegalPage(route) {
   const pages = {
     terms: {
       title: "Terms of Service",
-      eyebrow: "Legal",
+      eyebrow: "Legal · Last updated May 18, 2026",
       intro: "Plain-English terms for using PAM AI. These terms protect both you and PAM while the product remains a financial modeling tool, not a licensed advisor.",
       sections: [
+        ["Who these terms apply to", "By using PAM AI you agree to these terms. You must be at least 18 years old to create an account. Do not create an account on behalf of someone else without their permission."],
         ["PAM is not a licensed advisor", "PAM AI is a software-based financial modeling tool. PAM AI is not a registered investment adviser, broker-dealer, bank, accountant, attorney, tax preparer, or fiduciary. Nothing in the product constitutes financial, investment, tax, legal, credit, insurance, or accounting advice."],
         ["No guarantees", "PAM may show projections, scenarios, risk levels, goal delays, tax estimates, and compound-growth examples. These outputs are hypothetical, assumption-based, and not guaranteed. Real outcomes can differ materially."],
         ["Your responsibility", "You are responsible for your own financial decisions. Before acting on any PAM output, consult qualified professionals such as a licensed financial advisor, CPA, attorney, or tax professional."],
         ["Data use", "We use your data solely to provide and improve the PAM service. We do not sell user data to third parties."],
-        ["Bank credentials", "We do not store raw bank login credentials. Future or Sandbox bank connections are handled through Plaid or a similar regulated third-party provider."],
+        ["Bank credentials", "We do not store raw bank login credentials. Bank connections are handled through Plaid, a regulated third-party provider, and governed by Plaid's own terms and privacy policy."],
         ["AI outputs and copyrighted inputs", "Do not input copyrighted material, confidential third-party documents, or content you do not have rights to use. PAM is not liable for outputs generated from copyrighted or unauthorized inputs."],
         ["Plans, trials, billing, and refunds", "PAM may offer a free tier, free trial, or paid subscription in the future. A paid subscription is not active until Stripe or another payment provider is connected and you complete checkout. If paid billing is enabled, renewal, cancellation, failed-payment handling, receipts, and refund eligibility will be shown at checkout and in these terms before purchase."],
-        ["Cancellation and data after cancellation", "If a paid plan is later offered, cancelling stops future subscription renewals but does not automatically delete your account data. You may request deletion, subject to legal, security, fraud-prevention, and backup-retention requirements."],
-        ["Account termination", "We may suspend or terminate accounts that abuse the service, attempt unauthorized access, violate these terms, or create legal/security risk. You may stop using PAM at any time."],
+        ["Cancellation and data after cancellation", "Cancelling stops future subscription renewals but does not automatically delete your account data. You may request deletion by emailing hello@pamadvisor.com, subject to legal, security, fraud-prevention, and backup-retention requirements."],
+        ["Account termination", "We may suspend or terminate accounts that abuse the service, attempt unauthorized access, violate these terms, or create legal or security risk. You may stop using PAM at any time."],
         ["Limitation of liability", "To the fullest extent permitted by law, PAM AI and its operators are not liable for lost profits, investment losses, tax consequences, missed opportunities, data loss, or indirect, incidental, consequential, special, or punitive damages arising from use of the service."],
-        ["Governing law", "These terms are governed by the laws of the State of California, without regard to conflict-of-law rules."]
+        ["Governing law", "These terms are governed by the laws of the State of California, without regard to conflict-of-law rules. Disputes will be resolved in the courts of California."],
+        ["Contact", "Questions about these terms? Email hello@pamadvisor.com."]
       ]
     },
     privacy: {
       title: "Privacy Policy",
-      eyebrow: "Privacy",
+      eyebrow: "Privacy · Last updated May 18, 2026",
       intro: "PAM is designed around trust: collect only what is needed, explain how it is used, and avoid turning financial data into ad targeting.",
       sections: [
-        ["Data we collect", "PAM may collect your email, account profile, age range or age, state, employment type, financial baseline, account balances, transactions, liabilities, goals, decision prompts, scenario outputs, cookie choices, usage data, and support/security logs."],
-        ["Plaid and financial data", "When financial account connections are used, Plaid handles bank authentication. PAM never sees or stores your bank login credentials. PAM may receive summarized balances, transactions, recurring income/expenses, liabilities, and account metadata to build your baseline."],
+        ["Data we collect", "PAM may collect your email, account profile, age, state, employment type, financial baseline, account balances, transactions, liabilities, goals, decision prompts, scenario outputs, cookie choices, usage data, and support or security logs."],
+        ["Plaid and financial data", "When you connect financial accounts, Plaid handles bank authentication. PAM never sees or stores your bank login credentials. PAM may receive summarized balances, transactions, recurring income and expenses, liabilities, and account metadata to build your baseline. Plaid's use of your data is governed by Plaid's Privacy Policy."],
         ["What we do not do", "We do not sell your data. We do not share financial data with advertisers. We do not use financial data for advertising profiling. We do not use your financial data to train AI models."],
-        ["Third-party services", "PAM may use Plaid for banking data, AI API providers such as OpenAI or Anthropic for explanation and scenario interpretation, Resend for email, Supabase for storage, Vercel for hosting, and Google Analytics if enabled. Google may collect anonymized usage data under its own policy: https://policies.google.com/privacy."],
-        ["Security", "Financial data is protected in transit with HTTPS and stored with provider-level encryption at rest where supported. Access tokens and provider secrets must remain server-side and are never intentionally exposed in the browser."],
-        ["Cookies", "Essential cookies/local storage keep the app functioning, remember sessions, legal acceptance, and preferences. Analytics cookies or telemetry are optional; if you decline analytics, PAM disables non-essential tracking in the client."],
+        ["Third-party services", "PAM uses: Plaid for bank data connections, OpenAI for AI-powered decision explanations, Resend for transactional email, Supabase for data storage, Vercel for hosting, and PostHog for anonymous product analytics. If you decline analytics cookies, PostHog tracking is disabled. Each provider is subject to its own privacy policy."],
+        ["Security", "Financial data is protected in transit with HTTPS and TLS. Access tokens and API secrets are stored server-side only and are never exposed to the browser. Plaid access tokens are encrypted before storage."],
+        ["Cookies", "Essential cookies and local storage keep the app functioning and remember your session, legal acceptance, and preferences. Analytics are optional. If you decline analytics, PAM disables all non-essential tracking in the client."],
         ["Retention", "We retain account and financial baseline data while your account is active or as needed for security, legal, backup, and operational purposes. Waitlist emails are retained until you unsubscribe or request deletion."],
-        ["Your rights", "You may request access, deletion, correction, or portability of your data by contacting PAM. Some deletion requests may be limited by security, fraud prevention, or legal retention obligations."]
+        ["Your rights", "You may request access, correction, deletion, or a copy of your data by emailing hello@pamadvisor.com. California residents have additional rights under CCPA, including the right to know what data we collect, the right to delete it, and the right to opt out of sale (we do not sell data). Some deletion requests may be limited by security, fraud prevention, or legal retention requirements."],
+        ["Contact", "Privacy questions or data requests: hello@pamadvisor.com."]
       ]
     },
     "content-policy": {
       title: "Content Policy",
-      eyebrow: "Acceptable use",
+      eyebrow: "Acceptable use · Last updated May 18, 2026",
       intro: "PAM is for personal financial decision modeling. Keep inputs lawful, concise, and yours to use.",
       sections: [
         ["Acceptable use", "Use PAM to ask financial decision questions, compare scenarios, understand tradeoffs, and learn how assumptions may affect your future."],
-        ["Do not paste copyrighted material", "Do not paste books, articles, paid reports, proprietary documents, private legal/tax files, or any other copyrighted or confidential material unless you own the rights or have permission."],
-        ["No illegal or harmful use", "Do not use PAM to evade taxes, hide income, commit fraud, deceive lenders, bypass bank rules, or harm another person."],
-        ["AI output limitations", "PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information with authoritative sources or qualified professionals."],
-        ["Input filtering", "PAM may warn or block unusually large pasted text to reduce copyright and privacy risk. Summarize the financial decision in your own words instead."]
+        ["Do not paste copyrighted material", "Do not paste books, articles, paid reports, proprietary documents, private legal or tax files, or any other copyrighted or confidential material unless you own the rights or have explicit permission."],
+        ["No illegal or harmful use", "Do not use PAM to evade taxes, hide income, commit fraud, deceive lenders, bypass bank rules, or harm another person. PAM will not help you hide or misrepresent financial information."],
+        ["AI output limitations", "PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information with authoritative sources or qualified professionals before acting on it."],
+        ["Input filtering", "PAM may warn or block unusually large pasted text to reduce copyright and privacy risk. Summarize the financial decision in your own words instead of pasting third-party content."],
+        ["Enforcement", "Violations may result in account suspension or termination. Report misuse to hello@pamadvisor.com."]
       ]
     },
     faq: {
@@ -4614,15 +4618,15 @@ function renderLegalPage(route) {
       eyebrow: "Help",
       intro: "Fast answers for people trying PAM for the first time.",
       sections: [
-        ["What is PAM AI?", "PAM AI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit."],
-        ["Is PAM a financial advisor?", "No. PAM is not a licensed financial advisor, RIA, tax professional, attorney, bank, or broker. It provides educational modeling only."],
-        ["Does PAM connect to my bank?", "The current production prototype supports Plaid Sandbox and Sandbox-style sample data. Real production bank connections should only be enabled after full auth, storage, security, and compliance review."],
-        ["Is authentication production-grade?", "PAM currently uses a prototype account system with email verification and hashed passwords. Before a public launch with real financial data, PAM should replace or harden this path with a managed auth provider such as Clerk or Auth0."],
-        ["Are payments live?", "No. Stripe subscriptions are not live yet. Founding pricing can be communicated on the waitlist, but paid checkout, cancellation, failed-payment handling, receipts, and refund flows need Stripe setup before charging users."],
-        ["Does PAM store bank credentials?", "No. PAM should never see or store raw bank login credentials. Plaid handles bank authentication."],
-        ["Are the results guaranteed?", "No. PAM's results are hypothetical estimates based on the data and assumptions available. Real-life outcomes can differ."],
-        ["What should I do if a result looks wrong?", "Treat PAM as a planning aid, not a source of truth. Verify important numbers, update your baseline, and consult a qualified professional before making major decisions."],
-        ["Can I give feedback?", "Yes. Signed-in users can send feedback from the dashboard. Waitlist users can reply to PAM emails or sign up again with the email they want us to use."]
+        ["What is PAM AI?", "PAM AI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit — so you know what happens before you decide."],
+        ["Is PAM a financial advisor?", "No. PAM is not a licensed financial advisor, RIA, tax professional, attorney, bank, or broker. It provides educational modeling only. Always consult a qualified professional before making major financial decisions."],
+        ["Does PAM connect to my bank?", "Yes. PAM uses Plaid Sandbox to securely connect financial accounts. PAM never sees your bank login credentials — Plaid handles authentication. Connected account data is used only to build your financial baseline inside PAM."],
+        ["Is my financial data safe?", "Yes. PAM uses HTTPS for all data in transit, stores Plaid access tokens encrypted server-side, and never exposes API secrets to the browser. We do not sell or share your financial data."],
+        ["Are payments live?", "No. Stripe subscriptions are not live yet. Founding pricing is communicated on the waitlist, but no charges are made until a payment flow is set up and you confirm checkout."],
+        ["Are the results guaranteed?", "No. PAM's results are hypothetical estimates based on the data and assumptions available. Real-life outcomes can differ materially. Treat PAM as a planning aid, not a source of truth."],
+        ["What should I do if a result looks wrong?", "Update your baseline with more accurate numbers, then run the decision again. For important financial decisions, verify numbers with a qualified professional."],
+        ["How do I delete my account or data?", "Email hello@pamadvisor.com with your request. We will process it within a reasonable time subject to legal retention requirements."],
+        ["Can I give feedback?", "Yes. Signed-in users can send feedback from the dashboard profile screen. You can also email hello@pamadvisor.com."]
       ]
     }
   };
