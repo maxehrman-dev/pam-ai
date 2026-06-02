@@ -3174,6 +3174,35 @@ input:disabled {
   grid-column: 1 / -1;
 }
 
+.upgrade-card {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fffdf9;
+}
+
+.upgrade-card span,
+.upgrade-card p,
+.upgrade-card strong {
+  color: rgba(255,253,249,0.85);
+}
+
+.upgrade-card strong {
+  color: #fffdf9;
+}
+
+.clerk-first-decision-input {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: none;
+  background: var(--surface);
+  color: var(--ink-4);
+  box-sizing: border-box;
+}
+
 .settings-card span {
   display: block;
   color: var(--ink-2);

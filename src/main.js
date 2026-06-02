@@ -117,7 +117,11 @@ const state = {
   lastCheckedVerificationCode: "",
   demoAccessBusy: false,
   demoAccessMessage: "",
-  plaidBusy: false
+  plaidBusy: false,
+  subscription: null,
+  checkoutBusy: false,
+  clerkFirstDecision: "",
+  clerkFirstDecisionStep: false
 };
 
 let isStarted = false;
@@ -163,6 +167,55 @@ async function buildAuthHeaders() {
     return { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
   }
   return { "Content-Type": "application/json" };
+}
+
+// Subscription is always waived until PAM explicitly requires it.
+// Set PAM_REQUIRE_SUBSCRIPTION=true in Vercel to enforce it.
+function hasActiveSubscription() {
+  if (!state.subscription) return true; // waived by default
+  return ["active", "trialing"].includes(state.subscription.status);
+}
+
+function isFoundingMember() {
+  return Boolean(state.subscription?.isFoundingMember);
+}
+
+async function loadSubscription() {
+  if (!isClerkMode() || !state.account?.id) return;
+  try {
+    const headers = await buildAuthHeaders();
+    const { payload } = await requestJson("/api/account/session", { headers });
+    if (payload?.subscription) {
+      state.subscription = payload.subscription;
+    }
+  } catch (_error) {
+    // Subscription load is best-effort.
+  }
+}
+
+async function startCheckout(plan = "monthly") {
+  if (state.checkoutBusy) return;
+  state.checkoutBusy = true;
+  render();
+  try {
+    const headers = await buildAuthHeaders();
+    const { payload, error } = await requestJson("/api/integrations/checkout", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ plan })
+    });
+    if (payload?.url) {
+      window.location.href = payload.url;
+    } else {
+      setStatus(payload?.error || error || "Could not start checkout.", "account");
+      state.checkoutBusy = false;
+      render();
+    }
+  } catch (_error) {
+    setStatus("Could not reach the checkout. Try again.", "account");
+    state.checkoutBusy = false;
+    render();
+  }
 }
 
 function loadCookieConsent() {
@@ -4064,7 +4117,20 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
           </div>
         </div>
-        ${!hasAcceptedLegalTerms() ? renderLegalGate() : `
+        ${!hasAcceptedLegalTerms() ? renderLegalGate() : state.clerkFirstDecisionStep ? `
+          <div class="connect-first-panel">
+            <div class="panel-kicker">One quick thing</div>
+            <h3>What do you want PAM to help with first?</h3>
+            <p>One sentence is enough — PAM will use this to set up your dashboard.</p>
+            <textarea class="clerk-first-decision-input" rows="3" placeholder="Can I afford to move out if rent is $1,800?" data-clerk-first-decision-input>${escapeHtml(state.clerkFirstDecision)}</textarea>
+            <div class="wizard-suggestion-row">
+              ${["Can I move out this year?","What car payment can I actually handle?","Am I saving enough each month?","Should I pay off debt or start investing?"].map(s => `<button type="button" data-clerk-decision-suggestion="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}
+            </div>
+            <div class="settings-action-row">
+              <button class="button button-primary" type="button" data-clerk-first-decision-submit ${!state.clerkFirstDecision.trim() ? "disabled" : ""}>Continue</button>
+            </div>
+          </div>
+        ` : `
           <div class="connect-first-panel">
             <div class="panel-kicker">One more step</div>
             <h3>Connect your accounts.</h3>
@@ -4146,6 +4212,27 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             `).join("")}
           </div>
         </article>
+        ${!state.subscription || state.subscription.status === "inactive" ? `
+        <article class="settings-card settings-card-wide upgrade-card">
+          <div>
+            <span>PAM AI</span>
+            <strong>${isFoundingMember() ? "Founding member · $7.99/mo" : "Upgrade · $9.99/mo"}</strong>
+          </div>
+          <p>Unlock unlimited decisions, Plaid account connections, and AI-powered guidance. Founding pricing locked in forever for early members.</p>
+          <div class="settings-action-row">
+            <button class="button button-primary" type="button" data-checkout="founding" ${state.checkoutBusy ? "disabled" : ""}>${state.checkoutBusy ? "Loading..." : "Get founding price · $7.99/mo"}</button>
+            <button class="button button-secondary" type="button" data-checkout="monthly" ${state.checkoutBusy ? "disabled" : ""}>${state.checkoutBusy ? "Loading..." : "Monthly · $9.99/mo"}</button>
+          </div>
+        </article>
+        ` : `
+        <article class="settings-card">
+          <div>
+            <span>Subscription</span>
+            <strong>${isFoundingMember() ? "Founding member · $7.99/mo" : "PAM AI · $9.99/mo"}</strong>
+          </div>
+          <p>Status: ${escapeHtml(state.subscription.status)}${isFoundingMember() ? " · Founding pricing locked in." : ""}</p>
+        </article>
+        `}
         <article class="settings-card">
           <div>
             <span>Account actions</span>
@@ -4974,6 +5061,32 @@ function wireInteractions() {
       if (isClerkMode()) window.Clerk.openSignIn();
     });
   });
+  document.querySelectorAll("[data-clerk-first-decision-input]").forEach((input) => {
+    input.addEventListener("input", () => {
+      state.clerkFirstDecision = input.value;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-clerk-decision-suggestion]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.clerkFirstDecision = button.dataset.clerkDecisionSuggestion || "";
+      render();
+    });
+  });
+  document.querySelectorAll("[data-clerk-first-decision-submit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const q = state.clerkFirstDecision.trim();
+      if (!q) return;
+      saveQuestion(q);
+      state.clerkFirstDecisionStep = false;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-checkout]").forEach((button) => {
+    button.addEventListener("click", () => {
+      startCheckout(button.dataset.checkout || "monthly");
+    });
+  });
   document.querySelectorAll("[data-reset-baseline]").forEach((button) => button.addEventListener("click", resetBaseline));
   document.querySelectorAll("[data-logout]").forEach((button) => button.addEventListener("click", logoutAccount));
   document.querySelectorAll("[data-load-sandbox]").forEach((button) => button.addEventListener("click", handleSandboxSampleData));
@@ -5154,11 +5267,22 @@ export async function startApp() {
       await restoreSessionAccount();
       if (state.account?.id !== prev) {
         if (state.account) {
-          routeSignedInUser("Signed in.");
+          await loadSubscription();
+          // New user with no question yet — show firstDecision step
+          const isNewUser = !hasCompletedBaseline(state.baseline);
+          const hasNoQuestion = !state.question || /Can I afford to move out if rent is \$1,800\?/.test(state.question);
+          if (isNewUser && hasNoQuestion) {
+            state.clerkFirstDecisionStep = true;
+            saveWorkspaceView("account");
+          } else {
+            routeSignedInUser("Signed in.");
+          }
         } else {
           saveWorkspaceView("landing");
           state.account = null;
           state.result = null;
+          state.subscription = null;
+          state.clerkFirstDecisionStep = false;
         }
         render();
       }
@@ -5166,6 +5290,9 @@ export async function startApp() {
   }
 
   await restoreSessionAccount();
+  if (isClerkMode() && state.account?.id) {
+    await loadSubscription();
+  }
   if (hasPrototypeAccount()) {
     const baseline = syncAccountIntoBaseline(state.account, state.baseline);
     saveBaseline(baseline);
@@ -5181,6 +5308,16 @@ export async function startApp() {
   if (["/newsletter", "/waitlist"].includes(window.location.pathname)) {
     saveWorkspaceView("landing");
     state.waitlistOpen = false;
+  }
+  // Handle Stripe return URLs
+  const checkoutParam = new URLSearchParams(window.location.search).get("checkout");
+  if (checkoutParam === "success") {
+    await loadSubscription();
+    setStatus("You're subscribed. Welcome to PAM AI.", "account");
+    window.history.replaceState({}, "", window.location.pathname);
+  } else if (checkoutParam === "cancelled") {
+    setStatus("Checkout cancelled — you can upgrade anytime from your profile.", "account");
+    window.history.replaceState({}, "", window.location.pathname);
   }
   state.goals = loadUserGoals();
   state.decisionHistory = loadDecisionHistory();
