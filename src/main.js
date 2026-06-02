@@ -3982,6 +3982,32 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
   ];
   const profileCompleteness = getProfileCompleteness();
 
+  if (!isComplete) {
+    return `
+      <div class="account-settings-shell">
+        <div class="account-status-card">
+          <div class="account-status-main">
+            <div class="panel-kicker">Account created</div>
+            <h3>Welcome, ${escapeHtml(account.firstName || baseline.firstName || "there")}.</h3>
+            <p>${escapeHtml(account.emailAddress || baseline.emailAddress || "")}</p>
+          </div>
+        </div>
+        ${!hasAcceptedLegalTerms() ? renderLegalGate() : `
+          <div class="connect-first-panel">
+            <div class="panel-kicker">One more step</div>
+            <h3>Connect your accounts.</h3>
+            <p>PAM will pull your balances, income patterns, and spending automatically — no manual entry needed.</p>
+            <div class="settings-action-row">
+              <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect accounts"}</button>
+              <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy ? "disabled" : ""}>Use sample data instead</button>
+            </div>
+          </div>
+        `}
+        ${getStatus("account") ? `<p class="auth-status-message">${escapeHtml(getStatus("account"))}</p>` : ""}
+      </div>
+    `;
+  }
+
   return `
     <div class="account-settings-shell">
       <div class="account-status-card">
@@ -3995,7 +4021,6 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
           <span>${escapeHtml(account.stateCode || baseline.stateCode || "State not set")}</span>
         </div>
       </div>
-      ${!hasAcceptedLegalTerms() ? renderLegalGate() : ""}
       <div class="settings-grid">
         <article class="settings-card">
           <div>

@@ -72,10 +72,10 @@ export const CREATE_ACCOUNT_STEPS = [
     placeholder: "I want to move out this year and understand what rent I can afford.",
     required: true,
     suggestions: [
-      "Can I afford to move out if rent is $1,800?",
-      "Can I afford a $400/month car payment?",
-      "Should I start investing $200/month now?",
-      "How would freelance income change my taxes?"
+      "Can I move out this year?",
+      "What car payment can I actually handle?",
+      "Am I saving enough each month?",
+      "Should I pay off debt or start investing?"
     ]
   }
 ];
