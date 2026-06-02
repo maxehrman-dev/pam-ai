@@ -71,7 +71,7 @@ module.exports = async (req, res) => {
       link_token: payload.link_token
     });
   } catch (error) {
-    return sendJson(res, error.statusCode || 200, {
+    return sendJson(res, error.statusCode || 500, {
       ok: false,
       mode: "mock",
       fallback: true,
