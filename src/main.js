@@ -135,10 +135,20 @@ function loadCookieConsent() {
 function saveCookieConsent(value) {
   const normalized = value === "accepted" ? "accepted" : "declined";
   state.cookieConsent = normalized;
+  window.__pamCookieConsent = normalized;
   try {
     window.localStorage.setItem(COOKIE_CONSENT_KEY, normalized);
   } catch (_error) {
     // Consent UI still works without persistence.
+  }
+  try {
+    if (normalized === "accepted") {
+      window.posthog?.opt_in_capturing?.();
+    } else {
+      window.posthog?.opt_out_capturing?.();
+    }
+  } catch (_error) {
+    // PostHog opt-in/out must never interrupt the app.
   }
 }
 
@@ -274,17 +284,28 @@ function trackEvent(eventName, properties = {}, eventType = "product") {
     if (navigator.sendBeacon) {
       const blob = new Blob([body], { type: "application/json" });
       navigator.sendBeacon("/api/telemetry", blob);
-      return;
+    } else {
+      fetch("/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true
+      }).catch(() => {});
     }
-
-    fetch("/api/telemetry", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-      keepalive: true
-    }).catch(() => {});
   } catch (_error) {
     // Telemetry should never interrupt the decision engine.
+  }
+
+  try {
+    if (state.cookieConsent === "accepted" && window.posthog?.capture) {
+      window.posthog.capture(eventName, {
+        event_type: eventType,
+        page: window.location.pathname || "/",
+        ...properties
+      });
+    }
+  } catch (_error) {
+    // PostHog must never interrupt the decision engine.
   }
 }
 
@@ -1204,6 +1225,14 @@ async function restoreSessionAccount() {
   if (payload.legalAcceptance) {
     saveLegalAcceptance(payload.legalAcceptance);
   }
+  try {
+    if (state.cookieConsent === "accepted" && payload.account?.id && window.posthog?.identify) {
+      window.posthog.identify(payload.account.id, {
+        email: payload.account.emailAddress,
+        name: payload.account.firstName
+      });
+    }
+  } catch (_error) {}
   return payload.account;
 }
 
@@ -1232,6 +1261,9 @@ async function logoutAccount() {
   } catch (_error) {
     // Legal acceptance is user/session scoped.
   }
+  try {
+    window.posthog?.reset?.();
+  } catch (_error) {}
   clearStatus();
   render();
 }
@@ -1829,6 +1861,14 @@ async function handleLogin(event) {
     saveLegalAcceptance(payload.legalAcceptance);
   }
   state.aiGuidance = null;
+  try {
+    if (state.cookieConsent === "accepted" && payload.account?.id && window.posthog?.identify) {
+      window.posthog.identify(payload.account.id, {
+        email: payload.account.emailAddress,
+        name: payload.account.firstName
+      });
+    }
+  } catch (_error) {}
   routeSignedInUser("Signed in.");
   trackEvent("account_signed_in", {
     stateCode: payload.account?.stateCode || "",
@@ -4960,11 +5000,13 @@ export async function startApp() {
       message: event.message || "Unknown client error",
       source: event.filename || ""
     }, "error");
+    try { window.Sentry?.captureException?.(event.error || event.message); } catch (_e) {}
   });
   window.addEventListener("unhandledrejection", (event) => {
     trackEvent("client_unhandled_rejection", {
       message: String(event.reason?.message || event.reason || "Unhandled rejection")
     }, "error");
+    try { window.Sentry?.captureException?.(event.reason); } catch (_e) {}
   });
   lastMobileViewportState = isMobileDashboardViewport();
   window.addEventListener("resize", () => {

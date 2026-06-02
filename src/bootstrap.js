@@ -40,10 +40,79 @@ function renderBootError(error) {
   `;
 }
 
+async function loadConfig() {
+  try {
+    const res = await fetch("/api/config");
+    if (!res.ok) return {};
+    return await res.json();
+  } catch (_error) {
+    return {};
+  }
+}
+
+function initPostHog(key, host) {
+  if (!key || typeof window === "undefined") return;
+  try {
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+
+    window.posthog.init(key, {
+      api_host: host,
+      person_profiles: "identified_only",
+      capture_pageview: true,
+      capture_pageleave: true,
+      opt_out_capturing_by_default: true,
+      loaded: (ph) => {
+        if (window.__pamCookieConsent === "accepted") {
+          ph.opt_in_capturing();
+        }
+      }
+    });
+  } catch (_error) {
+    // PostHog must never interrupt the app.
+  }
+}
+
+function initSentry(dsn) {
+  if (!dsn || typeof window === "undefined") return;
+  try {
+    const script = document.createElement("script");
+    script.src = "https://browser.sentry-cdn.com/8.28.0/bundle.min.js";
+    script.crossOrigin = "anonymous";
+    script.onload = () => {
+      if (!window.Sentry) return;
+      window.Sentry.init({
+        dsn,
+        environment: window.location.hostname === "pamadvisor.com" ? "production" : "development",
+        release: "pam-ai@1.0.0",
+        tracesSampleRate: 0.2,
+        ignoreErrors: [
+          "ResizeObserver loop limit exceeded",
+          "Non-Error promise rejection captured"
+        ],
+        beforeSend(event) {
+          // Strip any financial data from error payloads before sending to Sentry
+          if (event.extra) delete event.extra;
+          if (event.contexts?.state) delete event.contexts.state;
+          return event;
+        }
+      });
+      window.__pamSentryReady = true;
+    };
+    document.head.appendChild(script);
+  } catch (_error) {
+    // Sentry must never interrupt the app.
+  }
+}
+
 async function boot() {
   if (!app) return;
 
   try {
+    const config = await loadConfig();
+
+    initPostHog(config.posthogKey, config.posthogHost);
+    initSentry(config.sentryDsn);
+
     const module = await import("./main.js?v=pam-ai-20260512-brand");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
@@ -51,6 +120,9 @@ async function boot() {
     await module.startApp();
   } catch (error) {
     console.error("PAM AI failed to boot.", error);
+    if (window.__pamSentryReady && window.Sentry) {
+      window.Sentry.captureException(error);
+    }
     renderBootError(error);
   }
 }
