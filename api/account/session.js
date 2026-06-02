@@ -1,8 +1,18 @@
 const crypto = require("crypto");
 const { changePassword, clearSession, getSessionAccount, getSessionAccountWithBaseline } = require("../_lib/account-store.js");
+const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, sanitizeText, validatePayload } = require("../_lib/security.js");
-const { hasSupabaseConfig, insertLegalAcceptance, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
+const { findBaselineByAccountId, hasSupabaseConfig, insertLegalAcceptance, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
+
+async function resolveAccount(req) {
+  if (hasClerkConfig()) {
+    const clerkAccount = await verifyClerkToken(req.headers?.authorization);
+    if (clerkAccount) return clerkAccount;
+  }
+  const token = req.query?.sessionToken || req.body?.sessionToken || "";
+  return token ? await getSessionAccount(token) : null;
+}
 
 const querySchema = {
   properties: {
@@ -91,7 +101,18 @@ module.exports = async (req, res) => {
     ) {
       return;
     }
-    const { account, baseline, legalAcceptance } = await getSessionAccountWithBaseline(getSessionToken(req));
+    const account = await resolveAccount(req);
+    let baseline = null;
+    let legalAcceptance = null;
+    if (account?.id) {
+      if (hasClerkConfig() && account.clerkUserId) {
+        baseline = hasSupabaseConfig() ? await findBaselineByAccountId(account.id).catch(() => null) : null;
+      } else {
+        const full = await getSessionAccountWithBaseline(getSessionToken(req));
+        baseline = full.baseline;
+        legalAcceptance = full.legalAcceptance;
+      }
+    }
     return sendJson(res, 200, {
       ok: Boolean(account),
       account,
@@ -149,7 +170,7 @@ module.exports = async (req, res) => {
 
     if (req.body?.action === "save_baseline") {
       const body = validatePayload(req.body, saveBaselineSchema, "request body");
-      const account = await getSessionAccount(body.sessionToken);
+      const account = await resolveAccount(req);
       if (!account?.id) {
         return sendJson(res, 401, {
           ok: false,

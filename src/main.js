@@ -123,6 +123,48 @@ const state = {
 let isStarted = false;
 let lastMobileViewportState = null;
 
+// Clerk helpers — only active when Clerk is configured
+function isClerkMode() {
+  return Boolean(window.__pamClerkReady && window.Clerk);
+}
+
+async function getAuthToken() {
+  if (isClerkMode()) {
+    try {
+      return await window.Clerk.session?.getToken?.() || null;
+    } catch (_error) {
+      return null;
+    }
+  }
+  return state.sessionToken || null;
+}
+
+function getClerkAccount() {
+  const user = window.__pamClerkUser;
+  if (!user) return null;
+  const email = user.primaryEmailAddress?.emailAddress || "";
+  return {
+    id: user.id,
+    clerkUserId: user.id,
+    firstName: user.firstName || email.split("@")[0] || "User",
+    emailAddress: email,
+    employmentStatus: user.publicMetadata?.employmentStatus || "Not sure yet",
+    stateCode: user.publicMetadata?.stateCode || "OTHER",
+    age: user.publicMetadata?.age || null,
+    creditScore: user.publicMetadata?.creditScore || null,
+    createdAt: new Date().toISOString()
+  };
+}
+
+async function buildAuthHeaders() {
+  const token = await getAuthToken();
+  if (!token) return { "Content-Type": "application/json" };
+  if (isClerkMode()) {
+    return { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
+  }
+  return { "Content-Type": "application/json" };
+}
+
 function loadCookieConsent() {
   if (typeof window === "undefined") return "";
   try {
@@ -1145,11 +1187,16 @@ function renderHeaderActions() {
   const actions = [];
 
   if (!hasAccount) {
-    actions.push(`<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`);
-    if (!state.waitlistJoined) {
-      actions.push(`<button class="button button-secondary optional-header-action" type="button" data-open-waitlist>Join waitlist</button>`);
+    if (isClerkMode()) {
+      actions.push(`<button class="button button-secondary" type="button" data-clerk-signin>Sign in</button>`);
+      actions.push(`<button class="button button-primary" type="button" data-clerk-signup>Create account</button>`);
+    } else {
+      actions.push(`<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`);
+      if (!state.waitlistJoined) {
+        actions.push(`<button class="button button-secondary optional-header-action" type="button" data-open-waitlist>Join waitlist</button>`);
+      }
+      actions.push(`<button class="button button-primary" type="button" data-open-view="account">Create account</button>`);
     }
-    actions.push(`<button class="button button-primary" type="button" data-open-view="account">Create account</button>`);
   } else if (canUseApp) {
     if (!isDashboard) {
       actions.push(`<button class="button button-primary" type="button" data-open-view="dashboard">Open dashboard</button>`);
@@ -1216,6 +1263,28 @@ async function handleDemoAccessSubmit(event) {
 }
 
 async function restoreSessionAccount() {
+  // Clerk mode: read account from Clerk's active session
+  if (isClerkMode()) {
+    const clerkAccount = getClerkAccount();
+    if (!clerkAccount) return null;
+    state.account = clerkAccount;
+    const headers = await buildAuthHeaders();
+    const { payload } = await requestJson("/api/account/session", { headers });
+    if (payload?.baseline) {
+      saveBaseline(syncAccountIntoBaseline(clerkAccount, payload.baseline));
+    }
+    if (payload?.legalAcceptance) {
+      saveLegalAcceptance(payload.legalAcceptance);
+    }
+    try {
+      if (state.cookieConsent === "accepted" && clerkAccount.id && window.posthog?.identify) {
+        window.posthog.identify(clerkAccount.id, { email: clerkAccount.emailAddress, name: clerkAccount.firstName });
+      }
+    } catch (_error) {}
+    return clerkAccount;
+  }
+
+  // Legacy mode: custom session token
   if (!state.sessionToken) return null;
   const { payload, error } = await requestJson(`/api/account/session?sessionToken=${encodeURIComponent(state.sessionToken)}`);
   if (error) {
@@ -1273,6 +1342,9 @@ async function logoutAccount() {
   try {
     window.posthog?.reset?.();
   } catch (_error) {}
+  if (isClerkMode()) {
+    try { await window.Clerk.signOut(); } catch (_error) {}
+  }
   clearStatus();
   render();
 }
@@ -4101,6 +4173,28 @@ function renderBaselinePanel() {
   const step = getCreateAccountStepConfig();
   const stepValue = String(draft[step.key] || "");
   const isLastStep = state.createAccountStep === CREATE_ACCOUNT_STEPS.length - 1;
+  if (!isSignedIn && isClerkMode()) {
+    return `
+      <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
+        <div class="panel-kicker">Get started</div>
+        <h2>Create your account.</h2>
+        <div class="onboarding-layout">
+          <div class="baseline-form onboarding-form sandbox-connect-panel">
+            <div class="auth-shell">
+              <div class="auth-card clerk-auth-card">
+                <p>Sign in or create an account to start modeling your financial decisions.</p>
+                <div class="form-actions">
+                  <button class="button button-secondary" type="button" data-clerk-signin>Sign in</button>
+                  <button class="button button-primary" type="button" data-clerk-signup>Create account</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   return `
     <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
       <div class="panel-kicker">${isSignedIn ? "Account" : "Get started"}</div>
@@ -4870,6 +4964,16 @@ function wireInteractions() {
     });
     render();
   }));
+  document.querySelectorAll("[data-clerk-signup]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (isClerkMode()) window.Clerk.openSignUp();
+    });
+  });
+  document.querySelectorAll("[data-clerk-signin]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (isClerkMode()) window.Clerk.openSignIn();
+    });
+  });
   document.querySelectorAll("[data-reset-baseline]").forEach((button) => button.addEventListener("click", resetBaseline));
   document.querySelectorAll("[data-logout]").forEach((button) => button.addEventListener("click", logoutAccount));
   document.querySelectorAll("[data-load-sandbox]").forEach((button) => button.addEventListener("click", handleSandboxSampleData));
@@ -5043,6 +5147,24 @@ export async function startApp() {
     render();
     return;
   }
+  // Listen for Clerk auth changes (sign-in/out happen in Clerk modal)
+  if (isClerkMode()) {
+    window.addEventListener("pam:clerk:change", async () => {
+      const prev = state.account?.id;
+      await restoreSessionAccount();
+      if (state.account?.id !== prev) {
+        if (state.account) {
+          routeSignedInUser("Signed in.");
+        } else {
+          saveWorkspaceView("landing");
+          state.account = null;
+          state.result = null;
+        }
+        render();
+      }
+    });
+  }
+
   await restoreSessionAccount();
   if (hasPrototypeAccount()) {
     const baseline = syncAccountIntoBaseline(state.account, state.baseline);

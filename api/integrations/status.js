@@ -1,4 +1,5 @@
 const { hasEmailProvider, hasNewsletterAudience } = require("../_lib/email.js");
+const { getClerkPublishableKey, hasClerkConfig } = require("../_lib/clerk.js");
 const { hasPlaidConfig } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit } = require("../_lib/security.js");
@@ -36,10 +37,14 @@ module.exports = async (req, res) => {
       configured: Boolean(process.env.OPENAI_API_KEY),
       model: process.env.OPENAI_MODEL || "default"
     },
+    clerk: {
+      configured: hasClerkConfig()
+    },
     clientConfig: {
       sentryDsn: process.env.SENTRY_DSN || "",
       posthogKey: process.env.POSTHOG_KEY || "phc_qex4UsyDAYzV2YhWodw9ePHBLfA8pTJ7pSaWZdip3pfr",
-      posthogHost: process.env.POSTHOG_HOST || "https://us.i.posthog.com"
+      posthogHost: process.env.POSTHOG_HOST || "https://us.i.posthog.com",
+      clerkPublishableKey: getClerkPublishableKey()
     }
   });
 };

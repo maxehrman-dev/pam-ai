@@ -51,6 +51,31 @@ async function loadConfig() {
   }
 }
 
+async function initClerk(publishableKey) {
+  if (!publishableKey || typeof window === "undefined") return;
+  try {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.clerk.com/clerk.js";
+      script.async = true;
+      script.dataset.clerkPublishableKey = publishableKey;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    await window.Clerk?.load?.();
+    window.__pamClerkReady = true;
+
+    window.Clerk.addListener(({ user, session }) => {
+      window.__pamClerkUser = user || null;
+      window.__pamClerkSession = session || null;
+      window.dispatchEvent(new CustomEvent("pam:clerk:change", { detail: { user, session } }));
+    });
+  } catch (_error) {
+    // Clerk must never interrupt the app.
+  }
+}
+
 function initPostHog(key, host) {
   if (!key || typeof window === "undefined") return;
   try {
@@ -113,6 +138,7 @@ async function boot() {
 
     initPostHog(config.posthogKey, config.posthogHost);
     initSentry(config.sentryDsn);
+    await initClerk(config.clerkPublishableKey);
 
     const module = await import("./main.js?v=pam-ai-20260512-brand");
     if (typeof module.startApp !== "function") {
