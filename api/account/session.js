@@ -59,10 +59,13 @@ function normalizeDemoCode(value) {
 }
 
 function timingSafeEqualText(left, right) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) return false;
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  const maxLen = Math.max(Buffer.byteLength(left), Buffer.byteLength(right), 1);
+  const leftBuffer = Buffer.alloc(maxLen);
+  const rightBuffer = Buffer.alloc(maxLen);
+  leftBuffer.write(left);
+  rightBuffer.write(right);
+  const equal = crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  return equal && Buffer.byteLength(left) === Buffer.byteLength(right);
 }
 
 function getAllowedDemoCodes() {

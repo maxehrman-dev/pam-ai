@@ -107,7 +107,7 @@ module.exports = async (req, res) => {
       institution_name: exchange.institutionName
     });
   } catch (error) {
-    return sendJson(res, error.statusCode || 200, {
+    return sendJson(res, error.statusCode || 500, {
       ok: false,
       mode: "mock",
       fallback: true,

@@ -170,7 +170,7 @@ module.exports = async (req, res) => {
       warning
     });
   } catch (error) {
-    return sendJson(res, error.statusCode || 200, {
+    return sendJson(res, error.statusCode || 500, {
       ok: false,
       error: "Unable to join the waitlist right now. Please try again."
     });
