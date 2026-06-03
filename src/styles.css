@@ -27,30 +27,30 @@
 }
 
 :root[data-theme="dark"] {
-  --cream-0: #0e1713;
-  --cream-1: #14221b;
-  --cream-2: #21352b;
-  --mint-1: #123d2e;
+  --cream-0: #11151b;
+  --cream-1: #181d24;
+  --cream-2: #232a33;
+  --mint-1: #16352b;
   --mint-2: #5ed3b2;
-  --mint-3: #69bb99;
-  --mint-4: #39a77b;
-  --mint-5: #8be7c5;
-  --forest: #dff8ec;
-  --forest-2: #f5fff9;
-  --ink-2: #9eb7a8;
-  --ink-3: #c0d0c7;
-  --ink-4: #eef8f2;
+  --mint-3: #84b6a4;
+  --mint-4: #2fa67c;
+  --mint-5: #6fe0be;
+  --forest: #eef2f4;
+  --forest-2: #ffffff;
+  --ink-2: #97a3ab;
+  --ink-3: #c2cbd1;
+  --ink-4: #e9edf0;
   --ink-5: #ffffff;
-  --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.28);
-  --pam-surface: rgba(17, 30, 24, 0.92);
-  --pam-surface-strong: rgba(20, 35, 28, 0.96);
-  --pam-surface-soft: rgba(255, 255, 255, 0.07);
-  --pam-surface-tint: rgba(94, 211, 178, 0.12);
-  --pam-input-bg: rgba(6, 13, 10, 0.86);
-  --pam-border: rgba(139, 231, 197, 0.2);
-  --pam-border-strong: rgba(139, 231, 197, 0.34);
-  --pam-track: rgba(255, 255, 255, 0.11);
-  --pam-contrast-shadow: 0 22px 50px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.45);
+  --pam-surface: #181d24;
+  --pam-surface-strong: #1e242d;
+  --pam-surface-soft: #232a33;
+  --pam-surface-tint: rgba(94, 211, 178, 0.1);
+  --pam-input-bg: #0d1117;
+  --pam-border: rgba(255, 255, 255, 0.1);
+  --pam-border-strong: rgba(255, 255, 255, 0.2);
+  --pam-track: rgba(255, 255, 255, 0.1);
+  --pam-contrast-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -74,44 +74,85 @@ body {
 
 :root[data-theme="dark"] body {
   background:
-    radial-gradient(circle at top left, rgba(94, 211, 178, 0.18), transparent 34%),
-    radial-gradient(circle at right 10% top 15%, rgba(245, 255, 249, 0.06), transparent 28%),
-    linear-gradient(180deg, #09110e 0%, #101c17 44%, #0d1713 100%);
+    radial-gradient(circle at top left, rgba(94, 211, 178, 0.08), transparent 38%),
+    linear-gradient(180deg, #0d1117 0%, #11161d 100%);
+}
+
+/* Dark-mode surfaces for the hero mockup card (otherwise renders light) */
+:root[data-theme="dark"] .hero-preview-card,
+:root[data-theme="dark"] .advisor-demo-window {
+  background: var(--pam-surface-strong);
+  border-color: var(--pam-border);
+  box-shadow: var(--pam-contrast-shadow);
+}
+
+:root[data-theme="dark"] .preview-advisor-note,
+:root[data-theme="dark"] .preview-goal-callout,
+:root[data-theme="dark"] .demo-question,
+:root[data-theme="dark"] .preview-metric-row div,
+:root[data-theme="dark"] .demo-result-grid div {
+  background: var(--pam-surface-soft);
+  border-color: var(--pam-border);
+}
+
+:root[data-theme="dark"] .preview-window-bar span,
+:root[data-theme="dark"] .demo-window-header span {
+  background: var(--pam-surface-tint);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
-    --cream-0: #0e1713;
-    --cream-1: #14221b;
-    --cream-2: #21352b;
-    --mint-1: #123d2e;
+    --cream-0: #11151b;
+    --cream-1: #181d24;
+    --cream-2: #232a33;
+    --mint-1: #16352b;
     --mint-2: #5ed3b2;
-    --mint-3: #69bb99;
-    --mint-4: #39a77b;
-    --mint-5: #8be7c5;
-    --forest: #dff8ec;
-    --forest-2: #f5fff9;
-    --ink-2: #9eb7a8;
-    --ink-3: #c0d0c7;
-    --ink-4: #eef8f2;
+    --mint-3: #84b6a4;
+    --mint-4: #2fa67c;
+    --mint-5: #6fe0be;
+    --forest: #eef2f4;
+    --forest-2: #ffffff;
+    --ink-2: #97a3ab;
+    --ink-3: #c2cbd1;
+    --ink-4: #e9edf0;
     --ink-5: #ffffff;
-    --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.28);
-    --pam-surface: rgba(17, 30, 24, 0.92);
-    --pam-surface-strong: rgba(20, 35, 28, 0.96);
-    --pam-surface-soft: rgba(255, 255, 255, 0.07);
-    --pam-surface-tint: rgba(94, 211, 178, 0.12);
-    --pam-input-bg: rgba(6, 13, 10, 0.86);
-    --pam-border: rgba(139, 231, 197, 0.2);
-    --pam-border-strong: rgba(139, 231, 197, 0.34);
-    --pam-track: rgba(255, 255, 255, 0.11);
-    --pam-contrast-shadow: 0 22px 50px rgba(0, 0, 0, 0.34);
+    --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.45);
+    --pam-surface: #181d24;
+    --pam-surface-strong: #1e242d;
+    --pam-surface-soft: #232a33;
+    --pam-surface-tint: rgba(94, 211, 178, 0.1);
+    --pam-input-bg: #0d1117;
+    --pam-border: rgba(255, 255, 255, 0.1);
+    --pam-border-strong: rgba(255, 255, 255, 0.2);
+    --pam-track: rgba(255, 255, 255, 0.1);
+    --pam-contrast-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
   }
 
   :root[data-theme="system"] body {
     background:
-      radial-gradient(circle at top left, rgba(94, 211, 178, 0.18), transparent 34%),
-      radial-gradient(circle at right 10% top 15%, rgba(245, 255, 249, 0.06), transparent 28%),
-      linear-gradient(180deg, #09110e 0%, #101c17 44%, #0d1713 100%);
+      radial-gradient(circle at top left, rgba(94, 211, 178, 0.08), transparent 38%),
+      linear-gradient(180deg, #0d1117 0%, #11161d 100%);
+  }
+
+  :root[data-theme="system"] .hero-preview-card,
+  :root[data-theme="system"] .advisor-demo-window {
+    background: var(--pam-surface-strong);
+    border-color: var(--pam-border);
+    box-shadow: var(--pam-contrast-shadow);
+  }
+
+  :root[data-theme="system"] .preview-advisor-note,
+  :root[data-theme="system"] .preview-goal-callout,
+  :root[data-theme="system"] .demo-question,
+  :root[data-theme="system"] .preview-metric-row div,
+  :root[data-theme="system"] .demo-result-grid div {
+    background: var(--pam-surface-soft);
+    border-color: var(--pam-border);
+  }
+
+  :root[data-theme="system"] .preview-window-bar span,
+  :root[data-theme="system"] .demo-window-header span {
+    background: var(--pam-surface-tint);
   }
 }
 
@@ -2464,6 +2505,24 @@ input:disabled {
 
 .verification-check-message.checking {
   color: var(--ink-3);
+}
+
+.daily-networth-header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.daily-networth-header h2 {
+  margin: 2px 0;
+  font-size: 2rem;
+  color: var(--ink-4);
+}
+
+.daily-networth-header p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
 }
 
 .daily-chart-header,
@@ -5117,6 +5176,11 @@ input:disabled {
 .static-fallback-grid article,
 .static-fallback-footer,
 .noscript-panel,
+.foresee-header,
+.launch-gate-card,
+.connect-first-panel,
+.account-status-card,
+.mobile-home-hero,
 .foresee-shell,
 .foresee-panel,
 .auth-card,

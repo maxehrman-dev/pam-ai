@@ -2687,14 +2687,6 @@ function renderHero() {
           <div><span>Monthly buffer</span><strong>$1,270 → $870</strong></div>
           <div><span>Risk</span><strong>Medium</strong></div>
         </div>
-        <div class="preview-chart" aria-hidden="true">
-          <span style="height: 44%"></span>
-          <span style="height: 58%"></span>
-          <span style="height: 50%"></span>
-          <span style="height: 74%"></span>
-          <span style="height: 63%"></span>
-          <span style="height: 42%"></span>
-        </div>
         <div class="preview-goal-callout">
           <span>Goal impact</span>
           <strong>Moving out delayed by 6-9 months</strong>
@@ -3270,10 +3262,6 @@ function renderMobileHomeScreen() {
         <button type="button" data-mobile-view="ask">Ask PAM</button>
       </div>
 
-      <div class="mobile-home-chart" aria-hidden="true">
-        ${chartPoints.map((point) => `<span style="height:${point}%"></span>`).join("")}
-      </div>
-
       <div class="mobile-kpi-grid">
         <article><span>Monthly buffer</span><strong>${formatCurrency(monthlyBuffer)}</strong><small>${monthlyBuffer >= 500 ? "Room to test decisions" : "Keep decisions conservative"}</small></article>
         <article><span>Checking</span><strong>${formatCurrency(checkingBalance)}</strong><small>Available cash</small></article>
@@ -3544,35 +3532,11 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         <div class="daily-main-card${dashboardFreshClass}">
-        <div class="daily-chart-header">
-          <div>
-            <div class="panel-kicker">Net worth</div>
-            <h2>${formatCurrency(netWorth)}</h2>
-            <p class="range-change-copy"><strong>${hasConnectedData ? `${projectedChange >= 0 ? "↗" : "↘"} ${formatCurrency(Math.abs(projectedChange))} (${projectedPercent}%)` : "Connect accounts to see your net worth"}</strong><span>${hasConnectedData ? `Projected ${rangeConfig.label} path from today’s baseline · ${formatCurrency(projectedNetWorth)} ending estimate` : "No connected account balances are available yet."}</span></p>
-          </div>
-          <div class="daily-range-tabs" role="tablist" aria-label="Net worth range">
-            ${Object.keys(netWorthRanges).map((range) => `
-              <button
-                class="${activeRange === range ? "active" : ""}"
-                type="button"
-                data-net-worth-range="${range}"
-                role="tab"
-                aria-selected="${activeRange === range ? "true" : "false"}"
-              >${range}</button>
-            `).join("")}
-            <span class="range-live-note" aria-live="polite">${activeRange} selected</span>
-          </div>
+        <div class="daily-networth-header">
+          <div class="panel-kicker">Net worth</div>
+          <h2>${hasConnectedData ? formatCurrency(netWorth) : "—"}</h2>
+          <p>${hasConnectedData ? `Assets minus liabilities across ${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"}.` : "Connect your accounts to see your real net worth."}</p>
         </div>
-        ${hasConnectedData ? `
-          <div class="daily-chart" aria-hidden="true">
-            ${chartPoints.map((point, index) => `<span style="height:${point}%"><small>${escapeHtml(chartLabels[index] || "")}</small></span>`).join("")}
-          </div>
-        ` : `
-          <div class="daily-chart-placeholder">
-            <strong>Connect accounts to see your net worth chart.</strong>
-            <span>PAM will replace this with balances from your connected baseline.</span>
-          </div>
-        `}
         <div class="daily-metric-strip">
           <div><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${hasConnectedData && netWorth > 0 ? `${getProgressPercent(currentSavings, netWorth)}% of net worth` : hasConnectedData ? "Connected data" : "Manual baseline"}</small></div>
           <div><span>Checking</span><strong>${formatCurrency(checkingBalance)}</strong><small>Available</small></div>
