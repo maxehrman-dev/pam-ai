@@ -2239,7 +2239,7 @@ async function handleConnectSandboxAccount(options = {}) {
   }
   state.plaidBusy = true;
   if (!silent) {
-    setStatus("Connecting accounts...", "account");
+    clearStatus("account");
     render();
   }
 
@@ -3537,11 +3537,12 @@ function renderDailyDashboardHome() {
       <div class="daily-action-column">
         ${renderDecisionPanel()}
         ${renderResult()}
-        <div class="daily-main-card${dashboardFreshClass}">
+        ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
+        <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
           <div class="panel-kicker">Net worth</div>
-          <h2>${hasConnectedData ? formatCurrency(netWorth) : "—"}</h2>
-          <p>${hasConnectedData ? `Assets minus liabilities across ${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"}.` : "Connect your accounts to see your real net worth."}</p>
+          <h2>${state.plaidBusy && !hasConnectedData ? "…" : hasConnectedData ? formatCurrency(netWorth) : "—"}</h2>
+          <p>${state.plaidBusy ? "Pulling your latest balances from Plaid…" : hasConnectedData ? `Assets minus liabilities across ${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"}.` : "Connect your accounts to see your real net worth."}</p>
         </div>
         <div class="daily-metric-strip">
           <div><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${hasConnectedData && netWorth > 0 ? `${getProgressPercent(currentSavings, netWorth)}% of net worth` : hasConnectedData ? "Connected data" : "Manual baseline"}</small></div>
@@ -4099,11 +4100,14 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
           <div class="connect-first-panel">
             <div class="panel-kicker">One more step</div>
             <h3>Connect your accounts.</h3>
-            <p>PAM will pull your balances, income patterns, and spending automatically — no manual entry needed.</p>
-            <div class="settings-action-row">
-              <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect accounts"}</button>
-              <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy ? "disabled" : ""}>Use sample data instead</button>
-            </div>
+            <p>PAM reads your balances, income, and spending to model decisions accurately — no manual entry needed.</p>
+            ${state.plaidBusy ? renderPlaidConnecting() : `
+              <div class="settings-action-row">
+                <button class="button button-primary" type="button" data-connect-sandbox>Connect securely with Plaid</button>
+                <button class="button button-secondary" type="button" data-load-sandbox>Use sample data instead</button>
+              </div>
+              ${renderPlaidTrustNote()}
+            `}
           </div>
         `}
         ${getStatus("account") ? `<p class="auth-status-message">${escapeHtml(getStatus("account"))}</p>` : ""}
@@ -4159,12 +4163,14 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             <span>Financial data</span>
             <strong>${isComplete ? "Connected baseline ready" : "Connect your baseline"}</strong>
           </div>
-          <p>Last updated: ${escapeHtml(updatedLabel)}. Production sync should run roughly daily; use manual refresh before testing an important decision.</p>
-          <div class="settings-action-row">
-            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>${state.plaidBusy ? "Refreshing..." : isComplete ? "Sync accounts" : "Connect accounts"}</button>
-            <button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy || !hasAcceptedLegalTerms() ? "disabled" : ""}>Use sample baseline</button>
-            ${isComplete ? `<button class="button button-secondary" type="button" data-open-view="dashboard">Open dashboard</button>` : ""}
-          </div>
+          <p>Last updated: ${escapeHtml(updatedLabel)}. PAM connects read-only through Plaid and never stores your bank login.</p>
+          ${state.plaidBusy ? renderPlaidConnecting(isComplete ? "Refreshing your connected data…" : "Connecting securely through Plaid…") : `
+            <div class="settings-action-row">
+              <button class="button button-primary" type="button" data-connect-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>${isComplete ? "Sync accounts" : "Connect securely with Plaid"}</button>
+              <button class="button button-secondary" type="button" data-load-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>Use sample baseline</button>
+              ${isComplete ? `<button class="button button-secondary" type="button" data-open-view="dashboard">Open dashboard</button>` : ""}
+            </div>
+          `}
         </article>
         <article class="settings-card">
           <div>
@@ -4212,6 +4218,29 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
         </article>
       </div>
       ${getStatus("account") ? `<p class="auth-status-message">${escapeHtml(getStatus("account"))}</p>` : ""}
+    </div>
+  `;
+}
+
+function renderPlaidTrustNote() {
+  return `
+    <ul class="plaid-trust-list">
+      <li><span class="plaid-trust-icon">🔒</span> Bank-grade encryption via Plaid, used by Venmo, SoFi, and Chime</li>
+      <li><span class="plaid-trust-icon">👁️</span> Read-only access — PAM can never move or touch your money</li>
+      <li><span class="plaid-trust-icon">🔑</span> PAM never sees your bank login. You enter it with Plaid, not us</li>
+      <li><span class="plaid-trust-icon">⏏️</span> Disconnect anytime from your profile</li>
+    </ul>
+  `;
+}
+
+function renderPlaidConnecting(message = "Connecting securely through Plaid…") {
+  return `
+    <div class="plaid-connecting" role="status" aria-live="polite">
+      <span class="plaid-spinner" aria-hidden="true"></span>
+      <div>
+        <strong>${escapeHtml(message)}</strong>
+        <span>This can take a few seconds while PAM builds your baseline.</span>
+      </div>
     </div>
   `;
 }

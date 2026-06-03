@@ -3202,8 +3202,8 @@ input:disabled {
   gap: 12px;
   padding: 24px;
   border-radius: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--pam-surface-strong);
+  border: 1px solid var(--pam-border);
 }
 
 .connect-first-panel h3 {
@@ -3217,6 +3217,97 @@ input:disabled {
   color: var(--ink-2);
   font-size: 0.95rem;
   margin: 0;
+}
+
+.plaid-trust-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.plaid-trust-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-3);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.plaid-trust-icon {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--pam-surface-tint);
+  font-size: 0.8rem;
+}
+
+.plaid-connecting {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--pam-surface-tint);
+  border: 1px solid var(--pam-border);
+}
+
+.plaid-connecting strong {
+  display: block;
+  color: var(--ink-4);
+  font-size: 0.95rem;
+}
+
+.plaid-connecting span {
+  color: var(--ink-2);
+  font-size: 0.82rem;
+}
+
+.plaid-spinner {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid var(--pam-border-strong);
+  border-top-color: var(--mint-4);
+  animation: pam-spin 0.7s linear infinite;
+}
+
+@keyframes pam-spin {
+  to { transform: rotate(360deg); }
+}
+
+.dashboard-refreshing-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: var(--pam-surface-tint);
+  border: 1px solid var(--pam-border);
+  color: var(--ink-3);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.dashboard-loading-overlay {
+  position: relative;
+}
+
+.dashboard-loading-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--pam-surface);
+  opacity: 0.55;
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 .settings-grid {
