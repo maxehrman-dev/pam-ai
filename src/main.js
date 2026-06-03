@@ -1204,8 +1204,16 @@ function hasPrototypeAccount() {
   return Boolean(state.account?.emailAddress && state.account?.firstName);
 }
 
+function hasConnectedFinancialData() {
+  if (String(state.baseline?.source || "").startsWith("plaid")) return true;
+  return getConnectedAccounts(state.baseline).length > 0;
+}
+
 function canAccessDashboard() {
-  return hasPrototypeAccount() && hasCompletedBaseline(state.baseline);
+  if (!hasPrototypeAccount()) return false;
+  // Connected (Plaid/sample) data unlocks the dashboard even if some manual-entry
+  // fields are missing — validateBaseline is for the manual path only.
+  return hasConnectedFinancialData() || hasCompletedBaseline(state.baseline);
 }
 
 function canUseFinancialFeatures() {
@@ -2341,7 +2349,7 @@ async function handleQuestionSubmit(event) {
     saveWorkspaceView("account");
     state.result = null;
     state.aiGuidance = null;
-    setStatus("Connect Sandbox data first so PAM can calculate this against your real inputs.", "account");
+    setStatus("Connect your accounts so PAM can model this against your real numbers.", "account");
     render();
     return;
   }
@@ -3051,15 +3059,27 @@ function renderLandingWorkspace() {
 
 function renderDashboardWorkspace() {
   if (!canAccessDashboard() || !hasAcceptedLegalTerms()) {
+    const needsLegal = canAccessDashboard() && !hasAcceptedLegalTerms();
     return `
       <section class="foresee-panel result-panel locked-result">
         <div class="result-header">
           <div>
-            <div class="panel-kicker">Dashboard locked</div>
-            <h2>${canAccessDashboard() ? "Accept PAM's legal terms first." : "Create an account and connect Sandbox data first."}</h2>
+            <div class="panel-kicker">${needsLegal ? "One last step" : "Almost there"}</div>
+            <h2>${needsLegal ? "Accept PAM's terms to open your dashboard." : "Connect your accounts to unlock your dashboard."}</h2>
           </div>
         </div>
-        ${canAccessDashboard() ? renderLegalGate() : ""}
+        ${needsLegal ? renderLegalGate() : `
+          <div class="connect-first-panel">
+            <p>PAM reads your balances, income, and spending to model decisions accurately — no manual entry needed.</p>
+            ${state.plaidBusy ? renderPlaidConnecting() : `
+              <div class="settings-action-row">
+                <button class="button button-primary" type="button" data-connect-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>Connect securely with Plaid</button>
+                <button class="button button-secondary" type="button" data-load-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>Use sample data instead</button>
+              </div>
+              ${renderPlaidTrustNote()}
+            `}
+          </div>
+        `}
       </section>
     `;
   }
@@ -4460,11 +4480,11 @@ function renderResult() {
       <section class="foresee-panel result-panel locked-result">
       <div class="result-header">
         <div>
-          <div class="panel-kicker">Result locked</div>
-          <h2>${canAccessDashboard() ? "Accept PAM's legal terms first." : "Create your account and connect Sandbox data first."}</h2>
+          <div class="panel-kicker">${canAccessDashboard() ? "One last step" : "Almost there"}</div>
+          <h2>${canAccessDashboard() ? "Accept PAM's terms to see your results." : "Connect your accounts to start modeling."}</h2>
         </div>
       </div>
-      ${canAccessDashboard() ? renderLegalGate() : "<p>PAM will not fake a homepage or pretend to know your finances. Create your account first, then connect Sandbox data so the decision engine has a real baseline to work from.</p>"}
+      ${canAccessDashboard() ? renderLegalGate() : "<p>PAM models decisions against your real numbers. Connect your accounts and your results will appear here instantly — no manual entry needed.</p>"}
     </section>
   `;
   }
