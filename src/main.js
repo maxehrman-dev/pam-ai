@@ -132,6 +132,12 @@ function isClerkMode() {
   return Boolean(window.__pamClerkReady && window.Clerk);
 }
 
+// True as soon as Clerk is known to be the auth provider (even before clerk.js
+// finishes loading) — used to render Clerk UI and never the removed legacy form.
+function isClerkConfigured() {
+  return Boolean(window.__pamClerkConfigured);
+}
+
 async function getAuthToken() {
   if (isClerkMode()) {
     try {
@@ -1240,7 +1246,7 @@ function renderHeaderActions() {
   const actions = [];
 
   if (!hasAccount) {
-    if (isClerkMode()) {
+    if (isClerkConfigured()) {
       actions.push(`<button class="button button-secondary" type="button" data-clerk-signin>Sign in</button>`);
       actions.push(`<button class="button button-primary" type="button" data-clerk-signup>Create account</button>`);
     } else {
@@ -4219,7 +4225,7 @@ function renderBaselinePanel() {
   const step = getCreateAccountStepConfig();
   const stepValue = String(draft[step.key] || "");
   const isLastStep = state.createAccountStep === CREATE_ACCOUNT_STEPS.length - 1;
-  if (!isSignedIn && isClerkMode()) {
+  if (!isSignedIn && isClerkConfigured()) {
     return `
       <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
         <div class="panel-kicker">Get started</div>
@@ -5005,12 +5011,14 @@ function wireInteractions() {
   }));
   document.querySelectorAll("[data-clerk-signup]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (isClerkMode()) window.Clerk.openSignUp();
+      if (window.Clerk?.openSignUp) window.Clerk.openSignUp();
+      else setStatus("Sign-up is loading, one moment…", "account"), render();
     });
   });
   document.querySelectorAll("[data-clerk-signin]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (isClerkMode()) window.Clerk.openSignIn();
+      if (window.Clerk?.openSignIn) window.Clerk.openSignIn();
+      else setStatus("Sign-in is loading, one moment…", "account"), render();
     });
   });
   document.querySelectorAll("[data-clerk-first-decision-input]").forEach((input) => {

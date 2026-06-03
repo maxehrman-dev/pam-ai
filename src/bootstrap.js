@@ -51,14 +51,31 @@ async function loadConfig() {
   }
 }
 
+function getClerkFrontendApi(publishableKey) {
+  // Publishable key format: pk_test_<base64(frontendApi + "$")>
+  try {
+    const encoded = publishableKey.replace(/^pk_(test|live)_/, "");
+    const decoded = atob(encoded);
+    return decoded.replace(/\$$/, "");
+  } catch (_error) {
+    return "";
+  }
+}
+
 async function initClerk(publishableKey) {
   if (!publishableKey || typeof window === "undefined") return;
+  const frontendApi = getClerkFrontendApi(publishableKey);
+  if (!frontendApi) return;
+  // Mark Clerk as the auth provider immediately so the app never falls back
+  // to the removed legacy sign-in form, even while clerk.js is still loading.
+  window.__pamClerkConfigured = true;
   try {
     await new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = "https://cdn.clerk.com/clerk.js";
+      script.src = `https://${frontendApi}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
       script.async = true;
-      script.dataset.clerkPublishableKey = publishableKey;
+      script.crossOrigin = "anonymous";
+      script.setAttribute("data-clerk-publishable-key", publishableKey);
       script.onload = resolve;
       script.onerror = reject;
       document.head.appendChild(script);
@@ -140,7 +157,7 @@ async function boot() {
     initSentry(config.sentryDsn);
     await initClerk(config.clerkPublishableKey);
 
-    const module = await import("./main.js?v=pam-ai-20260602-ui");
+    const module = await import("./main.js?v=pam-ai-20260602-clerk");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }
