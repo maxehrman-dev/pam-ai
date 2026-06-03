@@ -19,7 +19,7 @@ PAM AI is not a budgeting tracker or an expense categorizer. It is a scenario en
 ## Run locally
 
 1. `cd /Users/iwillfixthis/Documents/New\ project/pam-ai`
-2. Create `.env.local` from `.env.example` and add `OPENAI_API_KEY`
+2. Create `.env.local` from `.env.example` and add `ANTHROPIC_API_KEY`
 3. `node server.js`
 4. Open `http://localhost:3000`
 
@@ -38,10 +38,10 @@ Do not open `index.html` directly with `file://`. PAM uses JavaScript modules an
 ## AI configuration
 
 - The live decision guidance route is `/api/decision`
-- `OPENAI_API_KEY` is read server-side only
-- Frontend code should never contain a raw OpenAI key
+- `ANTHROPIC_API_KEY` is read server-side only
+- Frontend code should never contain a raw Anthropic key
 - For local development, use `.env.local`
-- For Vercel production, set `OPENAI_API_KEY` in the project environment settings
+- For Vercel production, set `ANTHROPIC_API_KEY` in the project environment settings
 - If any provider key was ever pasted into code, chat, or a client bundle, rotate it in the provider dashboard before reuse
 
 ## Verification email configuration
@@ -135,14 +135,14 @@ The app posts these fields to the Sheet mirror: email, full name, age, stage, pu
 - Cost-sensitive routes have stricter daily caps and emergency kill switches. See `security/cost-protection.md`
 - Set `PAM_DISABLE_AI=true`, `PAM_DISABLE_PLAID=true`, or `PAM_DISABLE_EMAIL=true` in Vercel to pause expensive services during suspicious traffic
 - Passwords are hashed server-side and are never stored in plaintext
-- Plaid and OpenAI credentials stay in environment variables only; never commit them and never expose them in frontend code
+- Plaid and Anthropic credentials stay in environment variables only; never commit them and never expose them in frontend code
 - Plaid access tokens must remain server-side only and must never be written to `localStorage`
 - Run an OWASP ZAP baseline scan before public launch, then fix any medium/high findings before accepting real financial users
 - Do not log raw prompts, bank data, access tokens, passwords, provider secrets, or full financial payloads to the browser console
 
 ## Startup stack status
 
-- Live now: GitHub, Vercel deployment, Supabase storage, Resend API wiring, Plaid Sandbox wiring, and server-side OpenAI route
+- Live now: GitHub, Vercel deployment, Supabase storage, Resend API wiring, Plaid Sandbox wiring, and server-side Claude route
 - Needs external verification only if missing in provider dashboards: Resend domain sending from `hello@pamadvisor.com`
 - Optional free-tier next: PostHog analytics, Sentry error monitoring, and Cloudflare DNS after DNS is moved or configured
 - Production launch blockers: replace or harden prototype auth with Clerk/Auth0 before real financial data, set up Stripe before charging, add Sentry, add uptime monitoring, and run OWASP ZAP

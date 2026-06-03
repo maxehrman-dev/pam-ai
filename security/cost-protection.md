@@ -9,7 +9,7 @@ PAM has two layers of protection:
 
 Set these Vercel environment variables to `true`, then redeploy or promote a redeploy:
 
-- `PAM_DISABLE_AI=true` pauses `/api/decision` OpenAI guidance.
+- `PAM_DISABLE_AI=true` pauses `/api/decision` Claude guidance.
 - `PAM_DISABLE_PLAID=true` pauses Plaid Sandbox link, exchange, and baseline calls.
 - `PAM_DISABLE_EMAIL=true` pauses outgoing verification and waitlist email sends while still allowing waitlist storage.
 
@@ -60,7 +60,7 @@ Vercel's project-level firewall stops abuse before a Function invocation. The in
 
 ## Production Notes
 
-- Do not expose `OPENAI_API_KEY`, `PLAID_SECRET`, `RESEND_API_KEY`, or `SUPABASE_SERVICE_ROLE_KEY` to frontend code.
+- Do not expose `ANTHROPIC_API_KEY`, `PLAID_SECRET`, `RESEND_API_KEY`, or `SUPABASE_SERVICE_ROLE_KEY` to frontend code.
 - Plaid Sandbox access tokens are stored server-side only. Production Plaid tokens must be encrypted before storage.
-- Watch Vercel Usage, Plaid Dashboard, OpenAI usage, Resend usage, and Supabase usage during ads or public posts.
+- Watch Vercel Usage, Plaid Dashboard, Anthropic usage, Resend usage, and Supabase usage during ads or public posts.
 - If traffic spikes unexpectedly, set `PAM_DISABLE_AI=true` first because AI has the highest variable cost.

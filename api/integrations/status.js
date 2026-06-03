@@ -33,9 +33,10 @@ module.exports = async (req, res) => {
       configured: hasEmailProvider(),
       newsletterAudienceConfigured: hasNewsletterAudience()
     },
-    openai: {
-      configured: Boolean(process.env.OPENAI_API_KEY),
-      model: process.env.OPENAI_MODEL || "default"
+    ai: {
+      provider: "anthropic",
+      configured: Boolean(process.env.ANTHROPIC_API_KEY),
+      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"
     },
     clerk: {
       configured: hasClerkConfig()

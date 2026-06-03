@@ -233,7 +233,7 @@ function renderAdvisorConnection(accountState, profileSource, engine) {
         </div>
         <div>
           <span>AI status</span>
-          <strong>${engine.remoteEnabled ? "OpenAI active" : "Structured advisor mode"}</strong>
+          <strong>${engine.remoteEnabled ? "Claude active" : "Structured advisor mode"}</strong>
           <small>${escapeHtml(engine.mode)}</small>
         </div>
       </div>

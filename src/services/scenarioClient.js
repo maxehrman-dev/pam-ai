@@ -2,10 +2,10 @@ import { buildDecisionSession, buildDraftSession, buildStarterSession } from "..
 
 const DEFAULT_ENGINE = {
   provider: "PAM Structured Advisor Engine",
-  mode: "Deterministic scenario modeling with advisor-style guidance. OpenAI guidance activates only when the server API key is configured.",
+  mode: "Deterministic scenario modeling with advisor-style guidance. Claude guidance activates only when the server API key is configured.",
   remoteEnabled: false,
   remoteEndpoint: "/api/decision",
-  upgradePath: "OpenAI guidance endpoint is present, but it must return ok:true before PAM should claim live LLM responses."
+  upgradePath: "Claude guidance endpoint is present, but it must return ok:true before PAM should claim live LLM responses."
 };
 
 function getEngineConfig() {

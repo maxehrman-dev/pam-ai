@@ -1,5 +1,6 @@
-const OPENAI_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("./_lib/security.js");
 
@@ -163,36 +164,6 @@ function sanitizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-function buildSchema() {
-  return {
-    name: "pam_decision_guidance",
-    strict: true,
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        assistant: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            headline: { type: "string" },
-            body: { type: "string" }
-          },
-          required: ["headline", "body"]
-        },
-        interpretationSummary: { type: "string" },
-        followUpPrompt: { type: "string" },
-        followUpChoiceLabels: {
-          type: "array",
-          items: { type: "string" },
-          maxItems: 3
-        }
-      },
-      required: ["assistant", "interpretationSummary", "followUpPrompt", "followUpChoiceLabels"]
-    }
-  };
-}
-
 function parseGuidanceJson(rawText) {
   try {
     return JSON.parse(rawText);
@@ -241,24 +212,13 @@ function buildInput(payload) {
         .join(", ")
     : "none";
 
-  return [
-    {
-      role: "system",
-      content: [
-        {
-          type: "input_text",
-          text:
-            "You write UX guidance for PAM AI, a premium financial decision engine for young adults. Keep tone calm, helpful, slightly authoritative, and concise. Never say you need more structure. Use the connected baseline details and the deterministic math result to explain the real tradeoff. If the prompt is vague, still move forward with a useful first pass and ask only one clarifying follow-up. Avoid generic chatbot phrasing. Keep assistant headline under 90 characters and body under 260 characters."
-            + " Treat taxes as educational estimates, not tax advice. Be aware of W-2 vs 1099/self-employment differences, payroll tax, estimated tax set-asides, state tax, retirement contributions, and potentially deductible ordinary/necessary business expenses, but do not claim to know every tax code or guarantee eligibility. If a deduction or tax outcome depends on facts PAM does not have, say what assumption is being used and recommend verification with a qualified tax professional."
-        }
-      ]
-    },
-    {
-      role: "user",
-      content: [
-        {
-          type: "input_text",
-          text: [
+  const system =
+    "You write UX guidance for PAM AI, a premium financial decision engine for young adults. Keep tone calm, helpful, slightly authoritative, and concise. Never say you need more structure. Use the connected baseline details and the deterministic math result to explain the real tradeoff. If the prompt is vague, still move forward with a useful first pass and ask only one clarifying follow-up. Avoid generic chatbot phrasing. Keep assistant headline under 90 characters and body under 260 characters."
+    + " Treat taxes as educational estimates, not tax advice. Be aware of W-2 vs 1099/self-employment differences, payroll tax, estimated tax set-asides, state tax, retirement contributions, and potentially deductible ordinary/necessary business expenses, but do not claim to know every tax code or guarantee eligibility. If a deduction or tax outcome depends on facts PAM does not have, say what assumption is being used and recommend verification with a qualified tax professional."
+    + " The deterministic engine already computed the math — never invent or change numbers, only interpret them."
+    + ' Respond with ONLY a JSON object, no markdown, no prose around it, matching exactly: {"assistant":{"headline":string,"body":string},"interpretationSummary":string,"followUpPrompt":string,"followUpChoiceLabels":string[]}. followUpChoiceLabels has at most 3 short items.';
+
+  const userText = [
             `User prompt: ${sanitizeString(prompt, "No prompt provided")}`,
             `Baseline source: ${sanitizeString(baseline?.source, "unknown")}`,
             `Employment status: ${sanitizeString(baseline?.profile?.employmentStatus, "unknown")}`,
@@ -288,110 +248,77 @@ function buildInput(payload) {
             `Risk: ${sanitizeString(result?.risk?.label, "Unknown")}`,
             `Tax impact summary: ${sanitizeString(result?.decision?.taxImpact, "No direct change")}`,
             `Local explanation: ${sanitizeString(result?.explanation, "No local explanation")}`
-          ].join("\n")
-        }
-      ]
-    }
-  ];
+          ].join("\n");
+
+  return { system, userText };
 }
 
-function getModelCandidates() {
-  return [...new Set([DEFAULT_MODEL, "gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini"].filter(Boolean))];
-}
-
-async function callResponsesApi({ apiKey, model, input, schemaMode }) {
-  const body = {
-    model,
-    input
-  };
-
-  if (schemaMode) {
-    body.text = {
-      format: {
-        type: "json_schema",
-        ...buildSchema()
-      }
-    };
-  }
-
-  return fetch(OPENAI_URL, {
+async function callClaude({ apiKey, model, system, userText }) {
+  return fetch(ANTHROPIC_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
+      "x-api-key": apiKey,
+      "anthropic-version": ANTHROPIC_VERSION,
+      "content-type": "application/json"
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      model,
+      max_tokens: 700,
+      system,
+      messages: [{ role: "user", content: userText }]
+    })
   });
 }
 
-async function readOpenAiPayload(response) {
-  const rawText = await response.text();
-  try {
-    return {
-      ok: true,
-      json: JSON.parse(rawText)
-    };
-  } catch (_error) {
-    return {
-      ok: false,
-      rawText
-    };
-  }
-}
-
 async function requestGuidance(payload) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
       ok: false,
-      error: "OPENAI_API_KEY is not configured."
+      error: "ANTHROPIC_API_KEY is not configured."
     };
   }
 
-  const input = buildInput(payload);
-  let lastError = "AI guidance unavailable.";
+  const { system, userText } = buildInput(payload);
+  const model = DEFAULT_MODEL;
 
-  for (const model of getModelCandidates()) {
-    for (const schemaMode of [true, false]) {
-      const response = await callResponsesApi({ apiKey, model, input, schemaMode });
-      const payload = await readOpenAiPayload(response);
-      if (!response.ok) {
-        lastError = payload.ok
-          ? JSON.stringify(payload.json)
-          : String(payload.rawText || "OpenAI request failed.");
-        continue;
-      }
+  let response;
+  try {
+    response = await callClaude({ apiKey, model, system, userText });
+  } catch (error) {
+    return { ok: false, error: String(error?.message || "Anthropic request failed.") };
+  }
 
-      if (!payload.ok) {
-        lastError = String(payload.rawText || "OpenAI returned a non-JSON response.");
-        continue;
-      }
+  const rawBody = await response.text();
+  let data;
+  try {
+    data = JSON.parse(rawBody);
+  } catch (_error) {
+    return { ok: false, error: "Anthropic returned a non-JSON response." };
+  }
 
-      const data = payload.json;
-      const rawText = data.output_text || "";
-      const parsed = parseGuidanceJson(rawText);
-      if (!parsed) {
-        lastError = "Model response could not be parsed as JSON.";
-        continue;
-      }
+  if (!response.ok) {
+    return { ok: false, error: data?.error?.message || JSON.stringify(data) };
+  }
 
-      return {
-        ok: true,
-        engine: {
-          provider: `PAM Decision Engine + ${model}`,
-          mode: "Deterministic math plus server-side AI interpretation",
-          remoteEnabled: true,
-          remoteEndpoint: "/api/decision",
-          upgradePath: "Server-side OpenAI guidance is active and can use connected Sandbox baseline data."
-        },
-        guidance: normalizeGuidance(parsed)
-      };
-    }
+  const rawText = Array.isArray(data.content)
+    ? data.content.map((block) => block?.text || "").join("")
+    : "";
+  const parsed = parseGuidanceJson(rawText);
+  if (!parsed) {
+    return { ok: false, error: "Model response could not be parsed as JSON." };
   }
 
   return {
-    ok: false,
-    error: lastError
+    ok: true,
+    engine: {
+      provider: `PAM Decision Engine + ${model}`,
+      mode: "Deterministic math plus server-side AI interpretation",
+      remoteEnabled: true,
+      remoteEndpoint: "/api/decision",
+      upgradePath: "Server-side Claude guidance is active and can use connected Sandbox baseline data."
+    },
+    guidance: normalizeGuidance(parsed)
   };
 }
 

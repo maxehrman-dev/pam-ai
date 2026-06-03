@@ -160,7 +160,7 @@ Important functions to inspect before changing decision logic:
 - `handleStructuredDecisionSubmit()`
 - `src/utils/scenarioEngine.js`
 
-Known important rule: If OpenAI quota is unavailable, the app should still return deterministic local guidance and not fail the whole decision flow.
+Known important rule: If Anthropic quota is unavailable, the app should still return deterministic local guidance and not fail the whole decision flow.
 
 ## Plaid / Financial Data
 
@@ -319,7 +319,7 @@ Important recent commit:
 
 Cost protection goals:
 
-- Prevent one user/bot from burning OpenAI, Plaid, Resend, or other API costs.
+- Prevent one user/bot from burning Anthropic, Plaid, Resend, or other API costs.
 - Public endpoints need IP-based and account/user-based rate limits.
 - Expensive services should have kill switches.
 - Graceful `429` and `503` responses.
@@ -483,7 +483,7 @@ These are the most recent concrete asks and should be treated as high-priority u
   - `offsetPlan`
   - `reasoningTrace`
   - AI guidance grounded in the deterministic result.
-- If OpenAI quota is missing or unavailable, use deterministic fallback and clearly avoid pretending the AI succeeded.
+- If Anthropic quota is missing or unavailable, use deterministic fallback and clearly avoid pretending the AI succeeded.
 - Ask PAM must always have an actual visible input on the dashboard.
 - Each decision result should include a useful next step or safer alternative.
 - For loan/car/rent decisions, incorporate credit readiness when credit score or debt data is available. If credit score is missing, ask for or mark it as unknown rather than inventing it.
