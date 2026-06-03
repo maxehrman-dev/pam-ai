@@ -80,7 +80,36 @@ async function initClerk(publishableKey) {
       script.onerror = reject;
       document.head.appendChild(script);
     });
-    await window.Clerk?.load?.();
+    const prefersDark =
+      document.documentElement.getAttribute("data-theme") === "dark" ||
+      (document.documentElement.getAttribute("data-theme") !== "light" &&
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+    await window.Clerk?.load?.({
+      appearance: {
+        variables: {
+          colorPrimary: "#1e8a66",
+          colorText: prefersDark ? "#e9edf0" : "#143729",
+          colorTextSecondary: prefersDark ? "#97a3ab" : "#45584c",
+          colorBackground: prefersDark ? "#181d24" : "#fffdf9",
+          colorInputBackground: prefersDark ? "#0d1117" : "#ffffff",
+          colorInputText: prefersDark ? "#e9edf0" : "#143729",
+          borderRadius: "14px",
+          fontFamily: '"Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif'
+        },
+        elements: {
+          card: { boxShadow: "0 24px 70px rgba(15, 41, 31, 0.18)" },
+          formButtonPrimary: {
+            fontWeight: "800",
+            textTransform: "none",
+            fontSize: "0.95rem"
+          },
+          headerTitle: { fontWeight: "800" },
+          logoBox: { height: "34px" }
+        }
+      }
+    });
     window.__pamClerkReady = true;
 
     window.Clerk.addListener(({ user, session }) => {
