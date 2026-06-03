@@ -2776,7 +2776,7 @@ function renderDecisionDemo() {
 
 function renderExamplesSection() {
   return `
-    <section class="foresee-panel example-stack-section">
+    <section class="foresee-panel example-stack-section" id="examples">
       <div class="section-heading-row">
         <div>
           <div class="panel-kicker">Examples</div>
@@ -2824,7 +2824,7 @@ function renderFutureIntegrations() {
 
 function renderPricingModel() {
   return `
-    <section class="foresee-panel pricing-section">
+    <section class="foresee-panel pricing-section" id="pricing">
       <div class="section-heading-row">
         <div>
           <div class="panel-kicker">One plan</div>
@@ -3043,13 +3043,9 @@ function renderAccountPage() {
 
 function renderLandingWorkspace() {
   return `
-    <div class="workspace-guide-grid compact-workspace-view">
-      ${renderEducationSections()}
-      ${renderPlanningModules()}
-      ${renderDecisionDemo()}
+    <div class="workspace-guide-grid compact-workspace-view landing-grid">
       ${renderHowItWorksSteps()}
       ${renderExamplesSection()}
-      ${renderFutureIntegrations()}
       ${renderPricingModel()}
     </div>
   `;
@@ -4683,8 +4679,7 @@ function renderWaitlistPage() {
 function renderDisclaimerBanner() {
   return `
     <div class="legal-disclaimer-banner" role="note">
-      <span class="disclaimer-full"><strong>Important:</strong> ${escapeHtml(LEGAL_DISCLAIMER)}</span>
-      <span class="disclaimer-compact"><strong>Important:</strong> PAM is a modeling tool, not financial advice.</span>
+      <span><strong>PAM</strong> is a modeling tool, not financial advice.</span>
     </div>
   `;
 }
@@ -4932,11 +4927,9 @@ function render() {
           </div>
         </a>
         <nav class="foresee-nav" aria-label="Homepage sections">
-          <button type="button" data-scroll-target="#decision-input">Decisions</button>
-          <button type="button" data-scroll-target="#goals">Goals</button>
-          <button type="button" data-scroll-target="#taxes">Taxes</button>
-          <button type="button" data-scroll-target="#growth">Growth</button>
           <button type="button" data-scroll-target="#how-it-works">How it works</button>
+          <button type="button" data-scroll-target="#examples">Examples</button>
+          <button type="button" data-scroll-target="#pricing">Pricing</button>
         </nav>
         <div class="foresee-header-actions">
           ${renderHeaderActions()}
