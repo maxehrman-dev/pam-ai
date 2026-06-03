@@ -3771,20 +3771,20 @@ input:disabled {
   }
 
   .pam-hero {
-    gap: 18px;
+    gap: 16px;
     min-height: auto;
-    padding: 20px;
+    padding: 22px 20px;
   }
 
   .pam-hero h1,
   .foresee-panel h1 {
-    font-size: clamp(3.15rem, 16vw, 5.5rem);
-    line-height: 0.88;
-    letter-spacing: -0.075em;
+    font-size: clamp(2rem, 8.5vw, 2.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
   }
 
   .pam-hero p {
-    font-size: 1rem;
+    font-size: 0.98rem;
   }
 
   .pam-hero-actions {
