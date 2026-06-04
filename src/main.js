@@ -3570,6 +3570,8 @@ function renderDailyDashboardHome() {
           <div><span>Monthly buffer</span><strong>${formatCurrency(monthlyBuffer)}</strong><small>After goals</small></div>
         </div>
 
+        <details class="daily-detail-section">
+        <summary>Spending &amp; connected accounts</summary>
         <div class="daily-spending-card${dashboardFreshClass}">
           <div class="spending-header">
             <div><h3>This month’s spending</h3><p>${formatCurrency(monthlyExpenses)} of ${formatCurrency(spendingPlan)} plan · ${spendingPercent}%</p></div>
@@ -3616,6 +3618,7 @@ function renderDailyDashboardHome() {
             `}
           </div>
         </div>
+        </details>
       </div>
     </section>
   `;

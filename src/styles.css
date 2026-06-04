@@ -2340,6 +2340,40 @@ input:disabled {
   content: "– ";
 }
 
+.daily-detail-section {
+  margin-top: 4px;
+}
+
+.daily-detail-section > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--pam-surface-soft);
+  border: 1px solid var(--pam-border);
+}
+
+.daily-detail-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.daily-detail-section > summary::before {
+  content: "+ ";
+  color: var(--mint-5);
+  font-weight: 900;
+}
+
+.daily-detail-section[open] > summary {
+  margin-bottom: 12px;
+}
+
+.daily-detail-section[open] > summary::before {
+  content: "– ";
+}
+
 .decision-question-form {
   align-items: stretch;
 }
