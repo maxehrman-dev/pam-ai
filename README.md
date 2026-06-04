@@ -13,7 +13,7 @@ PAM AI is not a budgeting tracker or an expense categorizer. It is a scenario en
 - Life Goals layer showing how decisions delay or accelerate major milestones
 - Financial dashboard with realistic snapshot, net worth, and cash flow context
 - Insights and Trust Center surfaces, including privacy guidance and Plaid readiness
-- Server-side decision endpoint ready for OpenAI-powered guidance on Vercel
+- Server-side decision endpoint ready for Anthropic Claude-powered guidance on Vercel
 - Normalized baseline model shared by manual entry and Sandbox-style sample data
 
 ## Run locally

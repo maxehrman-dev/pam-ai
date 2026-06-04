@@ -42,6 +42,27 @@ async function verifyStripeSignature(rawBody, signatureHeader) {
   }
 }
 
+function readRawBody(req) {
+  if (Buffer.isBuffer(req.rawBody)) return Promise.resolve(req.rawBody.toString("utf8"));
+  if (typeof req.rawBody === "string") return Promise.resolve(req.rawBody);
+  if (Buffer.isBuffer(req.body)) return Promise.resolve(req.body.toString("utf8"));
+  if (typeof req.body === "string") return Promise.resolve(req.body);
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const timeout = setTimeout(() => reject(new Error("Timed out reading Stripe webhook body.")), 5000);
+    req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    req.on("end", () => {
+      clearTimeout(timeout);
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+    req.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
 async function handleCheckoutCompleted(session) {
   const clerkUserId = session.client_reference_id || session.metadata?.clerkUserId;
   if (!clerkUserId) return;
@@ -95,7 +116,7 @@ async function handleSubscriptionDeleted(subscription) {
   }
 }
 
-module.exports = async (req, res) => {
+async function stripeWebhookHandler(req, res) {
   if (req.method !== "POST") {
     return sendJson(res, 405, { error: "Method not allowed" });
   }
@@ -109,8 +130,14 @@ module.exports = async (req, res) => {
     return sendJson(res, 400, { error: "Missing Stripe signature." });
   }
 
-  // Raw body needed for signature verification
-  const rawBody = JSON.stringify(req.body);
+  // Raw body is required for Stripe signature verification. Re-stringifying a
+  // parsed object changes whitespace/order and invalidates real Stripe events.
+  let rawBody = "";
+  try {
+    rawBody = await readRawBody(req);
+  } catch (_error) {
+    return sendJson(res, 400, { error: "Could not read Stripe webhook body." });
+  }
   const event = await verifyStripeSignature(rawBody, signature);
 
   if (!event) {
@@ -140,5 +167,15 @@ module.exports = async (req, res) => {
     return sendJson(res, 200, { received: true });
   } catch (_error) {
     return sendJson(res, 500, { error: "Webhook handler failed." });
+  }
+}
+
+module.exports = stripeWebhookHandler;
+
+// Stripe signs the exact request bytes. Disable framework body parsing where
+// supported and fall back carefully for local/dev runtimes.
+module.exports.config = {
+  api: {
+    bodyParser: false
   }
 };

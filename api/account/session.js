@@ -3,7 +3,7 @@ const { changePassword, clearSession, getSessionAccount, getSessionAccountWithBa
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, sanitizeText, validatePayload } = require("../_lib/security.js");
-const { findBaselineByAccountId, findSubscriptionByClerkUserId, hasSupabaseConfig, insertLegalAcceptance, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
+const { findBaselineByAccountId, findLatestLegalAcceptanceByAccountId, findSubscriptionByClerkUserId, hasSupabaseConfig, insertLegalAcceptance, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
 
 async function resolveAccount(req) {
   if (hasClerkConfig()) {
@@ -107,9 +107,12 @@ module.exports = async (req, res) => {
     let subscription = null;
     if (account?.id) {
       if (hasClerkConfig() && account.clerkUserId) {
-        baseline = hasSupabaseConfig() ? await findBaselineByAccountId(account.id).catch(() => null) : null;
-        const sub = hasSupabaseConfig() ? await findSubscriptionByClerkUserId(account.id).catch(() => null) : null;
-        if (sub) subscription = { status: sub.status, isFoundingMember: sub.is_founding_member, priceId: sub.price_id };
+        if (hasSupabaseConfig()) {
+          baseline = await findBaselineByAccountId(account.id).catch(() => null);
+          legalAcceptance = await findLatestLegalAcceptanceByAccountId(account.id).catch(() => null);
+          const sub = await findSubscriptionByClerkUserId(account.clerkUserId).catch(() => null);
+          if (sub) subscription = { status: sub.status, isFoundingMember: sub.is_founding_member, priceId: sub.price_id };
+        }
       } else {
         const full = await getSessionAccountWithBaseline(getSessionToken(req));
         baseline = full.baseline;
