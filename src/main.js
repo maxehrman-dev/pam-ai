@@ -122,8 +122,37 @@ const state = {
   checkoutBusy: false,
   clerkFirstDecision: "",
   clerkFirstDecisionStep: false,
-  lifeValues: loadLifeValues()
+  lifeValues: loadLifeValues(),
+  payFrequency: loadPayFrequency()
 };
+
+const PAY_FREQUENCIES = ["Weekly", "Every 2 weeks", "Twice a month", "Monthly", "Irregular"];
+
+function loadPayFrequency() {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem("pam:pay-frequency:v1") || "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function savePayFrequency(value) {
+  state.payFrequency = value || "";
+  try {
+    window.localStorage.setItem("pam:pay-frequency:v1", state.payFrequency);
+  } catch (_error) {
+    // best-effort
+  }
+  try {
+    if (state.baseline?.profile) {
+      state.baseline.profile.payFrequency = state.payFrequency;
+      saveBaseline(state.baseline);
+    }
+  } catch (_error) {
+    // non-fatal
+  }
+}
 
 const LIFE_VALUES = [
   "Retire early",
@@ -1746,7 +1775,7 @@ function getConnectedAccounts(baseline) {
 function getConnectedSnapshot(baseline) {
   return {
     source: baseline.source,
-    profile: { ...baseline.profile, lifeValues: state.lifeValues || baseline.profile?.lifeValues || [] },
+    profile: { ...baseline.profile, lifeValues: state.lifeValues || baseline.profile?.lifeValues || [], payFrequency: state.payFrequency || baseline.profile?.payFrequency || "" },
     income: baseline.income,
     expenses: {
       monthlyExpenses: baseline.expenses?.monthlyExpenses,
@@ -4160,6 +4189,11 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             <div class="life-values-row">
               ${LIFE_VALUES.map(v => `<button type="button" class="life-value-chip ${(state.lifeValues||[]).includes(v) ? "selected" : ""}" data-life-value="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join("")}
             </div>
+            <h3 style="margin-top:18px">How often do you get paid?</h3>
+            <p>PAM will check in with you each payday — the best moment to plan the cycle ahead.</p>
+            <div class="life-values-row">
+              ${PAY_FREQUENCIES.map(f => `<button type="button" class="life-value-chip ${state.payFrequency === f ? "selected" : ""}" data-pay-frequency="${escapeHtml(f)}">${escapeHtml(f)}</button>`).join("")}
+            </div>
             <h3 style="margin-top:18px">And what should PAM help with first?</h3>
             <textarea class="clerk-first-decision-input" rows="2" placeholder="Can I afford to move out if rent is $1,800?" data-clerk-first-decision-input>${escapeHtml(state.clerkFirstDecision)}</textarea>
             <div class="wizard-suggestion-row">
@@ -5124,6 +5158,13 @@ function wireInteractions() {
   document.querySelectorAll("[data-life-value]").forEach((button) => {
     button.addEventListener("click", () => {
       toggleLifeValue(button.dataset.lifeValue || "");
+      render();
+    });
+  });
+  document.querySelectorAll("[data-pay-frequency]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const f = button.dataset.payFrequency || "";
+      savePayFrequency(state.payFrequency === f ? "" : f);
       render();
     });
   });
