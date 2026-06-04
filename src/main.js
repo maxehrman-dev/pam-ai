@@ -121,8 +121,54 @@ const state = {
   subscription: null,
   checkoutBusy: false,
   clerkFirstDecision: "",
-  clerkFirstDecisionStep: false
+  clerkFirstDecisionStep: false,
+  lifeValues: loadLifeValues()
 };
+
+const LIFE_VALUES = [
+  "Retire early",
+  "Travel / live abroad",
+  "Make more money",
+  "Get out of debt",
+  "Buy a home",
+  "Never work for a boss",
+  "Move out on my own",
+  "Build a safety net"
+];
+
+function loadLifeValues() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("pam:life-values:v1") || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveLifeValues(values) {
+  state.lifeValues = Array.isArray(values) ? values : [];
+  try {
+    window.localStorage.setItem("pam:life-values:v1", JSON.stringify(state.lifeValues));
+  } catch (_error) {
+    // Persistence is best-effort.
+  }
+  // Mirror into the baseline so it flows to the decision engine + AI.
+  try {
+    if (state.baseline?.profile) {
+      state.baseline.profile.lifeValues = state.lifeValues;
+      saveBaseline(state.baseline);
+    }
+  } catch (_error) {
+    // Non-fatal.
+  }
+}
+
+function toggleLifeValue(value) {
+  const set = new Set(state.lifeValues || []);
+  if (set.has(value)) set.delete(value); else set.add(value);
+  saveLifeValues([...set]);
+}
 
 let isStarted = false;
 let lastMobileViewportState = null;
@@ -1700,7 +1746,7 @@ function getConnectedAccounts(baseline) {
 function getConnectedSnapshot(baseline) {
   return {
     source: baseline.source,
-    profile: baseline.profile,
+    profile: { ...baseline.profile, lifeValues: state.lifeValues || baseline.profile?.lifeValues || [] },
     income: baseline.income,
     expenses: {
       monthlyExpenses: baseline.expenses?.monthlyExpenses,
@@ -4108,10 +4154,14 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
         </div>
         ${!hasAcceptedLegalTerms() ? renderLegalGate() : state.clerkFirstDecisionStep ? `
           <div class="connect-first-panel">
-            <div class="panel-kicker">One quick thing</div>
-            <h3>What do you want PAM to help with first?</h3>
-            <p>One sentence is enough — PAM will use this to set up your dashboard.</p>
-            <textarea class="clerk-first-decision-input" rows="3" placeholder="Can I afford to move out if rent is $1,800?" data-clerk-first-decision-input>${escapeHtml(state.clerkFirstDecision)}</textarea>
+            <div class="panel-kicker">First, what do you actually want?</div>
+            <h3>What matters most to you?</h3>
+            <p>Pick what you're working toward. PAM tailors every answer to this — generic advice is often wrong for what <em>you</em> want.</p>
+            <div class="life-values-row">
+              ${LIFE_VALUES.map(v => `<button type="button" class="life-value-chip ${(state.lifeValues||[]).includes(v) ? "selected" : ""}" data-life-value="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join("")}
+            </div>
+            <h3 style="margin-top:18px">And what should PAM help with first?</h3>
+            <textarea class="clerk-first-decision-input" rows="2" placeholder="Can I afford to move out if rent is $1,800?" data-clerk-first-decision-input>${escapeHtml(state.clerkFirstDecision)}</textarea>
             <div class="wizard-suggestion-row">
               ${["Can I move out this year?","What car payment can I actually handle?","Am I saving enough each month?","Should I pay off debt or start investing?"].map(s => `<button type="button" data-clerk-decision-suggestion="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}
             </div>
@@ -5068,6 +5118,12 @@ function wireInteractions() {
   document.querySelectorAll("[data-clerk-decision-suggestion]").forEach((button) => {
     button.addEventListener("click", () => {
       state.clerkFirstDecision = button.dataset.clerkDecisionSuggestion || "";
+      render();
+    });
+  });
+  document.querySelectorAll("[data-life-value]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleLifeValue(button.dataset.lifeValue || "");
       render();
     });
   });

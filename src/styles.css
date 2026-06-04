@@ -3446,15 +3446,45 @@ input:disabled {
 
 .clerk-first-decision-input {
   width: 100%;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--pam-border);
   border-radius: 14px;
   padding: 12px 14px;
   font-size: 0.95rem;
   font-family: inherit;
   resize: none;
-  background: var(--surface);
+  background: var(--pam-input-bg);
   color: var(--ink-4);
   box-sizing: border-box;
+}
+
+.life-values-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.life-value-chip {
+  border: 1.5px solid var(--pam-border);
+  background: var(--pam-surface-soft);
+  color: var(--ink-3);
+  border-radius: 999px;
+  padding: 9px 15px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.life-value-chip:hover {
+  border-color: var(--mint-4);
+}
+
+.life-value-chip.selected {
+  background: var(--mint-4);
+  border-color: var(--mint-4);
+  color: #fffdf9;
 }
 
 .settings-card span {
