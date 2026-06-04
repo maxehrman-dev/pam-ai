@@ -2308,7 +2308,36 @@ input:disabled {
 }
 
 .decision-prompt-stack {
-  margin-top: 0;
+  margin-top: 12px;
+}
+
+.decision-builder-toggle {
+  margin-top: 16px;
+  border-top: 1px solid var(--pam-border);
+  padding-top: 12px;
+}
+
+.decision-builder-toggle > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 4px 0;
+}
+
+.decision-builder-toggle > summary::-webkit-details-marker {
+  display: none;
+}
+
+.decision-builder-toggle > summary::before {
+  content: "+ ";
+  color: var(--mint-5);
+  font-weight: 900;
+}
+
+.decision-builder-toggle[open] > summary::before {
+  content: "– ";
 }
 
 .decision-question-form {

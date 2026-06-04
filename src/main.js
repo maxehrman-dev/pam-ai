@@ -4400,16 +4400,11 @@ function renderDecisionPanel() {
   const spendingPlan = Math.max(monthlyExpenses + 120, 1);
   const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
   const underPlan = Math.max(spendingPlan - monthlyExpenses, 0);
+  // Keep this tight — 3 high-signal suggestions, not a wall of chips.
   const prompts = [
-    "Can I afford a $400 car payment?",
-    "Am I on track to move out this year?",
-    "Should I start a Roth IRA now?",
-    "What happens if I go on a $2,500 trip?",
-    "Can I deduct a $1,200 laptop for freelance work?",
-    "What if I invest $200/month?",
-    "How would freelance income affect my taxes?",
-    "Will this delay my emergency fund goal?",
-    "What happens if I switch from W-2 to 1099 work?"
+    "Can I afford to move out this year?",
+    "What car payment can I actually handle?",
+    "Should I pay off debt or start investing?"
   ];
 
   return `
@@ -4441,24 +4436,18 @@ function renderDecisionPanel() {
       </div>
       <div class="ask-pam-card decision-ask-card">
         <h3>Ask PAM</h3>
-        ${renderStructuredDecisionBuilder()}
+        <form class="foresee-question-form ask-pam-mini-form decision-question-form" data-question-form>
+          <textarea id="pam-question" name="question" rows="2" aria-label="Ask a financial question" placeholder="Ask anything about a money decision…">${escapeHtml(state.question)}</textarea>
+          <button class="button button-primary" type="submit" ${state.decisionBusy ? "disabled" : ""}>${state.decisionBusy ? "Analyzing..." : "Analyze"}</button>
+        </form>
         <div class="quick-question-row decision-prompt-stack">
           ${prompts.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
         </div>
-        <div class="scenario-template-grid" aria-label="Scenario templates">
-          ${starterScenarios.slice(0, 4).map((scenario) => `
-            <button type="button" data-question-example="${escapeHtml(scenario.prompt)}">
-              <span>${escapeHtml(scenario.label)}</span>
-              <small>${escapeHtml(scenario.teaser || scenario.title || "Model this decision")}</small>
-            </button>
-          `).join("")}
-        </div>
-        <form class="foresee-question-form ask-pam-mini-form decision-question-form" data-question-form>
-          <label for="pam-question">Ask a financial question</label>
-          <textarea id="pam-question" name="question" rows="2" placeholder="Ask anything...">${escapeHtml(state.question)}</textarea>
-          <button class="button button-primary" type="submit" ${state.decisionBusy ? "disabled" : ""}>${state.decisionBusy ? "Analyzing..." : "Analyze"}</button>
-        </form>
         ${state.inputWarning ? `<p class="input-warning">${escapeHtml(state.inputWarning)}</p>` : ""}
+        <details class="decision-builder-toggle">
+          <summary>Prefer exact numbers? Use the builder</summary>
+          ${renderStructuredDecisionBuilder()}
+        </details>
       </div>
       ${state.decisionBusy ? `
         <div class="ai-loading-state" role="status" aria-live="polite">
