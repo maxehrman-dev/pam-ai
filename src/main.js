@@ -4665,7 +4665,7 @@ function renderWaitlistPage() {
         </section>
         <section class="waitlist-page-form-panel" aria-label="Join the PAM waitlist">
           <h2>${state.waitlistJoined ? "Check your inbox." : "Join the early access list."}</h2>
-          <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "Free to join. Early members lock in founding pricing forever."}</p>
+          <p>${state.waitlistJoined ? escapeHtml(state.waitlistMessage || WAITLIST_FOUNDING_NOTE) : "First 100 founding members lock in $7.99/mo for life. After launch it's $9.99. Free to join."}</p>
           ${state.waitlistMessage && !state.waitlistJoined ? `<p class="auth-status-message waitlist-modal-status">${escapeHtml(state.waitlistMessage)}</p>` : ""}
           ${state.waitlistJoined ? "" : `
             <form class="profile-form waitlist-page-form" data-waitlist-form>
