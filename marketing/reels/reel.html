@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PAM Reel Generator</title>
+<link rel="stylesheet" href="reel.css" />
+</head>
+<body>
+  <div class="controls">
+    <button onclick="play(0)">▶ Move out</button>
+    <button onclick="play(1)">▶ Car payment</button>
+    <button onclick="play(2)">▶ Debt vs invest</button>
+    <button class="alt" onclick="toggleRecord()">⦿ Record mode (fullscreen clean)</button>
+    <span class="note">Record mode hides controls. Screen-record the green frame. ~17s each.</span>
+  </div>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <div class="progress" id="progress"></div>
+      <!-- scenes injected -->
+    </div>
+  </div>
+
+<script src="reel.js"></script>
+</body>
+</html>

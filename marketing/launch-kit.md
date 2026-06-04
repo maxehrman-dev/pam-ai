@@ -35,6 +35,47 @@ Three demand tests. Do all three this week. Total cost: $0.
 
 **Posting:** TikTok + Instagram Reels + YouTube Shorts (same file, all 3). Caption: 1 line + 3 hashtags max (#personalfinance #moneytok #genzmoney). Link in bio → pamadvisor.com/waitlist.
 
+### ⚡ Ready-made animated reel (no editing needed)
+
+I built you an on-brand, correctly-sized (9:16 / 1080×1920) animated generator. It plays the full ChatGPT-vs-PAM sequence automatically — just screen-record it.
+
+**File:** `marketing/reels/reel.html` (open it directly — double-click, opens in your browser)
+
+**How to record:**
+1. Double-click `reel.html` to open it in Chrome/Safari
+2. Click one of the 3 buttons (Move out / Car payment / Debt vs invest)
+3. Click **"Record mode"** — this hides the buttons and shows just the clean 9:16 frame
+4. Screen-record:
+   - **Mac:** Cmd+Shift+5 → record the green frame region. Or open it on your **phone browser** and use the phone's screen recorder (best — gives a true vertical file)
+   - **iPhone:** open the page, Settings → Control Center → Screen Recording
+5. Each clip runs ~17s and loops. Capture one loop, trim the ends.
+6. Drop it into TikTok/CapCut, add a sound (below), post.
+
+The 3 buttons map to the 3 hooks. Numbers are realistic samples — swap them in `marketing/reels/reel.js` (the `SCRIPTS` array) if you want different scenarios.
+
+---
+
+## Song / sound ideas
+
+TikTok trends rotate weekly, so **the real move is: open TikTok → search your niche → sort by "trending" → grab whatever sound has a rising arrow.** But for faceless finance content these vibes consistently work:
+
+**Calm / aesthetic (fits the "smart, calm advisor" tone — recommended):**
+- Lo-fi or soft piano instrumentals (search "aesthetic finance" / "study lofi")
+- Slowed + reverb versions of mellow pop
+- Anything tagged "clean girl aesthetic" sound — huge with your demographic
+
+**Upbeat / hook-y (for the "wait, what?" reveal moment):**
+- Short punchy beat drops that hit right when the PAM result appears
+- "Oh no" / "plot twist" trending audio for the ChatGPT-fails moment
+
+**Spoken-trend format (highest reach right now for finance):**
+- Use a trending "POV" or "tell me X without telling me" audio and let your captions carry the story
+
+**Rules:**
+- Always pick a sound from TikTok's library (not uploaded music) — the algorithm boosts trending sounds and it keeps you copyright-safe.
+- Sync the PAM result reveal to a beat drop or the audio's peak moment — that's what makes people rewatch.
+- Same clip, 3 different trending sounds = 3 posts. Test which sound carries.
+
 ---
 
 ## 2. Reddit — answer real questions, soft-mention PAM
