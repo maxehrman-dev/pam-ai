@@ -3904,18 +3904,18 @@ function renderStructuredDecisionBuilder() {
 }
 
 function getDecisionNextSteps(result) {
-  const baseQuestion = result?.question || state.question || "this decision";
   const monthlyImpact = Math.abs(toNumber(result?.decision?.monthlyImpact));
   const oneTimeImpact = Math.abs(toNumber(result?.decision?.oneTimeImpact));
   const smallerMonthly = monthlyImpact ? Math.max(Math.round(monthlyImpact * 0.7), 25) : 0;
   const smallerOneTime = oneTimeImpact ? Math.max(Math.round(oneTimeImpact * 0.75), 100) : 0;
 
+  // Self-contained prompts — never embed the raw question (it compounds into garbled text).
   return [
     monthlyImpact
       ? `Compare this with a ${formatCurrency(smallerMonthly)}/month version.`
       : `Compare this with a ${formatCurrency(smallerOneTime || 1000)} version.`,
-    `What would I need to cut to make ${baseQuestion} safer?`,
-    `What is the safest timing for ${baseQuestion}?`
+    "What would I need to cut to make this safer?",
+    "What's the safest time to do this?"
   ];
 }
 
@@ -4486,10 +4486,7 @@ function renderResult() {
   const advisorSummary = getAdvisorSummary(result, goalLabel);
   const advisorFollowUps = advisorSummary.followUpChoiceLabels
     .slice(0, 3)
-    .map((label) => {
-      const prompt = String(label).includes("?") ? label : `${advisorSummary.followUpPrompt} ${label}`;
-      return `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(label)}</button>`;
-    })
+    .map((label) => `<button type="button" data-question-example="${escapeHtml(label)}">${escapeHtml(label)}</button>`)
     .join("");
   return `
     <section class="foresee-panel result-panel mobile-screen mobile-screen-result" id="decision-result">

@@ -100,6 +100,43 @@ body {
   background: var(--pam-surface-tint);
 }
 
+/* Dark-mode surfaces for result/advisor cards (otherwise light cards + light text = unreadable) */
+:root[data-theme="dark"] .advisor-summary-box,
+:root[data-theme="dark"] .advisor-box,
+:root[data-theme="dark"] .advisor-chat-bubble,
+:root[data-theme="dark"] .assumption-grid-foresee div,
+:root[data-theme="dark"] .outcome-grid div,
+:root[data-theme="dark"] .explanation-box,
+:root[data-theme="dark"] .next-step-box {
+  background: var(--pam-surface-soft);
+  border-color: var(--pam-border);
+}
+:root[data-theme="dark"] .advisor-summary-box {
+  background: var(--pam-surface-strong);
+}
+:root[data-theme="dark"] .advisor-summary-topline span {
+  background: var(--pam-surface-tint);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .advisor-summary-box,
+  :root[data-theme="system"] .advisor-box,
+  :root[data-theme="system"] .advisor-chat-bubble,
+  :root[data-theme="system"] .assumption-grid-foresee div,
+  :root[data-theme="system"] .outcome-grid div,
+  :root[data-theme="system"] .explanation-box,
+  :root[data-theme="system"] .next-step-box {
+    background: var(--pam-surface-soft);
+    border-color: var(--pam-border);
+  }
+  :root[data-theme="system"] .advisor-summary-box {
+    background: var(--pam-surface-strong);
+  }
+  :root[data-theme="system"] .advisor-summary-topline span {
+    background: var(--pam-surface-tint);
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
     --cream-0: #11151b;
