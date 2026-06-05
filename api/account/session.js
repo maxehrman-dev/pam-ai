@@ -30,7 +30,7 @@ const legalAcceptanceSchema = {
     termsVersion: { type: "string", minLength: 3, maxLength: 40 },
     privacyVersion: { type: "string", minLength: 3, maxLength: 40 }
   },
-  required: ["sessionToken", "action", "acceptedAdvisorDisclaimer", "acceptedTermsPrivacy", "termsVersion", "privacyVersion"]
+  required: ["action", "acceptedAdvisorDisclaimer", "acceptedTermsPrivacy", "termsVersion", "privacyVersion"]
 };
 
 const saveBaselineSchema = {
@@ -251,7 +251,7 @@ module.exports = async (req, res) => {
     }
 
     const body = validatePayload(req.body, legalAcceptanceSchema, "request body");
-    const account = await getSessionAccount(body.sessionToken);
+    const account = await resolveAccount(req);
 
     if (!account?.id) {
       return sendJson(res, 401, {

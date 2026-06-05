@@ -2523,19 +2523,18 @@ async function handleLegalAcceptance(event) {
     return;
   }
 
-  if (!state.sessionToken) {
+  if (!isClerkMode() && !state.sessionToken) {
     state.legalAcceptanceError = "Sign in again before accepting legal terms.";
     render();
     return;
   }
 
+  const headers = await buildAuthHeaders();
   const { payload, error } = await requestJson("/api/account/session", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers,
     body: JSON.stringify({
-      sessionToken: state.sessionToken,
+      ...(state.sessionToken ? { sessionToken: state.sessionToken } : {}),
       action: "accept_legal",
       acceptedAdvisorDisclaimer,
       acceptedTermsPrivacy,
@@ -2544,7 +2543,9 @@ async function handleLegalAcceptance(event) {
     })
   });
 
-  if (error || !payload?.ok) {
+  // Clerk users are authenticated regardless of the server-side log result —
+  // record acceptance locally so a flaky log call never blocks onboarding.
+  if ((error || !payload?.ok) && !isClerkMode()) {
     state.legalAcceptanceError = payload?.error || error || "Unable to record legal acceptance.";
     render();
     return;
@@ -2555,8 +2556,8 @@ async function handleLegalAcceptance(event) {
     acceptedTermsPrivacy,
     termsVersion: TERMS_VERSION,
     privacyVersion: PRIVACY_VERSION,
-    acceptedAt: payload.acceptedAt,
-    stored: payload.stored || "none"
+    acceptedAt: payload?.acceptedAt || new Date().toISOString(),
+    stored: payload?.stored || "local_only"
   });
   state.legalAcceptanceError = "";
   if (canAccessDashboard()) {
@@ -4188,11 +4189,6 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             <p>Pick what you're working toward. PAM tailors every answer to this — generic advice is often wrong for what <em>you</em> want.</p>
             <div class="life-values-row">
               ${LIFE_VALUES.map(v => `<button type="button" class="life-value-chip ${(state.lifeValues||[]).includes(v) ? "selected" : ""}" data-life-value="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join("")}
-            </div>
-            <h3 style="margin-top:18px">How often do you get paid?</h3>
-            <p>PAM will check in with you each payday — the best moment to plan the cycle ahead.</p>
-            <div class="life-values-row">
-              ${PAY_FREQUENCIES.map(f => `<button type="button" class="life-value-chip ${state.payFrequency === f ? "selected" : ""}" data-pay-frequency="${escapeHtml(f)}">${escapeHtml(f)}</button>`).join("")}
             </div>
             <h3 style="margin-top:18px">And what should PAM help with first?</h3>
             <textarea class="clerk-first-decision-input" rows="2" placeholder="Can I afford to move out if rent is $1,800?" data-clerk-first-decision-input>${escapeHtml(state.clerkFirstDecision)}</textarea>

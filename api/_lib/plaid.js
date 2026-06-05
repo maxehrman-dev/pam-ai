@@ -256,6 +256,33 @@ function deriveIncomeStreams(transactions = []) {
     : [];
 }
 
+function inferPayFrequency(transactions = []) {
+  // Look at incoming deposits that look like paychecks (Plaid: negative amount = money in)
+  const deposits = transactions
+    .filter((t) => Number(t.amount || 0) < 0 && /payroll|adp|gusto|salary|wages|direct dep|deposit|employer|paycheck/i.test(String(t.name || "")))
+    .map((t) => t.date)
+    .filter(Boolean)
+    .map((d) => new Date(d).getTime())
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => a - b);
+
+  if (deposits.length < 2) return "";
+  const gaps = [];
+  for (let i = 1; i < deposits.length; i++) {
+    const days = (deposits[i] - deposits[i - 1]) / (1000 * 60 * 60 * 24);
+    if (days > 2) gaps.push(days);
+  }
+  if (!gaps.length) return "";
+  gaps.sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)];
+
+  if (median <= 9) return "Weekly";
+  if (median <= 18) return "Every 2 weeks";
+  if (median <= 24) return "Twice a month";
+  if (median <= 40) return "Monthly";
+  return "Irregular";
+}
+
 function deriveCategoryBreakdown(recurringExpenses = []) {
   return recurringExpenses.reduce((accumulator, expense) => {
     accumulator[expense.category] = (accumulator[expense.category] || 0) + Number(expense.amount || 0);
@@ -295,7 +322,9 @@ function toNormalizedBaseline({ accounts = [], transactions = [], liabilities = 
       name: profile.firstName || "",
       age: profile.age ?? null,
       state: profile.state || "CA",
-      employmentStatus: profile.employmentStatus || mapEmploymentStatus(transactions)
+      employmentStatus: profile.employmentStatus || mapEmploymentStatus(transactions),
+      payFrequency: inferPayFrequency(transactions) || profile.payFrequency || "",
+      lifeValues: Array.isArray(profile.lifeValues) ? profile.lifeValues : []
     },
     income: {
       grossMonthlyIncome: null,
