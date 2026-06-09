@@ -212,16 +212,47 @@ function buildInput(payload) {
         .join(", ")
     : "none";
 
+  const values = baseline?.userValues && typeof baseline.userValues === "object" ? baseline.userValues : null;
+  const insights = baseline?.valuesInsights && typeof baseline.valuesInsights === "object" ? baseline.valuesInsights : null;
+
   const system =
     "You write UX guidance for PAM AI, a premium financial decision engine for young adults. Keep tone calm, helpful, slightly authoritative, and concise. Never say you need more structure. Use the connected baseline details and the deterministic math result to explain the real tradeoff. If the prompt is vague, still move forward with a useful first pass and ask only one clarifying follow-up. Avoid generic chatbot phrasing. Keep assistant headline under 90 characters and body under 260 characters."
     + " Treat taxes as educational estimates, not tax advice. Be aware of W-2 vs 1099/self-employment differences, payroll tax, estimated tax set-asides, state tax, retirement contributions, and potentially deductible ordinary/necessary business expenses, but do not claim to know every tax code or guarantee eligibility. If a deduction or tax outcome depends on facts PAM does not have, say what assumption is being used and recommend verification with a qualified tax professional."
-    + " The deterministic engine already computed the math — never invent or change numbers, only interpret them."
-    + " IMPORTANT — tailor advice to what this person said they want out of life. Conventional money wisdom is one-size-fits-all and is often WRONG for a specific goal (e.g. if they want to retire by 40, maxing a Roth/401k is bad advice because that money is locked until 59½; if they value travel/living abroad, buying a home traps their money and freedom). Call out when the generic answer doesn't fit their stated values. Be honest and direct like a tough-love mentor — say the hard truth a polite advisor wouldn't — but always pair it with a concrete path forward, never shame."
+    + " The deterministic engine already computed the math — never invent or change numbers, only interpret them. When a 'PAM values insight' section is provided below, those figures are also deterministic — use them, do not recompute or contradict them."
+    + " CRITICAL — this user completed a values profile (retirement target age, work philosophy, location flexibility, lifestyle priorities, industry). You MUST tailor every answer to that profile. Never give one-size-fits-all advice. Conventional money wisdom is often WRONG for a specific goal: if they want to retire by 40, maxing a Roth/401k is bad advice because that money is locked until 59½ — they need accessible bridge money; if they value travel/living abroad or flexibility, buying a home traps their capital and mobility; if they're career-driven with an aggressive retirement age and have been in a role 2+ years, strategic job-switching (10–20% external jumps vs 2–4% internal raises) may be the single biggest lever. Explicitly name their stated goal and call out when the generic answer doesn't fit it. Be honest and direct like a tough-love mentor — say the hard truth a polite advisor wouldn't — but always pair it with a concrete path forward, never shame."
     + ' Respond with ONLY a JSON object, no markdown, no prose around it, matching exactly: {"assistant":{"headline":string,"body":string},"interpretationSummary":string,"followUpPrompt":string,"followUpChoiceLabels":string[]}. followUpChoiceLabels has at most 3 short items.';
+
+  const lifestyle = values && Array.isArray(values.lifestyle_priorities)
+    ? values.lifestyle_priorities.map((v) => sanitizeString(String(v))).filter(Boolean).join(", ")
+    : "";
+  const insightLines = insights
+    ? [
+        insights.goalConflicts && insights.goalConflicts.length
+          ? `PAM detected goal conflicts (spending/savings vs. stated goals): ${insights.goalConflicts.map((c) => `[${c.severity}] ${sanitizeString(c.title)} — ${sanitizeString(c.detail)}`).join(" | ")}`
+          : "",
+        insights.careerVelocity
+          ? `Career velocity (deterministic 10yr model): staying earns ${insights.careerVelocity.stayFinalSalary}/yr and retires at ${insights.careerVelocity.stayRetirementAge}; switching every 2-3yr earns ${insights.careerVelocity.switchFinalSalary}/yr and retires at ${insights.careerVelocity.switchRetirementAge} (${insights.careerVelocity.tenYearEarningsDelta} more over 10yr, retirement pulled ${insights.careerVelocity.yearsSaved}yr forward).`
+          : "",
+        insights.locationArbitrage
+          ? `Location arbitrage: in ${sanitizeString(insights.locationArbitrage.industry)}, moving to ${sanitizeString(insights.locationArbitrage.targetCity)} nets about ${insights.locationArbitrage.netAnnualGain}/yr after cost of living; retirement age ${insights.locationArbitrage.retireAgeStay} (stay) vs ${insights.locationArbitrage.retireAgeMove} (move).`
+          : "",
+        insights.buyVsRent
+          ? `Buy vs rent (10yr net worth): buy ${insights.buyVsRent.buyNetWorth10yr} vs rent+invest ${insights.buyVsRent.rentNetWorth10yr}; deterministic recommendation: ${sanitizeString(insights.buyVsRent.recommendation)} (gap ${insights.buyVsRent.netWorthDelta}).`
+          : ""
+      ].filter(Boolean)
+    : [];
 
   const userText = [
             `User prompt: ${sanitizeString(prompt, "No prompt provided")}`,
             `What this person wants out of life (tailor everything to this): ${Array.isArray(baseline?.profile?.lifeValues) && baseline.profile.lifeValues.length ? baseline.profile.lifeValues.map((v) => sanitizeString(String(v))).filter(Boolean).join(", ") : "not specified yet"}`,
+            `Retirement target age (hard goal): ${values && values.retirement_target_age ? sanitizeString(String(values.retirement_target_age)) : "not set"}`,
+            `Work philosophy: ${values && values.work_philosophy ? sanitizeString(String(values.work_philosophy)) : "unknown"}`,
+            `Open to relocating: ${values && values.location_flexible ? sanitizeString(String(values.location_flexible)) : "unknown"}`,
+            `Lifestyle priorities: ${lifestyle || "not specified"}`,
+            `Industry: ${values && values.industry ? sanitizeString(String(values.industry)) : "unknown"}`,
+            `Job title: ${values && values.job_title ? sanitizeString(String(values.job_title)) : "unknown"}`,
+            `Years in current role: ${values && values.years_at_current_job ? sanitizeString(String(values.years_at_current_job)) : "unknown"}`,
+            insightLines.length ? `PAM values insight (deterministic — use these, do not recompute):\n${insightLines.join("\n")}` : "",
             `Baseline source: ${sanitizeString(baseline?.source, "unknown")}`,
             `Employment status: ${sanitizeString(baseline?.profile?.employmentStatus, "unknown")}`,
             `State: ${sanitizeString(baseline?.profile?.state, "OTHER")}`,
@@ -250,7 +281,7 @@ function buildInput(payload) {
             `Risk: ${sanitizeString(result?.risk?.label, "Unknown")}`,
             `Tax impact summary: ${sanitizeString(result?.decision?.taxImpact, "No direct change")}`,
             `Local explanation: ${sanitizeString(result?.explanation, "No local explanation")}`
-          ].join("\n");
+          ].filter(Boolean).join("\n");
 
   return { system, userText };
 }

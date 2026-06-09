@@ -1828,6 +1828,62 @@ function getConnectedAccounts(baseline) {
   return Array.isArray(baseline?.savings?.connectedAccounts) ? baseline.savings.connectedAccounts : [];
 }
 
+// Compute the deterministic values-based insights and condense them into a
+// compact object the AI can read so its guidance is grounded in the same math
+// the dashboard cards show. Returns null if values onboarding isn't complete.
+function buildValuesInsightsForAI() {
+  const uv = state.userValues;
+  if (!uv?.completed) return null;
+  const profile = getValuesProfile();
+  const insights = {};
+
+  const conflicts = detectGoalConflicts(uv, profile);
+  if (conflicts.length) {
+    insights.goalConflicts = conflicts.slice(0, 3).map((c) => ({
+      severity: c.severity,
+      title: c.title,
+      detail: c.detail
+    }));
+  }
+
+  const career = simulateCareerVelocity(uv, profile);
+  if (career?.shouldTrigger) {
+    insights.careerVelocity = {
+      stayFinalSalary: career.pathA.finalSalary,
+      switchFinalSalary: career.pathB.finalSalary,
+      stayRetirementAge: career.pathA.retirementAge,
+      switchRetirementAge: career.pathB.retirementAge,
+      tenYearEarningsDelta: career.earningsDelta,
+      yearsSaved: career.yearsSaved
+    };
+  }
+
+  const location = simulateLocationArbitrage(uv, profile);
+  if (location) {
+    insights.locationArbitrage = {
+      targetCity: location.targetCity,
+      industry: location.industryKey,
+      netAnnualGain: location.netAnnualGain,
+      retireAgeStay: location.retireAgeStay,
+      retireAgeMove: location.retireAgeMove,
+      yearsSaved: location.yearsSaved
+    };
+  }
+
+  const priorities = (Array.isArray(uv.lifestyle_priorities) ? uv.lifestyle_priorities : []).map((p) => String(p).toLowerCase());
+  if (priorities.includes("homeownership") || (state.lifeValues || []).includes("Buy a home")) {
+    const housing = simulateBuyVsRent(uv, profile);
+    insights.buyVsRent = {
+      recommendation: housing.recommendation,
+      buyNetWorth10yr: housing.buy.projectedNetWorth,
+      rentNetWorth10yr: housing.rent.projectedNetWorth,
+      netWorthDelta: housing.netWorthDelta
+    };
+  }
+
+  return Object.keys(insights).length ? insights : null;
+}
+
 function getConnectedSnapshot(baseline) {
   return {
     source: baseline.source,
@@ -1840,7 +1896,9 @@ function getConnectedSnapshot(baseline) {
     obligations: baseline.obligations,
     savings: baseline.savings,
     tax: baseline.tax,
-    goals: baseline.goals
+    goals: baseline.goals,
+    userValues: state.userValues || null,
+    valuesInsights: buildValuesInsightsForAI()
   };
 }
 
