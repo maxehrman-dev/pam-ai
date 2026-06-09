@@ -24,6 +24,78 @@ export const LEGAL_DISCLAIMER =
 export const WAITLIST_FOUNDING_NOTE =
   "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
 
+export const VALUES_ONBOARDING_STEPS = [
+  {
+    key: "retirement_target_age",
+    question: "When do you want to stop needing to work?",
+    detail: "Give us a real number. You can always change it.",
+    type: "slider",
+    min: 25,
+    max: 75,
+    defaultValue: 65
+  },
+  {
+    key: "work_philosophy",
+    question: "How do you really feel about work?",
+    type: "options",
+    options: [
+      { value: "hate_working", label: "I hate it. The sooner I'm out, the better." },
+      { value: "work_to_live", label: "It's a means to an end — not my identity." },
+      { value: "career_driven", label: "I'm ambitious. I want to climb and earn more." },
+      { value: "entrepreneur", label: "I want to build something of my own." }
+    ]
+  },
+  {
+    key: "location_flexible",
+    question: "Would you relocate for the right opportunity?",
+    type: "options",
+    options: [
+      { value: "yes", label: "Absolutely — I'll go where the money is." },
+      { value: "maybe", label: "Maybe, with the right offer on the table." },
+      { value: "no", label: "No — I'm rooted where I am." }
+    ]
+  },
+  {
+    key: "lifestyle_priorities",
+    question: "What matters most in your life?",
+    detail: "Pick everything that applies.",
+    type: "multiselect",
+    options: ["Travel", "Homeownership", "Family", "Experiences", "Financial freedom", "Flexibility", "Status", "Security"]
+  },
+  {
+    key: "industry",
+    question: "What industry are you in?",
+    type: "text",
+    placeholder: "Finance, Tech, Healthcare…",
+    subKey: "job_title",
+    subPlaceholder: "Your job title"
+  },
+  {
+    key: "years_at_current_job",
+    question: "How long have you been in your current role?",
+    type: "options",
+    options: [
+      { value: "under_1", label: "Less than a year" },
+      { value: "1_to_2", label: "1–2 years" },
+      { value: "2_to_3", label: "2–3 years" },
+      { value: "3_to_5", label: "3–5 years" },
+      { value: "over_5", label: "More than 5 years" }
+    ]
+  }
+];
+
+export const INDUSTRY_CITY_MAP = {
+  finance: { cities: ["New York City", "London", "Chicago", "Hong Kong", "Dubai"], boost: 0.38 },
+  tech: { cities: ["San Francisco", "New York City", "Seattle", "Austin"], boost: 0.30 },
+  "software engineering": { cities: ["San Francisco", "New York City", "Seattle"], boost: 0.30 },
+  entertainment: { cities: ["Los Angeles", "New York City", "Atlanta"], boost: 0.25 },
+  consulting: { cities: ["New York City", "Chicago", "Washington DC", "London"], boost: 0.24 },
+  healthcare: { cities: ["Boston", "San Francisco", "New York City"], boost: 0.18 },
+  law: { cities: ["New York City", "Washington DC", "Los Angeles", "Chicago"], boost: 0.32 },
+  marketing: { cities: ["New York City", "Los Angeles", "San Francisco"], boost: 0.20 },
+  engineering: { cities: ["San Francisco", "Seattle", "Austin", "New York City"], boost: 0.22 }
+};
+
 export const CREATE_ACCOUNT_STEPS = [
   {
     key: "firstName",

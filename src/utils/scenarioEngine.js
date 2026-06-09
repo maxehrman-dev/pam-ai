@@ -1654,7 +1654,203 @@ export function generateInsights(profile, goals, session) {
     {
       kind: "Guidance",
       title: "Use the scenario to set a threshold",
-      body: `${result.nextStep} The goal is not just to answer “can I?” but to define the line where the decision still feels safe.`
+      body: `${result.nextStep} The goal is not just to answer "can I?" but to define the line where the decision still feels safe.`
     }
   ];
+}
+
+// ─── Values-based insight engines ────────────────────────────────────────────
+// All accept a flat `profile` object computed by the caller:
+// { age, annualSalary, monthlyBuffer, currentSavings, monthlyExpenses, lifeValues[] }
+
+function fvRecurring(monthlyPayment, annualRate, months) {
+  const r = annualRate / 12;
+  if (r === 0) return monthlyPayment * months;
+  return monthlyPayment * ((Math.pow(1 + r, months) - 1) / r);
+}
+
+function yearsToNestEgg(annualSavings, startSavings, target) {
+  let s = startSavings;
+  for (let y = 0; y < 50; y++) {
+    if (s >= target) return y;
+    s = s * 1.07 + annualSavings;
+  }
+  return 50;
+}
+
+export function detectGoalConflicts(userValues, profile) {
+  if (!userValues) return [];
+  const { age = 30, annualSalary = 50000, monthlyBuffer = 0, currentSavings = 0, monthlyExpenses = 0, lifeValues = [] } = profile;
+  const retirementAge = Number(userValues.retirement_target_age) || 65;
+  const yearsToRetire = Math.max(retirementAge - age, 1);
+  const annualSpending = monthlyExpenses * 12 || annualSalary * 0.6;
+  const requiredNestEgg = annualSpending * 25;
+  const monthlyContrib = Math.max(monthlyBuffer * 0.8, 0);
+  const projectedNestEgg = currentSavings * Math.pow(1.07, yearsToRetire) + fvRecurring(monthlyContrib, 0.07, yearsToRetire * 12);
+  const conflicts = [];
+
+  if (retirementAge < 62 && projectedNestEgg < requiredNestEgg * 0.75) {
+    const actualRetire = Math.min(age + yearsToNestEgg(monthlyContrib * 12, currentSavings, requiredNestEgg), 75);
+    conflicts.push({
+      severity: "critical",
+      title: `You want to retire at ${retirementAge}. At your current pace, you'll retire closer to ${actualRetire}.`,
+      detail: `You need ~${formatCurrency(requiredNestEgg)} to retire at ${retirementAge}. You're on track for ~${formatCurrency(Math.round(projectedNestEgg / 1000) * 1000)}. The gap is ${formatCurrency(Math.max(requiredNestEgg - projectedNestEgg, 0))}.`,
+      action: `What savings rate do I need to retire at ${retirementAge}?`
+    });
+  }
+
+  const priorities = (Array.isArray(userValues.lifestyle_priorities) ? userValues.lifestyle_priorities : []).map(p => String(p).toLowerCase());
+  if (priorities.includes("homeownership") && (userValues.location_flexible === "yes" || priorities.some(p => ["travel", "flexibility"].includes(p)))) {
+    conflicts.push({
+      severity: "moderate",
+      title: "Homeownership and flexibility are in direct conflict.",
+      detail: "A home ties up your down payment and locks you to a location. If mobility matters, that capital may work harder invested.",
+      action: "Should I buy a home given I want to stay flexible?"
+    });
+  }
+
+  if (lifeValues.includes("Never work for a boss") && userValues.work_philosophy !== "entrepreneur") {
+    conflicts.push({
+      severity: "moderate",
+      title: "You want to escape employment but have no clear path to that yet.",
+      detail: "Freelancing, a business, or enough invested to live off returns: you need one of these. PAM can model each.",
+      action: "What do I need saved to never work for an employer?"
+    });
+  }
+
+  if (retirementAge < 55 && annualSalary > 0 && monthlyBuffer < annualSalary * 0.15 / 12) {
+    conflicts.push({
+      severity: "moderate",
+      title: `Retiring at ${retirementAge} requires saving 20–30% of income. You're below that.`,
+      detail: `Your buffer is ${formatCurrency(monthlyBuffer)}/mo. To hit ${retirementAge} you likely need at least ${formatCurrency(Math.round(annualSalary * 0.20 / 12))}/mo going toward long-term savings.`,
+      action: `How much do I need to save each month to retire at ${retirementAge}?`
+    });
+  }
+
+  return conflicts.sort((a, b) => ({ critical: 0, moderate: 1, minor: 2 }[a.severity] ?? 2) - ({ critical: 0, moderate: 1, minor: 2 }[b.severity] ?? 2));
+}
+
+export function simulateCareerVelocity(userValues, profile) {
+  const { age = 28, annualSalary = 55000, monthlyBuffer = 500, currentSavings = 0, monthlyExpenses = 0 } = profile;
+  const retirementAge = Number(userValues.retirement_target_age) || 65;
+  const YEARS = 10;
+
+  const pathA = [];
+  const pathB = [];
+  let sA = annualSalary;
+  let sB = annualSalary;
+  for (let y = 0; y <= YEARS; y++) {
+    pathA.push({ year: y, salary: Math.round(sA) });
+    pathB.push({ year: y, salary: Math.round(sB) });
+    if (y < YEARS) {
+      sA *= 1.03;
+      const switchYear = y > 0 && y % 3 === 0;
+      sB = switchYear ? sB * 1.15 : sB * 1.03;
+    }
+  }
+
+  const totalA = pathA.reduce((s, p) => s + p.salary, 0);
+  const totalB = pathB.reduce((s, p) => s + p.salary, 0);
+  const finalDelta = pathB[YEARS].salary - pathA[YEARS].salary;
+  const annualSpending = monthlyExpenses * 12 || annualSalary * 0.6;
+  const requiredNestEgg = annualSpending * 25;
+  const savingsA = Math.max(monthlyBuffer * 12, annualSalary * 0.10);
+  const savingsB = savingsA + finalDelta * 0.35;
+  const retireA = Math.min(age + yearsToNestEgg(savingsA, currentSavings, requiredNestEgg), 75);
+  const retireB = Math.min(age + yearsToNestEgg(savingsB, currentSavings, requiredNestEgg), 75);
+
+  const yrs = userValues.years_at_current_job || "";
+  const shouldTrigger = (["2_to_3", "3_to_5", "over_5"].includes(yrs)) && retirementAge < 60;
+
+  return {
+    pathA: { label: "Stay at current employer", finalSalary: pathA[YEARS].salary, totalEarnings: totalA, retirementAge: retireA },
+    pathB: { label: "Switch every 2–3 years", finalSalary: pathB[YEARS].salary, totalEarnings: totalB, retirementAge: retireB },
+    salaryDelta: finalDelta,
+    earningsDelta: totalB - totalA,
+    yearsSaved: Math.max(retireA - retireB, 0),
+    shouldTrigger
+  };
+}
+
+export function simulateBuyVsRent(userValues, profile) {
+  const { annualSalary = 60000, currentSavings = 0 } = profile;
+  const YEARS = 10;
+  const homePrice = annualSalary * 4.5;
+  const downPayment = homePrice * 0.10;
+  const loanAmt = homePrice - downPayment;
+  const monthlyMortgage = loanAmt * (0.065 / 12) / (1 - Math.pow(1 + 0.065 / 12, -360));
+  const monthlyTaxIns = homePrice * 0.015 / 12;
+  const totalBuyMonthly = monthlyMortgage + monthlyTaxIns;
+  const monthlyRent = annualSalary * 0.28 / 12;
+  const rentDelta = Math.max(totalBuyMonthly - monthlyRent, 0);
+
+  const homeValueFinal = homePrice * Math.pow(1.03, YEARS);
+  const r12 = 0.065 / 12;
+  const remainingMortgage = loanAmt * Math.pow(1 + r12, 120) - monthlyMortgage * ((Math.pow(1 + r12, 120) - 1) / r12);
+  const buyNetWorth = homeValueFinal - Math.max(remainingMortgage, 0) + currentSavings - downPayment;
+
+  const investedDP = downPayment * Math.pow(1.07, YEARS);
+  const investedDelta = rentDelta > 0 ? fvRecurring(rentDelta, 0.07, 120) : 0;
+  const rentNetWorth = currentSavings + investedDP + investedDelta;
+
+  const priorities = (Array.isArray(userValues.lifestyle_priorities) ? userValues.lifestyle_priorities : []).map(p => String(p).toLowerCase());
+  const wantsFlexibility = userValues.location_flexible === "yes" || priorities.some(p => ["travel", "flexibility"].includes(p));
+  const wantsHome = priorities.includes("homeownership");
+  const winner = rentNetWorth > buyNetWorth ? "rent" : "buy";
+  const recommendation = (wantsFlexibility && !wantsHome) ? "rent" : winner;
+
+  return {
+    buy: { label: "Buy a home", downPayment: Math.round(downPayment), monthlyPayment: Math.round(totalBuyMonthly), projectedNetWorth: Math.round(buyNetWorth), homePrice: Math.round(homePrice) },
+    rent: { label: "Rent + invest the difference", monthlyRent: Math.round(monthlyRent), monthlyInvested: Math.round(rentDelta), projectedNetWorth: Math.round(rentNetWorth) },
+    recommendation,
+    winner,
+    netWorthDelta: Math.round(Math.abs(rentNetWorth - buyNetWorth))
+  };
+}
+
+export function simulateLocationArbitrage(userValues, profile) {
+  const INDUSTRY_MAP = {
+    finance: { cities: ["New York City", "London", "Chicago"], boost: 0.38 },
+    tech: { cities: ["San Francisco", "New York City", "Seattle"], boost: 0.30 },
+    "software engineering": { cities: ["San Francisco", "Seattle", "New York City"], boost: 0.30 },
+    entertainment: { cities: ["Los Angeles", "New York City"], boost: 0.25 },
+    consulting: { cities: ["New York City", "Chicago", "Washington DC"], boost: 0.24 },
+    healthcare: { cities: ["Boston", "San Francisco", "New York City"], boost: 0.18 },
+    law: { cities: ["New York City", "Washington DC", "Los Angeles"], boost: 0.32 },
+    marketing: { cities: ["New York City", "Los Angeles", "San Francisco"], boost: 0.20 },
+    engineering: { cities: ["San Francisco", "Seattle", "Austin"], boost: 0.22 }
+  };
+  const { age = 28, annualSalary = 55000, monthlyBuffer = 400, currentSavings = 0, monthlyExpenses = 0 } = profile;
+  const retirementAge = Number(userValues.retirement_target_age) || 65;
+  const industry = String(userValues.industry || "").toLowerCase().trim();
+  const city = String(userValues.city || "").toLowerCase();
+
+  const match = Object.entries(INDUSTRY_MAP).find(([key]) => industry.includes(key));
+  if (!match) return null;
+
+  const [industryKey, data] = match;
+  const targetCity = data.cities[0];
+  const alreadyThere = data.cities.some(c => city.includes(c.toLowerCase().split(" ")[0]));
+  if (alreadyThere) return null;
+
+  const boostSalary = Math.round(annualSalary * (1 + data.boost));
+  const salaryGain = boostSalary - annualSalary;
+  const costPenalty = annualSalary * 0.18;
+  const netAnnualGain = Math.round(salaryGain - costPenalty);
+  const annualSpending = monthlyExpenses * 12 || annualSalary * 0.6;
+  const requiredNestEgg = annualSpending * 25;
+  const savingsStay = Math.max(monthlyBuffer * 12, annualSalary * 0.10);
+  const savingsMove = savingsStay + netAnnualGain * 0.45;
+  const retireStay = Math.min(age + yearsToNestEgg(savingsStay, currentSavings, requiredNestEgg), 72);
+  const retireMove = Math.min(age + yearsToNestEgg(savingsMove, currentSavings, requiredNestEgg), 72);
+
+  return {
+    industryKey,
+    targetCity,
+    salaryGain,
+    netAnnualGain,
+    retireAgeStay: retireStay,
+    retireAgeMove: retireMove,
+    yearsSaved: Math.max(retireStay - retireMove, 0)
+  };
 }

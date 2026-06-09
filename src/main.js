@@ -24,13 +24,21 @@ import {
 } from "./utils/baseline.mjs";
 import { connectSandboxAccount, loadSandboxFallback } from "./services/plaidClient.js";
 import { defaultGoals, goalTemplates, starterScenarios } from "./data/mockData.js";
-import { buildDecisionSession } from "./utils/scenarioEngine.js";
+import {
+  buildDecisionSession,
+  detectGoalConflicts,
+  simulateCareerVelocity,
+  simulateBuyVsRent,
+  simulateLocationArbitrage
+} from "./utils/scenarioEngine.js";
 import {
   CREATE_ACCOUNT_STEPS,
+  INDUSTRY_CITY_MAP,
   LEGAL_DISCLAIMER,
   PRIVACY_VERSION,
   STORAGE_KEYS,
   TERMS_VERSION,
+  VALUES_ONBOARDING_STEPS,
   WAITLIST_FOUNDING_NOTE
 } from "./config/appConfig.js";
 
@@ -123,7 +131,10 @@ const state = {
   clerkFirstDecision: "",
   clerkFirstDecisionStep: false,
   lifeValues: loadLifeValues(),
-  payFrequency: loadPayFrequency()
+  payFrequency: loadPayFrequency(),
+  userValues: loadUserValues(),
+  valuesStep: 0,
+  valuesDraft: {}
 };
 
 const PAY_FREQUENCIES = ["Weekly", "Every 2 weeks", "Twice a month", "Monthly", "Irregular"];
@@ -191,6 +202,45 @@ function saveLifeValues(values) {
   } catch (_error) {
     // Non-fatal.
   }
+}
+
+function loadUserValues() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem("pam:user-values:v2");
+    return raw ? JSON.parse(raw) : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+function saveUserValues(values) {
+  state.userValues = values || null;
+  try {
+    window.localStorage.setItem("pam:user-values:v2", JSON.stringify(values));
+  } catch (_e) {
+    // best-effort
+  }
+  try {
+    if (state.baseline) {
+      state.baseline.userValues = values;
+      saveBaseline(state.baseline);
+    }
+  } catch (_e) {
+    // non-fatal
+  }
+}
+
+function getValuesProfile() {
+  const ui = getUiBaseline(state.baseline);
+  return {
+    age: toNumber(ui.age, 28),
+    annualSalary: toNumber(ui.grossMonthlyIncome, 0) * 12,
+    monthlyBuffer: getMonthlyBuffer(state.baseline),
+    currentSavings: getCurrentSavings(state.baseline),
+    monthlyExpenses: getMonthlyExpenses(state.baseline),
+    lifeValues: state.lifeValues || []
+  };
 }
 
 function toggleLifeValue(value) {
@@ -531,8 +581,14 @@ function routeSignedInUser(statusMessage = "Signed in.") {
   saveAuthView("signin");
   state.legalAcceptance = state.legalAcceptance || loadLegalAcceptance();
   if (canAccessDashboard() && hasAcceptedLegalTerms()) {
-    saveWorkspaceView("dashboard");
-    saveMobileView("home");
+    if (!state.userValues?.completed) {
+      state.valuesStep = 0;
+      state.valuesDraft = {};
+      saveWorkspaceView("values");
+    } else {
+      saveWorkspaceView("dashboard");
+      saveMobileView("home");
+    }
     setStatus(`${statusMessage} Dashboard restored.`, "decision");
     return;
   }
@@ -656,7 +712,7 @@ function applyDisplayTheme() {
 }
 
 function saveWorkspaceView(view) {
-  state.workspaceView = ["landing", "account", "dashboard"].includes(view) ? view : "landing";
+  state.workspaceView = ["landing", "account", "dashboard", "values"].includes(view) ? view : "landing";
   try {
     window.localStorage.setItem(WORKSPACE_VIEW_KEY, state.workspaceView);
   } catch (_error) {
@@ -3071,6 +3127,219 @@ function renderSetupTermGuide() {
   `;
 }
 
+function renderValuesOnboarding() {
+  const steps = VALUES_ONBOARDING_STEPS;
+  const step = steps[state.valuesStep];
+  if (!step) return "";
+  const draft = state.valuesDraft || {};
+  const progress = Math.round(((state.valuesStep) / steps.length) * 100);
+  const isLast = state.valuesStep === steps.length - 1;
+
+  let inputHtml = "";
+  if (step.type === "slider") {
+    const val = draft[step.key] ?? step.defaultValue;
+    inputHtml = `
+      <div class="values-slider-wrap">
+        <input type="range" min="${step.min}" max="${step.max}" value="${val}" data-values-slider="${escapeHtml(step.key)}" class="values-slider">
+        <div class="values-slider-output"><strong id="slider-display-${step.key}">${val}</strong> years old</div>
+      </div>
+      <button class="button button-primary" type="button" data-values-next>Continue</button>
+    `;
+  } else if (step.type === "options") {
+    inputHtml = `
+      <div class="values-options-grid">
+        ${step.options.map(opt => `
+          <button class="values-option-btn ${draft[step.key] === opt.value ? "selected" : ""}" type="button" data-values-option="${escapeHtml(step.key)}" data-values-value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</button>
+        `).join("")}
+      </div>
+      ${draft[step.key] ? `<button class="button button-primary" type="button" data-values-next>Continue</button>` : ""}
+    `;
+  } else if (step.type === "multiselect") {
+    const selected = Array.isArray(draft[step.key]) ? draft[step.key] : [];
+    inputHtml = `
+      <div class="values-multiselect-grid">
+        ${step.options.map(opt => `
+          <button class="values-option-btn ${selected.includes(opt) ? "selected" : ""}" type="button" data-values-toggle="${escapeHtml(step.key)}" data-values-value="${escapeHtml(opt)}">${escapeHtml(opt)}</button>
+        `).join("")}
+      </div>
+      <button class="button button-primary" type="button" data-values-next>${selected.length ? "Continue" : "Skip for now"}</button>
+    `;
+  } else if (step.type === "text") {
+    inputHtml = `
+      <div class="values-text-inputs">
+        <input type="text" class="values-text-input" placeholder="${escapeHtml(step.placeholder)}" value="${escapeHtml(draft[step.key] || "")}" data-values-text="${escapeHtml(step.key)}">
+        ${step.subKey ? `<input type="text" class="values-text-input" placeholder="${escapeHtml(step.subPlaceholder || "")}" value="${escapeHtml(draft[step.subKey] || "")}" data-values-text="${escapeHtml(step.subKey)}">` : ""}
+      </div>
+      <button class="button button-primary" type="button" data-values-next>Continue</button>
+    `;
+  }
+
+  return `
+    <section class="values-onboarding-shell">
+      <div class="values-onboarding-frame">
+        <div class="values-progress-bar"><div style="width:${progress}%"></div></div>
+        <div class="panel-kicker">Step ${state.valuesStep + 1} of ${steps.length}</div>
+        <h2>${escapeHtml(step.question)}</h2>
+        ${step.detail ? `<p class="values-detail">${escapeHtml(step.detail)}</p>` : ""}
+        <div class="values-input-area">${inputHtml}</div>
+        <div class="values-nav-row">
+          ${state.valuesStep > 0 ? `<button class="button button-ghost" type="button" data-values-back>Back</button>` : ""}
+          <button class="button button-ghost values-skip-btn" type="button" data-values-skip>Skip setup</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderGoalConflictCard() {
+  const uv = state.userValues;
+  if (!uv?.completed) return "";
+  const profile = getValuesProfile();
+  const conflicts = detectGoalConflicts(uv, profile);
+  if (!conflicts.length) return "";
+  return `
+    <details class="insight-card goal-conflict-card" open>
+      <summary><span class="insight-label critical">Conflicts detected</span> Your goals vs. your money</summary>
+      <div class="insight-body">
+        ${conflicts.map(c => `
+          <div class="conflict-row conflict-${escapeHtml(c.severity)}">
+            <div class="conflict-badge">${escapeHtml(c.severity)}</div>
+            <div>
+              <strong>${escapeHtml(c.title)}</strong>
+              <p>${escapeHtml(c.detail)}</p>
+              <button class="button button-ghost button-sm" type="button" data-ask-about="${escapeHtml(c.action)}">Ask PAM about this →</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderCareerVelocityCard() {
+  const uv = state.userValues;
+  if (!uv?.completed) return "";
+  const profile = getValuesProfile();
+  const sim = simulateCareerVelocity(uv, profile);
+  if (!sim.shouldTrigger) return "";
+  return `
+    <details class="insight-card career-velocity-card">
+      <summary><span class="insight-label amber">Career insight</span> You might be leaving money on the table</summary>
+      <div class="insight-body">
+        <p>Most people assume loyalty is rewarded. The data says otherwise.</p>
+        <div class="velocity-comparison">
+          <div class="velocity-path">
+            <div class="velocity-path-label">Stay at current employer</div>
+            <div class="velocity-path-salary">${formatCurrency(sim.pathA.finalSalary)}<small>/yr in 10 years</small></div>
+            <div class="velocity-path-retire">Retire at <strong>${sim.pathA.retirementAge}</strong></div>
+          </div>
+          <div class="velocity-path velocity-path-b">
+            <div class="velocity-path-label">Switch every 2–3 years</div>
+            <div class="velocity-path-salary">${formatCurrency(sim.pathB.finalSalary)}<small>/yr in 10 years</small></div>
+            <div class="velocity-path-retire">Retire at <strong>${sim.pathB.retirementAge}</strong></div>
+          </div>
+        </div>
+        <p class="insight-callout">Strategic moves could net you ${formatCurrency(sim.earningsDelta)} more over 10 years and pull your retirement ${sim.yearsSaved} year${sim.yearsSaved === 1 ? "" : "s"} forward.</p>
+        <button class="button button-ghost button-sm" type="button" data-ask-about="Should I look for a new job to hit my retirement goal faster?">Model my career paths →</button>
+      </div>
+    </details>
+  `;
+}
+
+function renderBuyVsRentCard() {
+  const uv = state.userValues;
+  if (!uv?.completed) return "";
+  const profile = getValuesProfile();
+  const sim = simulateBuyVsRent(uv, profile);
+  const priorities = (Array.isArray(uv.lifestyle_priorities) ? uv.lifestyle_priorities : []).map(p => String(p).toLowerCase());
+  const relevant = priorities.includes("homeownership") || state.lifeValues.includes("Buy a home");
+  if (!relevant) return "";
+  return `
+    <details class="insight-card buyvsrent-card">
+      <summary><span class="insight-label blue">Housing</span> Buy vs. rent — based on your goals</summary>
+      <div class="insight-body">
+        <div class="velocity-comparison">
+          <div class="velocity-path ${sim.recommendation === "buy" ? "velocity-path-b" : ""}">
+            <div class="velocity-path-label">Buy a home</div>
+            <div class="velocity-path-salary">${formatCurrency(sim.buy.downPayment)}<small> down payment needed</small></div>
+            <div class="velocity-path-retire">${formatCurrency(sim.buy.projectedNetWorth)}<small> net worth in 10yr</small></div>
+          </div>
+          <div class="velocity-path ${sim.recommendation === "rent" ? "velocity-path-b" : ""}">
+            <div class="velocity-path-label">Rent + invest</div>
+            <div class="velocity-path-salary">${formatCurrency(sim.rent.monthlyInvested)}<small>/mo invested instead</small></div>
+            <div class="velocity-path-retire">${formatCurrency(sim.rent.projectedNetWorth)}<small> net worth in 10yr</small></div>
+          </div>
+        </div>
+        <p class="insight-callout">
+          ${sim.recommendation === "rent"
+            ? `Based on your goals, renting and investing the difference could leave you ${formatCurrency(sim.netWorthDelta)} ahead in 10 years.`
+            : `Buying may be worth it for you — the 10-year wealth gap is ${formatCurrency(sim.netWorthDelta)} in favor of owning.`}
+        </p>
+        <button class="button button-ghost button-sm" type="button" data-ask-about="Should I buy a home or keep renting given my goals?">Run the full analysis →</button>
+      </div>
+    </details>
+  `;
+}
+
+function renderLocationArbitrageCard() {
+  const uv = state.userValues;
+  if (!uv?.completed || !uv.industry) return "";
+  if (uv.location_flexible === "no") return "";
+  const profile = getValuesProfile();
+  const sim = simulateLocationArbitrage(uv, profile);
+  if (!sim) return "";
+  return `
+    <details class="insight-card location-card">
+      <summary><span class="insight-label mint">Location</span> Your city might be costing you years</summary>
+      <div class="insight-body">
+        <p>In <strong>${escapeHtml(sim.industryKey)}</strong>, the top markets pay significantly more. Moving to <strong>${escapeHtml(sim.targetCity)}</strong> could change your trajectory.</p>
+        <div class="velocity-comparison">
+          <div class="velocity-path">
+            <div class="velocity-path-label">Stay where you are</div>
+            <div class="velocity-path-salary">${formatCurrency(sim.salaryGain)}<small> left on table/yr</small></div>
+            <div class="velocity-path-retire">Retire at <strong>${sim.retireAgeStay}</strong></div>
+          </div>
+          <div class="velocity-path velocity-path-b">
+            <div class="velocity-path-label">Move to ${escapeHtml(sim.targetCity)}</div>
+            <div class="velocity-path-salary">+${formatCurrency(sim.netAnnualGain)}<small>/yr net after cost of living</small></div>
+            <div class="velocity-path-retire">Retire at <strong>${sim.retireAgeMove}</strong></div>
+          </div>
+        </div>
+        ${sim.yearsSaved > 0 ? `<p class="insight-callout">Relocation could pull your retirement ${sim.yearsSaved} year${sim.yearsSaved === 1 ? "" : "s"} forward.</p>` : ""}
+        <button class="button button-ghost button-sm" type="button" data-ask-about="${escapeHtml(`Should I move to ${sim.targetCity} for my ${sim.industryKey} career?`)}">Model this move →</button>
+      </div>
+    </details>
+  `;
+}
+
+function renderAccountabilityCard() {
+  const uv = state.userValues;
+  if (!uv?.completed) return "";
+  const retirementAge = Number(uv.retirement_target_age) || 65;
+  const profile = getValuesProfile();
+  const { age, monthlyBuffer, annualSalary } = profile;
+  const yearsLeft = Math.max(retirementAge - age, 1);
+  const annualSpending = profile.monthlyExpenses * 12 || annualSalary * 0.6;
+  const requiredNestEgg = annualSpending * 25;
+  const savingsRate = Math.max(monthlyBuffer, 0);
+  const projectedAtRetire = profile.currentSavings * Math.pow(1.07, yearsLeft) +
+    savingsRate * ((Math.pow(1.07 / 12 + 1, yearsLeft * 12) - 1) / (0.07 / 12));
+  const onTrack = projectedAtRetire >= requiredNestEgg * 0.85;
+  const shortfall = Math.max(requiredNestEgg - projectedAtRetire, 0);
+  const neededMonthly = shortfall > 0 ? Math.round(shortfall / ((Math.pow(1.07 / 12 + 1, yearsLeft * 12) - 1) / (0.07 / 12))) : 0;
+  return `
+    <details class="insight-card accountability-card">
+      <summary><span class="insight-label ${onTrack ? "mint" : "critical"}">${onTrack ? "On track" : "Off track"}</span> Retire at ${retirementAge} check-in</summary>
+      <div class="insight-body">
+        ${onTrack
+          ? `<p>Based on your current buffer and savings, you're projected to have ~${formatCurrency(Math.round(projectedAtRetire / 10000) * 10000)} at ${retirementAge}. You're on track.</p>`
+          : `<p>You need ~${formatCurrency(requiredNestEgg)} to retire at ${retirementAge}. You're projected to reach ~${formatCurrency(Math.round(projectedAtRetire / 10000) * 10000)}. To close the gap you need to save an extra ${formatCurrency(neededMonthly)}/mo.</p>`}
+        <button class="button button-ghost button-sm" type="button" data-ask-about="${escapeHtml(`Am I on track to retire at ${retirementAge}?`)}">Get PAM's full analysis →</button>
+      </div>
+    </details>
+  `;
+}
+
 function renderWorkspaceHub() {
   const isComplete = canUseFinancialFeatures();
   const baseline = getUiBaseline(state.baseline);
@@ -3421,6 +3690,10 @@ function renderMobileHomeScreen() {
           `}
         </div>
       </div>
+
+      ${state.userValues?.completed
+        ? `${renderGoalConflictCard()}${renderAccountabilityCard()}`
+        : `<div class="insight-card values-cta-card mobile-values-cta"><strong>Personalize PAM</strong><p>Answer 6 quick questions so PAM can give you specific, goal-based guidance.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
       </div>
     </section>
   `;
@@ -3634,6 +3907,12 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
+        ${state.userValues?.completed ? "" : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>Answer 6 quick questions so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
+        ${renderGoalConflictCard()}
+        ${renderAccountabilityCard()}
+        ${renderCareerVelocityCard()}
+        ${renderBuyVsRentCard()}
+        ${renderLocationArbitrageCard()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
           <div class="panel-kicker">Net worth</div>
@@ -5021,9 +5300,11 @@ function render() {
       <main class="pam-homepage">
         ${state.workspaceView === "landing"
           ? `${renderHero()}${renderLandingWorkspace()}`
-          : state.workspaceView === "account"
-            ? renderAccountPage()
-            : renderWorkspaceHub()}
+          : state.workspaceView === "values"
+            ? renderValuesOnboarding()
+            : state.workspaceView === "account"
+              ? renderAccountPage()
+              : renderWorkspaceHub()}
       </main>
       ${renderLegalFooter()}
       ${renderCookieConsentBanner()}
@@ -5149,6 +5430,88 @@ function wireInteractions() {
     button.addEventListener("click", () => {
       state.clerkFirstDecision = button.dataset.clerkDecisionSuggestion || "";
       render();
+    });
+  });
+  // Values onboarding interactions
+  document.querySelectorAll("[data-values-slider]").forEach((input) => {
+    const key = input.dataset.valuesSlider;
+    const display = document.getElementById(`slider-display-${key}`);
+    input.addEventListener("input", () => {
+      if (!state.valuesDraft) state.valuesDraft = {};
+      state.valuesDraft[key] = Number(input.value);
+      if (display) display.textContent = input.value;
+    });
+  });
+  document.querySelectorAll("[data-values-text]").forEach((input) => {
+    input.addEventListener("input", () => {
+      if (!state.valuesDraft) state.valuesDraft = {};
+      state.valuesDraft[input.dataset.valuesText] = input.value;
+    });
+  });
+  document.querySelectorAll("[data-values-option]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!state.valuesDraft) state.valuesDraft = {};
+      state.valuesDraft[button.dataset.valuesOption] = button.dataset.valuesValue;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-values-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!state.valuesDraft) state.valuesDraft = {};
+      const key = button.dataset.valuesToggle;
+      const val = button.dataset.valuesValue;
+      const arr = Array.isArray(state.valuesDraft[key]) ? [...state.valuesDraft[key]] : [];
+      const idx = arr.indexOf(val);
+      if (idx === -1) arr.push(val);
+      else arr.splice(idx, 1);
+      state.valuesDraft[key] = arr;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-values-next]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const steps = VALUES_ONBOARDING_STEPS;
+      const step = steps[state.valuesStep];
+      if (step && step.type === "slider" && !state.valuesDraft[step.key]) {
+        state.valuesDraft[step.key] = step.defaultValue;
+      }
+      if (state.valuesStep < steps.length - 1) {
+        state.valuesStep++;
+        render();
+      } else {
+        const values = { ...state.valuesDraft, completed: true };
+        saveUserValues(values);
+        saveWorkspaceView("dashboard");
+        saveMobileView("home");
+        render();
+      }
+    });
+  });
+  document.querySelectorAll("[data-values-back]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (state.valuesStep > 0) { state.valuesStep--; render(); }
+    });
+  });
+  document.querySelectorAll("[data-values-skip]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveUserValues({ completed: true, skipped: true });
+      saveWorkspaceView("dashboard");
+      saveMobileView("home");
+      render();
+    });
+  });
+  document.querySelectorAll("[data-ask-about]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const q = button.dataset.askAbout || "";
+      if (!q) return;
+      saveQuestion(q);
+      saveWorkspaceView("dashboard");
+      saveMobileView("ask");
+      render();
+      setTimeout(() => {
+        const input = document.querySelector("[data-question-input]");
+        if (input) input.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
     });
   });
   document.querySelectorAll("[data-life-value]").forEach((button) => {
@@ -5389,8 +5752,14 @@ export async function startApp() {
     saveBaseline(baseline);
   }
   if (canAccessDashboard()) {
-    saveWorkspaceView(hasAcceptedLegalTerms() ? "dashboard" : "account");
-    if (hasAcceptedLegalTerms()) saveMobileView("home");
+    if (hasAcceptedLegalTerms() && !state.userValues?.completed) {
+      state.valuesStep = 0;
+      state.valuesDraft = {};
+      saveWorkspaceView("values");
+    } else {
+      saveWorkspaceView(hasAcceptedLegalTerms() ? "dashboard" : "account");
+    }
+    if (hasAcceptedLegalTerms() && state.userValues?.completed) saveMobileView("home");
   } else if (hasPrototypeAccount()) {
     saveWorkspaceView("account");
   } else {
@@ -5413,6 +5782,10 @@ export async function startApp() {
   state.goals = loadUserGoals();
   state.decisionHistory = loadDecisionHistory();
   state.savedScenarios = loadSavedScenarios();
+  // Hydrate userValues from Supabase baseline if localStorage is empty
+  if (!state.userValues && state.baseline?.userValues) {
+    state.userValues = state.baseline.userValues;
+  }
   state.result = canAccessDashboard() ? toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question })) : null;
   trackEvent("app_loaded", {
     view: state.workspaceView,
