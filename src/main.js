@@ -5964,6 +5964,36 @@ function wireInteractions() {
   });
 }
 
+// Localhost-only preview hydration so gated screens (dashboard, result,
+// values flow) can be styled and reviewed without a Clerk login. Strictly
+// inert in production: requires a local hostname AND an explicit opt-in flag.
+function applyDevPreviewAccount() {
+  if (typeof window === "undefined") return;
+  if (!["localhost", "127.0.0.1"].includes(window.location.hostname)) return;
+  if (window.localStorage.getItem("pam:dev-preview:v1") !== "on") return;
+  state.account = { id: "dev-preview", firstName: "Preview", emailAddress: "preview@local.test" };
+  const sandboxPayload = loadSandboxFallback(state.baseline);
+  saveBaseline(syncAccountIntoBaseline(state.account, sandboxPayload.baseline));
+  saveLegalAcceptance({
+    acceptedAdvisorDisclaimer: true,
+    acceptedTermsPrivacy: true,
+    termsVersion: TERMS_VERSION,
+    privacyVersion: PRIVACY_VERSION,
+    acceptedAt: new Date().toISOString()
+  });
+  if (!state.userValues?.completed) {
+    saveUserValues({
+      age: 26, city: "Charlotte", state: "NC", household: "single", housing: "rent",
+      worker_type: "salaried", pay_frequency: "biweekly", retirement_target_age: 55,
+      work_philosophy: "work_to_live", location_flexible: "maybe",
+      lifestyle_priorities: ["Travel", "Financial freedom"], industry: "finance",
+      years_at_current_job: "2_to_3", offline_factors: ["Student loans"],
+      anything_else: "", completed: true
+    });
+  }
+  saveWorkspaceView("dashboard");
+}
+
 export async function startApp() {
   if (isStarted) return;
   isStarted = true;
@@ -5994,6 +6024,7 @@ export async function startApp() {
     render();
     return;
   }
+  applyDevPreviewAccount();
   // Listen for Clerk auth changes (sign-in/out happen in Clerk modal)
   if (isClerkMode()) {
     window.addEventListener("pam:clerk:change", async () => {
