@@ -26,6 +26,75 @@ export const WAITLIST_FOUNDING_NOTE =
 
 export const VALUES_ONBOARDING_STEPS = [
   {
+    key: "age",
+    question: "How old are you?",
+    detail: "Age sets your runway — every projection depends on it.",
+    type: "slider",
+    min: 16,
+    max: 70,
+    defaultValue: 25
+  },
+  {
+    key: "city",
+    question: "Where do you live?",
+    detail: "PAM uses this for cost-of-living and career-market math.",
+    type: "text",
+    placeholder: "City (e.g. Charlotte)",
+    subKey: "state",
+    subPlaceholder: "State (e.g. NC)"
+  },
+  {
+    key: "household",
+    question: "What does your household look like?",
+    detail: "Who depends on your money changes every answer.",
+    type: "options",
+    options: [
+      { value: "single", label: "Just me" },
+      { value: "partner", label: "Me + partner" },
+      { value: "married", label: "Married, no kids" },
+      { value: "married_kids", label: "Married with kids" },
+      { value: "single_parent", label: "Single parent" },
+      { value: "support_family", label: "I support family members" }
+    ]
+  },
+  {
+    key: "housing",
+    question: "What's your housing situation?",
+    type: "options",
+    options: [
+      { value: "rent", label: "I rent" },
+      { value: "own", label: "I own (mortgage or outright)" },
+      { value: "family", label: "Living with family" },
+      { value: "other", label: "Something else" }
+    ]
+  },
+  {
+    key: "worker_type",
+    question: "What kind of worker are you?",
+    detail: "Taxes, stability, and planning differ a lot between these.",
+    type: "options",
+    options: [
+      { value: "salaried", label: "Salaried (W-2)" },
+      { value: "hourly", label: "Hourly (W-2)" },
+      { value: "freelance", label: "Freelance / 1099" },
+      { value: "business_owner", label: "Business owner" },
+      { value: "student", label: "Student / part-time" },
+      { value: "between_jobs", label: "Between jobs right now" }
+    ]
+  },
+  {
+    key: "pay_frequency",
+    question: "How often do you get paid?",
+    type: "options",
+    options: [
+      { value: "weekly", label: "Weekly" },
+      { value: "biweekly", label: "Every two weeks" },
+      { value: "semimonthly", label: "Twice a month" },
+      { value: "monthly", label: "Monthly" },
+      { value: "irregular", label: "It varies / irregular" }
+    ]
+  },
+  {
     key: "retirement_target_age",
     question: "When do you want to stop needing to work?",
     detail: "Give us a real number. You can always change it.",
@@ -92,6 +161,22 @@ export const VALUES_ONBOARDING_STEPS = [
       { value: "2_to_3", label: "2–3 years" },
       { value: "3_to_5", label: "3–5 years" },
       { value: "over_5", label: "More than 5 years" }
+    ]
+  },
+  {
+    key: "offline_factors",
+    question: "Anything your bank accounts don't show?",
+    detail: "Connected data misses these — pick everything that applies.",
+    type: "multiselect",
+    options: [
+      "I own a car",
+      "Crypto or other investments elsewhere",
+      "Cash savings outside the bank",
+      "Family helps me financially",
+      "I help support family",
+      "Student loans",
+      "Money owed to friends/family",
+      "I own property"
     ]
   }
 ];

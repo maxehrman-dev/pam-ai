@@ -234,7 +234,7 @@ function saveUserValues(values) {
 function getValuesProfile() {
   const ui = getUiBaseline(state.baseline);
   return {
-    age: toNumber(ui.age, 28),
+    age: toNumber(ui.age, toNumber(state.userValues?.age, 28)),
     annualSalary: toNumber(ui.grossMonthlyIncome, 0) * 12,
     monthlyBuffer: getMonthlyBuffer(state.baseline),
     currentSavings: getCurrentSavings(state.baseline),
@@ -3755,7 +3755,7 @@ function renderMobileHomeScreen() {
 
       ${state.userValues?.completed
         ? renderGoalConflictCard()
-        : `<div class="insight-card values-cta-card mobile-values-cta"><strong>Personalize PAM</strong><p>Answer 6 quick questions so PAM can give you specific, goal-based guidance.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
+        : `<div class="insight-card values-cta-card mobile-values-cta"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can give you specific, goal-based guidance.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
 
       <details class="mobile-home-more">
         <summary>More detail</summary>
@@ -4013,7 +4013,7 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
-        ${state.userValues?.completed ? "" : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>Answer 6 quick questions so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
+        ${state.userValues?.completed ? "" : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
         ${renderGoalConflictCard()}
         ${renderAccountabilityCard()}
         ${renderCareerVelocityCard()}
