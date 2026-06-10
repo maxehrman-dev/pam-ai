@@ -3743,15 +3743,6 @@ function renderMobileHomeScreen() {
         <article><span>Spending</span><strong>${spendingPercent}%</strong><small>${formatCurrency(monthlyExpenses)} this month</small></article>
       </div>
 
-      <div class="profile-completeness-card mobile-home-section">
-        <div class="mobile-home-section-header">
-          <h3>${escapeHtml(profileCompleteness.label)}</h3>
-          <span>${profileCompleteness.score}%</span>
-        </div>
-        <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
-        <p>${profileCompleteness.missing.length ? `Next: ${escapeHtml(profileCompleteness.missing.slice(0, 2).join(", "))}` : "PAM has enough context for stronger modeling."}</p>
-      </div>
-
       ${firstGoal ? `
         <article class="mobile-goal-card mint mobile-home-goal">
           <div>
@@ -3762,42 +3753,54 @@ function renderMobileHomeScreen() {
         </article>
       ` : ""}
 
-      <div class="mobile-home-section">
-        <div class="mobile-home-section-header">
-          <h3>Top spending</h3>
-          <button type="button" data-mobile-view="ask">Test a decision</button>
-        </div>
-        <div class="mobile-compact-list">
-          ${topExpenses.length ? topExpenses.map((item) => `
-            <div><strong>${escapeHtml(item.name)}</strong><span>${formatCurrency(item.amount)}</span></div>
-          `).join("") : `<div><strong>Connect accounts to see spending</strong><span>${formatCurrency(0)}</span></div>`}
-        </div>
-      </div>
-
-      <div class="mobile-home-section">
-        <div class="mobile-home-section-header">
-          <h3>Recent decisions</h3>
-          <button type="button" data-mobile-view="ask">Ask</button>
-        </div>
-        <div class="decision-history-list compact">
-          ${recentDecisions.length ? recentDecisions.map((item) => `
-            <button type="button" data-run-history-question="${escapeHtml(item.question)}">
-              <strong>${escapeHtml(item.question)}</strong>
-              <span>${escapeHtml(item.risk)} · ${formatCurrency(item.newBuffer)} buffer</span>
-            </button>
-          `).join("") : `
-            <button type="button" data-mobile-view="ask">
-              <strong>Ask your first question</strong>
-              <span>PAM will save recent decisions here.</span>
-            </button>
-          `}
-        </div>
-      </div>
-
       ${state.userValues?.completed
-        ? `${renderGoalConflictCard()}${renderAccountabilityCard()}`
+        ? renderGoalConflictCard()
         : `<div class="insight-card values-cta-card mobile-values-cta"><strong>Personalize PAM</strong><p>Answer 6 quick questions so PAM can give you specific, goal-based guidance.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
-      </div>
+
+      <details class="mobile-home-more">
+        <summary>More detail</summary>
+
+        <div class="mobile-home-section">
+          <div class="mobile-home-section-header">
+            <h3>Top spending</h3>
+          </div>
+          <div class="mobile-compact-list">
+            ${topExpenses.length ? topExpenses.map((item) => `
+              <div><strong>${escapeHtml(item.name)}</strong><span>${formatCurrency(item.amount)}</span></div>
+            `).join("") : `<div><strong>Connect accounts to see spending</strong><span>${formatCurrency(0)}</span></div>`}
+          </div>
+        </div>
+
+        <div class="mobile-home-section">
+          <div class="mobile-home-section-header">
+            <h3>Recent decisions</h3>
+          </div>
+          <div class="decision-history-list compact">
+            ${recentDecisions.length ? recentDecisions.map((item) => `
+              <button type="button" data-run-history-question="${escapeHtml(item.question)}">
+                <strong>${escapeHtml(item.question)}</strong>
+                <span>${escapeHtml(item.risk)} · ${formatCurrency(item.newBuffer)} buffer</span>
+              </button>
+            `).join("") : `
+              <button type="button" data-mobile-view="ask">
+                <strong>Ask your first question</strong>
+                <span>PAM will save recent decisions here.</span>
+              </button>
+            `}
+          </div>
+        </div>
+
+        ${state.userValues?.completed ? renderAccountabilityCard() : ""}
+
+        <div class="profile-completeness-card mobile-home-section">
+          <div class="mobile-home-section-header">
+            <h3>${escapeHtml(profileCompleteness.label)}</h3>
+            <span>${profileCompleteness.score}%</span>
+          </div>
+          <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
+          <p>${profileCompleteness.missing.length ? `Next: ${escapeHtml(profileCompleteness.missing.slice(0, 2).join(", "))}` : "PAM has enough context for stronger modeling."}</p>
+        </div>
+      </details>
     </section>
   `;
 }
