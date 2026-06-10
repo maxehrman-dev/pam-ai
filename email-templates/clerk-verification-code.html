@@ -1,0 +1,90 @@
+<!--
+  PAM AI — Clerk "Verification code" email template
+  Paste into: Clerk Dashboard → Customization → Emails → "Verification code"
+  (switch the editor to HTML / "Edit code"). Keep the {{otp_code}} variable —
+  Clerk replaces it with the real 6-digit code. The available variables are
+  listed in Clerk's editor sidebar; adjust names there if yours differ.
+
+  Email-client-safe: table layout + inline styles only (no flexbox/grid/<style>).
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0;padding:0;background-color:#f4f1e8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <!-- Card -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;background-color:#fffdf9;border-radius:20px;overflow:hidden;border:1px solid #ebe8dc;">
+
+        <!-- Header band -->
+        <tr>
+          <td style="background-color:#143729;padding:28px 32px;">
+            <span style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:20px;font-weight:700;letter-spacing:0.5px;color:#fffdf9;">PAM</span>
+            <span style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#809687;padding-left:8px;">Personal Asset Manager</span>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 32px 8px 32px;font-family:'Helvetica Neue',Arial,sans-serif;">
+            <h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;font-weight:700;color:#143729;">Confirm your email</h1>
+            <p style="margin:0 0 28px 0;font-size:15px;line-height:1.6;color:#45584c;">
+              Enter this code to finish signing in to PAM. It expires in 10 minutes.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Code -->
+        <tr>
+          <td align="center" style="padding:0 32px 8px 32px;">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background-color:#f4f1e8;border:1px solid #d9e2dc;border-radius:14px;padding:18px 32px;">
+                  <span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#143729;">{{otp_code}}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Reassurance -->
+        <tr>
+          <td style="padding:24px 32px 32px 32px;font-family:'Helvetica Neue',Arial,sans-serif;">
+            <p style="margin:0;font-size:13px;line-height:1.6;color:#809687;">
+              Didn't try to sign in? You can safely ignore this email — no one can access your account without this code.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Divider -->
+        <tr>
+          <td style="padding:0 32px;">
+            <div style="border-top:1px solid #ebe8dc;height:1px;line-height:1px;font-size:1px;">&nbsp;</div>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:24px 32px 32px 32px;font-family:'Helvetica Neue',Arial,sans-serif;">
+            <p style="margin:0 0 10px 0;font-size:12px;line-height:1.6;color:#809687;">
+              <a href="https://pamadvisor.com" style="color:#143729;text-decoration:none;font-weight:600;">pamadvisor.com</a>
+              &nbsp;·&nbsp; Questions? <a href="mailto:hello@pamadvisor.com" style="color:#143729;text-decoration:none;">hello@pamadvisor.com</a>
+            </p>
+            <p style="margin:0;font-size:11px;line-height:1.5;color:#a7b1aa;">
+              PAM AI is a financial modeling tool, not a licensed financial advisor, investment adviser, tax professional, attorney, or RIA. Nothing in PAM is financial, tax, legal, or investment advice.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+
+      <!-- Sub-footer -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;">
+        <tr>
+          <td align="center" style="padding:16px 8px;font-family:'Helvetica Neue',Arial,sans-serif;">
+            <p style="margin:0;font-size:11px;color:#a7b1aa;">© PAM AI · You received this because someone entered this address at pamadvisor.com.</p>
+          </td>
+        </tr>
+      </table>
+
+    </td>
+  </tr>
+</table>
