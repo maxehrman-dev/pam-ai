@@ -239,7 +239,9 @@ function extractDollarAmounts(text) {
 function expandDerivedNumbers(base) {
   const out = new Set(base);
   const arr = [...base];
-  const multipliers = [1 / 12, 12, 5, 10, 60, 120, 0.5, 2];
+  // Time-cadence and horizon math the model legitimately does: weekly/biweekly/
+  // semimonthly/monthly/quarterly paychecks, halves/doubles, and 3/5/10-year totals.
+  const multipliers = [1 / 52, 1 / 26, 1 / 24, 1 / 12, 1 / 6, 1 / 4, 1 / 3, 0.5, 2, 3, 4, 6, 12, 24, 26, 36, 52, 5, 10, 60, 120];
   for (const n of arr) {
     for (const m of multipliers) {
       const v = Math.round(n * m);
@@ -258,8 +260,16 @@ function expandDerivedNumbers(base) {
 
 // A stated value is traceable if it matches an input number (or a safe derivation
 // of one) within rounding tolerance (AI commonly rounds $87,640 -> "$88k").
-function isTraceable(value, allowed) {
-  for (const a of allowed) {
+// Derived numbers only vouch for amounts >= $50: with cadence multipliers in play,
+// almost any tiny figure collides with some division, so small dollar amounts must
+// match a raw input directly.
+function isTraceable(value, rawAllowed, derivedAllowed) {
+  for (const a of rawAllowed) {
+    const tolerance = Math.max(1, Math.abs(a) * 0.03);
+    if (Math.abs(value - a) <= tolerance) return true;
+  }
+  if (Math.abs(value) < 50) return false;
+  for (const a of derivedAllowed) {
     const tolerance = Math.max(1, Math.abs(a) * 0.03);
     if (Math.abs(value - a) <= tolerance) return true;
   }
@@ -269,12 +279,13 @@ function isTraceable(value, allowed) {
 // Returns the list of dollar amounts the model invented (absent from our input
 // and not a safe derivation of it).
 function findUntraceableDollars(guidance, allowedText) {
-  const allowed = expandDerivedNumbers(collectAllowedNumbers(allowedText));
+  const raw = collectAllowedNumbers(allowedText);
+  const derived = expandDerivedNumbers(raw);
   const stated = [
     ...extractDollarAmounts(guidance?.assistant?.body),
     ...extractDollarAmounts(guidance?.interpretationSummary)
   ];
-  return stated.filter((v) => !isTraceable(v, allowed));
+  return stated.filter((v) => !isTraceable(v, raw, derived));
 }
 
 function buildInput(payload) {
@@ -529,6 +540,7 @@ async function requestGuidance(payload) {
     },
     disclosure: RESULT_DISCLOSURE,
     integrityFlagged,
+    integrityDetail: integrityFlagged ? untraceable : undefined,
     guidance
   };
 }
