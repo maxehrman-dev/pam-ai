@@ -65,10 +65,22 @@ export const VALUES_ONBOARDING_STEPS = [
   {
     key: "industry",
     question: "What industry are you in?",
-    type: "text",
-    placeholder: "Finance, Tech, Healthcare…",
-    subKey: "job_title",
-    subPlaceholder: "Your job title"
+    detail: "Pick the closest match — PAM uses this to spot career and location upside.",
+    type: "options",
+    options: [
+      { value: "finance", label: "Finance & banking" },
+      { value: "tech", label: "Tech & software" },
+      { value: "healthcare", label: "Healthcare & medicine" },
+      { value: "law", label: "Law & legal services" },
+      { value: "consulting", label: "Consulting & strategy" },
+      { value: "marketing", label: "Marketing & media" },
+      { value: "engineering", label: "Engineering & manufacturing" },
+      { value: "entertainment", label: "Entertainment & creative" },
+      { value: "education", label: "Education & government" },
+      { value: "trades", label: "Trades & services" },
+      { value: "retail", label: "Retail & hospitality" },
+      { value: "other", label: "Something else" }
+    ]
   },
   {
     key: "years_at_current_job",

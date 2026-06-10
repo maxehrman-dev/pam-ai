@@ -861,8 +861,11 @@ function resetBaseline() {
 }
 
 function loadQuestion() {
-  if (typeof window === "undefined") return "Can I afford to move out if rent is $1,800?";
-  return window.localStorage.getItem(LAST_QUESTION_KEY) || "Can I afford to move out if rent is $1,800?";
+  // Start empty — examples belong in the placeholder, never as text the
+  // user has to delete before typing.
+  if (typeof window === "undefined") return "";
+  const stored = window.localStorage.getItem(LAST_QUESTION_KEY) || "";
+  return stored === "Can I afford to move out if rent is $1,800?" ? "" : stored;
 }
 
 function saveQuestion(question) {
@@ -871,6 +874,27 @@ function saveQuestion(question) {
     window.localStorage.setItem(LAST_QUESTION_KEY, question);
   } catch (_error) {
     // The simulator can still run without storage.
+  }
+}
+
+// Lightweight success toast: confirms completed actions without re-rendering.
+// Survives render() because it attaches to <body>, not #app.
+function showSuccessToast(message) {
+  if (typeof document === "undefined") return;
+  try {
+    document.querySelectorAll(".pam-success-toast").forEach((node) => node.remove());
+    const toast = document.createElement("div");
+    toast.className = "pam-success-toast";
+    toast.setAttribute("role", "status");
+    toast.textContent = `✓ ${message}`;
+    document.body.appendChild(toast);
+    window.setTimeout(() => toast.classList.add("visible"), 20);
+    window.setTimeout(() => {
+      toast.classList.remove("visible");
+      window.setTimeout(() => toast.remove(), 400);
+    }, 3200);
+  } catch (_error) {
+    // A missing toast must never break the action it confirms.
   }
 }
 
@@ -963,6 +987,7 @@ function saveCurrentScenario() {
   const withoutDuplicate = state.savedScenarios.filter((item) => item.question !== entry.question);
   saveSavedScenarios([entry, ...withoutDuplicate]);
   state.saveScenarioMessage = "Scenario saved.";
+  showSuccessToast("Scenario saved.");
   trackEvent("scenario_saved", {
     risk: entry.risk,
     decisionType: entry.decisionType
@@ -1945,7 +1970,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   setStatus(`${statusMessage} PAM advisor is refining the explanation...`, "decision");
   render();
   requestAnimationFrame(() => {
-    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   try {
@@ -1953,6 +1978,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
     if (guidance?.guidance) {
       state.aiGuidance = guidance;
       setStatus("Decision analyzed with your baseline and server-side AI guidance.", "decision");
+      showSuccessToast("Answer ready.");
     } else {
       setStatus(statusMessage, "decision");
     }
@@ -1963,7 +1989,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   state.decisionBusy = false;
   render();
   requestAnimationFrame(() => {
-    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 }
 
@@ -2406,6 +2432,7 @@ async function handleSandboxSampleData() {
   const sandboxPayload = loadSandboxFallback(state.baseline);
   saveBaseline(state.account ? syncAccountIntoBaseline(state.account, sandboxPayload.baseline) : sandboxPayload.baseline);
   state.dataFresh = true;
+  showSuccessToast("Sample data loaded.");
   saveWorkspaceView("dashboard");
   saveMobileView("home");
   setStatus(sandboxPayload.status, "account");
@@ -2454,7 +2481,10 @@ async function handleConnectSandboxAccount(options = {}) {
     state.dataFresh = true;
     saveWorkspaceView("dashboard");
     saveMobileView("home");
-    if (!silent) setStatus(payload.status, "account");
+    if (!silent) {
+      setStatus(payload.status, "account");
+      showSuccessToast("Accounts connected.");
+    }
     state.inlineGoalError = "";
     if (!silent) {
       render();
@@ -2734,6 +2764,7 @@ async function handleFeedbackSubmit(event) {
   state.feedbackMessage = payload.feedbackStored === "schema_pending"
     ? "Thanks. PAM received your feedback locally, but the feedback table still needs the latest Supabase schema."
     : "Thanks. PAM received your feedback.";
+  showSuccessToast("Feedback sent. Thank you.");
   render();
 }
 
@@ -2839,6 +2870,16 @@ function handleSectionScroll(target) {
 }
 
 function openWorkspaceView(view) {
+  // The values profile is required context for every answer — no dashboard
+  // until onboarding is finished.
+  if (view === "dashboard" && canAccessDashboard() && hasAcceptedLegalTerms() && !state.userValues?.completed) {
+    state.valuesStep = 0;
+    state.valuesDraft = state.valuesDraft || {};
+    saveWorkspaceView("values");
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
   if (view === "dashboard" && canAccessDashboard() && !hasAcceptedLegalTerms()) {
     saveWorkspaceView("account");
     setStatus("Accept PAM's legal terms before opening the dashboard.", "account");
@@ -3247,7 +3288,6 @@ function renderValuesOnboarding() {
         <div class="values-input-area">${inputHtml}</div>
         <div class="values-nav-row">
           ${state.valuesStep > 0 ? `<button class="button button-ghost" type="button" data-values-back>Back</button>` : ""}
-          <button class="button button-ghost values-skip-btn" type="button" data-values-skip>Skip setup</button>
         </div>
       </div>
     </section>
@@ -4935,11 +4975,13 @@ function renderResult() {
         </div>
         <p class="advisor-disclosure">${escapeHtml(state.aiGuidance?.disclosure || "Educational estimate from PAM's financial model — not financial, tax, legal, or investment advice.")}</p>
         ${state.decisionBusy && !state.aiGuidance?.guidance ? `
-          <div class="decision-loading compact-loading" aria-live="polite">
-            <span></span>
-            <div>
-              <strong>PAM is refining the advisor note.</strong>
-              <p>The numbers are already calculated. The written read is being sharpened now.</p>
+          <div class="decision-working-card" aria-live="polite" role="status">
+            <div class="decision-working-spinner"></div>
+            <div class="decision-working-steps">
+              <strong>PAM is working on your answer…</strong>
+              <span class="working-step step-1">Reading your question and profile</span>
+              <span class="working-step step-2">Running the numbers against your baseline</span>
+              <span class="working-step step-3">Weighing tradeoffs and writing it straight</span>
             </div>
           </div>
         ` : ""}
@@ -5327,6 +5369,11 @@ function renderPublicLaunchGate() {
 function render() {
   if (!app) return;
   applyDisplayTheme();
+  // Values onboarding is mandatory context: a stale "dashboard" view from a
+  // previous session must not bypass it.
+  if (state.workspaceView === "dashboard" && canAccessDashboard() && hasAcceptedLegalTerms() && !state.userValues?.completed) {
+    state.workspaceView = "values";
+  }
   const legalRoute = getLegalRoute();
   if (legalRoute) {
     app.innerHTML = renderLegalPage(legalRoute);
@@ -5563,6 +5610,7 @@ function wireInteractions() {
         saveWorkspaceView("dashboard");
         saveMobileView("home");
         render();
+        showSuccessToast("Profile saved — PAM now tailors every answer to your goals.");
       }
     });
   });
@@ -5571,14 +5619,8 @@ function wireInteractions() {
       if (state.valuesStep > 0) { state.valuesStep--; render(); }
     });
   });
-  document.querySelectorAll("[data-values-skip]").forEach((button) => {
-    button.addEventListener("click", () => {
-      saveUserValues({ completed: true, skipped: true });
-      saveWorkspaceView("dashboard");
-      saveMobileView("home");
-      render();
-    });
-  });
+  // "Skip setup" was removed on purpose: the values profile is the context
+  // every PAM answer depends on, so the dashboard requires completing it.
   document.querySelectorAll("[data-ask-about]").forEach((button) => {
     button.addEventListener("click", () => {
       const q = button.dataset.askAbout || "";
@@ -5746,7 +5788,7 @@ function wireInteractions() {
       if (canUseFinancialFeatures()) {
         await runDecisionAnalysis(question, "Example prompt analyzed. You can edit it and run another scenario.");
         requestAnimationFrame(() => {
-          document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
       } else {
         saveQuestion(question);
