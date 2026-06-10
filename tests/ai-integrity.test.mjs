@@ -45,3 +45,22 @@ test("user-supplied numbers in the prompt are echoable", () => {
   const guidance = { assistant: { body: "A $400/mo car fits your $900 buffer." }, interpretationSummary: "" };
   assert.deepEqual(findUntraceableDollars(guidance, SENT), []);
 });
+
+test("safe derivations of input numbers are traceable (annualizing, deltas)", () => {
+  // monthlyImpact -540 was sent; the model annualizes it and frames the delta.
+  const sent = "Decision type: car\nMonthly impact: -540\nNew monthly buffer: 760\nOld monthly buffer: 1300";
+  const guidance = {
+    assistant: { body: "That $540/mo is about $6,480 a year; your buffer drops from $1,300 to $760." },
+    interpretationSummary: "A $32,400 hit to your five-year runway."
+  };
+  // 540*12=6480, 540*60=32400, 1300/760 deltas — all derivations of sent numbers.
+  assert.deepEqual(findUntraceableDollars(guidance, sent), []);
+});
+
+test("fabricated figures still caught even with derivation expansion", () => {
+  const sent = "Monthly impact: -540\nNew monthly buffer: 760\nOld monthly buffer: 1300";
+  const guidance = { assistant: { body: "You'll have $250,000 saved and pay just $37/mo." }, interpretationSummary: "" };
+  const flagged = findUntraceableDollars(guidance, sent);
+  assert.ok(flagged.includes(250000), "fabricated 250000 must still flag");
+  assert.ok(flagged.includes(37), "fabricated 37 must still flag");
+});

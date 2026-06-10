@@ -231,8 +231,33 @@ function extractDollarAmounts(text) {
   return amounts;
 }
 
-// A stated value is traceable if it matches an input number within rounding
-// tolerance (AI commonly rounds $87,640 -> "$88k").
+// Expand the raw input numbers with the arithmetic the model legitimately does
+// for clarity: monthly<->annual (x12, /12), multi-year totals (x5/x10/x60/x120),
+// and before->after deltas (pairwise sums/differences). The goal is to catch
+// FABRICATED figures (a $250k pulled from nowhere), not to forbid the model from
+// multiplying a real $540/mo into "$6,480/yr".
+function expandDerivedNumbers(base) {
+  const out = new Set(base);
+  const arr = [...base];
+  const multipliers = [1 / 12, 12, 5, 10, 60, 120, 0.5, 2];
+  for (const n of arr) {
+    for (const m of multipliers) {
+      const v = Math.round(n * m);
+      if (Number.isFinite(v)) out.add(v);
+    }
+  }
+  for (let i = 0; i < arr.length; i += 1) {
+    for (let j = 0; j < arr.length; j += 1) {
+      if (i === j) continue;
+      out.add(Math.round(arr[i] + arr[j]));
+      out.add(Math.round(Math.abs(arr[i] - arr[j])));
+    }
+  }
+  return out;
+}
+
+// A stated value is traceable if it matches an input number (or a safe derivation
+// of one) within rounding tolerance (AI commonly rounds $87,640 -> "$88k").
 function isTraceable(value, allowed) {
   for (const a of allowed) {
     const tolerance = Math.max(1, Math.abs(a) * 0.03);
@@ -241,9 +266,10 @@ function isTraceable(value, allowed) {
   return false;
 }
 
-// Returns the list of dollar amounts the model invented (absent from our input).
+// Returns the list of dollar amounts the model invented (absent from our input
+// and not a safe derivation of it).
 function findUntraceableDollars(guidance, allowedText) {
-  const allowed = collectAllowedNumbers(allowedText);
+  const allowed = expandDerivedNumbers(collectAllowedNumbers(allowedText));
   const stated = [
     ...extractDollarAmounts(guidance?.assistant?.body),
     ...extractDollarAmounts(guidance?.interpretationSummary)
