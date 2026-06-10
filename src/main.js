@@ -5061,6 +5061,7 @@ function renderWaitlistPage() {
     <div class="waitlist-page-shell">
       ${renderDisclaimerBanner()}
       <header class="waitlist-page-header">
+        <button class="page-back-button" type="button" data-go-back aria-label="Go back">← Back</button>
         <a class="foresee-brand" href="/waitlist" aria-label="PAM AI waitlist">
           <span>PAM</span>
           <div>
@@ -5238,6 +5239,7 @@ function renderLegalPage(route) {
     <div class="legal-page-shell">
       ${renderDisclaimerBanner()}
       <header class="waitlist-page-header legal-page-header">
+        <button class="page-back-button" type="button" data-go-back aria-label="Go back">← Back</button>
         <a class="foresee-brand" href="/" aria-label="PAM AI home">
           <span>PAM</span>
           <div>
@@ -5413,6 +5415,19 @@ function wireInteractions() {
   document.querySelectorAll("[data-legal-route]").forEach((button) => {
     button.addEventListener("click", () => {
       window.location.href = button.dataset.legalRoute || "/terms";
+    });
+  });
+  document.querySelectorAll("[data-go-back]").forEach((button) => {
+    button.addEventListener("click", () => {
+      // Return to wherever the user came from when that was inside PAM;
+      // otherwise (deep link, new tab) fall back to the homepage.
+      const ref = document.referrer || "";
+      const sameOriginReferrer = ref && ref.startsWith(window.location.origin) && ref !== window.location.href;
+      if (window.history.length > 1 && sameOriginReferrer) {
+        window.history.back();
+      } else {
+        window.location.href = "/";
+      }
     });
   });
   document.querySelectorAll("[data-waitlist-form]").forEach((form) => form.addEventListener("submit", async (event) => {

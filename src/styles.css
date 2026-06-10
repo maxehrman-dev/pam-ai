@@ -1197,6 +1197,32 @@ input:disabled {
   font-weight: 900;
 }
 
+.page-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(20, 55, 41, 0.16);
+  color: var(--forest);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.page-back-button:hover {
+  background: rgba(255, 255, 255, 0.95);
+  transform: translateX(-2px);
+}
+
+:root[data-theme="dark"] .page-back-button {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--forest);
+}
+
 .workspace-header {
   display: flex;
   justify-content: space-between;
