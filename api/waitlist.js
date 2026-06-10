@@ -1,4 +1,5 @@
 const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification, syncWaitlistContact } = require("./_lib/email.js");
+const { withErrorReporting } = require("./_lib/observability.js");
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { checkDailyUsageBudget, checkRateLimit, validatePayload } = require("./_lib/security.js");
 const { hasSupabaseConfig, isRecoverableSupabaseStorageError, upsertWaitlistEntry, upsertWaitlistEntryLegacy } = require("./_lib/supabase.js");
@@ -58,7 +59,7 @@ async function syncWaitlistToSheet(entry, req) {
   return "synced";
 }
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
   }
@@ -176,3 +177,5 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = withErrorReporting("waitlist", __pamRouteHandler);

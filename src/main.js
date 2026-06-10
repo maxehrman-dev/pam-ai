@@ -559,22 +559,26 @@ function getStatus(scope) {
 
 function saveBaseline(baseline) {
   state.baseline = persistBaseline(baseline);
-  persistAccountBaseline(state.baseline);
+  persistAccountBaseline(state.baseline).catch(() => {});
 }
 
-function persistAccountBaseline(baseline) {
-  if (!state.sessionToken || !state.account?.id || !hasCompletedBaseline(baseline)) return;
+async function persistAccountBaseline(baseline) {
+  if (!state.account?.id || !hasCompletedBaseline(baseline)) return;
+  if (!isClerkMode() && !state.sessionToken) return;
 
-  fetch("/api/account/session", {
+  const headers = await buildAuthHeaders();
+  const body = {
+    action: "save_baseline",
+    baseline
+  };
+  if (!isClerkMode()) body.sessionToken = state.sessionToken;
+
+  await fetch("/api/account/session", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "save_baseline",
-      sessionToken: state.sessionToken,
-      baseline
-    }),
+    headers,
+    body: JSON.stringify(body),
     keepalive: true
-  }).catch(() => {});
+  });
 }
 
 function routeSignedInUser(statusMessage = "Signed in.") {
@@ -2441,10 +2445,11 @@ async function handleConnectSandboxAccount(options = {}) {
   }
 
   try {
+    const authHeaders = await buildAuthHeaders();
     const payload = await connectSandboxAccount({
       ...state.baseline.profile,
       accountId: state.account?.id || ""
-    });
+    }, authHeaders);
     saveBaseline(payload.baseline);
     state.dataFresh = true;
     saveWorkspaceView("dashboard");

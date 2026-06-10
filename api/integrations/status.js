@@ -1,11 +1,12 @@
 const { hasEmailProvider, hasNewsletterAudience } = require("../_lib/email.js");
+const { withErrorReporting } = require("../_lib/observability.js");
 const { getClerkPublishableKey, hasClerkConfig } = require("../_lib/clerk.js");
 const { hasPlaidConfig } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit } = require("../_lib/security.js");
 const { checkSupabaseConnection } = require("../_lib/supabase.js");
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "GET") {
     return sendMethodNotAllowed(res);
   }
@@ -49,3 +50,5 @@ module.exports = async (req, res) => {
     }
   });
 };
+
+module.exports = withErrorReporting("integrations/status", __pamRouteHandler);

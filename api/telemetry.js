@@ -1,4 +1,5 @@
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
+const { withErrorReporting } = require("./_lib/observability.js");
 const { getSessionAccount } = require("./_lib/account-store.js");
 const { checkDailyUsageBudget, checkRateLimit, sanitizeText, validatePayload } = require("./_lib/security.js");
 const { hasSupabaseConfig, insertFeedback, insertTelemetryEvent } = require("./_lib/supabase.js");
@@ -88,7 +89,7 @@ async function forwardToPostHog({ eventName, sessionId, page, properties }) {
   }
 }
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
   }
@@ -174,3 +175,5 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = withErrorReporting("telemetry", __pamRouteHandler);

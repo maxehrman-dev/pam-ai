@@ -1,4 +1,5 @@
 const { buildNormalizedBaseline, getStoredSession, hasPlaidConfig } = require("../_lib/plaid.js");
+const { withErrorReporting } = require("../_lib/observability.js");
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
@@ -12,7 +13,7 @@ const baselineQuerySchema = {
   required: ["clientUserId"]
 };
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "GET") {
     return sendMethodNotAllowed(res);
   }
@@ -108,3 +109,5 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = withErrorReporting("plaid/baseline", __pamRouteHandler);

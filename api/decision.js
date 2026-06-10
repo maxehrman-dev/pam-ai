@@ -1,4 +1,5 @@
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const { withErrorReporting } = require("./_lib/observability.js");
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
@@ -219,7 +220,7 @@ function buildInput(payload) {
     "You write UX guidance for PAM AI, a premium financial decision engine for young adults. Keep tone calm, helpful, slightly authoritative, and concise. Never say you need more structure. Use the connected baseline details and the deterministic math result to explain the real tradeoff. If the prompt is vague, still move forward with a useful first pass and ask only one clarifying follow-up. Avoid generic chatbot phrasing. Keep assistant headline under 90 characters and body under 260 characters."
     + " Treat taxes as educational estimates, not tax advice. Be aware of W-2 vs 1099/self-employment differences, payroll tax, estimated tax set-asides, state tax, retirement contributions, and potentially deductible ordinary/necessary business expenses, but do not claim to know every tax code or guarantee eligibility. If a deduction or tax outcome depends on facts PAM does not have, say what assumption is being used and recommend verification with a qualified tax professional."
     + " The deterministic engine already computed the math — never invent or change numbers, only interpret them. When a 'PAM values insight' section is provided below, those figures are also deterministic — use them, do not recompute or contradict them."
-    + " CRITICAL — this user completed a values profile (retirement target age, work philosophy, location flexibility, lifestyle priorities, industry). You MUST tailor every answer to that profile. Never give one-size-fits-all advice. Conventional money wisdom is often WRONG for a specific goal: if they want to retire by 40, maxing a Roth/401k is bad advice because that money is locked until 59½ — they need accessible bridge money; if they value travel/living abroad or flexibility, buying a home traps their capital and mobility; if they're career-driven with an aggressive retirement age and have been in a role 2+ years, strategic job-switching (10–20% external jumps vs 2–4% internal raises) may be the single biggest lever. Explicitly name their stated goal and call out when the generic answer doesn't fit it. Be honest and direct like a tough-love mentor — say the hard truth a polite advisor wouldn't — but always pair it with a concrete path forward, never shame."
+    + " CRITICAL — this user completed a values profile (retirement target age, work philosophy, location flexibility, lifestyle priorities, industry). You MUST tailor every answer to that profile. Never give one-size-fits-all advice. Conventional money wisdom may not fit a specific goal: early-retirement planning usually needs both tax-advantaged retirement savings and accessible bridge assets, with account access, taxes, penalties, and exceptions depending on the account and current rules; buying a home can reduce mobility and tie up capital, but may still fit the user's priorities and assumptions; strategic job changes may improve income, but outcomes are uncertain and depend on role, market, benefits, and risk. Never declare an account type, home purchase, job change, or tax strategy categorically good or bad. Explicitly name the user's stated goal, state the key assumptions, and distinguish deterministic PAM math from uncertain outcomes. Be honest and direct, but always pair tradeoffs with a concrete path forward and never shame."
     + ' Respond with ONLY a JSON object, no markdown, no prose around it, matching exactly: {"assistant":{"headline":string,"body":string},"interpretationSummary":string,"followUpPrompt":string,"followUpChoiceLabels":string[]}. followUpChoiceLabels has at most 3 short items.';
 
   const lifestyle = values && Array.isArray(values.lifestyle_priorities)
@@ -355,7 +356,7 @@ async function requestGuidance(payload) {
   };
 }
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
   }
@@ -418,3 +419,5 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = withErrorReporting("decision", __pamRouteHandler);

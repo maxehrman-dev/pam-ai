@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@clerk/backend": "^3.4.14",
+    "@sentry/node": "^8.55.2",
     "pg": "^8.20.0",
     "resend": "^4.0.1"
   },

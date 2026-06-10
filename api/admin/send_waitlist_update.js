@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { withErrorReporting } = require("../_lib/observability.js");
 const { Resend } = require("resend");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, validatePayload } = require("../_lib/security.js");
@@ -176,7 +177,7 @@ async function syncContacts(resend, audienceId, rows) {
   };
 }
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
   }
@@ -242,3 +243,5 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = withErrorReporting("admin/send_waitlist_update", __pamRouteHandler);

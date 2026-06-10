@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { withErrorReporting } = require("../_lib/observability.js");
 const { changePassword, clearSession, getSessionAccount, getSessionAccountWithBaseline } = require("../_lib/account-store.js");
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
@@ -39,7 +40,7 @@ const saveBaselineSchema = {
     action: { type: "string", enum: ["save_baseline"] },
     baseline: { type: "object", allowUnknown: true }
   },
-  required: ["sessionToken", "action", "baseline"]
+  required: ["action", "baseline"]
 };
 
 const demoAccessSchema = {
@@ -88,7 +89,7 @@ function getAllowedDemoCodes() {
   return configured.length ? configured : ["pamdevteam", "pam dev team", "pam demo"];
 }
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method === "GET") {
     const query = validatePayload(req.query, querySchema, "query");
     if (
@@ -328,3 +329,5 @@ module.exports = async (req, res) => {
 
   return sendMethodNotAllowed(res);
 };
+
+module.exports = withErrorReporting("account/session", __pamRouteHandler);

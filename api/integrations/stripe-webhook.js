@@ -1,4 +1,5 @@
 const { sendJson } = require("../_lib/http.js");
+const { withErrorReporting } = require("../_lib/observability.js");
 const { hasSupabaseConfig, upsertSubscription } = require("../_lib/supabase.js");
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
@@ -170,7 +171,7 @@ async function stripeWebhookHandler(req, res) {
   }
 }
 
-module.exports = stripeWebhookHandler;
+module.exports = withErrorReporting("integrations/stripe-webhook", stripeWebhookHandler);
 
 // Stripe signs the exact request bytes. Disable framework body parsing where
 // supported and fall back carefully for local/dev runtimes.

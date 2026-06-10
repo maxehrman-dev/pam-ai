@@ -1,4 +1,5 @@
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
+const { withErrorReporting } = require("../_lib/observability.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { assertServiceEnabled, checkRateLimit, validatePayload } = require("../_lib/security.js");
 
@@ -32,7 +33,7 @@ const checkoutSchema = {
   required: ["plan"]
 };
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "POST") return sendMethodNotAllowed(res);
 
   if (!hasStripeConfig()) {
@@ -90,3 +91,5 @@ module.exports = async (req, res) => {
     return sendJson(res, 500, { ok: false, error: error.message || "Could not create checkout session." });
   }
 };
+
+module.exports = withErrorReporting("integrations/checkout", __pamRouteHandler);

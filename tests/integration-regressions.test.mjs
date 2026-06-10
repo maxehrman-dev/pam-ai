@@ -92,6 +92,55 @@ test("Clerk session restore returns stored legal acceptance", async () => {
   }
 });
 
+test("Clerk users can save a baseline without a legacy session token", async () => {
+  clearModules(accountSessionModulePath, clerkModulePath, supabaseModulePath);
+  let savedBaseline = null;
+  require.cache[require.resolve(clerkModulePath)] = {
+    exports: {
+      hasClerkConfig: () => true,
+      verifyClerkToken: async () => ({
+        id: "user_clerk_123",
+        clerkUserId: "user_clerk_123",
+        firstName: "Maya",
+        emailAddress: "maya@example.com"
+      })
+    }
+  };
+  const realSupabaseExports = require(supabaseModulePath);
+  require.cache[require.resolve(supabaseModulePath)] = {
+    exports: {
+      ...realSupabaseExports,
+      hasSupabaseConfig: () => true,
+      upsertBaseline: async ({ accountId, baseline }) => {
+        savedBaseline = { accountId, baseline };
+      }
+    }
+  };
+  global.__PAM_RATE_LIMIT_STORE__ = new Map();
+  const handler = require(accountSessionModulePath);
+  const res = createMockResponse();
+
+  try {
+    await handler({
+      method: "POST",
+      clientIp: "127.0.0.1",
+      query: {},
+      headers: { authorization: "Bearer test" },
+      body: {
+        action: "save_baseline",
+        baseline: { source: "plaid_sandbox", userValues: { completed: true } }
+      }
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(JSON.parse(res.body).stored, "supabase");
+    assert.equal(savedBaseline.accountId, "user_clerk_123");
+    assert.equal(savedBaseline.baseline.userValues.completed, true);
+  } finally {
+    clearModules(accountSessionModulePath, clerkModulePath, supabaseModulePath);
+  }
+});
+
 test("Stripe webhook verifies the exact raw request body", async () => {
   const originalSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const originalKey = process.env.STRIPE_SECRET_KEY;

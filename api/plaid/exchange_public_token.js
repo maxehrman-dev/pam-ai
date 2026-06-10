@@ -1,4 +1,5 @@
 const { exchangePublicToken, hasPlaidConfig, storeAccessTokenForSession } = require("../_lib/plaid.js");
+const { withErrorReporting } = require("../_lib/observability.js");
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { STATE_PATTERN, assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
@@ -29,7 +30,7 @@ const exchangeSchema = {
   required: ["clientUserId", "public_token"]
 };
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
   }
@@ -124,3 +125,5 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = withErrorReporting("plaid/exchange_public_token", __pamRouteHandler);

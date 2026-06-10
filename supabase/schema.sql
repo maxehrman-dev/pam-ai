@@ -101,6 +101,14 @@ create table if not exists public.pam_legal_acceptances (
   created_at timestamptz not null default now()
 );
 
+-- Clerk is the production identity provider. These records may be keyed by a
+-- Clerk user ID that does not exist in the retired pam_accounts table.
+alter table public.pam_baselines drop constraint if exists pam_baselines_account_id_fkey;
+alter table public.pam_scenario_runs drop constraint if exists pam_scenario_runs_account_id_fkey;
+alter table public.pam_plaid_items drop constraint if exists pam_plaid_items_account_id_fkey;
+alter table public.pam_feedback drop constraint if exists pam_feedback_account_id_fkey;
+alter table public.pam_legal_acceptances drop constraint if exists pam_legal_acceptances_account_id_fkey;
+
 alter table public.pam_accounts enable row level security;
 alter table public.pam_sessions enable row level security;
 alter table public.pam_waitlist enable row level security;

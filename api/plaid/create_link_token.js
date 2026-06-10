@@ -1,4 +1,6 @@
 const { createLinkToken, hasPlaidConfig } = require("../_lib/plaid.js");
+const { withErrorReporting } = require("../_lib/observability.js");
+const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 
@@ -11,7 +13,7 @@ const createLinkTokenSchema = {
   required: ["clientUserId"]
 };
 
-module.exports = async (req, res) => {
+const __pamRouteHandler = async (req, res) => {
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
   }
@@ -27,6 +29,11 @@ module.exports = async (req, res) => {
 
   try {
     const body = validatePayload(req.body, createLinkTokenSchema, "request body");
+    const clerkAccount = hasClerkConfig() ? await verifyClerkToken(req.headers?.authorization) : null;
+    if (hasClerkConfig() && !clerkAccount?.id) {
+      return sendJson(res, 401, { ok: false, error: "Sign in before connecting a Sandbox account." });
+    }
+    const clientUserId = clerkAccount?.id || body.clientUserId;
     if (
       !assertServiceEnabled(res, {
         serviceName: "Plaid Sandbox",
@@ -39,7 +46,7 @@ module.exports = async (req, res) => {
     if (
       !checkRateLimit(req, res, {
         routeKey: "plaid:create-link-token",
-        userKey: body.clientUserId,
+        userKey: clientUserId,
         ipLimit: { windowMs: 10 * 60 * 1000, max: 10 },
         userLimit: { windowMs: 10 * 60 * 1000, max: 5 }
       })
@@ -50,7 +57,7 @@ module.exports = async (req, res) => {
     if (
       !checkDailyUsageBudget(req, res, {
         routeKey: "plaid:create-link-token",
-        userKey: body.clientUserId,
+        userKey: clientUserId,
         ipDailyLimit: 40,
         userDailyLimit: 12,
         envLimitKey: "PAM_PLAID"
@@ -60,7 +67,7 @@ module.exports = async (req, res) => {
     }
 
     const payload = await createLinkToken({
-      clientUserId: body.clientUserId,
+      clientUserId,
       legalName: body.legalName,
       emailAddress: body.emailAddress
     });
@@ -79,3 +86,5 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = withErrorReporting("plaid/create_link_token", __pamRouteHandler);

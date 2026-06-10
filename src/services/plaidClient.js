@@ -2,9 +2,10 @@ import { getMockPlaidLikeData, normalizePlaidMockData } from "../utils/baseline.
 
 const CLIENT_USER_STORAGE_KEY = "pam-ai-plaid-client-user-id";
 
-function getJsonHeaders() {
+function getJsonHeaders(authHeaders = {}) {
   return {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    ...authHeaders
   };
 }
 
@@ -53,10 +54,10 @@ async function loadPlaidScript() {
   });
 }
 
-async function createLinkToken(profile) {
+async function createLinkToken(profile, authHeaders) {
   const response = await fetch("/api/plaid/create_link_token", {
     method: "POST",
-    headers: getJsonHeaders(),
+    headers: getJsonHeaders(authHeaders),
     body: JSON.stringify({
       clientUserId: getPlaidClientUserId(),
       legalName: profile?.firstName || "PAM user",
@@ -72,7 +73,7 @@ async function createLinkToken(profile) {
   return payload.link_token;
 }
 
-async function exchangePublicToken(publicToken, metadata, profile) {
+async function exchangePublicToken(publicToken, metadata, profile, authHeaders) {
   const { accountId: _accountId, ...safeProfile } = profile || {};
   const body = {
     clientUserId: getPlaidClientUserId(),
@@ -83,7 +84,7 @@ async function exchangePublicToken(publicToken, metadata, profile) {
   if (profile?.accountId) body.accountId = profile.accountId;
   const response = await fetch("/api/plaid/exchange_public_token", {
     method: "POST",
-    headers: getJsonHeaders(),
+    headers: getJsonHeaders(authHeaders),
     body: JSON.stringify(body)
   });
 
@@ -95,12 +96,14 @@ async function exchangePublicToken(publicToken, metadata, profile) {
   return payload;
 }
 
-async function fetchBaseline(profile) {
+async function fetchBaseline(profile, authHeaders) {
   const params = new URLSearchParams({
     clientUserId: getPlaidClientUserId()
   });
   if (profile?.accountId) params.set("accountId", profile.accountId);
-  const response = await fetch(`/api/plaid/baseline?${params.toString()}`);
+  const response = await fetch(`/api/plaid/baseline?${params.toString()}`, {
+    headers: getJsonHeaders(authHeaders)
+  });
   const payload = await readJsonSafe(response);
   if (!response.ok || !payload?.ok || !payload?.baseline) {
     throw new Error(payload?.error || "Unable to build a baseline from Plaid Sandbox.");
@@ -126,12 +129,12 @@ function openPlaidLink(plaid, linkToken) {
   });
 }
 
-export async function connectSandboxAccount(profile) {
+export async function connectSandboxAccount(profile, authHeaders = {}) {
   const plaid = await loadPlaidScript();
-  const linkToken = await createLinkToken(profile);
+  const linkToken = await createLinkToken(profile, authHeaders);
   const { publicToken, metadata } = await openPlaidLink(plaid, linkToken);
-  await exchangePublicToken(publicToken, metadata, profile);
-  const baseline = await fetchBaseline(profile);
+  await exchangePublicToken(publicToken, metadata, profile, authHeaders);
+  const baseline = await fetchBaseline(profile, authHeaders);
 
   return {
     baseline,
