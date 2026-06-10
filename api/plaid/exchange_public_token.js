@@ -1,4 +1,5 @@
 const { exchangePublicToken, hasPlaidConfig, storeAccessTokenForSession } = require("../_lib/plaid.js");
+const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { STATE_PATTERN, assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 const { hasSupabaseConfig, upsertPlaidItem } = require("../_lib/supabase.js");
@@ -44,6 +45,11 @@ module.exports = async (req, res) => {
 
   try {
     const body = validatePayload(req.body, exchangeSchema, "request body");
+    const clerkAccount = hasClerkConfig() ? await verifyClerkToken(req.headers?.authorization) : null;
+    if (hasClerkConfig() && !clerkAccount?.id) {
+      return sendJson(res, 401, { ok: false, error: "Sign in before connecting a Sandbox account." });
+    }
+    const clientUserId = clerkAccount?.id || body.clientUserId;
     if (
       !assertServiceEnabled(res, {
         serviceName: "Plaid Sandbox",
@@ -56,7 +62,7 @@ module.exports = async (req, res) => {
     if (
       !checkRateLimit(req, res, {
         routeKey: "plaid:exchange-public-token",
-        userKey: body.clientUserId,
+        userKey: clientUserId,
         ipLimit: { windowMs: 10 * 60 * 1000, max: 10 },
         userLimit: { windowMs: 10 * 60 * 1000, max: 5 }
       })
@@ -67,7 +73,7 @@ module.exports = async (req, res) => {
     if (
       !checkDailyUsageBudget(req, res, {
         routeKey: "plaid:exchange-public-token",
-        userKey: body.clientUserId,
+        userKey: clientUserId,
         ipDailyLimit: 40,
         userDailyLimit: 12,
         envLimitKey: "PAM_PLAID"
@@ -81,10 +87,13 @@ module.exports = async (req, res) => {
       institution: body.institution || null
     });
 
-    const accountId = body.accountId || body.profile?.accountId || "";
+    // Data-ownership ID must come from a verified Clerk session only. A browser-supplied
+    // accountId could attach this institution's token to another user's account (IDOR),
+    // so we ignore body.accountId entirely and only persist when Clerk verified the owner.
+    const accountId = clerkAccount?.id || "";
 
     storeAccessTokenForSession({
-      clientUserId: body.clientUserId,
+      clientUserId,
       accessToken: exchange.accessToken,
       itemId: exchange.itemId,
       institutionName: exchange.institutionName,

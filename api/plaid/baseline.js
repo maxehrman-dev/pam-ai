@@ -1,4 +1,5 @@
 const { buildNormalizedBaseline, getStoredSession, hasPlaidConfig } = require("../_lib/plaid.js");
+const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("../_lib/security.js");
 const { findLatestPlaidItemByAccountId, hasSupabaseConfig } = require("../_lib/supabase.js");
@@ -27,6 +28,17 @@ module.exports = async (req, res) => {
 
   try {
     const query = validatePayload(req.query, baselineQuerySchema, "query");
+    const clerkAccount = hasClerkConfig() ? await verifyClerkToken(req.headers?.authorization) : null;
+    if (hasClerkConfig() && !clerkAccount?.id) {
+      return sendJson(res, 401, { ok: false, error: "Sign in before loading a Sandbox baseline." });
+    }
+    const clientUserId = clerkAccount?.id || query.clientUserId;
+    // Data-ownership ID must come from a verified Clerk session only. Never trust a
+    // browser-supplied accountId — doing so would let one user read another's stored
+    // Plaid token/baseline (IDOR). When Clerk is not enforcing, we skip the
+    // account-keyed Supabase lookup entirely and fall back to the ephemeral
+    // per-browser session below (fail closed for cross-user data).
+    const accountId = clerkAccount?.id || "";
     if (
       !assertServiceEnabled(res, {
         serviceName: "Plaid Sandbox",
@@ -39,7 +51,7 @@ module.exports = async (req, res) => {
     if (
       !checkRateLimit(req, res, {
         routeKey: "plaid:baseline",
-        userKey: query.clientUserId,
+        userKey: clientUserId,
         ipLimit: { windowMs: 5 * 60 * 1000, max: 18 },
         userLimit: { windowMs: 5 * 60 * 1000, max: 10 }
       })
@@ -50,7 +62,7 @@ module.exports = async (req, res) => {
     if (
       !checkDailyUsageBudget(req, res, {
         routeKey: "plaid:baseline",
-        userKey: query.clientUserId,
+        userKey: clientUserId,
         ipDailyLimit: 80,
         userDailyLimit: 30,
         envLimitKey: "PAM_PLAID"
@@ -59,10 +71,9 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const clientUserId = query.clientUserId;
     let session = getStoredSession(clientUserId);
-    if (query.accountId && hasSupabaseConfig()) {
-      const plaidItem = await findLatestPlaidItemByAccountId(query.accountId);
+    if (accountId && hasSupabaseConfig()) {
+      const plaidItem = await findLatestPlaidItemByAccountId(accountId);
       if (plaidItem?.access_token_reference) {
         session = {
           accessToken: plaidItem.access_token_reference,
