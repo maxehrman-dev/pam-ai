@@ -1992,8 +1992,10 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
       state.aiGuidance = guidance;
       setStatus("Decision analyzed with your baseline and server-side AI guidance.", "decision");
       showSuccessToast("Answer ready.");
+      trackEvent("ai_guidance_received", { integrityFlagged: Boolean(guidance.integrityFlagged) });
     } else {
       setStatus(statusMessage, "decision");
+      trackEvent("ai_guidance_unavailable");
     }
   } catch (_error) {
     setStatus(statusMessage, "decision");
@@ -2446,6 +2448,7 @@ async function handleSandboxSampleData() {
   saveBaseline(state.account ? syncAccountIntoBaseline(state.account, sandboxPayload.baseline) : sandboxPayload.baseline);
   state.dataFresh = true;
   showSuccessToast("Sample data loaded.");
+  trackEvent("sample_data_loaded");
   saveWorkspaceView("dashboard");
   saveMobileView("home");
   setStatus(sandboxPayload.status, "account");
@@ -2498,6 +2501,7 @@ async function handleConnectSandboxAccount(options = {}) {
       setStatus(payload.status, "account");
       showSuccessToast("Accounts connected.");
     }
+    trackEvent("sandbox_connected", { silent });
     state.inlineGoalError = "";
     if (!silent) {
       render();
@@ -2888,6 +2892,7 @@ function openWorkspaceView(view) {
     // step and seed the draft from any existing answers.
     state.valuesStep = 0;
     state.valuesDraft = { ...(state.userValues || {}) };
+    trackEvent("values_onboarding_started", { missingOnly: Boolean(state.userValues?.completed) });
   }
   // The values profile is required context for every answer — no dashboard
   // until onboarding is finished.
@@ -5680,6 +5685,7 @@ function wireInteractions() {
   }));
   document.querySelectorAll("[data-clerk-signup]").forEach((button) => {
     button.addEventListener("click", () => {
+      trackEvent("signup_started");
       if (window.Clerk?.openSignUp) window.Clerk.openSignUp();
       else setStatus("Sign-up is loading, one moment…", "account"), render();
     });
@@ -5759,6 +5765,7 @@ function wireInteractions() {
         // never wipes earlier answers.
         const values = { ...(state.userValues || {}), ...state.valuesDraft, completed: true };
         saveUserValues(values);
+        trackEvent("values_onboarding_completed", { steps: steps.length, topUp: steps.length < VALUES_ONBOARDING_STEPS.length });
         saveWorkspaceView("dashboard");
         saveMobileView("home");
         render();
