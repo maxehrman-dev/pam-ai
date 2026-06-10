@@ -4933,6 +4933,7 @@ function renderResult() {
           <p>${escapeHtml(advisorSummary.body)}</p>
           ${advisorSummary.interpretationSummary ? `<p>${escapeHtml(advisorSummary.interpretationSummary)}</p>` : ""}
         </div>
+        <p class="advisor-disclosure">${escapeHtml(state.aiGuidance?.disclosure || "Educational estimate from PAM's financial model — not financial, tax, legal, or investment advice.")}</p>
         ${state.decisionBusy && !state.aiGuidance?.guidance ? `
           <div class="decision-loading compact-loading" aria-live="polite">
             <span></span>
