@@ -2870,6 +2870,12 @@ function handleSectionScroll(target) {
 }
 
 function openWorkspaceView(view) {
+  if (view === "values") {
+    // Fresh entry into the flow: start at the first (possibly missing-only)
+    // step and seed the draft from any existing answers.
+    state.valuesStep = 0;
+    state.valuesDraft = { ...(state.userValues || {}) };
+  }
   // The values profile is required context for every answer — no dashboard
   // until onboarding is finished.
   if (view === "dashboard" && canAccessDashboard() && hasAcceptedLegalTerms() && !state.userValues?.completed) {
@@ -3232,7 +3238,7 @@ function renderSetupTermGuide() {
 }
 
 function renderValuesOnboarding() {
-  const steps = VALUES_ONBOARDING_STEPS;
+  const steps = getActiveValuesSteps();
   const step = steps[state.valuesStep];
   if (!step) return "";
   const draft = state.valuesDraft || {};
@@ -3291,6 +3297,42 @@ function renderValuesOnboarding() {
         </div>
       </div>
     </section>
+  `;
+}
+
+// Steps the user has never answered. Existing accounts keep completed=true
+// when new onboarding questions ship; this finds the gap so we can ask only
+// what's missing instead of forcing a full re-onboard (or a new account).
+function getMissingValuesSteps() {
+  const uv = state.userValues || {};
+  return VALUES_ONBOARDING_STEPS.filter((step) => {
+    const value = uv[step.key];
+    if (step.type === "multiselect") return value === undefined;
+    if (step.type === "text") return (value === undefined || value === "") && (!step.subKey || uv[step.subKey] === undefined);
+    return value === undefined || value === null || value === "";
+  });
+}
+
+// The steps the values flow should currently run: everything for a fresh
+// user, only the unanswered ones for someone updating an existing profile.
+function getActiveValuesSteps() {
+  if (state.userValues?.completed) {
+    const missing = getMissingValuesSteps();
+    if (missing.length) return missing;
+  }
+  return VALUES_ONBOARDING_STEPS;
+}
+
+function renderFinishProfileCard() {
+  if (!state.userValues?.completed) return "";
+  const missing = getMissingValuesSteps();
+  if (!missing.length) return "";
+  return `
+    <div class="insight-card values-cta-card finish-profile-card">
+      <strong>PAM has ${missing.length} new question${missing.length === 1 ? "" : "s"} for you</strong>
+      <p>We added more profile questions since you set up. Answering them makes every PAM answer sharper — takes under a minute.</p>
+      <button class="button button-primary" type="button" data-open-view="values">Finish my profile (${missing.length}) →</button>
+    </div>
   `;
 }
 
@@ -3809,7 +3851,7 @@ function renderMobileHomeScreen() {
       ` : ""}
 
       ${state.userValues?.completed
-        ? renderInsightCards()
+        ? `${renderFinishProfileCard()}${renderInsightCards()}`
         : `<div class="insight-card values-cta-card mobile-values-cta"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can give you specific, goal-based guidance.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
 
       <details class="mobile-home-more">
@@ -4066,7 +4108,7 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
-        ${state.userValues?.completed ? "" : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
+        ${state.userValues?.completed ? renderFinishProfileCard() : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
         ${renderInsightCards()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
@@ -5644,7 +5686,7 @@ function wireInteractions() {
   });
   document.querySelectorAll("[data-values-next]").forEach((button) => {
     button.addEventListener("click", () => {
-      const steps = VALUES_ONBOARDING_STEPS;
+      const steps = getActiveValuesSteps();
       const step = steps[state.valuesStep];
       if (step && step.type === "slider" && !state.valuesDraft[step.key]) {
         state.valuesDraft[step.key] = step.defaultValue;
@@ -5653,7 +5695,9 @@ function wireInteractions() {
         state.valuesStep++;
         render();
       } else {
-        const values = { ...state.valuesDraft, completed: true };
+        // Merge over the existing profile so a finish-the-new-questions pass
+        // never wipes earlier answers.
+        const values = { ...(state.userValues || {}), ...state.valuesDraft, completed: true };
         saveUserValues(values);
         saveWorkspaceView("dashboard");
         saveMobileView("home");
