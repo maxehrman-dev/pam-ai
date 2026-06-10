@@ -3141,6 +3141,35 @@ input:disabled {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Data-source honesty badge: visible wherever non-real data drives the UI. */
+.data-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(194, 122, 19, 0.16);
+  border: 1px solid rgba(194, 122, 19, 0.4);
+  color: #8a5a10;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.data-source-badge.sandbox {
+  background: rgba(59, 130, 214, 0.14);
+  border-color: rgba(59, 130, 214, 0.38);
+  color: #2b6cb0;
+}
+
+:root[data-theme="dark"] .data-source-badge {
+  color: #ffd9a0;
+}
+
+:root[data-theme="dark"] .data-source-badge.sandbox {
+  color: #bfddff;
+}
+
 /* Setup-completion banner: the loudest thing on the page until setup is done. */
 .setup-banner {
   display: grid;

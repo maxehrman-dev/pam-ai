@@ -1932,24 +1932,37 @@ function getConnectedSnapshot(baseline) {
 }
 
 async function requestDecisionGuidance(question, result) {
-  const response = await fetch("/api/decision", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      prompt: question,
-      baseline: getConnectedSnapshot(state.baseline),
-      result
-    })
-  });
+  // The deterministic result is already on screen; AI guidance only refines it.
+  // A hard timeout means a slow upstream call can never leave the result stuck
+  // in the "refining" state.
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 15000);
 
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload?.ok) {
+  try {
+    const response = await fetch("/api/decision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt: question,
+        baseline: getConnectedSnapshot(state.baseline),
+        result
+      }),
+      signal: controller.signal
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.ok) {
+      return null;
+    }
+
+    return payload;
+  } catch (_error) {
     return null;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-
-  return payload;
 }
 
 async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.", options = {}) {
@@ -3698,6 +3711,16 @@ function renderMobileActiveScreen() {
   }
 }
 
+// Persistent, unmistakable label whenever the numbers on screen are not the
+// user's real connected bank data. Sample/mock and Plaid Sandbox must never
+// pass for real money.
+function renderDataSourceBadge() {
+  const source = String(state.baseline?.source || "");
+  if (source === "plaid_mock") return `<span class="data-source-badge" title="These numbers are demonstration data, not your real accounts.">SAMPLE DATA</span>`;
+  if (source.startsWith("plaid")) return `<span class="data-source-badge sandbox" title="Connected through Plaid Sandbox test institutions, not live bank accounts.">SANDBOX DATA</span>`;
+  return "";
+}
+
 function renderMobileAppChrome() {
   return `
     <div class="mobile-app-chrome" aria-label="PAM mobile app header">
@@ -3705,6 +3728,7 @@ function renderMobileAppChrome() {
         <span>PAM</span>
         <div><strong>PAM AI</strong><small>Personal Asset Manager</small></div>
       </div>
+      ${renderDataSourceBadge()}
       <button type="button" data-mobile-view="profile" aria-label="Open profile">Profile</button>
     </div>
   `;
@@ -4141,7 +4165,7 @@ function renderDailyDashboardHome() {
         ${renderInsightCards()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
-          <div class="panel-kicker">Net worth</div>
+          <div class="panel-kicker">Net worth ${renderDataSourceBadge()}</div>
           <h2>${state.plaidBusy && !hasConnectedData ? "…" : hasConnectedData ? formatCurrency(netWorth) : "—"}</h2>
           <p>${state.plaidBusy ? "Pulling your latest balances from Plaid…" : hasConnectedData ? `Assets minus liabilities across ${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"}.` : "Connect your accounts to see your real net worth."}</p>
         </div>
@@ -5077,6 +5101,7 @@ function renderResult() {
           <h2>Decision outcome</h2>
         </div>
         <div class="result-header-actions">
+          ${renderDataSourceBadge()}
           <button class="button button-secondary" type="button" data-save-scenario>Save scenario</button>
           <span class="risk-badge ${result.risk.className}">${result.risk.label} risk</span>
         </div>
