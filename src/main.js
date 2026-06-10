@@ -1430,7 +1430,7 @@ function renderHeaderActions() {
     }
     actions.push(`<button class="button button-secondary" type="button" data-open-view="account">Profile</button>`);
   } else {
-    actions.push(`<button class="button button-primary" type="button" data-open-view="account">Finish setup</button>`);
+    actions.push(`<button class="button button-primary setup-attention" type="button" data-open-view="account">Finish setup →</button>`);
     actions.push(`<button class="button button-secondary" type="button" data-open-view="account">Profile</button>`);
   }
 
@@ -3542,11 +3542,38 @@ function renderAccountabilityCard() {
   `;
 }
 
+// Big, unmissable "you're almost in" banner: shows exactly where the user is
+// in setup and one primary action to continue. Renders only while setup is
+// actually incomplete.
+function renderSetupBanner() {
+  if (!hasPrototypeAccount() || canUseFinancialFeatures()) return "";
+  const steps = [
+    { label: "Account created", done: true },
+    { label: "Accept the terms", done: hasAcceptedLegalTerms() },
+    { label: "Connect or load data", done: hasConnectedFinancialData() || hasCompletedBaseline(state.baseline) },
+    { label: "Answer profile questions", done: Boolean(state.userValues?.completed) }
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  const next = steps.find((s) => !s.done);
+  return `
+    <div class="setup-banner" role="status">
+      <div class="setup-banner-copy">
+        <strong>You're almost in — finish creating your account</strong>
+        <p>${doneCount} of ${steps.length} steps done. Next: ${escapeHtml(next?.label || "Open your dashboard")}.</p>
+      </div>
+      <div class="setup-banner-steps">
+        ${steps.map((s) => `<span class="setup-step ${s.done ? "done" : ""}">${s.done ? "✓ " : ""}${escapeHtml(s.label)}</span>`).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderWorkspaceHub() {
   const isComplete = canUseFinancialFeatures();
   const baseline = getUiBaseline(state.baseline);
   return `
     <section class="foresee-panel workspace-panel" id="workspace-panel">
+      ${renderSetupBanner()}
       <div class="workspace-header">
         <div>
           <div class="panel-kicker">Workspace</div>

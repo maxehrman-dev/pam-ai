@@ -27,30 +27,33 @@
 }
 
 :root[data-theme="dark"] {
-  --cream-0: #11151b;
-  --cream-1: #181d24;
-  --cream-2: #232a33;
-  --mint-1: #16352b;
-  --mint-2: #5ed3b2;
-  --mint-3: #84b6a4;
-  --mint-4: #2fa67c;
-  --mint-5: #6fe0be;
-  --forest: #eef2f4;
+  /* PAM dark: deep green-charcoal, not generic blue-grey. Three clear
+     elevation tiers, mint-tinted borders, and warm green-grey muted text
+     so cards read as PAM instead of a default dashboard template. */
+  --cream-0: #0b1310;
+  --cream-1: #111b16;
+  --cream-2: #18241e;
+  --mint-1: #173527;
+  --mint-2: #4be3ae;
+  --mint-3: #7fc3a8;
+  --mint-4: #2fbd8a;
+  --mint-5: #62ecbc;
+  --forest: #e9f4ee;
   --forest-2: #ffffff;
-  --ink-2: #97a3ab;
-  --ink-3: #c2cbd1;
-  --ink-4: #e9edf0;
+  --ink-2: #84a092;
+  --ink-3: #b4cabe;
+  --ink-4: #e2efe7;
   --ink-5: #ffffff;
-  --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.45);
-  --pam-surface: #181d24;
-  --pam-surface-strong: #1e242d;
-  --pam-surface-soft: #232a33;
-  --pam-surface-tint: rgba(94, 211, 178, 0.1);
-  --pam-input-bg: #0d1117;
-  --pam-border: rgba(255, 255, 255, 0.1);
-  --pam-border-strong: rgba(255, 255, 255, 0.2);
-  --pam-track: rgba(255, 255, 255, 0.1);
-  --pam-contrast-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.5);
+  --pam-surface: #121d17;
+  --pam-surface-strong: #16231c;
+  --pam-surface-soft: #1b2a22;
+  --pam-surface-tint: rgba(75, 227, 174, 0.12);
+  --pam-input-bg: #0d1712;
+  --pam-border: rgba(98, 236, 188, 0.14);
+  --pam-border-strong: rgba(98, 236, 188, 0.3);
+  --pam-track: rgba(233, 244, 238, 0.12);
+  --pam-contrast-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -74,8 +77,18 @@ body {
 
 :root[data-theme="dark"] body {
   background:
-    radial-gradient(circle at top left, rgba(94, 211, 178, 0.08), transparent 38%),
-    linear-gradient(180deg, #0d1117 0%, #11161d 100%);
+    radial-gradient(circle at 12% 0%, rgba(75, 227, 174, 0.1), transparent 42%),
+    radial-gradient(circle at 88% 100%, rgba(47, 189, 138, 0.06), transparent 45%),
+    linear-gradient(180deg, #0a110e 0%, #0d1612 100%);
+}
+
+/* Standalone page shells (legal/waitlist) carry their own light gradients —
+   swap them for the dark base so cards don't float on a light page. */
+:root[data-theme="dark"] .legal-page-shell,
+:root[data-theme="dark"] .waitlist-page-shell {
+  background:
+    radial-gradient(circle at 15% 8%, rgba(75, 227, 174, 0.1), transparent 36%),
+    linear-gradient(180deg, #0a110e 0%, #0d1612 100%);
 }
 
 /* Dark-mode surfaces for the hero mockup card (otherwise renders light) */
@@ -139,36 +152,44 @@ body {
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
-    --cream-0: #11151b;
-    --cream-1: #181d24;
-    --cream-2: #232a33;
-    --mint-1: #16352b;
-    --mint-2: #5ed3b2;
-    --mint-3: #84b6a4;
-    --mint-4: #2fa67c;
-    --mint-5: #6fe0be;
-    --forest: #eef2f4;
+    --cream-0: #0b1310;
+    --cream-1: #111b16;
+    --cream-2: #18241e;
+    --mint-1: #173527;
+    --mint-2: #4be3ae;
+    --mint-3: #7fc3a8;
+    --mint-4: #2fbd8a;
+    --mint-5: #62ecbc;
+    --forest: #e9f4ee;
     --forest-2: #ffffff;
-    --ink-2: #97a3ab;
-    --ink-3: #c2cbd1;
-    --ink-4: #e9edf0;
+    --ink-2: #84a092;
+    --ink-3: #b4cabe;
+    --ink-4: #e2efe7;
     --ink-5: #ffffff;
-    --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.45);
-    --pam-surface: #181d24;
-    --pam-surface-strong: #1e242d;
-    --pam-surface-soft: #232a33;
-    --pam-surface-tint: rgba(94, 211, 178, 0.1);
-    --pam-input-bg: #0d1117;
-    --pam-border: rgba(255, 255, 255, 0.1);
-    --pam-border-strong: rgba(255, 255, 255, 0.2);
-    --pam-track: rgba(255, 255, 255, 0.1);
-    --pam-contrast-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+    --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.5);
+    --pam-surface: #121d17;
+    --pam-surface-strong: #16231c;
+    --pam-surface-soft: #1b2a22;
+    --pam-surface-tint: rgba(75, 227, 174, 0.12);
+    --pam-input-bg: #0d1712;
+    --pam-border: rgba(98, 236, 188, 0.14);
+    --pam-border-strong: rgba(98, 236, 188, 0.3);
+    --pam-track: rgba(233, 244, 238, 0.12);
+    --pam-contrast-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
   }
 
   :root[data-theme="system"] body {
     background:
-      radial-gradient(circle at top left, rgba(94, 211, 178, 0.08), transparent 38%),
-      linear-gradient(180deg, #0d1117 0%, #11161d 100%);
+      radial-gradient(circle at 12% 0%, rgba(75, 227, 174, 0.1), transparent 42%),
+      radial-gradient(circle at 88% 100%, rgba(47, 189, 138, 0.06), transparent 45%),
+      linear-gradient(180deg, #0a110e 0%, #0d1612 100%);
+  }
+
+  :root[data-theme="system"] .legal-page-shell,
+  :root[data-theme="system"] .waitlist-page-shell {
+    background:
+      radial-gradient(circle at 15% 8%, rgba(75, 227, 174, 0.1), transparent 36%),
+      linear-gradient(180deg, #0a110e 0%, #0d1612 100%);
   }
 
   :root[data-theme="system"] .hero-preview-card,
@@ -3120,6 +3141,63 @@ input:disabled {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Setup-completion banner: the loudest thing on the page until setup is done. */
+.setup-banner {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: linear-gradient(120deg, var(--mint-4), var(--mint-5));
+  color: #06231a;
+  box-shadow: 0 14px 36px rgba(30, 138, 102, 0.32);
+}
+
+.setup-banner-copy strong {
+  font-size: 1.05rem;
+}
+
+.setup-banner-copy p {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  opacity: 0.85;
+}
+
+.setup-banner-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setup-step {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.setup-step.done {
+  background: rgba(6, 35, 26, 0.18);
+}
+
+:root[data-theme="dark"] .setup-banner {
+  color: #04150f;
+}
+
+.setup-attention {
+  animation: setup-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes setup-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 189, 138, 0.45); }
+  50% { box-shadow: 0 0 0 8px rgba(47, 189, 138, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-attention { animation: none; }
+}
+
 /* Secondary insight cards folded behind one disclosure. */
 .more-insights-fold {
   border: 1px dashed rgba(20, 55, 41, 0.18);
@@ -3386,9 +3464,9 @@ input:disabled {
   gap: 18px;
   padding: 16px;
   border-radius: 24px;
-  background: rgba(255, 253, 249, 0.96);
-  border: 1px solid rgba(30, 138, 102, 0.2);
-  box-shadow: 0 28px 80px rgba(12, 21, 18, 0.18);
+  background: var(--pam-surface-strong);
+  border: 1px solid var(--pam-border-strong);
+  box-shadow: var(--pam-contrast-shadow);
   backdrop-filter: blur(16px);
 }
 
@@ -3864,8 +3942,8 @@ input:disabled {
 .legal-page-header nav a {
   padding: 10px 12px;
   border-radius: 999px;
-  background: rgba(255, 253, 249, 0.72);
-  border: 1px solid rgba(30, 138, 102, 0.14);
+  background: var(--pam-surface);
+  border: 1px solid var(--pam-border-strong);
   color: var(--mint-5);
   font-weight: 900;
 }
@@ -3875,9 +3953,9 @@ input:disabled {
   margin: 0 auto;
   padding: clamp(28px, 5vw, 58px);
   border-radius: 36px;
-  background: rgba(255, 253, 249, 0.9);
-  border: 1px solid rgba(30, 138, 102, 0.16);
-  box-shadow: 0 30px 80px rgba(20, 55, 41, 0.1);
+  background: var(--pam-surface-strong);
+  border: 1px solid var(--pam-border);
+  box-shadow: var(--pam-contrast-shadow);
 }
 
 .legal-page-card h1 {
@@ -3904,8 +3982,8 @@ input:disabled {
 .legal-section-list section {
   padding: 18px;
   border-radius: 22px;
-  background: rgba(240, 242, 236, 0.62);
-  border: 1px solid rgba(30, 138, 102, 0.1);
+  background: var(--pam-surface-soft);
+  border: 1px solid var(--pam-border);
 }
 
 .legal-section-list h2 {
