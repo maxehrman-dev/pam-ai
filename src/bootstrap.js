@@ -186,7 +186,7 @@ async function boot() {
     initSentry(config.sentryDsn);
     await initClerk(config.clerkPublishableKey);
 
-    const module = await import("./main.js?v=pam-ai-20260610-finish1");
+    const module = await import("./main.js?v=pam-ai-20260610-note1");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }

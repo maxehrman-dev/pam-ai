@@ -3308,7 +3308,9 @@ function getMissingValuesSteps() {
   return VALUES_ONBOARDING_STEPS.filter((step) => {
     const value = uv[step.key];
     if (step.type === "multiselect") return value === undefined;
-    if (step.type === "text") return (value === undefined || value === "") && (!step.subKey || uv[step.subKey] === undefined);
+    // Text steps are optional: an empty string means "seen and skipped",
+    // only undefined means the user was never asked.
+    if (step.type === "text") return value === undefined && (!step.subKey || uv[step.subKey] === undefined);
     return value === undefined || value === null || value === "";
   });
 }
@@ -5690,6 +5692,12 @@ function wireInteractions() {
       const step = steps[state.valuesStep];
       if (step && step.type === "slider" && !state.valuesDraft[step.key]) {
         state.valuesDraft[step.key] = step.defaultValue;
+      }
+      // Mark optional text steps as seen even when left blank, so the
+      // finish-profile card doesn't re-prompt for them forever.
+      if (step && step.type === "text") {
+        if (state.valuesDraft[step.key] === undefined) state.valuesDraft[step.key] = "";
+        if (step.subKey && state.valuesDraft[step.subKey] === undefined) state.valuesDraft[step.subKey] = "";
       }
       if (state.valuesStep < steps.length - 1) {
         state.valuesStep++;

@@ -178,6 +178,13 @@ export const VALUES_ONBOARDING_STEPS = [
       "Money owed to friends/family",
       "I own property"
     ]
+  },
+  {
+    key: "anything_else",
+    question: "Anything else PAM should know?",
+    detail: "In your own words — life stuff the questions above can't catch. Totally optional.",
+    type: "text",
+    placeholder: "e.g. going through a divorce, visa runs out next year, helping my sister with rent…"
   }
 ];
 
