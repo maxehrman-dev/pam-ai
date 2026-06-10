@@ -3294,6 +3294,60 @@ function renderValuesOnboarding() {
   `;
 }
 
+// One insight up front, the rest folded. Five stacked cards was the main
+// source of dashboard clutter — show the single most urgent one and tuck
+// the others behind a disclosure.
+function renderInsightCards() {
+  const cards = [
+    renderGoalConflictCard(),
+    renderCareerVelocityCard(),
+    renderLocationArbitrageCard(),
+    renderBuyVsRentCard(),
+    renderAccountabilityCard()
+  ].filter(Boolean);
+  if (!cards.length) return "";
+  const [primary, ...rest] = cards;
+  if (!rest.length) return primary;
+  return `
+    ${primary}
+    <details class="more-insights-fold">
+      <summary>More insights for you (${rest.length})</summary>
+      ${rest.join("")}
+    </details>
+  `;
+}
+
+// Example chips should fit the person. Derive up to 3 ask suggestions from
+// the values profile instead of showing everyone the same generic three.
+function getSmartSuggestions() {
+  const uv = state.userValues || {};
+  const liabilities = state.baseline.obligations?.liabilities || [];
+  const suggestions = [];
+  if (uv.housing === "family") suggestions.push("Can I afford to move out this year?");
+  if (uv.housing === "rent") suggestions.push("Should I keep renting or save to buy?");
+  if (uv.household === "support_family") suggestions.push("How big should my cushion be while supporting family?");
+  if (["hourly", "freelance"].includes(uv.worker_type) || uv.pay_frequency === "irregular") {
+    suggestions.push("How much slack do I need with irregular pay?");
+  }
+  if (liabilities.length || (Array.isArray(uv.offline_factors) && uv.offline_factors.includes("Student loans"))) {
+    suggestions.push("Should I pay off debt or start investing?");
+  }
+  if (uv.location_flexible === "yes" && uv.industry) suggestions.push("Is it worth moving for a bigger market in my field?");
+  if (Number(uv.retirement_target_age) && Number(uv.retirement_target_age) < 60) {
+    suggestions.push(`What do I need to save monthly to retire at ${Number(uv.retirement_target_age)}?`);
+  }
+  const fallbacks = [
+    "Can I afford a $400/month car payment?",
+    "What happens if my rent goes up $200?",
+    "Am I saving enough each month?"
+  ];
+  for (const f of fallbacks) {
+    if (suggestions.length >= 3) break;
+    suggestions.push(f);
+  }
+  return suggestions.slice(0, 3);
+}
+
 function renderGoalConflictCard() {
   const uv = state.userValues;
   if (!uv?.completed) return "";
@@ -3354,6 +3408,7 @@ function renderBuyVsRentCard() {
   if (!uv?.completed) return "";
   const profile = getValuesProfile();
   const sim = simulateBuyVsRent(uv, profile);
+  if (uv.housing === "own") return "";
   const priorities = (Array.isArray(uv.lifestyle_priorities) ? uv.lifestyle_priorities : []).map(p => String(p).toLowerCase());
   const relevant = priorities.includes("homeownership") || state.lifeValues.includes("Buy a home");
   if (!relevant) return "";
@@ -3754,7 +3809,7 @@ function renderMobileHomeScreen() {
       ` : ""}
 
       ${state.userValues?.completed
-        ? renderGoalConflictCard()
+        ? renderInsightCards()
         : `<div class="insight-card values-cta-card mobile-values-cta"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can give you specific, goal-based guidance.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
 
       <details class="mobile-home-more">
@@ -3789,8 +3844,6 @@ function renderMobileHomeScreen() {
             `}
           </div>
         </div>
-
-        ${state.userValues?.completed ? renderAccountabilityCard() : ""}
 
         <div class="profile-completeness-card mobile-home-section">
           <div class="mobile-home-section-header">
@@ -4014,11 +4067,7 @@ function renderDailyDashboardHome() {
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
         ${state.userValues?.completed ? "" : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
-        ${renderGoalConflictCard()}
-        ${renderAccountabilityCard()}
-        ${renderCareerVelocityCard()}
-        ${renderBuyVsRentCard()}
-        ${renderLocationArbitrageCard()}
+        ${renderInsightCards()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
           <div class="panel-kicker">Net worth</div>
@@ -4869,11 +4918,7 @@ function renderDecisionPanel() {
   const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
   const underPlan = Math.max(spendingPlan - monthlyExpenses, 0);
   // Keep this tight — 3 high-signal suggestions, not a wall of chips.
-  const prompts = [
-    "Can I afford to move out this year?",
-    "What car payment can I actually handle?",
-    "Should I pay off debt or start investing?"
-  ];
+  const prompts = getSmartSuggestions();
 
   return `
     <section class="foresee-panel decision-panel mobile-screen mobile-screen-ask" id="decision-input">

@@ -3120,6 +3120,34 @@ input:disabled {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Secondary insight cards folded behind one disclosure. */
+.more-insights-fold {
+  border: 1px dashed rgba(20, 55, 41, 0.18);
+  border-radius: 16px;
+  padding: 0;
+}
+
+.more-insights-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 18px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--ink-3);
+}
+
+.more-insights-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more-insights-fold[open] {
+  padding-bottom: 12px;
+}
+
+.more-insights-fold .insight-card {
+  margin: 0 12px 12px;
+}
+
 /* Mobile home: secondary content folded behind one disclosure. */
 .mobile-home-more {
   border: 1px solid rgba(20, 55, 41, 0.12);
