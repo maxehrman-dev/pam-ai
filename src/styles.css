@@ -5944,6 +5944,45 @@ textarea::placeholder {
   flex-direction: column;
   gap: 0.6rem;
 }
+
+/* Multi-input "group" onboarding step */
+.values-group {
+  display: grid;
+  gap: 1.4rem;
+  margin-bottom: 1rem;
+}
+
+.values-group-field {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.values-group-label {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--forest);
+}
+
+/* Strategy playback (review step) */
+.strategy-playback {
+  display: grid;
+  gap: 0.7rem;
+  margin-bottom: 1.2rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 16px;
+  background: var(--pam-surface-soft);
+  border: 1px solid var(--pam-border);
+}
+
+.strategy-playback p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.strategy-playback strong {
+  color: var(--forest);
+}
 .values-option-btn {
   text-align: left;
   padding: 0.75rem 1rem;

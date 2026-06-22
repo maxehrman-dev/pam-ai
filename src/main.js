@@ -3300,6 +3300,39 @@ function renderValuesOnboarding() {
       </div>
       <button class="button button-primary" type="button" data-values-next>Continue</button>
     `;
+  } else if (step.type === "group") {
+    // Multiple sub-questions on one screen so the strategy profile stays short.
+    const fieldsHtml = (step.fields || []).map((f) => {
+      if (f.type === "options") {
+        return `
+          <div class="values-group-field">
+            <label class="values-group-label">${escapeHtml(f.label)}</label>
+            <div class="values-options-grid">
+              ${f.options.map((opt) => `
+                <button class="values-option-btn ${draft[f.key] === opt.value ? "selected" : ""}" type="button" data-values-option="${escapeHtml(f.key)}" data-values-value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</button>
+              `).join("")}
+            </div>
+          </div>`;
+      }
+      if (f.type === "text") {
+        return `
+          <div class="values-group-field">
+            <label class="values-group-label">${escapeHtml(f.label)}</label>
+            <input type="text" class="values-text-input" placeholder="${escapeHtml(f.placeholder || "")}" value="${escapeHtml(draft[f.key] || "")}" data-values-text="${escapeHtml(f.key)}">
+          </div>`;
+      }
+      return "";
+    }).join("");
+    const ready = (step.fields || []).filter((f) => f.required).every((f) => draft[f.key]);
+    inputHtml = `
+      <div class="values-group">${fieldsHtml}</div>
+      ${ready ? `<button class="button button-primary" type="button" data-values-next>Continue</button>` : ""}
+    `;
+  } else if (step.type === "review") {
+    inputHtml = `
+      ${renderStrategyPlayback(draft)}
+      <button class="button button-primary" type="button" data-values-next>This looks right →</button>
+    `;
   }
 
   return `
@@ -3318,12 +3351,58 @@ function renderValuesOnboarding() {
   `;
 }
 
+// Plain-language playback of the strategy profile so the user can confirm or
+// correct it. PAM judges every decision against this, so it's worth showing back.
+function renderStrategyPlayback(draft = {}) {
+  const careerStage = {
+    career: "this job is your real career",
+    stepping_stone: "this job is a stepping-stone",
+    paying_bills: "this job just pays the bills for now",
+    between: "you're between things right now"
+  }[draft.career_stage];
+  const backing = {
+    family: "family could bail you out",
+    strong_cushion: "a strong cushion but no family backstop",
+    modest_cushion: "a modest cushion and no backstop",
+    none: "no real cushion",
+    dependents: "people who depend on your income"
+  }[draft.risk_backing];
+  const mobility = {
+    yes: "you'd move for the right opportunity",
+    maybe: "you'd consider moving for the right offer",
+    no: "you're rooted where you are"
+  }[draft.location_flexible];
+  const lifestyle = {
+    lean: "a lean, freedom-first lifestyle",
+    comfortable: "a comfortable middle-class lifestyle",
+    upper: "an upper-middle lifestyle",
+    wealthy: "a high-wealth lifestyle"
+  }[draft.aspirational_lifestyle];
+
+  const lines = [];
+  if (draft.retirement_target_age) lines.push(`Aiming to be financially free around <strong>${escapeHtml(String(draft.retirement_target_age))}</strong>.`);
+  if (careerStage) lines.push(`PAM sees ${escapeHtml(careerStage)}${draft.target_career ? `, heading toward <strong>${escapeHtml(String(draft.target_career))}</strong>` : ""}.`);
+  if (lifestyle) lines.push(`You're aiming for ${escapeHtml(lifestyle)}.`);
+  if (mobility) lines.push(`On location, ${escapeHtml(mobility)}.`);
+  if (Array.isArray(draft.trajectory_moves) && draft.trajectory_moves.filter((m) => m !== "Not sure yet").length) {
+    lines.push(`Big moves you're weighing: <strong>${draft.trajectory_moves.filter((m) => m !== "Not sure yet").map((m) => escapeHtml(m)).join(", ")}</strong>.`);
+  }
+  if (backing) lines.push(`If a bet goes wrong, you've got ${escapeHtml(backing)} — that sets how aggressive PAM will tell you to be.`);
+
+  if (!lines.length) return `<p class="values-detail">PAM will tailor advice as you answer more questions.</p>`;
+  return `<div class="strategy-playback">${lines.map((l) => `<p>${l}</p>`).join("")}</div>`;
+}
+
 // Steps the user has never answered. Existing accounts keep completed=true
 // when new onboarding questions ship; this finds the gap so we can ask only
 // what's missing instead of forcing a full re-onboard (or a new account).
 function getMissingValuesSteps() {
   const uv = state.userValues || {};
   return VALUES_ONBOARDING_STEPS.filter((step) => {
+    // The review screen is not a data field — never treat it as "missing".
+    if (step.type === "review") return false;
+    // A group is missing if any of its sub-fields was never answered.
+    if (step.type === "group") return (step.fields || []).some((f) => uv[f.key] === undefined);
     const value = uv[step.key];
     if (step.type === "multiselect") return value === undefined;
     // Text steps are optional: an empty string means "seen and skipped",
@@ -5757,6 +5836,13 @@ function wireInteractions() {
         if (state.valuesDraft[step.key] === undefined) state.valuesDraft[step.key] = "";
         if (step.subKey && state.valuesDraft[step.subKey] === undefined) state.valuesDraft[step.subKey] = "";
       }
+      // Group steps: mark any unanswered sub-field as seen (optional text -> "",
+      // skipped options stay "" rather than undefined) so top-up doesn't re-ask.
+      if (step && step.type === "group") {
+        (step.fields || []).forEach((f) => {
+          if (state.valuesDraft[f.key] === undefined) state.valuesDraft[f.key] = "";
+        });
+      }
       if (state.valuesStep < steps.length - 1) {
         state.valuesStep++;
         render();
@@ -5981,7 +6067,7 @@ function applyDevPreviewAccount() {
     privacyVersion: PRIVACY_VERSION,
     acceptedAt: new Date().toISOString()
   });
-  if (!state.userValues?.completed) {
+  if (!state.userValues) {
     saveUserValues({
       age: 26, city: "Charlotte", state: "NC", household: "single", housing: "rent",
       worker_type: "salaried", pay_frequency: "biweekly", retirement_target_age: 55,

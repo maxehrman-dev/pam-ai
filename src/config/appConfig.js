@@ -164,6 +164,73 @@ export const VALUES_ONBOARDING_STEPS = [
     ]
   },
   {
+    key: "career_strategy",
+    type: "group",
+    question: "Your career game",
+    detail: "This is what lets PAM judge moves by your trajectory, not just your balance.",
+    fields: [
+      {
+        key: "career_stage",
+        type: "options",
+        label: "How do you see your current job?",
+        required: true,
+        options: [
+          { value: "career", label: "This is my actual career path" },
+          { value: "stepping_stone", label: "A stepping-stone / experience job" },
+          { value: "paying_bills", label: "Just paying the bills for now" },
+          { value: "between", label: "I'm between things right now" }
+        ]
+      },
+      {
+        key: "target_career",
+        type: "text",
+        label: "What career are you actually aiming for? (optional)",
+        required: false,
+        placeholder: "e.g. law, product management, founder"
+      }
+    ]
+  },
+  {
+    key: "trajectory_moves",
+    question: "Any big moves on the table?",
+    detail: "Things you're seriously weighing — PAM factors these into every call.",
+    type: "multiselect",
+    options: ["Grad / professional school", "Start a business", "Switch fields", "Relocate", "Buy a home", "Not sure yet"]
+  },
+  {
+    key: "future_strategy",
+    type: "group",
+    question: "Your ambition and your backing",
+    detail: "What you're aiming for — and the safety net behind your bets.",
+    fields: [
+      {
+        key: "aspirational_lifestyle",
+        type: "options",
+        label: "The lifestyle you're aiming for",
+        required: true,
+        options: [
+          { value: "lean", label: "Lean & simple — freedom over stuff" },
+          { value: "comfortable", label: "Comfortable middle-class" },
+          { value: "upper", label: "Upper-middle — room to spend" },
+          { value: "wealthy", label: "Wealthy — no ceiling" }
+        ]
+      },
+      {
+        key: "risk_backing",
+        type: "options",
+        label: "If a big bet went wrong, what's your backstop?",
+        required: true,
+        options: [
+          { value: "family", label: "Family could bail me out" },
+          { value: "strong_cushion", label: "Strong savings cushion, no family" },
+          { value: "modest_cushion", label: "Modest cushion, no backstop" },
+          { value: "none", label: "No real cushion — close to the edge" },
+          { value: "dependents", label: "Others depend on my income" }
+        ]
+      }
+    ]
+  },
+  {
     key: "offline_factors",
     question: "Anything your bank accounts don't show?",
     detail: "Connected data misses these — pick everything that applies.",
@@ -185,6 +252,12 @@ export const VALUES_ONBOARDING_STEPS = [
     detail: "In your own words — life stuff the questions above can't catch. Totally optional.",
     type: "text",
     placeholder: "e.g. going through a divorce, visa runs out next year, helping my sister with rent…"
+  },
+  {
+    key: "__review",
+    type: "review",
+    question: "Here's your strategy",
+    detail: "PAM will judge every decision against this. Change anything that's off."
   }
 ];
 
