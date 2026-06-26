@@ -5609,9 +5609,32 @@ function renderLegalPage(route) {
   `;
 }
 
-// A real PAM answer, shown on the landing so visitors see the goods before
+// Real PAM answers, shown on the landing so visitors see the goods before
 // they're asked for anything. Static illustrative content (clearly labeled).
-function renderMarketingSampleCard() {
+const MARKETING_EXAMPLES = {
+  moveout: {
+    q: "Can I afford to move out? Rent would be $1,800.",
+    verdict: "Yes — but cap it at $1,650.",
+    body: "At $1,800 your monthly buffer drops to $240 — too thin if anything breaks. Trim to $1,650 and you keep a real cushion and still hit your savings goal on time.",
+    stats: [
+      { label: "Buffer at $1,800", value: "$240" },
+      { label: "Safer rent", value: "$1,650" },
+      { label: "Risk", value: "Medium" }
+    ]
+  },
+  nyc: {
+    q: "I got a NYC finance offer at the same salary, but I'd have to move. Worth it?",
+    verdict: "On your numbers — it's worth the move.",
+    body: "Same salary isn't a lateral move in finance. NYC nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one buffer dips to $760 — here's the offset plan.",
+    stats: [
+      { label: "Retire age", value: "61 → 55" },
+      { label: "After cost of living", value: "+$22k/yr" },
+      { label: "Risk", value: "Medium" }
+    ]
+  }
+};
+
+function renderMarketingSampleCard(ex) {
   return `
     <div class="marketing-sample-card" aria-label="Example PAM answer">
       <div class="marketing-sample-head">
@@ -5619,14 +5642,12 @@ function renderMarketingSampleCard() {
         <strong>Ask PAM</strong>
         <span class="data-source-badge">EXAMPLE</span>
       </div>
-      <div class="marketing-sample-q">"I got a NYC finance offer at the same salary, but I'd have to move. Worth it?"</div>
+      <div class="marketing-sample-q">"${escapeHtml(ex.q)}"</div>
       <div class="marketing-sample-a">
-        <div class="marketing-sample-verdict">On your numbers — it's worth the move.</div>
-        <p>Same salary isn't a lateral move in finance. NYC nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one buffer dips to $760 — here's the offset plan.</p>
+        <div class="marketing-sample-verdict">${escapeHtml(ex.verdict)}</div>
+        <p>${escapeHtml(ex.body)}</p>
         <div class="marketing-sample-stats">
-          <div><span>Retire age</span><strong>61 → 55</strong></div>
-          <div><span>After cost of living</span><strong>+$22k/yr</strong></div>
-          <div><span>Risk</span><strong>Medium</strong></div>
+          ${ex.stats.map((s) => `<div><span>${escapeHtml(s.label)}</span><strong>${escapeHtml(s.value)}</strong></div>`).join("")}
         </div>
       </div>
     </div>
@@ -5655,18 +5676,18 @@ function renderPublicLaunchGate() {
       </header>
 
       <section class="marketing-hero">
-        <div class="marketing-hero-copy reveal-on-scroll">
-          <div class="marketing-eyebrow">Financial decision simulator</div>
+        <div class="marketing-hero-copy reveal-on-scroll reveal-up">
+          <div class="marketing-eyebrow">Your personal financial adviser</div>
           <h1>Know what happens <em>before</em> you decide.</h1>
-          <p class="marketing-sub">PAM connects to your real money and your real goals, then tells you straight whether a move — a car, an apartment, a job across the country, law school — gets you closer to the life you actually want. Not generic advice. Your numbers.</p>
+          <p class="marketing-sub">It's like having a sharp financial adviser who's actually seen your bank account and your goals — before you can afford a real one. Ask PAM any money move and get a straight, numbers-backed call. Not generic advice. Yours.</p>
           <div class="marketing-hero-actions">
             <button class="button button-primary marketing-btn-lg" type="button" data-open-waitlist>${state.waitlistJoined ? "You're on the list ✓" : "Get started →"}</button>
-            <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See an example</button>
+            <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See it in action</button>
           </div>
           <p class="marketing-hero-note">Free to join · Built for young adults before traditional advisors make sense</p>
         </div>
-        <div class="marketing-hero-visual reveal-on-scroll">
-          ${renderMarketingSampleCard()}
+        <div class="marketing-hero-visual reveal-on-scroll reveal-scale">
+          ${renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)}
         </div>
       </section>
 
@@ -5687,12 +5708,15 @@ function renderPublicLaunchGate() {
       </section>
 
       <section class="marketing-section marketing-example" id="marketing-example">
-        <div class="marketing-section-head reveal-on-scroll">
+        <div class="marketing-section-head reveal-on-scroll reveal-up">
           <div class="panel-kicker">Grounded, not generic</div>
           <h2>Ask a real question. Get a real call.</h2>
-          <p class="marketing-section-sub">Generic AI hedges because it doesn't know you. PAM knows your money and your goals — so it has an opinion.</p>
+          <p class="marketing-section-sub">From "can I afford this?" to the life-shaping forks — a generic chatbot hedges because it doesn't know you. PAM knows your money and your goals, so it has an opinion.</p>
         </div>
-        <div class="marketing-example-wrap reveal-on-scroll">${renderMarketingSampleCard()}</div>
+        <div class="marketing-example-grid">
+          <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
+          <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)}</div>
+        </div>
       </section>
 
       <section class="marketing-section marketing-testimonials reveal-on-scroll">

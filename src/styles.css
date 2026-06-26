@@ -6363,6 +6363,17 @@ textarea::placeholder {
 .marketing-feature-card p { color: var(--ink-3); line-height: 1.5; margin: 0; }
 
 .marketing-example-wrap { max-width: 520px; margin: 0 auto; }
+.marketing-example-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 22px;
+  max-width: 960px;
+  margin: 0 auto;
+  align-items: start;
+}
+.marketing-example-grid > div { height: 100%; }
+.marketing-example-grid .marketing-sample-card { height: 100%; }
+.marketing-example-grid > div:nth-child(2) { transition-delay: 0.1s; }
 
 .marketing-testimonials { text-align: center; }
 .marketing-testimonials h2 { font-size: clamp(1.6rem, 3vw, 2.3rem); color: var(--forest); margin: 8px 0 12px; letter-spacing: -0.02em; }
@@ -6382,27 +6393,61 @@ textarea::placeholder {
 .marketing-beta > summary::-webkit-details-marker { display: none; }
 .marketing-beta[open] > summary { margin-bottom: 8px; }
 
-/* Scroll-reveal animation */
+/* Scroll-reveal animation — premium feel: fade + slide, GPU-friendly */
 .reveal-on-scroll {
   opacity: 0;
-  transform: translateY(22px);
-  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
-.reveal-on-scroll.is-visible { opacity: 1; transform: none; }
+.reveal-on-scroll.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Variant: scale + rise (used on the answer cards for a confident "snap in") */
+.reveal-on-scroll.reveal-scale { transform: translateY(28px) scale(0.94); }
+.reveal-on-scroll.reveal-scale.is-visible { transform: none; }
+
+/* Variant: simple rise (used on copy/headings) */
+.reveal-on-scroll.reveal-up { transform: translateY(34px); }
+
+/* The hero answer card gently floats once revealed — feels alive, not static */
+@keyframes marketing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+.marketing-hero-visual.is-visible .marketing-sample-card {
+  animation: marketing-float 6.5s ease-in-out infinite;
+}
+
+/* Cards lift on hover for a tactile, interactive feel */
+.marketing-sample-card,
+.marketing-feature-card {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
+}
+.marketing-feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--pam-contrast-shadow);
+}
 
 /* Stagger feature cards slightly */
-.marketing-feature-grid .marketing-feature-card:nth-child(2) { transition-delay: 0.06s; }
-.marketing-feature-grid .marketing-feature-card:nth-child(3) { transition-delay: 0.12s; }
-.marketing-feature-grid .marketing-feature-card:nth-child(4) { transition-delay: 0.18s; }
+.marketing-feature-grid .marketing-feature-card:nth-child(2) { transition-delay: 0.08s; }
+.marketing-feature-grid .marketing-feature-card:nth-child(3) { transition-delay: 0.16s; }
+.marketing-feature-grid .marketing-feature-card:nth-child(4) { transition-delay: 0.24s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal-on-scroll { opacity: 1; transform: none; transition: none; }
+  .reveal-on-scroll { opacity: 1; transform: none; filter: none; transition: none; }
+  .marketing-hero-visual.is-visible .marketing-sample-card { animation: none; }
+  .marketing-feature-card:hover { transform: none; }
 }
 
 @media (max-width: 860px) {
   .marketing-hero { grid-template-columns: 1fr; }
   .marketing-hero-visual { order: -1; }
   .marketing-feature-grid { grid-template-columns: 1fr; }
+  .marketing-example-grid { grid-template-columns: 1fr; }
   .marketing-sub { max-width: none; }
 }
