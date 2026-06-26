@@ -5609,47 +5609,113 @@ function renderLegalPage(route) {
   `;
 }
 
-function renderPublicLaunchGate() {
+// A real PAM answer, shown on the landing so visitors see the goods before
+// they're asked for anything. Static illustrative content (clearly labeled).
+function renderMarketingSampleCard() {
   return `
-    <div class="foresee-shell launch-gate-shell">
+    <div class="marketing-sample-card" aria-label="Example PAM answer">
+      <div class="marketing-sample-head">
+        <span class="marketing-sample-dots"><i></i><i></i><i></i></span>
+        <strong>Ask PAM</strong>
+        <span class="data-source-badge">EXAMPLE</span>
+      </div>
+      <div class="marketing-sample-q">"I got a NYC finance offer at the same salary, but I'd have to move. Worth it?"</div>
+      <div class="marketing-sample-a">
+        <div class="marketing-sample-verdict">On your numbers — it's worth the move.</div>
+        <p>Same salary isn't a lateral move in finance. NYC nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one buffer dips to $760 — here's the offset plan.</p>
+        <div class="marketing-sample-stats">
+          <div><span>Retire age</span><strong>61 → 55</strong></div>
+          <div><span>After cost of living</span><strong>+$22k/yr</strong></div>
+          <div><span>Risk</span><strong>Medium</strong></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPublicLaunchGate() {
+  const features = [
+    { icon: "📊", title: "Test decisions before you make them", body: "See the real impact on your monthly buffer, taxes, savings, and goals — before you commit, not after." },
+    { icon: "🎯", title: "It knows your whole game", body: "Your retirement target, your career path, what you'd move for, your safety net. Advice judged against your life, not just this month's balance." },
+    { icon: "⚡", title: "Bold, grounded calls", body: "Do it, don't, or not-yet — anchored to your actual numbers. No mushy \"it depends\" non-answers." },
+    { icon: "🧠", title: "Remembers your arc", body: "Every answer builds on your last. PAM doesn't forget you the moment you close the tab." }
+  ];
+  return `
+    <div class="foresee-shell marketing-shell">
       ${renderDisclaimerBanner()}
-      <main class="launch-gate-card" aria-label="PAM AI private preview">
-        <div class="launch-gate-brand">
+      <header class="marketing-nav">
+        <a class="foresee-brand" href="/" aria-label="PAM AI home">
           <span>PAM</span>
-          <div>
-            <strong>PAM AI</strong>
-            <small>Personal Asset Manager</small>
-          </div>
+          <div><strong>PAM AI</strong><small>Personal Asset Manager</small></div>
+        </a>
+        <div class="marketing-nav-actions">
+          <button class="marketing-signin-link" type="button" data-reveal-beta>Sign in</button>
+          <button class="button button-primary" type="button" data-open-waitlist>${state.waitlistJoined ? "You're on the list" : "Get started"}</button>
         </div>
-        <p class="eyebrow">Private preview</p>
-        <h1>Oops, not time yet.</h1>
-        <p class="launch-gate-copy">
-          PAM is still in a closed working preview. Join the waitlist for launch access, or enter a demo tester code if
-          you are reviewing the prototype with the team.
-        </p>
-        <div class="launch-gate-actions">
-          <button class="button button-primary" type="button" data-open-waitlist>
-            ${state.waitlistJoined ? "You're on the waitlist" : "Join waitlist"}
-          </button>
-        </div>
-        <form class="launch-gate-form" data-demo-access-form>
-          <label for="demoAccessCode">Demo tester</label>
-          <div>
-            <input
-              id="demoAccessCode"
-              name="demoAccessCode"
-              type="password"
-              autocomplete="off"
-              placeholder="Enter demo code"
-              ${state.demoAccessBusy ? "disabled" : ""}
-            />
-            <button class="button button-secondary" type="submit" ${state.demoAccessBusy ? "disabled" : ""}>
-              ${state.demoAccessBusy ? "Checking..." : "Unlock preview"}
-            </button>
+      </header>
+
+      <section class="marketing-hero">
+        <div class="marketing-hero-copy reveal-on-scroll">
+          <div class="marketing-eyebrow">Financial decision simulator</div>
+          <h1>Know what happens <em>before</em> you decide.</h1>
+          <p class="marketing-sub">PAM connects to your real money and your real goals, then tells you straight whether a move — a car, an apartment, a job across the country, law school — gets you closer to the life you actually want. Not generic advice. Your numbers.</p>
+          <div class="marketing-hero-actions">
+            <button class="button button-primary marketing-btn-lg" type="button" data-open-waitlist>${state.waitlistJoined ? "You're on the list ✓" : "Get started →"}</button>
+            <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See an example</button>
           </div>
-        </form>
-        ${state.demoAccessMessage ? `<p class="auth-status-message launch-gate-message">${escapeHtml(state.demoAccessMessage)}</p>` : ""}
-      </main>
+          <p class="marketing-hero-note">Free to join · Built for young adults before traditional advisors make sense</p>
+        </div>
+        <div class="marketing-hero-visual reveal-on-scroll">
+          ${renderMarketingSampleCard()}
+        </div>
+      </section>
+
+      <section class="marketing-section marketing-features">
+        <div class="marketing-section-head reveal-on-scroll">
+          <div class="panel-kicker">What PAM does</div>
+          <h2>A sharp friend who's seen your bank account <em>and</em> your ambitions.</h2>
+        </div>
+        <div class="marketing-feature-grid">
+          ${features.map((f) => `
+            <article class="marketing-feature-card reveal-on-scroll">
+              <div class="marketing-feature-icon" aria-hidden="true">${f.icon}</div>
+              <h3>${escapeHtml(f.title)}</h3>
+              <p>${escapeHtml(f.body)}</p>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="marketing-section marketing-example" id="marketing-example">
+        <div class="marketing-section-head reveal-on-scroll">
+          <div class="panel-kicker">Grounded, not generic</div>
+          <h2>Ask a real question. Get a real call.</h2>
+          <p class="marketing-section-sub">Generic AI hedges because it doesn't know you. PAM knows your money and your goals — so it has an opinion.</p>
+        </div>
+        <div class="marketing-example-wrap reveal-on-scroll">${renderMarketingSampleCard()}</div>
+      </section>
+
+      <section class="marketing-section marketing-testimonials reveal-on-scroll">
+        <div class="panel-kicker">Coming soon</div>
+        <h2>Built for people making their first big money calls.</h2>
+        <p class="marketing-soon">Real stories land here as the beta opens. Want to be one of them?</p>
+        <button class="button button-primary marketing-btn-lg" type="button" data-open-waitlist>${state.waitlistJoined ? "You're on the list ✓" : "Get started →"}</button>
+      </section>
+
+      <section class="marketing-section marketing-beta-section">
+        <details class="marketing-beta" id="beta-access" ${state.demoAccessMessage ? "open" : ""}>
+          <summary>Returning member or have a beta code?</summary>
+          <form class="launch-gate-form" data-demo-access-form>
+            <label for="demoAccessCode">Beta access</label>
+            <div>
+              <input id="demoAccessCode" name="demoAccessCode" type="password" autocomplete="off" placeholder="Enter your code" ${state.demoAccessBusy ? "disabled" : ""} />
+              <button class="button button-secondary" type="submit" ${state.demoAccessBusy ? "disabled" : ""}>${state.demoAccessBusy ? "Checking..." : "Enter"}</button>
+            </div>
+          </form>
+          ${state.demoAccessMessage ? `<p class="auth-status-message launch-gate-message">${escapeHtml(state.demoAccessMessage)}</p>` : ""}
+        </details>
+      </section>
+
       ${renderLegalFooter()}
       ${renderCookieConsentBanner()}
       ${renderWaitlistModal()}
@@ -5755,6 +5821,36 @@ function wireInteractions() {
       window.location.href = button.dataset.legalRoute || "/terms";
     });
   });
+  document.querySelectorAll("[data-reveal-beta]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const details = document.getElementById("beta-access");
+      if (details) {
+        details.open = true;
+        details.scrollIntoView({ behavior: "smooth", block: "center" });
+        details.querySelector("input")?.focus();
+      }
+    });
+  });
+  // Scroll-reveal: fade/slide elements in as they enter the viewport. Respects
+  // reduced-motion and degrades to instantly-visible without IntersectionObserver.
+  (() => {
+    const revealEls = document.querySelectorAll(".reveal-on-scroll");
+    if (!revealEls.length) return;
+    const noMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (noMotion || typeof IntersectionObserver === "undefined") {
+      revealEls.forEach((el) => el.classList.add("is-visible"));
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+    revealEls.forEach((el) => io.observe(el));
+  })();
   document.querySelectorAll("[data-go-back]").forEach((button) => {
     button.addEventListener("click", () => {
       // Return to wherever the user came from when that was inside PAM;
