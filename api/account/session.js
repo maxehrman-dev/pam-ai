@@ -4,7 +4,7 @@ const { changePassword, clearSession, getSessionAccount, getSessionAccountWithBa
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, sanitizeText, validatePayload } = require("../_lib/security.js");
-const { findBaselineByAccountId, findLatestLegalAcceptanceByAccountId, findSubscriptionByClerkUserId, hasSupabaseConfig, insertLegalAcceptance, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
+const { findBaselineByAccountId, findLatestLegalAcceptanceByAccountId, findScenarioRunsByAccountId, findSubscriptionByClerkUserId, hasSupabaseConfig, insertLegalAcceptance, insertScenarioRun, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
 
 async function resolveAccount(req) {
   if (hasClerkConfig()) {
@@ -49,6 +49,16 @@ const demoAccessSchema = {
     code: { type: "string", minLength: 3, maxLength: 80 }
   },
   required: ["action", "code"]
+};
+
+const saveDecisionSchema = {
+  properties: {
+    sessionToken: { type: "string", minLength: 10, maxLength: 80 },
+    action: { type: "string", enum: ["save_decision"] },
+    question: { type: "string", minLength: 1, maxLength: 500 },
+    entry: { type: "object", allowUnknown: true }
+  },
+  required: ["action", "question", "entry"]
 };
 
 const changePasswordSchema = {
@@ -106,6 +116,7 @@ const __pamRouteHandler = async (req, res) => {
     let baseline = null;
     let legalAcceptance = null;
     let subscription = null;
+    let decisions = [];
     if (account?.id) {
       if (hasClerkConfig() && account.clerkUserId) {
         if (hasSupabaseConfig()) {
@@ -119,13 +130,19 @@ const __pamRouteHandler = async (req, res) => {
         baseline = full.baseline;
         legalAcceptance = full.legalAcceptance;
       }
+      // Decision memory follows the user across devices.
+      if (hasSupabaseConfig()) {
+        const runs = await findScenarioRunsByAccountId(account.id, 8).catch(() => []);
+        decisions = runs.map((r) => r?.result).filter((entry) => entry && typeof entry === "object");
+      }
     }
     return sendJson(res, 200, {
       ok: Boolean(account),
       account,
       baseline,
       legalAcceptance,
-      subscription
+      subscription,
+      decisions
     });
   }
 
@@ -174,6 +191,34 @@ const __pamRouteHandler = async (req, res) => {
         message: "Demo access unlocked.",
         expiresDays: 30
       });
+    }
+
+    if (req.body?.action === "save_decision") {
+      const body = validatePayload(req.body, saveDecisionSchema, "request body");
+      const account = await resolveAccount(req);
+      if (!account?.id) {
+        return sendJson(res, 401, { ok: false, error: "Sign in to save decisions." });
+      }
+      if (
+        !checkRateLimit(req, res, {
+          routeKey: "account:session:decision",
+          userKey: account.emailAddress || account.id,
+          ipLimit: { windowMs: 60 * 1000, max: 40 },
+          userLimit: { windowMs: 60 * 1000, max: 20 }
+        })
+      ) {
+        return;
+      }
+      let stored = "local_only";
+      if (hasSupabaseConfig()) {
+        try {
+          await insertScenarioRun({ accountId: account.id, question: body.question, result: body.entry });
+          stored = "supabase";
+        } catch (_error) {
+          stored = "schema_pending";
+        }
+      }
+      return sendJson(res, 200, { ok: true, stored });
     }
 
     if (req.body?.action === "save_baseline") {

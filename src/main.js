@@ -976,6 +976,38 @@ function recordDecisionHistory(result) {
   const entry = getDecisionMemoryEntry(result);
   const withoutDuplicate = state.decisionHistory.filter((item) => item.question !== entry.question);
   saveDecisionHistory([entry, ...withoutDuplicate]);
+  // Persist server-side so the decision arc follows the user across devices.
+  persistDecisionToServer(entry);
+}
+
+// Merge server-stored decisions with anything still only in this browser
+// (server is the source of truth; local-only entries are kept and capped).
+function seedDecisionHistoryFromServer(serverDecisions) {
+  const valid = (serverDecisions || []).filter((d) => d && d.question);
+  if (!valid.length) return;
+  const localOnly = (state.decisionHistory || []).filter((l) => !valid.some((s) => s.question === l.question));
+  saveDecisionHistory([...valid, ...localOnly].slice(0, 12));
+}
+
+// Best-effort save of one decision to Supabase. localStorage already holds it,
+// so a failure here never blocks the user.
+async function persistDecisionToServer(entry) {
+  if (!entry || !hasPrototypeAccount()) return;
+  try {
+    const headers = await buildAuthHeaders();
+    await fetch("/api/account/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({
+        action: "save_decision",
+        question: entry.question,
+        entry,
+        sessionToken: state.sessionToken || undefined
+      })
+    });
+  } catch (_error) {
+    // Device-local history is intact; cross-device sync can catch up later.
+  }
 }
 
 function saveCurrentScenario() {
@@ -1503,6 +1535,9 @@ async function restoreSessionAccount() {
     if (payload?.legalAcceptance) {
       saveLegalAcceptance(payload.legalAcceptance);
     }
+    if (Array.isArray(payload?.decisions) && payload.decisions.length) {
+      seedDecisionHistoryFromServer(payload.decisions);
+    }
     try {
       if (state.cookieConsent === "accepted" && clerkAccount.id && window.posthog?.identify) {
         window.posthog.identify(clerkAccount.id, { email: clerkAccount.emailAddress, name: clerkAccount.firstName });
@@ -1529,6 +1564,9 @@ async function restoreSessionAccount() {
   }
   if (payload.legalAcceptance) {
     saveLegalAcceptance(payload.legalAcceptance);
+  }
+  if (Array.isArray(payload.decisions) && payload.decisions.length) {
+    seedDecisionHistoryFromServer(payload.decisions);
   }
   try {
     if (state.cookieConsent === "accepted" && payload.account?.id && window.posthog?.identify) {

@@ -252,6 +252,31 @@ async function findBaselineByAccountId(accountId) {
   return rows?.[0]?.baseline || null;
 }
 
+// Decision memory: persist each analyzed decision so a user's history (which
+// feeds the AI's "build on the arc" continuity) follows them across devices,
+// not just the browser. `result` holds the compact memory entry.
+async function insertScenarioRun({ accountId, question, result }) {
+  if (!accountId || !question) return;
+  await supabaseRequest("pam_scenario_runs", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      account_id: accountId,
+      question: String(question).slice(0, 500),
+      result: result || null,
+      created_at: new Date().toISOString()
+    })
+  });
+}
+
+async function findScenarioRunsByAccountId(accountId, limit = 8) {
+  if (!accountId) return [];
+  const rows = await supabaseRequest(
+    `pam_scenario_runs?account_id=eq.${encodeFilter(accountId)}&select=question,result,created_at&order=created_at.desc&limit=${Math.max(1, Math.min(Number(limit) || 8, 20))}`
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
 async function upsertPlaidItem({ accountId, plaidItemId = "", institutionName = "", accessTokenReference = "" }) {
   if (!accountId || !accessTokenReference) return null;
 
@@ -434,6 +459,8 @@ module.exports = {
   insertLegalAcceptance,
   insertVerificationRequest,
   insertTelemetryEvent,
+  insertScenarioRun,
+  findScenarioRunsByAccountId,
   insertAccount,
   isRecoverableSupabaseStorageError,
   updateAccountPassword,
