@@ -307,6 +307,10 @@ function buildInput(payload) {
 
   const values = baseline?.userValues && typeof baseline.userValues === "object" ? baseline.userValues : null;
   const insights = baseline?.valuesInsights && typeof baseline.valuesInsights === "object" ? baseline.valuesInsights : null;
+  const fin = baseline?.financialSummary && typeof baseline.financialSummary === "object" ? baseline.financialSummary : null;
+  const financialLine = fin
+    ? `Net worth ${fin.netWorth} (assets ${fin.totalAssets} minus debt ${fin.totalLiabilities}) across ${fin.accountCount} connected account(s). Liquid cash ${fin.liquidCash}, investments ${fin.investments}, money LOCKED in retirement accounts ${fin.lockedRetirement}. Accounts: ${Array.isArray(fin.accounts) ? fin.accounts.map((a) => `${sanitizeString(String(a.name))} (${sanitizeString(String(a.type))}) ${a.balance}`).join(", ") : ""}`
+    : "";
   const recentDecisions = Array.isArray(baseline?.recentDecisions) ? baseline.recentDecisions.slice(0, 4) : [];
   const recentDecisionsLine = recentDecisions.length
     ? recentDecisions.map((d) => `"${sanitizeString(String(d.question || ""))}" (${sanitizeString(String(d.when || "recently"))}, ${sanitizeString(String(d.risk || ""))} risk, buffer left ${sanitizeString(String(d.newBuffer ?? ""))}${d.goalDelay ? `, delayed a goal ${sanitizeString(String(d.goalDelay))}mo` : ""})`).join(" | ")
@@ -381,6 +385,7 @@ function buildInput(payload) {
             `Monthly expenses: ${sanitizeString(String(baseline?.expenses?.monthlyExpenses ?? ""), "unknown")}`,
             `Monthly obligations: ${sanitizeString(String(baseline?.obligations?.monthlyDebtPayments ?? ""), "unknown")}`,
             `Current savings: ${sanitizeString(String(baseline?.savings?.currentSavings ?? baseline?.savings?.savingsBalance ?? ""), "unknown")}`,
+            financialLine ? `Connected financial picture (deterministic — use these real numbers): ${financialLine}` : "",
             `Estimated income tax rate: ${sanitizeString(String(baseline?.tax?.estimatedIncomeTaxRate ?? ""), "unknown")}`,
             `Payroll/self-employment tax estimate: ${sanitizeString(String(baseline?.tax?.payrollTaxRate ?? ""), "unknown")}`,
             `Combined tax/payroll estimate: ${sanitizeString(String(baseline?.tax?.combinedTaxRate ?? ""), "unknown")}`,

@@ -1944,6 +1944,36 @@ function buildRecentDecisionsForAI(currentQuestion = "") {
     }));
 }
 
+// A deterministic financial summary so the AI sees net worth and account
+// COMPOSITION (liquid cash vs investments vs money locked in retirement
+// accounts), not just a single savings number. Composition drives strategist
+// calls — e.g. 401(k)-vs-early-retirement depends on how much is already locked.
+function buildFinancialSummaryForAI(baseline) {
+  const accounts = getConnectedAccounts(baseline);
+  if (!accounts.length) return null;
+  const liabilities = Array.isArray(baseline?.obligations?.liabilities) ? baseline.obligations.liabilities : [];
+  const isType = (a, re) => re.test(String(a.type || "") + " " + String(a.subtype || "") + " " + String(a.name || ""));
+  const sum = (list, re) => list.filter((a) => isType(a, re)).reduce((t, a) => t + toNumber(a.current, 0), 0);
+
+  const checking = sum(accounts, /checking/i);
+  const savings = sum(accounts, /saving/i);
+  const lockedRetirement = sum(accounts, /401|ira|retire|pension|403b/i);
+  const investments = sum(accounts, /invest|brokerage|securities|mutual/i);
+  const totalAssets = accounts.reduce((t, a) => t + toNumber(a.current, 0), 0);
+  const totalLiabilities = liabilities.reduce((t, l) => t + toNumber(l.balance, 0), 0);
+
+  return {
+    netWorth: Math.round(totalAssets - totalLiabilities),
+    totalAssets: Math.round(totalAssets),
+    totalLiabilities: Math.round(totalLiabilities),
+    liquidCash: Math.round(checking + savings),
+    investments: Math.round(investments),
+    lockedRetirement: Math.round(lockedRetirement),
+    accountCount: accounts.length,
+    accounts: accounts.slice(0, 6).map((a) => ({ name: a.name || "Account", type: a.type || "", balance: Math.round(toNumber(a.current, 0)) }))
+  };
+}
+
 function getConnectedSnapshot(baseline) {
   return {
     source: baseline.source,
@@ -1959,7 +1989,8 @@ function getConnectedSnapshot(baseline) {
     goals: baseline.goals,
     userValues: state.userValues || null,
     valuesInsights: buildValuesInsightsForAI(),
-    recentDecisions: buildRecentDecisionsForAI(state.question)
+    recentDecisions: buildRecentDecisionsForAI(state.question),
+    financialSummary: buildFinancialSummaryForAI(baseline)
   };
 }
 
