@@ -1913,6 +1913,37 @@ function buildValuesInsightsForAI() {
   return Object.keys(insights).length ? insights : null;
 }
 
+// A short, human-relative label for how long ago a decision was made.
+function relativeTimeLabel(iso) {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "recently";
+  const days = Math.floor((Date.now() - then) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.floor(days / 7)} week${days < 14 ? "" : "s"} ago`;
+  return `${Math.floor(days / 30)} month${days < 60 ? "" : "s"} ago`;
+}
+
+// The last few decisions PAM has already modeled for this person, so the AI can
+// build on the arc ("last week you weighed the NYC move…") instead of treating
+// every question as the first. Excludes the current question.
+function buildRecentDecisionsForAI(currentQuestion = "") {
+  const current = String(currentQuestion || "").trim().toLowerCase();
+  return (state.decisionHistory || [])
+    .filter((d) => String(d.question || "").trim().toLowerCase() !== current)
+    .slice(0, 4)
+    .map((d) => ({
+      question: d.question,
+      when: relativeTimeLabel(d.createdAt),
+      risk: d.risk,
+      monthlyImpact: d.monthlyImpact,
+      newBuffer: d.newBuffer,
+      goalDelay: d.goalDelay,
+      mostImpactedGoal: d.mostImpactedGoal
+    }));
+}
+
 function getConnectedSnapshot(baseline) {
   return {
     source: baseline.source,
@@ -1927,7 +1958,8 @@ function getConnectedSnapshot(baseline) {
     tax: baseline.tax,
     goals: baseline.goals,
     userValues: state.userValues || null,
-    valuesInsights: buildValuesInsightsForAI()
+    valuesInsights: buildValuesInsightsForAI(),
+    recentDecisions: buildRecentDecisionsForAI(state.question)
   };
 }
 
