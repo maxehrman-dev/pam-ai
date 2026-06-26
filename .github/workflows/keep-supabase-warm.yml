@@ -1,0 +1,36 @@
+name: Keep Supabase warm
+
+# Supabase free tier pauses a project after ~7 days with no database activity.
+# This pings PAM's status endpoint (which runs a real `select` against
+# pam_accounts) on a schedule, independent of Vercel's best-effort Hobby cron,
+# so the database never goes idle long enough to pause.
+
+on:
+  schedule:
+    # Every 6 hours (4x/day) — plenty of margin under the 7-day pause window.
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {} # lets you run it manually from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping keep-alive endpoint
+        run: |
+          set -euo pipefail
+          URL="https://pamadvisor.com/api/integrations/status"
+          echo "Pinging $URL"
+          RESPONSE=$(curl -sS -w "\n%{http_code}" "$URL")
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          CODE=$(echo "$RESPONSE" | tail -n 1)
+          echo "HTTP $CODE"
+          echo "$BODY"
+          if [ "$CODE" != "200" ]; then
+            echo "::error::Keep-alive returned HTTP $CODE"
+            exit 1
+          fi
+          # Fail loudly if Supabase reports it is not connected, so a paused or
+          # broken database surfaces in the Actions log instead of silently.
+          if echo "$BODY" | grep -q '"connected":false'; then
+            echo "::warning::Supabase reported connected:false — it may be paused or schema is pending."
+          fi
