@@ -3802,6 +3802,42 @@ function renderWorkspaceHub() {
   `;
 }
 
+// Standalone sign-in / create-account page for signed-out visitors: a clean
+// split (value prop + sample answer on the left, the auth card on the right),
+// not the cluttered workspace shell with its tabs and triple headings.
+function renderAuthPage() {
+  return `
+    <div class="foresee-shell auth-standalone">
+      ${renderDisclaimerBanner()}
+      <header class="marketing-nav">
+        <a class="foresee-brand" href="/" aria-label="PAM AI home">
+          <span>PAM</span>
+          <div><strong>PAM AI</strong><small>Personal Asset Manager</small></div>
+        </a>
+        <button class="page-back-button" type="button" data-open-view="landing" aria-label="Back to landing">← Back</button>
+      </header>
+      <div class="auth-split">
+        <div class="auth-value">
+          <div class="marketing-eyebrow">Your personal financial adviser</div>
+          <h1>Set up PAM in about two minutes.</h1>
+          <p class="auth-value-sub">Create your account, connect your money (or try sample data), and start getting straight, numbers-backed calls on your real decisions.</p>
+          <ul class="auth-value-list">
+            <li><strong>Free to join.</strong> Founding members lock in founding pricing for life.</li>
+            <li><strong>Your data stays yours.</strong> Bank-grade connection; never sold, never used to train models.</li>
+            <li><strong>Cancel anytime.</strong> No advisor minimums, no AUM fees.</li>
+          </ul>
+          <div class="auth-value-card">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
+        </div>
+        <div class="auth-form-side">
+          ${renderBaselinePanel()}
+        </div>
+      </div>
+      ${renderLegalFooter()}
+      ${renderCookieConsentBanner()}
+    </div>
+  `;
+}
+
 function renderAccountPage() {
   return `
     <section class="auth-page-shell">
@@ -5692,7 +5728,15 @@ function renderMarketingSampleCard(ex) {
   `;
 }
 
-function renderPublicLaunchGate() {
+function renderPublicLaunchGate(mode = "public") {
+  // "public" = stranger with no access -> Get started joins the waitlist.
+  // "app" = visitor who can reach the app (e.g. demo access) -> Get started /
+  // Sign in lead to the create-account / sign-in page for onboarding.
+  const isApp = mode === "app";
+  const primaryAttr = isApp ? `data-open-view="account"` : `data-open-waitlist`;
+  const primaryLabel = isApp ? "Create account" : (state.waitlistJoined ? "You're on the list" : "Get started");
+  const heroPrimaryLabel = isApp ? "Create your account →" : (state.waitlistJoined ? "You're on the list ✓" : "Get started →");
+  const signinAttr = isApp ? `data-open-view="account"` : `data-reveal-beta`;
   const features = [
     { icon: "📊", title: "Test decisions before you make them", body: "See the real impact on your monthly buffer, taxes, savings, and goals — before you commit, not after." },
     { icon: "🎯", title: "It knows your whole game", body: "Your retirement target, your career path, what you'd move for, your safety net. Advice judged against your life, not just this month's balance." },
@@ -5708,8 +5752,8 @@ function renderPublicLaunchGate() {
           <div><strong>PAM AI</strong><small>Personal Asset Manager</small></div>
         </a>
         <div class="marketing-nav-actions">
-          <button class="marketing-signin-link" type="button" data-reveal-beta>Sign in</button>
-          <button class="button button-primary" type="button" data-open-waitlist>${state.waitlistJoined ? "You're on the list" : "Get started"}</button>
+          <button class="marketing-signin-link" type="button" ${signinAttr}>Sign in</button>
+          <button class="button button-primary" type="button" ${primaryAttr}>${primaryLabel}</button>
         </div>
       </header>
 
@@ -5719,7 +5763,7 @@ function renderPublicLaunchGate() {
           <h1>Know what happens <em>before</em> you decide.</h1>
           <p class="marketing-sub">It's like having a sharp financial adviser who's actually seen your bank account and your goals — before you can afford a real one. Ask PAM any money move and get a straight, numbers-backed call. Not generic advice. Yours.</p>
           <div class="marketing-hero-actions">
-            <button class="button button-primary marketing-btn-lg" type="button" data-open-waitlist>${state.waitlistJoined ? "You're on the list ✓" : "Get started →"}</button>
+            <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
             <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See it in action</button>
           </div>
           <p class="marketing-hero-note">Free to join · Built for young adults before traditional advisors make sense</p>
@@ -5804,7 +5848,7 @@ function renderPublicLaunchGate() {
             "Am I saving enough to retire at 50?",
             "Should I buy a place or keep renting?",
             "Can I take this trip without wrecking my goal?"
-          ].map((q) => `<button type="button" class="marketing-ask-chip" data-open-waitlist>"${escapeHtml(q)}"</button>`).join("")}
+          ].map((q) => `<button type="button" class="marketing-ask-chip" ${primaryAttr}>"${escapeHtml(q)}"</button>`).join("")}
         </div>
       </section>
 
@@ -5812,9 +5856,10 @@ function renderPublicLaunchGate() {
         <div class="panel-kicker">Coming soon</div>
         <h2>Built for people making their first big money calls.</h2>
         <p class="marketing-soon">Real stories land here as the beta opens. Want to be one of them?</p>
-        <button class="button button-primary marketing-btn-lg" type="button" data-open-waitlist>${state.waitlistJoined ? "You're on the list ✓" : "Get started →"}</button>
+        <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
       </section>
 
+      ${isApp ? "" : `
       <section class="marketing-section marketing-beta-section">
         <details class="marketing-beta" id="beta-access" ${state.demoAccessMessage ? "open" : ""}>
           <summary>Returning member or have a beta code?</summary>
@@ -5828,6 +5873,7 @@ function renderPublicLaunchGate() {
           ${state.demoAccessMessage ? `<p class="auth-status-message launch-gate-message">${escapeHtml(state.demoAccessMessage)}</p>` : ""}
         </details>
       </section>
+      `}
 
       ${renderLegalFooter()}
       ${renderCookieConsentBanner()}
@@ -5856,7 +5902,15 @@ function render() {
     return;
   }
   if (shouldShowPublicLaunchGate()) {
-    app.innerHTML = renderPublicLaunchGate();
+    app.innerHTML = renderPublicLaunchGate("public");
+    wireInteractions();
+    return;
+  }
+  // Signed-out visitors (who already have access, e.g. demo) get the marketing
+  // landing — never the old in-app homepage. The explicit account view drops
+  // them into the clean standalone sign-in / create-account page.
+  if (!hasPrototypeAccount()) {
+    app.innerHTML = state.workspaceView === "account" ? renderAuthPage() : renderPublicLaunchGate("app");
     wireInteractions();
     return;
   }

@@ -6375,6 +6375,41 @@ textarea::placeholder {
 .marketing-example-grid .marketing-sample-card { height: 100%; }
 .marketing-example-grid > div:nth-child(2) { transition-delay: 0.1s; }
 
+/* Standalone auth page (sign in / create account) */
+.auth-standalone { max-width: 1180px; margin: 0 auto; padding: 0 20px 60px; }
+.auth-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  padding: clamp(28px, 5vw, 64px) 0;
+}
+.auth-value h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--forest);
+  margin: 12px 0 16px;
+}
+.auth-value-sub { color: var(--ink-3); font-size: 1.05rem; line-height: 1.55; margin: 0 0 22px; max-width: 42ch; }
+.auth-value-list { list-style: none; padding: 0; margin: 0 0 26px; display: grid; gap: 12px; }
+.auth-value-list li { color: var(--ink-3); line-height: 1.5; padding-left: 26px; position: relative; }
+.auth-value-list li::before { content: "✓"; position: absolute; left: 0; color: var(--mint-4); font-weight: 800; }
+.auth-value-list strong { color: var(--forest); }
+.auth-value-card { max-width: 420px; }
+.auth-form-side .baseline-panel,
+.auth-form-side .account-setup-panel {
+  background: var(--pam-surface-strong);
+  border: 1px solid var(--pam-border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-soft);
+  padding: clamp(20px, 3vw, 34px);
+}
+@media (max-width: 860px) {
+  .auth-split { grid-template-columns: 1fr; }
+  .auth-value-card { display: none; }
+}
+
 /* Advisor section */
 .marketing-advisor-grid {
   display: grid;
