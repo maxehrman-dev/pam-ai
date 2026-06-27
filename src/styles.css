@@ -6375,6 +6375,53 @@ textarea::placeholder {
 .marketing-example-grid .marketing-sample-card { height: 100%; }
 .marketing-example-grid > div:nth-child(2) { transition-delay: 0.1s; }
 
+/* Advisor section */
+.marketing-advisor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+.marketing-advisor-point {
+  background: var(--pam-surface);
+  border: 1px solid var(--pam-border);
+  border-radius: 20px;
+  padding: 24px;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
+}
+.marketing-advisor-point:hover { transform: translateY(-4px); box-shadow: var(--pam-contrast-shadow); }
+.marketing-advisor-icon { font-size: 1.6rem; margin-bottom: 10px; }
+.marketing-advisor-point h3 { font-size: 1.12rem; color: var(--forest); margin: 0 0 6px; }
+.marketing-advisor-point p { color: var(--ink-3); line-height: 1.5; margin: 0; }
+
+/* Ask chips */
+.marketing-asks { text-align: center; }
+.marketing-ask-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  max-width: 880px;
+  margin: 0 auto;
+}
+.marketing-ask-chip {
+  background: var(--pam-surface);
+  border: 1px solid var(--pam-border-strong);
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--forest);
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), background 0.25s ease, box-shadow 0.25s ease;
+}
+.marketing-ask-chip:hover {
+  transform: translateY(-3px) scale(1.03);
+  background: var(--pam-surface-tint);
+  box-shadow: var(--pam-contrast-shadow);
+}
+
 .marketing-testimonials { text-align: center; }
 .marketing-testimonials h2 { font-size: clamp(1.6rem, 3vw, 2.3rem); color: var(--forest); margin: 8px 0 12px; letter-spacing: -0.02em; }
 .marketing-soon { color: var(--ink-2); margin: 0 0 24px; }
@@ -6414,6 +6461,22 @@ textarea::placeholder {
 /* Variant: simple rise (used on copy/headings) */
 .reveal-on-scroll.reveal-up { transform: translateY(34px); }
 
+/* Variant: slide in from the sides (alternating, for a livelier cascade) */
+.reveal-on-scroll.reveal-left { transform: translateX(-48px); }
+.reveal-on-scroll.reveal-right { transform: translateX(48px); }
+.reveal-on-scroll.reveal-left.is-visible,
+.reveal-on-scroll.reveal-right.is-visible { transform: none; }
+
+/* Variant: fade only (no transform, so the parallax child can move freely) */
+.reveal-on-scroll.reveal-fade,
+.reveal-on-scroll.reveal-fade.is-visible { transform: none; }
+
+/* Parallax drift (set by JS via --parallax); transform-only, GPU-friendly */
+.marketing-parallax {
+  transform: translateY(var(--parallax, 0));
+  will-change: transform;
+}
+
 /* The hero answer card gently floats once revealed — feels alive, not static */
 @keyframes marketing-float {
   0%, 100% { transform: translateY(0); }
@@ -6441,7 +6504,14 @@ textarea::placeholder {
 @media (prefers-reduced-motion: reduce) {
   .reveal-on-scroll { opacity: 1; transform: none; filter: none; transition: none; }
   .marketing-hero-visual.is-visible .marketing-sample-card { animation: none; }
-  .marketing-feature-card:hover { transform: none; }
+  .marketing-parallax { transform: none; }
+  .marketing-feature-card:hover,
+  .marketing-advisor-point:hover,
+  .marketing-ask-chip:hover { transform: none; }
+}
+
+@media (max-width: 860px) {
+  .marketing-advisor-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 860px) {

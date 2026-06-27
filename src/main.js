@@ -5724,8 +5724,10 @@ function renderPublicLaunchGate() {
           </div>
           <p class="marketing-hero-note">Free to join · Built for young adults before traditional advisors make sense</p>
         </div>
-        <div class="marketing-hero-visual reveal-on-scroll reveal-scale">
-          ${renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)}
+        <div class="marketing-hero-visual reveal-on-scroll reveal-fade">
+          <div class="marketing-parallax" data-parallax="0.06">
+            ${renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)}
+          </div>
         </div>
       </section>
 
@@ -5735,8 +5737,8 @@ function renderPublicLaunchGate() {
           <h2>A sharp friend who's seen your bank account <em>and</em> your ambitions.</h2>
         </div>
         <div class="marketing-feature-grid">
-          ${features.map((f) => `
-            <article class="marketing-feature-card reveal-on-scroll">
+          ${features.map((f, i) => `
+            <article class="marketing-feature-card reveal-on-scroll ${i % 2 === 0 ? "reveal-left" : "reveal-right"}">
               <div class="marketing-feature-icon" aria-hidden="true">${f.icon}</div>
               <h3>${escapeHtml(f.title)}</h3>
               <p>${escapeHtml(f.body)}</p>
@@ -5754,6 +5756,55 @@ function renderPublicLaunchGate() {
         <div class="marketing-example-grid">
           <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
           <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)}</div>
+        </div>
+      </section>
+
+      <section class="marketing-section marketing-advisor">
+        <div class="marketing-section-head reveal-on-scroll reveal-up">
+          <div class="panel-kicker">Why it's different</div>
+          <h2>The advisor you can't afford yet — <em>until now</em>.</h2>
+          <p class="marketing-section-sub">A real financial advisor charges ~1% of everything you own and won't take your call until you're already rich. PAM gives you that same judgment — built on your actual numbers — from day one.</p>
+        </div>
+        <div class="marketing-advisor-grid">
+          <div class="marketing-advisor-point reveal-on-scroll reveal-left">
+            <div class="marketing-advisor-icon" aria-hidden="true">👀</div>
+            <h3>Sees your whole picture</h3>
+            <p>Income, spending, debt, what's locked in retirement, your goals — a real advisor's view, not a budgeting app's.</p>
+          </div>
+          <div class="marketing-advisor-point reveal-on-scroll reveal-right">
+            <div class="marketing-advisor-icon" aria-hidden="true">🕐</div>
+            <h3>There the moment you're deciding</h3>
+            <p>2am, mid-offer, standing in the dealership — ask and get a real call instantly. No appointment, no minimum.</p>
+          </div>
+          <div class="marketing-advisor-point reveal-on-scroll reveal-left">
+            <div class="marketing-advisor-icon" aria-hidden="true">🎯</div>
+            <h3>Brutally honest, never on commission</h3>
+            <p>No products to sell you, no kickbacks. Just the straight call — including "don't" and "not yet."</p>
+          </div>
+          <div class="marketing-advisor-point reveal-on-scroll reveal-right">
+            <div class="marketing-advisor-icon" aria-hidden="true">🧠</div>
+            <h3>Remembers every conversation</h3>
+            <p>It builds on your last decision the way a human advisor who's known you for years would.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="marketing-section marketing-asks reveal-on-scroll reveal-up">
+        <div class="marketing-section-head">
+          <div class="panel-kicker">People ask PAM…</div>
+          <h2>Big calls and everyday ones.</h2>
+        </div>
+        <div class="marketing-ask-chips">
+          ${[
+            "Can I afford to move out this year?",
+            "Should I take the higher-paying job in a new city?",
+            "Pay off my loans or start investing?",
+            "Is grad school actually worth it?",
+            "Can I afford this $400/mo car?",
+            "Am I saving enough to retire at 50?",
+            "Should I buy a place or keep renting?",
+            "Can I take this trip without wrecking my goal?"
+          ].map((q) => `<button type="button" class="marketing-ask-chip" data-open-waitlist>"${escapeHtml(q)}"</button>`).join("")}
         </div>
       </section>
 
@@ -5912,6 +5963,26 @@ function wireInteractions() {
       });
     }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
     revealEls.forEach((el) => io.observe(el));
+
+    // Lightweight parallax: drift [data-parallax] elements as you scroll. rAF
+    // throttled, transform-only. Skipped entirely under reduced-motion.
+    const parallaxEls = document.querySelectorAll("[data-parallax]");
+    if (parallaxEls.length) {
+      let ticking = false;
+      const apply = () => {
+        const vh = window.innerHeight || 1;
+        parallaxEls.forEach((el) => {
+          const factor = parseFloat(el.getAttribute("data-parallax")) || 0.06;
+          const rect = el.getBoundingClientRect();
+          const fromCenter = (rect.top + rect.height / 2) - vh / 2;
+          el.style.setProperty("--parallax", `${(-fromCenter * factor).toFixed(1)}px`);
+        });
+        ticking = false;
+      };
+      const onScroll = () => { if (!ticking) { ticking = true; window.requestAnimationFrame(apply); } };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      apply();
+    }
   })();
   document.querySelectorAll("[data-go-back]").forEach((button) => {
     button.addEventListener("click", () => {
