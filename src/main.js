@@ -3820,11 +3820,11 @@ function renderAuthPage() {
         <div class="auth-value">
           <div class="marketing-eyebrow">Your personal financial adviser</div>
           <h1>Set up PAM in about two minutes.</h1>
-          <p class="auth-value-sub">Create your account, connect your money (or try sample data), and start getting straight, numbers-backed calls on your real decisions.</p>
+          <p class="auth-value-sub">Set up your profile and try sample data free. You only pay when you connect real money and start modeling decisions.</p>
           <ul class="auth-value-list">
-            <li><strong>Free to join.</strong> Founding members lock in founding pricing for life.</li>
+            <li><strong>$7.99/mo founding price</strong>, locked for life ($9.99 after launch). Cancel anytime.</li>
+            <li><strong>Free to start.</strong> Build your profile before you pay a cent.</li>
             <li><strong>Your data stays yours.</strong> Bank-grade connection; never sold, never used to train models.</li>
-            <li><strong>Cancel anytime.</strong> No advisor minimums, no AUM fees.</li>
           </ul>
           <div class="auth-value-card">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
         </div>
@@ -5078,10 +5078,10 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
 function renderPlaidTrustNote() {
   return `
     <ul class="plaid-trust-list">
-      <li><span class="plaid-trust-icon">🔒</span> Bank-grade encryption via Plaid, used by Venmo, SoFi, and Chime</li>
-      <li><span class="plaid-trust-icon">👁️</span> Read-only access — PAM can never move or touch your money</li>
-      <li><span class="plaid-trust-icon">🔑</span> PAM never sees your bank login. You enter it with Plaid, not us</li>
-      <li><span class="plaid-trust-icon">⏏️</span> Disconnect anytime from your profile</li>
+      <li>Bank-grade encryption via Plaid, used by Venmo, SoFi, and Chime</li>
+      <li>Read-only access — PAM can never move or touch your money</li>
+      <li>PAM never sees your bank login. You enter it with Plaid, not us</li>
+      <li>Disconnect anytime from your profile</li>
     </ul>
   `;
 }
@@ -5111,16 +5111,17 @@ function renderBaselinePanel() {
     return `
       <section class="baseline-panel account-setup-panel auth-clean" id="baseline-section">
         <div class="panel-kicker">Get started</div>
-        <h2>Create your free account</h2>
-        <p class="auth-clean-sub">Start modeling your real money decisions in about two minutes.</p>
+        <h2>Start your account</h2>
+        <p class="auth-clean-sub">Set up your profile free — you only pay when you start running real decisions.</p>
         <div class="auth-clean-actions">
-          <button class="button button-primary auth-clean-primary" type="button" data-clerk-signup>Create account →</button>
+          <button class="button button-primary auth-clean-primary" type="button" data-clerk-signup>Start free →</button>
           <button class="auth-clean-link" type="button" data-clerk-signin>Already have an account? <strong>Sign in</strong></button>
         </div>
+        <p class="auth-clean-price">Then <strong>$7.99/mo</strong> for founding members ($9.99 after launch) · cancel anytime</p>
         <ul class="auth-clean-trust">
-          <li>🔒 Bank-grade security</li>
-          <li>💳 No credit card to start</li>
-          <li>🚫 Never sold or used to train AI</li>
+          <li>Bank-grade security</li>
+          <li>No card to set up your profile</li>
+          <li>Never sold or used to train AI</li>
         </ul>
         <p class="auth-clean-legal">By continuing you agree to PAM's <a href="/terms">Terms</a> &amp; <a href="/privacy">Privacy</a>. Educational modeling, not licensed financial advice.</p>
       </section>
@@ -5687,21 +5688,31 @@ const MARKETING_EXAMPLES = {
   moveout: {
     q: "Can I afford to move out? Rent would be $1,800.",
     verdict: "Yes — but cap it at $1,650.",
-    body: "At $1,800 your monthly buffer drops to $240 — too thin if anything breaks. Trim to $1,650 and you keep a real cushion and still hit your savings goal on time.",
+    body: "At $1,800 your monthly cushion drops to $240 — too thin if anything breaks. At $1,650 you keep a real buffer and still hit your savings goal on time.",
     stats: [
-      { label: "Buffer at $1,800", value: "$240" },
+      { label: "Cushion at $1,800", value: "$240" },
       { label: "Safer rent", value: "$1,650" },
-      { label: "Risk", value: "Medium" }
+      { label: "Verdict", value: "Doable" }
+    ]
+  },
+  debt: {
+    q: "Should I throw $18k at my student loans or invest it?",
+    verdict: "Invest most of it — your loan's only 4.5%.",
+    body: "Paying off a 4.5% loan is a guaranteed 4.5% return. Against your retire-at-60 goal, investing the bulk likely beats that and keeps the cash reachable. Keep paying the minimum, invest the rest.",
+    stats: [
+      { label: "Loan rate", value: "4.5%" },
+      { label: "Better use", value: "Invest" },
+      { label: "Stays liquid", value: "Yes" }
     ]
   },
   nyc: {
-    q: "I got a NYC finance offer at the same salary, but I'd have to move. Worth it?",
-    verdict: "On your numbers — it's worth the move.",
-    body: "Same salary isn't a lateral move in finance. NYC nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one buffer dips to $760 — here's the offset plan.",
+    q: "Same-salary job offer in a bigger city, but I'd have to move. Worth it?",
+    verdict: "On your numbers — make the move.",
+    body: "Same salary isn't a lateral move in your field. The bigger market nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one cushion dips to $760 — here's how to cover it.",
     stats: [
       { label: "Retire age", value: "61 → 55" },
       { label: "After cost of living", value: "+$22k/yr" },
-      { label: "Risk", value: "Medium" }
+      { label: "Verdict", value: "Move" }
     ]
   }
 };
@@ -5732,14 +5743,17 @@ function renderPublicLaunchGate(mode = "public") {
   // Sign in lead to the create-account / sign-in page for onboarding.
   const isApp = mode === "app";
   const primaryAttr = isApp ? `data-open-view="account"` : `data-open-waitlist`;
-  const primaryLabel = isApp ? "Create account" : (state.waitlistJoined ? "You're on the list" : "Get started");
-  const heroPrimaryLabel = isApp ? "Create your account →" : (state.waitlistJoined ? "You're on the list ✓" : "Get started →");
+  const primaryLabel = isApp ? "Start free" : (state.waitlistJoined ? "You're on the list" : "Get started");
+  const heroPrimaryLabel = isApp ? "Start free →" : (state.waitlistJoined ? "You're on the list ✓" : "Get started →");
   const signinAttr = isApp ? `data-open-view="account"` : `data-reveal-beta`;
+  const heroNote = isApp
+    ? "Set up your profile free — you only pay when you start modeling. $7.99/mo founding price ($9.99 after), cancel anytime."
+    : "Founding members lock in $7.99/mo for life ($9.99 after launch). Free to join the list.";
   const features = [
-    { icon: "📊", title: "Test decisions before you make them", body: "See the real impact on your monthly buffer, taxes, savings, and goals — before you commit, not after." },
-    { icon: "🎯", title: "It knows your whole game", body: "Your retirement target, your career path, what you'd move for, your safety net. Advice judged against your life, not just this month's balance." },
-    { icon: "⚡", title: "Bold, grounded calls", body: "Do it, don't, or not-yet — anchored to your actual numbers. No mushy \"it depends\" non-answers." },
-    { icon: "🧠", title: "Remembers your arc", body: "Every answer builds on your last. PAM doesn't forget you the moment you close the tab." }
+    { title: "Test decisions before you make them", body: "See the real impact on your monthly buffer, taxes, savings, and goals — before you commit, not after." },
+    { title: "It knows your whole game", body: "Your retirement target, your career path, what you'd move for, your safety net. Advice judged against your life, not just this month's balance." },
+    { title: "Bold, grounded calls", body: "Do it, don't, or not yet — anchored to your actual numbers. No mushy \"it depends\" non-answers." },
+    { title: "Remembers your arc", body: "Every answer builds on your last. PAM doesn't forget you the moment you close the tab." }
   ];
   return `
     <div class="foresee-shell marketing-shell">
@@ -5764,7 +5778,7 @@ function renderPublicLaunchGate(mode = "public") {
             <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
             <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See it in action</button>
           </div>
-          <p class="marketing-hero-note">Free to join · Built for young adults before traditional advisors make sense</p>
+          <p class="marketing-hero-note">${escapeHtml(heroNote)}</p>
         </div>
         <div class="marketing-hero-visual reveal-on-scroll reveal-fade">
           <div class="marketing-parallax" data-parallax="0.06">
@@ -5781,7 +5795,7 @@ function renderPublicLaunchGate(mode = "public") {
         <div class="marketing-feature-grid">
           ${features.map((f, i) => `
             <article class="marketing-feature-card reveal-on-scroll ${i % 2 === 0 ? "reveal-left" : "reveal-right"}">
-              <div class="marketing-feature-icon" aria-hidden="true">${f.icon}</div>
+              <span class="marketing-card-accent" aria-hidden="true"></span>
               <h3>${escapeHtml(f.title)}</h3>
               <p>${escapeHtml(f.body)}</p>
             </article>
@@ -5797,7 +5811,7 @@ function renderPublicLaunchGate(mode = "public") {
         </div>
         <div class="marketing-example-grid">
           <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
-          <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)}</div>
+          <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.debt)}</div>
         </div>
       </section>
 
@@ -5809,22 +5823,22 @@ function renderPublicLaunchGate(mode = "public") {
         </div>
         <div class="marketing-advisor-grid">
           <div class="marketing-advisor-point reveal-on-scroll reveal-left">
-            <div class="marketing-advisor-icon" aria-hidden="true">👀</div>
+            <span class="marketing-card-accent" aria-hidden="true"></span>
             <h3>Sees your whole picture</h3>
             <p>Income, spending, debt, what's locked in retirement, your goals — a real advisor's view, not a budgeting app's.</p>
           </div>
           <div class="marketing-advisor-point reveal-on-scroll reveal-right">
-            <div class="marketing-advisor-icon" aria-hidden="true">🕐</div>
+            <span class="marketing-card-accent" aria-hidden="true"></span>
             <h3>There the moment you're deciding</h3>
             <p>2am, mid-offer, standing in the dealership — ask and get a real call instantly. No appointment, no minimum.</p>
           </div>
           <div class="marketing-advisor-point reveal-on-scroll reveal-left">
-            <div class="marketing-advisor-icon" aria-hidden="true">🎯</div>
+            <span class="marketing-card-accent" aria-hidden="true"></span>
             <h3>Brutally honest, never on commission</h3>
             <p>No products to sell you, no kickbacks. Just the straight call — including "don't" and "not yet."</p>
           </div>
           <div class="marketing-advisor-point reveal-on-scroll reveal-right">
-            <div class="marketing-advisor-icon" aria-hidden="true">🧠</div>
+            <span class="marketing-card-accent" aria-hidden="true"></span>
             <h3>Remembers every conversation</h3>
             <p>It builds on your last decision the way a human advisor who's known you for years would.</p>
           </div>

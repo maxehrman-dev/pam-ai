@@ -3626,11 +3626,18 @@ input:disabled {
 
 .plaid-trust-list li {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
   color: var(--ink-3);
   font-size: 0.86rem;
   line-height: 1.35;
+}
+
+.plaid-trust-list li::before {
+  content: "✓";
+  color: var(--mint-4);
+  font-weight: 800;
+  flex: 0 0 auto;
 }
 
 .plaid-trust-icon {
@@ -6444,7 +6451,20 @@ textarea::placeholder {
   gap: 10px;
   border-top: 1px solid var(--pam-border);
 }
-.auth-clean-trust li { color: var(--ink-3); font-size: 0.92rem; }
+.auth-clean-trust li { color: var(--ink-3); font-size: 0.92rem; position: relative; padding-left: 22px; }
+.auth-clean-trust li::before { content: "✓"; position: absolute; left: 0; color: var(--mint-4); font-weight: 800; }
+.auth-clean-price { font-size: 0.9rem; color: var(--ink-3); margin: 0 0 20px; }
+.auth-clean-price strong { color: var(--forest); }
+
+/* Clean accent bar replacing the old emoji icons on marketing/advisor cards */
+.marketing-card-accent {
+  display: block;
+  width: 30px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--mint-4), var(--mint-5));
+  margin-bottom: 16px;
+}
 .auth-clean-legal { font-size: 0.78rem; line-height: 1.5; color: var(--ink-2); margin: 0; }
 .auth-clean-legal a { color: var(--mint-4); font-weight: 600; }
 
