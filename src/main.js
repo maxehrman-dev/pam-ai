@@ -5109,22 +5109,20 @@ function renderBaselinePanel() {
   const isLastStep = state.createAccountStep === CREATE_ACCOUNT_STEPS.length - 1;
   if (!isSignedIn && isClerkConfigured()) {
     return `
-      <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
+      <section class="baseline-panel account-setup-panel auth-clean" id="baseline-section">
         <div class="panel-kicker">Get started</div>
-        <h2>Create your account.</h2>
-        <div class="onboarding-layout">
-          <div class="baseline-form onboarding-form sandbox-connect-panel">
-            <div class="auth-shell">
-              <div class="auth-card clerk-auth-card">
-                <p>Sign in or create an account to start modeling your financial decisions.</p>
-                <div class="form-actions">
-                  <button class="button button-secondary" type="button" data-clerk-signin>Sign in</button>
-                  <button class="button button-primary" type="button" data-clerk-signup>Create account</button>
-                </div>
-              </div>
-            </div>
-          </div>
+        <h2>Create your free account</h2>
+        <p class="auth-clean-sub">Start modeling your real money decisions in about two minutes.</p>
+        <div class="auth-clean-actions">
+          <button class="button button-primary auth-clean-primary" type="button" data-clerk-signup>Create account →</button>
+          <button class="auth-clean-link" type="button" data-clerk-signin>Already have an account? <strong>Sign in</strong></button>
         </div>
+        <ul class="auth-clean-trust">
+          <li>🔒 Bank-grade security</li>
+          <li>💳 No credit card to start</li>
+          <li>🚫 Never sold or used to train AI</li>
+        </ul>
+        <p class="auth-clean-legal">By continuing you agree to PAM's <a href="/terms">Terms</a> &amp; <a href="/privacy">Privacy</a>. Educational modeling, not licensed financial advice.</p>
       </section>
     `;
   }
