@@ -458,9 +458,9 @@ function saveDemoAccess(expiresDays = 30) {
 }
 
 function shouldShowPublicLaunchGate() {
-  if (typeof window === "undefined") return false;
-  if (getLegalRoute() || isWaitlistRoute()) return false;
-  return !hasDemoAccess();
+  // Launch gate removed: the marketing landing is the public homepage and anyone
+  // can create an account. (To re-gate the beta, return !hasDemoAccess() here.)
+  return false;
 }
 
 function saveWaitlistJoined() {
@@ -3818,7 +3818,7 @@ function renderAuthPage() {
       </header>
       <div class="auth-split">
         <div class="auth-value">
-          <div class="marketing-eyebrow">Your personal financial adviser</div>
+          <div class="marketing-eyebrow">Your personal financial advisor</div>
           <h1>Set up PAM in about two minutes.</h1>
           <p class="auth-value-sub">Set up your profile and try sample data free. You only pay when you connect real money and start modeling decisions.</p>
           <ul class="auth-value-list">
@@ -5771,9 +5771,9 @@ function renderPublicLaunchGate(mode = "public") {
 
       <section class="marketing-hero">
         <div class="marketing-hero-copy reveal-on-scroll reveal-up">
-          <div class="marketing-eyebrow">Your personal financial adviser</div>
+          <div class="marketing-eyebrow">Your personal financial advisor</div>
           <h1>Know what happens <em>before</em> you decide.</h1>
-          <p class="marketing-sub">It's like having a sharp financial adviser who's actually seen your bank account and your goals — before you can afford a real one. Ask PAM any money move and get a straight, numbers-backed call. Not generic advice. Yours.</p>
+          <p class="marketing-sub">It's like having a sharp financial advisor who's actually seen your bank account and your goals — before you can afford a real one. Ask PAM any money move and get a straight, numbers-backed call. Not generic advice. Yours.</p>
           <div class="marketing-hero-actions">
             <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
             <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See it in action</button>
