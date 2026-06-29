@@ -3806,6 +3806,7 @@ function renderWorkspaceHub() {
 // split (value prop + sample answer on the left, the auth card on the right),
 // not the cluttered workspace shell with its tabs and triple headings.
 function renderAuthPage() {
+  const isSignin = state.authView === "signin";
   return `
     <div class="foresee-shell auth-standalone">
       ${renderDisclaimerBanner()}
@@ -3819,13 +3820,22 @@ function renderAuthPage() {
       <div class="auth-split">
         <div class="auth-value">
           <div class="marketing-eyebrow">Your personal financial advisor</div>
-          <h1>Set up PAM in about two minutes.</h1>
-          <p class="auth-value-sub">Set up your profile and try sample data free. You only pay when you connect real money and start modeling decisions.</p>
-          <ul class="auth-value-list">
-            <li><strong>$7.99/mo founding price</strong>, locked for life ($9.99 after launch). Cancel anytime.</li>
-            <li><strong>Free to start.</strong> Build your profile before you pay a cent.</li>
-            <li><strong>Your data stays yours.</strong> Bank-grade connection; never sold, never used to train models.</li>
-          </ul>
+          ${isSignin ? `
+            <h1>Welcome back.</h1>
+            <p class="auth-value-sub">Sign in to jump straight to your dashboard and what's changed since you were last here.</p>
+            <ul class="auth-value-list">
+              <li><strong>Right where you left off.</strong> Your goals, baseline, and saved decisions.</li>
+              <li><strong>What changed.</strong> PAM updates every call as your money moves.</li>
+            </ul>
+          ` : `
+            <h1>Set up PAM in about two minutes.</h1>
+            <p class="auth-value-sub">Set up your profile and try sample data free. You only pay when you connect real money and start modeling decisions.</p>
+            <ul class="auth-value-list">
+              <li><strong>$7.99/mo founding price</strong>, locked for life ($9.99 after launch). Cancel anytime.</li>
+              <li><strong>Free to start.</strong> Build your profile before you pay a cent.</li>
+              <li><strong>Your data stays yours.</strong> Bank-grade connection; never sold, never used to train models.</li>
+            </ul>
+          `}
           <div class="auth-value-card">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
         </div>
         <div class="auth-form-side">
@@ -5110,14 +5120,24 @@ function renderBaselinePanel() {
   if (!isSignedIn && isClerkConfigured()) {
     return `
       <section class="baseline-panel account-setup-panel auth-clean" id="baseline-section">
-        <div class="panel-kicker">Get started</div>
-        <h2>Start your account</h2>
-        <p class="auth-clean-sub">Set up your profile free — you only pay when you start running real decisions.</p>
-        <div class="auth-clean-actions">
-          <button class="button button-primary auth-clean-primary" type="button" data-clerk-signup>Start free →</button>
-          <button class="auth-clean-link" type="button" data-clerk-signin>Already have an account? <strong>Sign in</strong></button>
-        </div>
-        <p class="auth-clean-price">Then <strong>$7.99/mo</strong> for founding members ($9.99 after launch) · cancel anytime</p>
+        ${state.authView === "signin" ? `
+          <div class="panel-kicker">Welcome back</div>
+          <h2>Sign in</h2>
+          <p class="auth-clean-sub">Pick up right where you left off — straight to your dashboard and what's changed.</p>
+          <div class="auth-clean-actions">
+            <button class="button button-primary auth-clean-primary" type="button" data-clerk-signin>Sign in →</button>
+            <button class="auth-clean-link" type="button" data-clerk-signup>New to PAM? <strong>Start free</strong></button>
+          </div>
+        ` : `
+          <div class="panel-kicker">Get started</div>
+          <h2>Start your account</h2>
+          <p class="auth-clean-sub">Set up your profile free — you only pay when you start running real decisions.</p>
+          <div class="auth-clean-actions">
+            <button class="button button-primary auth-clean-primary" type="button" data-clerk-signup>Start free →</button>
+            <button class="auth-clean-link" type="button" data-clerk-signin>Already have an account? <strong>Sign in</strong></button>
+          </div>
+          <p class="auth-clean-price">Then <strong>$7.99/mo</strong> for founding members ($9.99 after launch) · cancel anytime</p>
+        `}
         <ul class="auth-clean-trust">
           <li>Bank-grade security</li>
           <li>No card to set up your profile</li>
