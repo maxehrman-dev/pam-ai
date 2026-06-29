@@ -5742,10 +5742,12 @@ function renderPublicLaunchGate(mode = "public") {
   // "app" = visitor who can reach the app (e.g. demo access) -> Get started /
   // Sign in lead to the create-account / sign-in page for onboarding.
   const isApp = mode === "app";
-  const primaryAttr = isApp ? `data-open-view="account"` : `data-open-waitlist`;
+  const primaryAttr = isApp ? `data-start-free` : `data-open-waitlist`;
   const primaryLabel = isApp ? "Start free" : (state.waitlistJoined ? "You're on the list" : "Get started");
   const heroPrimaryLabel = isApp ? "Start free →" : (state.waitlistJoined ? "You're on the list ✓" : "Get started →");
-  const signinAttr = isApp ? `data-open-view="account"` : `data-reveal-beta`;
+  // Sign in is a shortcut for returning users — straight to sign-in, NOT the
+  // create-account page that "Start free" opens.
+  const signinAttr = isApp ? `data-signin` : `data-reveal-beta`;
   const heroNote = isApp
     ? "Set up your profile free — you only pay when you start modeling. $7.99/mo founding price ($9.99 after), cancel anytime."
     : "Founding members lock in $7.99/mo for life ($9.99 after launch). Free to join the list.";
@@ -6008,6 +6010,27 @@ function wireInteractions() {
         details.scrollIntoView({ behavior: "smooth", block: "center" });
         details.querySelector("input")?.focus();
       }
+    });
+  });
+  // "Sign in" shortcut for returning users — straight to sign-in, not the
+  // create-account page. Clerk opens its sign-in directly; otherwise the auth
+  // page opens pre-set to sign-in mode.
+  document.querySelectorAll("[data-signin]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (isClerkMode() && window.Clerk?.openSignIn) {
+        window.Clerk.openSignIn();
+        return;
+      }
+      saveAuthView("signin");
+      openWorkspaceView("account");
+    });
+  });
+  // "Start free" — the create-account path: open the start-free page in create
+  // mode (not a sign-in shortcut).
+  document.querySelectorAll("[data-start-free]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveAuthView("create");
+      openWorkspaceView("account");
     });
   });
   // Scroll-reveal: fade/slide elements in as they enter the viewport. Respects
