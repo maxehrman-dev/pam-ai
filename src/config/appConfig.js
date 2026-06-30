@@ -21,6 +21,31 @@ export const PRIVACY_VERSION = "2026-05-18";
 export const LEGAL_DISCLAIMER =
   "PAM AI is a financial modeling tool, not a licensed financial advisor, investment adviser, tax professional, attorney, or RIA. Nothing in PAM is financial, tax, legal, or investment advice. Consult a qualified professional before making financial decisions.";
 
+// Trust section config. LEGAL OWNS THIS: each commitment must stay true in code.
+// Set verified:false to pull a line — a line with verified:false is never rendered.
+// Do NOT add absolute claims ("bank-grade", "100% safe", "unhackable").
+export const TRUST_COMMITMENTS = [
+  { text: "Read-only. PAM can't move, send, or trade a cent.", verified: true },
+  { text: "We never see your login. Plaid handles sign-in; PAM only receives the numbers.", verified: true },
+  { text: "We don't sell your data or share it with ad networks.", verified: true },
+  { text: "We don't train models on your financial data.", verified: true },
+  { text: "Disconnect anytime — one tap revokes access and wipes your connected data.", verified: true },
+  { text: "Encrypted in transit and at rest.", verified: true }
+];
+
+export const TRUST_TOUCHES = [
+  "Account balances",
+  "Transactions",
+  "Investments & liabilities"
+];
+
+export const TRUST_NEVER = [
+  "Your bank login or password — Plaid handles sign-in",
+  "Any ability to move money, trade, or transfer",
+  "Your data for ad targeting",
+  "Your data for training AI models"
+];
+
 export const WAITLIST_FOUNDING_NOTE =
   "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
 

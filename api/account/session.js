@@ -4,7 +4,8 @@ const { changePassword, clearSession, getSessionAccount, getSessionAccountWithBa
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, sanitizeText, validatePayload } = require("../_lib/security.js");
-const { findBaselineByAccountId, findLatestLegalAcceptanceByAccountId, findScenarioRunsByAccountId, findSubscriptionByClerkUserId, hasSupabaseConfig, insertLegalAcceptance, insertScenarioRun, insertTelemetryEvent, upsertBaseline } = require("../_lib/supabase.js");
+const { findBaselineByAccountId, findLatestLegalAcceptanceByAccountId, findPlaidItemsByAccountId, findScenarioRunsByAccountId, findSubscriptionByClerkUserId, hasSupabaseConfig, insertLegalAcceptance, insertScenarioRun, insertTelemetryEvent, purgeFinancialDataByAccountId, upsertBaseline } = require("../_lib/supabase.js");
+const { removePlaidItem } = require("../_lib/plaid.js");
 
 async function resolveAccount(req) {
   if (hasClerkConfig()) {
@@ -49,6 +50,15 @@ const demoAccessSchema = {
     code: { type: "string", minLength: 3, maxLength: 80 }
   },
   required: ["action", "code"]
+};
+
+const disconnectSchema = {
+  properties: {
+    sessionToken: { type: "string", minLength: 10, maxLength: 80 },
+    action: { type: "string", enum: ["disconnect_financial"] },
+    clientUserId: { type: "string", maxLength: 128 }
+  },
+  required: ["action"]
 };
 
 const saveDecisionSchema = {
@@ -191,6 +201,42 @@ const __pamRouteHandler = async (req, res) => {
         message: "Demo access unlocked.",
         expiresDays: 30
       });
+    }
+
+    if (req.body?.action === "disconnect_financial") {
+      const body = validatePayload(req.body, disconnectSchema, "request body");
+      const account = await resolveAccount(req);
+      if (!account?.id) {
+        return sendJson(res, 401, { ok: false, error: "Sign in to disconnect." });
+      }
+      if (
+        !checkRateLimit(req, res, {
+          routeKey: "account:session:disconnect",
+          userKey: account.emailAddress || account.id,
+          ipLimit: { windowMs: 60 * 1000, max: 20 },
+          userLimit: { windowMs: 60 * 1000, max: 10 }
+        })
+      ) {
+        return;
+      }
+      let revoked = 0;
+      if (hasSupabaseConfig()) {
+        try {
+          const items = await findPlaidItemsByAccountId(account.id);
+          for (const item of items) {
+            try {
+              await removePlaidItem(item.access_token_reference, body.clientUserId || account.id);
+              revoked += 1;
+            } catch (_err) {
+              // Best-effort: keep revoking the rest, still purge below.
+            }
+          }
+          await purgeFinancialDataByAccountId(account.id);
+        } catch (_error) {
+          return sendJson(res, 200, { ok: false, error: "Could not fully disconnect. Try again." });
+        }
+      }
+      return sendJson(res, 200, { ok: true, revoked });
     }
 
     if (req.body?.action === "save_decision") {

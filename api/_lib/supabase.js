@@ -313,6 +313,32 @@ async function findLatestPlaidItemByAccountId(accountId) {
   };
 }
 
+// All Plaid items for an account, with decrypted tokens — used by the
+// disconnect flow to revoke each item with Plaid before deleting the rows.
+async function findPlaidItemsByAccountId(accountId) {
+  if (!accountId) return [];
+  const rows = await supabaseRequest(
+    `pam_plaid_items?account_id=eq.${encodeFilter(accountId)}&select=plaid_item_id,access_token_reference`
+  );
+  return Array.isArray(rows)
+    ? rows.map((row) => ({ ...row, access_token_reference: decryptToken(row.access_token_reference) }))
+    : [];
+}
+
+// Purge all stored financial data for an account: connected Plaid items and the
+// cached baseline. Called when the user disconnects / deletes.
+async function purgeFinancialDataByAccountId(accountId) {
+  if (!accountId) return;
+  await supabaseRequest(`pam_plaid_items?account_id=eq.${encodeFilter(accountId)}`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" }
+  });
+  await supabaseRequest(`pam_baselines?account_id=eq.${encodeFilter(accountId)}`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" }
+  });
+}
+
 async function insertTelemetryEvent({ eventType, eventName, sessionId = "", page = "", properties = {} }) {
   await supabaseRequest("pam_events", {
     method: "POST",
@@ -461,6 +487,8 @@ module.exports = {
   insertTelemetryEvent,
   insertScenarioRun,
   findScenarioRunsByAccountId,
+  findPlaidItemsByAccountId,
+  purgeFinancialDataByAccountId,
   insertAccount,
   isRecoverableSupabaseStorageError,
   updateAccountPassword,

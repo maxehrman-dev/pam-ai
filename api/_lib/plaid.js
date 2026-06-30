@@ -448,6 +448,15 @@ exports.storeAccessTokenForSession = ({ clientUserId, accessToken, itemId, insti
 
 exports.getStoredSession = (clientUserId) => SANDBOX_ACCESS_TOKENS.get(getSessionKey(clientUserId));
 
+// Revoke a Plaid item so its access token can no longer pull data. Also drops
+// the in-memory sandbox session for this browser. Best-effort per token.
+exports.removePlaidItem = async (accessToken, clientUserId = "") => {
+  if (clientUserId) SANDBOX_ACCESS_TOKENS.delete(getSessionKey(clientUserId));
+  if (!accessToken) return { removed: false };
+  await callPlaid("/item/remove", { access_token: accessToken });
+  return { removed: true };
+};
+
 exports.buildNormalizedBaseline = async ({ clientUserId, session: providedSession }) => {
   const session = providedSession || SANDBOX_ACCESS_TOKENS.get(getSessionKey(clientUserId));
   if (!session?.accessToken) {

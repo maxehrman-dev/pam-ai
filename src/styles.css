@@ -6382,6 +6382,95 @@ textarea::placeholder {
 .marketing-example-grid .marketing-sample-card { height: 100%; }
 .marketing-example-grid > div:nth-child(2) { transition-delay: 0.1s; }
 
+/* "Why it's safe to connect" trust section */
+.trust-section {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: clamp(32px, 6vw, 72px) 0;
+}
+.trust-connect { padding: 8px 0 4px; }
+.trust-head { text-align: center; max-width: 680px; margin: 0 auto 28px; }
+.trust-head h2 {
+  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: var(--forest);
+  margin: 0 0 12px;
+}
+.trust-connect .trust-head h2 { font-size: clamp(1.3rem, 2.4vw, 1.7rem); }
+.trust-sub { color: var(--ink-3); line-height: 1.55; margin: 0; font-size: 1.02rem; }
+.trust-connect .trust-sub { font-size: 0.95rem; }
+
+.trust-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 0 0 28px;
+}
+.trust-col {
+  border-radius: 18px;
+  padding: 22px;
+  border: 1px solid var(--pam-border);
+}
+.trust-col-touch { background: var(--pam-surface-tint); }
+.trust-col-never { background: var(--pam-surface-soft); }
+.trust-col h3 { margin: 0 0 14px; font-size: 1.05rem; color: var(--forest); }
+.trust-col h3 span { color: var(--mint-4); font-weight: 700; }
+.trust-col ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.trust-col li { color: var(--ink-3); line-height: 1.45; padding-left: 24px; position: relative; }
+.trust-col-touch li::before { content: "✓"; position: absolute; left: 0; color: var(--mint-4); font-weight: 800; }
+.trust-col-never li::before { content: "✕"; position: absolute; left: 0; color: var(--ink-2); font-weight: 800; }
+
+.trust-commitments {
+  list-style: none;
+  padding: 0;
+  margin: 0 auto 28px;
+  max-width: 640px;
+  display: grid;
+  gap: 14px;
+}
+.trust-commitments li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--forest);
+  font-weight: 600;
+  line-height: 1.45;
+}
+.trust-check {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--mint-4), var(--mint-5));
+  position: relative;
+}
+.trust-check::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.trust-cta-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.trust-privacy-link { color: var(--mint-4); font-weight: 600; text-decoration: none; font-size: 0.92rem; }
+.trust-privacy-link:hover { text-decoration: underline; }
+.trust-secondary-row { justify-content: center; margin-top: 12px; }
+
+@media (max-width: 760px) {
+  .trust-compare { grid-template-columns: 1fr; }
+}
+
 /* Standalone auth page (sign in / create account) */
 .auth-standalone { max-width: 1180px; margin: 0 auto; padding: 0 20px 60px; }
 .auth-split {

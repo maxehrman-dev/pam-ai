@@ -39,6 +39,9 @@ import {
   STORAGE_KEYS,
   TERMS_VERSION,
   VALUES_ONBOARDING_STEPS,
+  TRUST_COMMITMENTS,
+  TRUST_TOUCHES,
+  TRUST_NEVER,
   WAITLIST_FOUNDING_NOTE
 } from "./config/appConfig.js";
 
@@ -857,6 +860,28 @@ function resetBaseline() {
   state.result = null;
   state.aiGuidance = null;
   state.inlineGoalError = "";
+  // Revoke the Plaid item(s) and purge stored financial data server-side.
+  // Best-effort: local state is already cleared above, so the UI reflects it
+  // immediately regardless of the network result.
+  if (hasPrototypeAccount()) {
+    (async () => {
+      try {
+        const headers = await buildAuthHeaders();
+        await fetch("/api/account/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({
+            action: "disconnect_financial",
+            clientUserId: state.account?.id || "",
+            sessionToken: state.sessionToken || undefined
+          })
+        });
+      } catch (_error) {
+        // Local data is cleared; the server purge can be retried next time.
+      }
+    })();
+  }
+  trackEvent("financial_disconnected");
   render();
 }
 
@@ -2957,6 +2982,7 @@ function getLegalRoute() {
   if (pathname === "/terms") return "terms";
   if (pathname === "/privacy") return "privacy";
   if (pathname === "/content-policy") return "content-policy";
+  if (pathname === "/privacy-plain") return "privacy-plain";
   if (pathname === "/faq") return "faq";
   return "";
 }
@@ -3833,7 +3859,7 @@ function renderAuthPage() {
             <ul class="auth-value-list">
               <li><strong>$7.99/mo founding price</strong>, locked for life ($9.99 after launch). Cancel anytime.</li>
               <li><strong>Free to start.</strong> Build your profile before you pay a cent.</li>
-              <li><strong>Your data stays yours.</strong> Bank-grade connection; never sold, never used to train models.</li>
+              <li><strong>Your data stays yours.</strong> Encrypted connection; never sold, never used to train models.</li>
             </ul>
           `}
           <div class="auth-value-card">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
@@ -3888,13 +3914,11 @@ function renderDashboardWorkspace() {
         </div>
         ${needsLegal ? renderLegalGate() : `
           <div class="connect-first-panel">
-            <p>PAM reads your balances, income, and spending to model decisions accurately — no manual entry needed.</p>
             ${state.plaidBusy ? renderPlaidConnecting() : `
-              <div class="settings-action-row">
-                <button class="button button-primary" type="button" data-connect-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>Connect securely with Plaid</button>
+              ${renderTrustSection("connect-screen")}
+              <div class="settings-action-row trust-secondary-row">
                 <button class="button button-secondary" type="button" data-load-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>Use sample data instead</button>
               </div>
-              ${renderPlaidTrustNote()}
             `}
           </div>
         `}
@@ -4961,15 +4985,11 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
           </div>
         ` : `
           <div class="connect-first-panel">
-            <div class="panel-kicker">One more step</div>
-            <h3>Connect your accounts.</h3>
-            <p>PAM reads your balances, income, and spending to model decisions accurately — no manual entry needed.</p>
             ${state.plaidBusy ? renderPlaidConnecting() : `
-              <div class="settings-action-row">
-                <button class="button button-primary" type="button" data-connect-sandbox>Connect securely with Plaid</button>
+              ${renderTrustSection("connect-screen")}
+              <div class="settings-action-row trust-secondary-row">
                 <button class="button button-secondary" type="button" data-load-sandbox>Use sample data instead</button>
               </div>
-              ${renderPlaidTrustNote()}
             `}
           </div>
         `}
@@ -5088,7 +5108,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
 function renderPlaidTrustNote() {
   return `
     <ul class="plaid-trust-list">
-      <li>Bank-grade encryption via Plaid, used by Venmo, SoFi, and Chime</li>
+      <li>Encrypted connection via Plaid — used by Venmo, SoFi, and Chime</li>
       <li>Read-only access — PAM can never move or touch your money</li>
       <li>PAM never sees your bank login. You enter it with Plaid, not us</li>
       <li>Disconnect anytime from your profile</li>
@@ -5139,7 +5159,7 @@ function renderBaselinePanel() {
           <p class="auth-clean-price">Then <strong>$7.99/mo</strong> for founding members ($9.99 after launch) · cancel anytime</p>
         `}
         <ul class="auth-clean-trust">
-          <li>Bank-grade security</li>
+          <li>Read-only — PAM can't move money</li>
           <li>No card to set up your profile</li>
           <li>Never sold or used to train AI</li>
         </ul>
@@ -5629,6 +5649,20 @@ function renderLegalPage(route) {
         ["Contact", "Privacy questions or data requests: hello@pamadvisor.com."]
       ]
     },
+    "privacy-plain": {
+      title: "Exactly what we store",
+      eyebrow: "Privacy, in plain English",
+      intro: "The short version of how PAM handles your data. The full policy is on the Privacy page — this is the human one.",
+      sections: [
+        ["The 10-second version", "PAM reads your money data so it can give you a straight answer. It's read-only — PAM can't move a dollar, can't see your password, and never sells or trains on your data."],
+        ["What we store", "Your email and profile, the balances, transactions, investments and liabilities from accounts you connect, and the goals and decisions you run. We never store your bank login — Plaid handles that."],
+        ["What we never touch", "Your bank password. Any ability to move, send, or trade money. Your data for ad targeting. Your data for training AI models."],
+        ["How long we keep it", "While your account is active. Disconnecting wipes your connected financial data right away. Deleting your account removes the rest — email us and it's gone (minus anything we're legally required to retain)."],
+        ["Who can see it inside PAM", "Only a small team, only when needed to run or fix the product. It's encrypted in transit and at rest, and stored server-side — never exposed to your browser."],
+        ["How to delete it", "Tap \"Disconnect financial data\" in your profile — that revokes Plaid access and purges your connected data in one step. To delete your whole account, email hello@pamadvisor.com."],
+        ["Questions", "Email hello@pamadvisor.com. PAM is a financial modeling tool, not a licensed advisor."]
+      ]
+    },
     "content-policy": {
       title: "Content Policy",
       eyebrow: "Acceptable use · Last updated May 18, 2026",
@@ -5754,6 +5788,44 @@ function renderMarketingSampleCard(ex) {
         </div>
       </div>
     </div>
+  `;
+}
+
+// "Why it's safe to connect" trust section. variant: "marketing" (full) or
+// "connect-screen" (condensed: headline + commitments + CTA). Commitment lines
+// come from TRUST_COMMITMENTS — only verified:true lines render. Icons are
+// decorative. CTA + privacy-plain link fire analytics.
+function renderTrustSection(variant = "marketing") {
+  const isConnect = variant === "connect-screen";
+  const commitments = TRUST_COMMITMENTS.filter((c) => c.verified);
+  const ctaVariant = isConnect ? "connect" : "marketing";
+  const ctaLabel = isConnect ? "Connect securely with Plaid →" : "Connect securely with Plaid →";
+  return `
+    <section class="trust-section ${isConnect ? "trust-connect" : "trust-marketing"} reveal-on-scroll reveal-up" aria-labelledby="trust-heading">
+      <div class="trust-head">
+        <h2 id="trust-heading">Connecting your accounts, minus the creepy part</h2>
+        <p class="trust-sub">PAM links through Plaid — the same connection your banking app uses. We read your numbers so we can give you a straight answer instead of a hedge. We can't move a dollar, can't see your password, and we'll never sell or train on your data.</p>
+      </div>
+      ${isConnect ? "" : `
+        <div class="trust-compare">
+          <div class="trust-col trust-col-touch">
+            <h3>What PAM reads <span>(read-only)</span></h3>
+            <ul>${TRUST_TOUCHES.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>
+          </div>
+          <div class="trust-col trust-col-never">
+            <h3>What PAM never touches</h3>
+            <ul>${TRUST_NEVER.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>
+          </div>
+        </div>
+      `}
+      <ul class="trust-commitments">
+        ${commitments.map((c) => `<li><span class="trust-check" aria-hidden="true"></span>${escapeHtml(c.text)}</li>`).join("")}
+      </ul>
+      <div class="trust-cta-row">
+        <button class="button button-primary marketing-btn-lg" type="button" data-trust-cta="${ctaVariant}">${ctaLabel}</button>
+        <a class="trust-privacy-link" href="/privacy-plain" data-privacy-plain>Read exactly what we store →</a>
+      </div>
+    </section>
   `;
 }
 
@@ -5885,6 +5957,8 @@ function renderPublicLaunchGate(mode = "public") {
           ].map((q) => `<button type="button" class="marketing-ask-chip" ${primaryAttr}>"${escapeHtml(q)}"</button>`).join("")}
         </div>
       </section>
+
+      ${renderTrustSection("marketing")}
 
       <section class="marketing-section marketing-testimonials reveal-on-scroll">
         <div class="panel-kicker">Coming soon</div>
@@ -6052,6 +6126,22 @@ function wireInteractions() {
       saveAuthView("create");
       openWorkspaceView("account");
     });
+  });
+  // Trust section: connect CTA + privacy-plain link (analytics).
+  document.querySelectorAll("[data-trust-cta]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const cta = button.dataset.trustCta;
+      trackEvent("connect_cta_clicked", { variant: cta });
+      if (cta === "connect") {
+        handleConnectSandboxAccount();
+      } else {
+        saveAuthView("create");
+        openWorkspaceView("account");
+      }
+    });
+  });
+  document.querySelectorAll("[data-privacy-plain]").forEach((link) => {
+    link.addEventListener("click", () => trackEvent("privacy_plain_opened"));
   });
   // Scroll-reveal: fade/slide elements in as they enter the viewport. Respects
   // reduced-motion and degrades to instantly-visible without IntersectionObserver.
