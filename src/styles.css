@@ -4595,11 +4595,23 @@ input:disabled {
   .demo-result-grid,
   .daily-metric-strip,
   .daily-chart-header,
-  .review-panel,
-  .assumption-grid-foresee,
-  .outcome-grid {
+  .review-panel {
     grid-template-columns: 1fr;
   }
+
+  /* Result tiles go 2-up on mobile: same data, half the scroll */
+  .assumption-grid-foresee,
+  .outcome-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .outcome-grid div,
+  .assumption-grid-foresee div {
+    padding: 12px;
+  }
+
+  .outcome-grid strong { font-size: 1.05rem; }
 
   .advisor-summary-topline {
     align-items: flex-start;
@@ -6381,6 +6393,58 @@ textarea::placeholder {
 .marketing-example-grid > div { height: 100%; }
 .marketing-example-grid .marketing-sample-card { height: 100%; }
 .marketing-example-grid > div:nth-child(2) { transition-delay: 0.1s; }
+
+/* Result panel: secondary detail folded to cut scroll (mobile especially) */
+.result-fold {
+  border: 1px solid var(--pam-border);
+  border-radius: 16px;
+  background: var(--pam-surface-soft);
+}
+
+.result-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 18px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--ink-3);
+}
+
+.result-fold > summary::-webkit-details-marker { display: none; }
+.result-fold > summary::after { content: "▾"; float: right; transition: transform 0.2s ease; }
+.result-fold[open] > summary::after { transform: rotate(180deg); }
+.result-fold[open] { padding-bottom: 14px; }
+.result-fold[open] > *:not(summary) { margin-left: 18px; margin-right: 18px; }
+
+/* New answer landing: sections stagger in once, then settle */
+@keyframes result-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+.result-entering .result-section,
+.result-entering .result-fold {
+  animation: result-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.result-entering .result-section:nth-of-type(2),
+.result-entering .result-fold:nth-of-type(2) { animation-delay: 0.08s; }
+.result-entering .result-section:nth-of-type(3) { animation-delay: 0.16s; }
+.result-entering .result-section:nth-of-type(4) { animation-delay: 0.24s; }
+.result-entering .result-section:nth-of-type(5) { animation-delay: 0.32s; }
+
+/* Honesty note in values onboarding */
+.values-honesty-note {
+  margin: 18px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-entering .result-section,
+  .result-entering .result-fold { animation: none; }
+}
 
 /* Full-screen transition (session restore) + staged Plaid sync */
 .pam-transition-shell {

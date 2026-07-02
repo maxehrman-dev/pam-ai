@@ -129,6 +129,7 @@ const state = {
   demoAccessBusy: false,
   demoAccessMessage: "",
   plaidBusy: false,
+  resultFresh: false,
   sessionRestoring: false,
   sessionRestoreError: false,
   subscription: null,
@@ -2100,6 +2101,9 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   const session = options.session || buildScenarioSession({ prompt: question, draft: options.draft || null });
   state.result = toLegacyDecisionFromSession(session);
   recordDecisionHistory(state.result);
+  // New answer landing: stagger the result sections in, then settle.
+  state.resultFresh = true;
+  window.setTimeout(() => { state.resultFresh = false; }, 3000);
   state.aiGuidance = null;
   state.saveScenarioMessage = "";
   state.decisionBusy = true;
@@ -3475,6 +3479,7 @@ function renderValuesOnboarding() {
         <div class="values-nav-row">
           ${state.valuesStep > 0 ? `<button class="button button-ghost" type="button" data-values-back>Back</button>` : ""}
         </div>
+        <p class="values-honesty-note">Judgment-free zone. Honest answers in, sharper calls out — PAM calibrates, it doesn't judge.</p>
       </div>
     </section>
   `;
@@ -4851,40 +4856,45 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
       ` : ""}
-      ${credit ? `
-        <h3>Credit and approval fit</h3>
-        <div class="goal-impact-stack">
-          <div class="goal-impact-row">
-            <span class="gi-name">Approval strength</span>
-            <span class="gi-change neutral">${escapeHtml(credit.approvalStrength)}</span>
-          </div>
-          <div class="goal-impact-row">
-            <span class="gi-name">Credit profile</span>
-            <span class="gi-change neutral">${escapeHtml(credit.score ? `${credit.score} · ${credit.tier}` : credit.tier)}</span>
-          </div>
-          <div class="goal-impact-row">
-            <span class="gi-name">Debt-to-income after decision</span>
-            <span class="gi-change neutral">${escapeHtml(formatPercent(credit.debtToIncome || 0))}</span>
-          </div>
-        </div>
-        ${credit.constraints?.length ? `<p class="section-compact-note">${escapeHtml(credit.constraints.join(" · "))}</p>` : ""}
-      ` : ""}
-      ${offsetActions.length ? `
-        <h3>Offset plan</h3>
-        <div class="goal-impact-stack">
-          ${offsetActions.map((action) => `
-            <div class="goal-impact-row">
-              <span class="gi-name">${escapeHtml(action.label)}</span>
-              <span class="gi-change neutral">${action.amount ? `${formatCurrency(action.amount)} ${escapeHtml(action.cadence || "")}` : escapeHtml(action.cadence || "No cut")}</span>
+      ${credit || offsetActions.length || trace.length ? `
+        <details class="result-fold">
+          <summary>The full breakdown${credit ? " · credit fit" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+          ${credit ? `
+            <h3>Credit and approval fit</h3>
+            <div class="goal-impact-stack">
+              <div class="goal-impact-row">
+                <span class="gi-name">Approval strength</span>
+                <span class="gi-change neutral">${escapeHtml(credit.approvalStrength)}</span>
+              </div>
+              <div class="goal-impact-row">
+                <span class="gi-name">Credit profile</span>
+                <span class="gi-change neutral">${escapeHtml(credit.score ? `${credit.score} · ${credit.tier}` : credit.tier)}</span>
+              </div>
+              <div class="goal-impact-row">
+                <span class="gi-name">Debt-to-income after decision</span>
+                <span class="gi-change neutral">${escapeHtml(formatPercent(credit.debtToIncome || 0))}</span>
+              </div>
             </div>
-          `).join("")}
-        </div>
-      ` : ""}
-      ${trace.length ? `
-        <h3>Reasoning trace</h3>
-        <div class="reasoning-trace-list">
-          ${trace.map((step) => `<p><strong>${escapeHtml(step.label)}</strong> ${escapeHtml(step.detail)}</p>`).join("")}
-        </div>
+            ${credit.constraints?.length ? `<p class="section-compact-note">${escapeHtml(credit.constraints.join(" · "))}</p>` : ""}
+          ` : ""}
+          ${offsetActions.length ? `
+            <h3>Offset plan</h3>
+            <div class="goal-impact-stack">
+              ${offsetActions.map((action) => `
+                <div class="goal-impact-row">
+                  <span class="gi-name">${escapeHtml(action.label)}</span>
+                  <span class="gi-change neutral">${action.amount ? `${formatCurrency(action.amount)} ${escapeHtml(action.cadence || "")}` : escapeHtml(action.cadence || "No cut")}</span>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+          ${trace.length ? `
+            <h3>Reasoning trace</h3>
+            <div class="reasoning-trace-list">
+              ${trace.map((step) => `<p><strong>${escapeHtml(step.label)}</strong> ${escapeHtml(step.detail)}</p>`).join("")}
+            </div>
+          ` : ""}
+        </details>
       ` : ""}
     </div>
   `;
@@ -5360,7 +5370,7 @@ function renderResult() {
     .map((label) => `<button type="button" data-question-example="${escapeHtml(label)}">${escapeHtml(label)}</button>`)
     .join("");
   return `
-    <section class="foresee-panel result-panel mobile-screen mobile-screen-result" id="decision-result">
+    <section class="foresee-panel result-panel mobile-screen mobile-screen-result${state.resultFresh ? " result-entering" : ""}" id="decision-result">
       <div class="result-header">
         <div>
           <div class="panel-kicker">Result</div>
@@ -5400,8 +5410,8 @@ function renderResult() {
           ${advisorFollowUps ? `<div class="quick-question-row">${advisorFollowUps}</div>` : ""}
         </div>
       </div>
-      <div class="result-section">
-        <h3>PAM interpreted your decision as</h3>
+      <details class="result-fold result-section">
+        <summary>How PAM read your question · edit assumptions</summary>
         <div class="assumption-grid-foresee">
           <div><span>Decision type</span><strong>${escapeHtml(result.decision.type)}</strong></div>
           <div><span>Monthly impact</span><strong>${formatSignedCurrency(result.decision.monthlyImpact)}</strong></div>
@@ -5410,7 +5420,7 @@ function renderResult() {
           ${(result.decision.taxSavingsMonthly || result.decision.taxSavingsOneTime) ? `<div><span>Tax-adjusted impact</span><strong>${result.decision.taxSavingsMonthly ? `${formatSignedCurrency(result.taxAdjustedMonthlyImpact)}/month` : formatSignedCurrency(result.taxAdjustedOneTimeImpact)}</strong></div>` : ""}
           ${result.decision.assumptions.map((item) => `<div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`).join("")}
         </div>
-      </div>
+      </details>
       <div class="result-section">
         <h3>Your outcome</h3>
         <div class="outcome-grid">
@@ -5430,7 +5440,8 @@ function renderResult() {
           ${getDecisionNextSteps(result).map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
         </div>
       </div>
-      <div class="result-section explanation-box">
+      <details class="result-fold result-section explanation-box">
+        <summary>Tax, compound growth &amp; long-term detail</summary>
         <h3>Tax impact</h3>
         <p>${escapeHtml(result.decision.taxImpact)}</p>
         <h3>Long-term goal impact</h3>
@@ -5442,7 +5453,7 @@ function renderResult() {
         <h3>Explanation</h3>
         <p>${escapeHtml(result.explanation)}</p>
         <p class="disclaimer">Educational estimate, AI-assisted. Not financial advice — verify before acting.</p>
-      </div>
+      </details>
     </section>
   `;
 }

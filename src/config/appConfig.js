@@ -272,6 +272,22 @@ export const VALUES_ONBOARDING_STEPS = [
     ]
   },
   {
+    key: "going_for_you",
+    question: "What do you have going for you?",
+    detail: "The stuff a bank account can't show. Be honest — PAM doesn't judge, it calibrates.",
+    type: "multiselect",
+    options: [
+      "Rent-free or cheap living situation",
+      "No debt",
+      "In-demand degree or skills",
+      "A side hustle or second income",
+      "Partner or household income",
+      "Employer 401(k) match or equity",
+      "Family assets or inheritance likely",
+      "Strong professional network"
+    ]
+  },
+  {
     key: "anything_else",
     question: "Anything else PAM should know?",
     detail: "In your own words — life stuff the questions above can't catch. Totally optional.",
