@@ -6382,6 +6382,77 @@ textarea::placeholder {
 .marketing-example-grid .marketing-sample-card { height: 100%; }
 .marketing-example-grid > div:nth-child(2) { transition-delay: 0.1s; }
 
+/* Full-screen transition (session restore) + staged Plaid sync */
+.pam-transition-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.pam-transition-card {
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  max-width: 420px;
+}
+
+.pam-transition-brand span {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--forest);
+  color: var(--cream-0);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  animation: pam-brand-pulse 2.2s ease-in-out infinite;
+}
+
+:root[data-theme="dark"] .pam-transition-brand span {
+  background: var(--mint-4);
+  color: #04150f;
+}
+
+@keyframes pam-brand-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(47, 189, 138, 0.35); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 14px rgba(47, 189, 138, 0); }
+}
+
+.pam-transition-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--pam-track);
+  border-top-color: var(--mint-4);
+  animation: pam-spin 0.9s linear infinite;
+}
+
+.pam-transition-card h1 {
+  font-size: clamp(1.3rem, 3vw, 1.7rem);
+  letter-spacing: -0.02em;
+  color: var(--forest);
+  margin: 0;
+}
+
+.pam-transition-copy { color: var(--ink-3); line-height: 1.5; margin: 0; }
+
+.pam-transition-steps {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+
+.plaid-sync-stage { align-items: flex-start; }
+.plaid-sync-steps { display: grid; gap: 5px; }
+.plaid-sync-steps strong { color: var(--forest); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pam-transition-brand span { animation: none; }
+}
+
 /* "Why it's safe to connect" trust section */
 .trust-section {
   max-width: 980px;

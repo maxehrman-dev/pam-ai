@@ -129,6 +129,8 @@ const state = {
   demoAccessBusy: false,
   demoAccessMessage: "",
   plaidBusy: false,
+  sessionRestoring: false,
+  sessionRestoreError: false,
   subscription: null,
   checkoutBusy: false,
   clerkFirstDecision: "",
@@ -5116,13 +5118,17 @@ function renderPlaidTrustNote() {
   `;
 }
 
-function renderPlaidConnecting(message = "Connecting securely through Plaid…") {
+function renderPlaidConnecting(message = "Connecting your accounts…") {
+  // Staged sync experience: it should be unmistakable that real data is
+  // populating, not that the app froze.
   return `
-    <div class="plaid-connecting" role="status" aria-live="polite">
+    <div class="plaid-connecting plaid-sync-stage" role="status" aria-live="polite">
       <span class="plaid-spinner" aria-hidden="true"></span>
-      <div>
+      <div class="plaid-sync-steps">
         <strong>${escapeHtml(message)}</strong>
-        <span>This can take a few seconds while PAM builds your baseline.</span>
+        <span class="working-step step-1">Linking securely through Plaid</span>
+        <span class="working-step step-2">Reading balances, income &amp; spending</span>
+        <span class="working-step step-3">Building your baseline — numbers land in a moment</span>
       </div>
     </div>
   `;
@@ -5990,9 +5996,51 @@ function renderPublicLaunchGate(mode = "public") {
   `;
 }
 
+// Full-screen branded transition while account data loads after sign-in.
+// Staged messages animate in so it's obvious PAM is populating real data.
+function renderSessionRestoreScreen() {
+  return `
+    <div class="foresee-shell pam-transition-shell" role="status" aria-live="polite">
+      <div class="pam-transition-card">
+        <div class="pam-transition-brand"><span>PAM</span></div>
+        <div class="pam-transition-spinner" aria-hidden="true"></div>
+        <h1>Setting up your dashboard…</h1>
+        <div class="pam-transition-steps">
+          <span class="working-step step-1">Verifying your account</span>
+          <span class="working-step step-2">Loading your money picture</span>
+          <span class="working-step step-3">Catching up on what changed</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Friendly fallback when account data fails to load — one clear retry, no dead end.
+function renderSessionRestoreError() {
+  return `
+    <div class="foresee-shell pam-transition-shell">
+      <div class="pam-transition-card">
+        <div class="pam-transition-brand"><span>PAM</span></div>
+        <h1>Couldn't load your data.</h1>
+        <p class="pam-transition-copy">Your account is fine — the connection just hiccuped. Give it another try.</p>
+        <button class="button button-primary marketing-btn-lg" type="button" data-retry-restore>Try again</button>
+      </div>
+    </div>
+  `;
+}
+
 function render() {
   if (!app) return;
   applyDisplayTheme();
+  if (state.sessionRestoring) {
+    app.innerHTML = renderSessionRestoreScreen();
+    return;
+  }
+  if (state.sessionRestoreError) {
+    app.innerHTML = renderSessionRestoreError();
+    wireInteractions();
+    return;
+  }
   // Values onboarding is mandatory context: a stale "dashboard" view from a
   // previous session must not bypass it.
   if (state.workspaceView === "dashboard" && canAccessDashboard() && hasAcceptedLegalTerms() && !state.userValues?.completed) {
@@ -6142,6 +6190,23 @@ function wireInteractions() {
   });
   document.querySelectorAll("[data-privacy-plain]").forEach((link) => {
     link.addEventListener("click", () => trackEvent("privacy_plain_opened"));
+  });
+  document.querySelectorAll("[data-retry-restore]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      state.sessionRestoreError = false;
+      state.sessionRestoring = true;
+      render();
+      try {
+        await restoreSessionAccount();
+        if (state.account) await loadSubscription();
+        if (state.account) routeSignedInUser("Signed in.");
+      } catch (_error) {
+        state.sessionRestoreError = true;
+      } finally {
+        state.sessionRestoring = false;
+        render();
+      }
+    });
   });
   // Scroll-reveal: fade/slide elements in as they enter the viewport. Respects
   // reduced-motion and degrades to instantly-visible without IntersectionObserver.
@@ -6606,26 +6671,41 @@ export async function startApp() {
   if (isClerkMode()) {
     window.addEventListener("pam:clerk:change", async () => {
       const prev = state.account?.id;
-      await restoreSessionAccount();
-      if (state.account?.id !== prev) {
-        if (state.account) {
-          await loadSubscription();
-          // New user with no question yet — show firstDecision step
-          const isNewUser = !hasCompletedBaseline(state.baseline);
-          const hasNoQuestion = !state.question || /Can I afford to move out if rent is \$1,800\?/.test(state.question);
-          if (isNewUser && hasNoQuestion) {
-            state.clerkFirstDecisionStep = true;
-            saveWorkspaceView("account");
+      // Show the branded "setting up your dashboard" screen while account data
+      // loads — never a frozen stale page that suddenly snaps.
+      const signingIn = Boolean(getClerkAccount());
+      if (signingIn && !prev) {
+        state.sessionRestoring = true;
+        state.sessionRestoreError = false;
+        render();
+      }
+      try {
+        await restoreSessionAccount();
+        if (state.account?.id !== prev) {
+          if (state.account) {
+            await loadSubscription();
+            // New user with no question yet — show firstDecision step
+            const isNewUser = !hasCompletedBaseline(state.baseline);
+            const hasNoQuestion = !state.question || /Can I afford to move out if rent is \$1,800\?/.test(state.question);
+            if (isNewUser && hasNoQuestion) {
+              state.clerkFirstDecisionStep = true;
+              saveWorkspaceView("account");
+            } else {
+              routeSignedInUser("Signed in.");
+            }
           } else {
-            routeSignedInUser("Signed in.");
+            saveWorkspaceView("landing");
+            state.account = null;
+            state.result = null;
+            state.subscription = null;
+            state.clerkFirstDecisionStep = false;
           }
-        } else {
-          saveWorkspaceView("landing");
-          state.account = null;
-          state.result = null;
-          state.subscription = null;
-          state.clerkFirstDecisionStep = false;
         }
+      } catch (_error) {
+        // Data didn't load — show the friendly retry screen, not a blank page.
+        if (signingIn) state.sessionRestoreError = true;
+      } finally {
+        state.sessionRestoring = false;
         render();
       }
     });
