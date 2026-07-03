@@ -5534,7 +5534,7 @@ function renderWaitlistModal() {
         ${state.waitlistJoined ? "" : `
           <form class="profile-form" data-waitlist-form>
             ${renderWaitlistFields()}
-            <button class="button button-primary" type="submit" ${state.waitlistBusy ? "disabled" : ""}>${state.waitlistBusy ? "Joining..." : "Join waitlist"}</button>
+            <button class="button button-primary" type="submit" ${state.waitlistBusy ? "disabled" : ""}>${state.waitlistBusy ? "Saving your spot..." : "Save my spot"}</button>
           </form>
         `}
         <button class="button button-secondary" type="button" data-close-waitlist-button>Close</button>
@@ -5601,7 +5601,7 @@ function renderWaitlistPage() {
           ${state.waitlistJoined ? "" : `
             <form class="profile-form waitlist-page-form" data-waitlist-form>
               ${renderWaitlistFields()}
-              <button class="button button-primary" type="submit" ${state.waitlistBusy ? "disabled" : ""}>${state.waitlistBusy ? "Joining..." : "Join waitlist"}</button>
+              <button class="button button-primary" type="submit" ${state.waitlistBusy ? "disabled" : ""}>${state.waitlistBusy ? "Saving your spot..." : "Save my spot"}</button>
             </form>
           `}
         </section>
@@ -6229,6 +6229,14 @@ function wireInteractions() {
   // mode (not a sign-in shortcut).
   document.querySelectorAll("[data-start-free]").forEach((button) => {
     button.addEventListener("click", () => {
+      // One press, not two: when Clerk is live, "Start free" opens signup
+      // directly instead of routing to a page whose primary button is the
+      // same "Start free" again. The auth page remains the fallback.
+      if (isClerkMode() && window.Clerk?.openSignUp) {
+        trackEvent("signup_started");
+        window.Clerk.openSignUp();
+        return;
+      }
       saveAuthView("create");
       openWorkspaceView("account");
     });
@@ -6240,6 +6248,10 @@ function wireInteractions() {
       trackEvent("connect_cta_clicked", { variant: cta });
       if (cta === "connect") {
         handleConnectSandboxAccount();
+      } else if (isClerkMode() && window.Clerk?.openSignUp) {
+        // Marketing-page CTA for a signed-out visitor: one press to signup.
+        trackEvent("signup_started");
+        window.Clerk.openSignUp();
       } else {
         saveAuthView("create");
         openWorkspaceView("account");
@@ -6502,7 +6514,13 @@ function wireInteractions() {
       startCheckout(button.dataset.checkout || "monthly");
     });
   });
-  document.querySelectorAll("[data-reset-baseline]").forEach((button) => button.addEventListener("click", resetBaseline));
+  document.querySelectorAll("[data-reset-baseline]").forEach((button) => button.addEventListener("click", () => {
+    // Destructive: revokes Plaid access and wipes stored financial data.
+    // This is the one action that SHOULD ask before proceeding.
+    if (window.confirm("Disconnect your financial data? This revokes bank access and deletes your connected data from PAM. You can reconnect anytime.")) {
+      resetBaseline();
+    }
+  }));
   document.querySelectorAll("[data-logout]").forEach((button) => button.addEventListener("click", logoutAccount));
   document.querySelectorAll("[data-load-sandbox]").forEach((button) => button.addEventListener("click", handleSandboxSampleData));
   document.querySelectorAll("[data-connect-sandbox]").forEach((button) => button.addEventListener("click", handleConnectSandboxAccount));
