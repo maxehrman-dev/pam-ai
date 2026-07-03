@@ -6433,6 +6433,28 @@ textarea::placeholder {
 .result-entering .result-section:nth-of-type(4) { animation-delay: 0.24s; }
 .result-entering .result-section:nth-of-type(5) { animation-delay: 0.32s; }
 
+/* Tap-to-advance hint on single-choice steps */
+.values-tap-hint {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+/* "What happens next" on the review step — makes the Plaid step explicit */
+.values-next-up {
+  margin: 4px 0 18px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--pam-surface-soft);
+  border: 1px solid var(--pam-border);
+  text-align: left;
+}
+.values-next-up h3 { margin: 0 0 10px; font-size: 0.98rem; color: var(--forest); }
+.values-next-up ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.values-next-up li { color: var(--ink-3); line-height: 1.45; font-size: 0.92rem; }
+.values-next-up strong { color: var(--forest); }
+
 /* Honesty note in values onboarding */
 .values-honesty-note {
   margin: 18px 0 0;

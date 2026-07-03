@@ -264,8 +264,6 @@ export const VALUES_ONBOARDING_STEPS = [
       "I own a car",
       "Crypto or other investments elsewhere",
       "Cash savings outside the bank",
-      "Family helps me financially",
-      "I help support family",
       "Student loans",
       "Money owed to friends/family",
       "I own property"

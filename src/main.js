@@ -3407,13 +3407,14 @@ function renderValuesOnboarding() {
       <button class="button button-primary" type="button" data-values-next>Continue</button>
     `;
   } else if (step.type === "options") {
+    // Single-choice: tapping an answer advances automatically — no Continue.
     inputHtml = `
       <div class="values-options-grid">
         ${step.options.map(opt => `
           <button class="values-option-btn ${draft[step.key] === opt.value ? "selected" : ""}" type="button" data-values-option="${escapeHtml(step.key)}" data-values-value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</button>
         `).join("")}
       </div>
-      ${draft[step.key] ? `<button class="button button-primary" type="button" data-values-next>Continue</button>` : ""}
+      <p class="values-tap-hint">Tap an answer to continue</p>
     `;
   } else if (step.type === "multiselect") {
     const selected = Array.isArray(draft[step.key]) ? draft[step.key] : [];
@@ -3464,6 +3465,14 @@ function renderValuesOnboarding() {
   } else if (step.type === "review") {
     inputHtml = `
       ${renderStrategyPlayback(draft)}
+      <div class="values-next-up">
+        <h3>What happens next</h3>
+        <ol>
+          <li><strong>Connect your accounts</strong> — securely through Plaid, so PAM works from your real numbers (sample data works too).</li>
+          <li><strong>Ask your first decision</strong> — get a straight, risk-rated call built on everything above.</li>
+          <li><strong>Go deeper</strong> — PAM's tailored follow-up questions sharpen your profile as you use it.</li>
+        </ol>
+      </div>
       <button class="button button-primary" type="button" data-values-next>This looks right →</button>
     `;
   }
@@ -3525,6 +3534,44 @@ function renderStrategyPlayback(draft = {}) {
 
   if (!lines.length) return `<p class="values-detail">PAM will tailor advice as you answer more questions.</p>`;
   return `<div class="strategy-playback">${lines.map((l) => `<p>${l}</p>`).join("")}</div>`;
+}
+
+// Advance the values flow one step (or complete it). Shared by the Continue
+// button and the auto-advance on single-choice taps.
+function advanceValuesFlow() {
+  const steps = getActiveValuesSteps();
+  const step = steps[state.valuesStep];
+  if (!state.valuesDraft) state.valuesDraft = {};
+  if (step && step.type === "slider" && !state.valuesDraft[step.key]) {
+    state.valuesDraft[step.key] = step.defaultValue;
+  }
+  // Mark optional text steps as seen even when left blank, so the
+  // finish-profile card doesn't re-prompt for them forever.
+  if (step && step.type === "text") {
+    if (state.valuesDraft[step.key] === undefined) state.valuesDraft[step.key] = "";
+    if (step.subKey && state.valuesDraft[step.subKey] === undefined) state.valuesDraft[step.subKey] = "";
+  }
+  // Group steps: mark any unanswered sub-field as seen (optional text -> "",
+  // skipped options stay "" rather than undefined) so top-up doesn't re-ask.
+  if (step && step.type === "group") {
+    (step.fields || []).forEach((f) => {
+      if (state.valuesDraft[f.key] === undefined) state.valuesDraft[f.key] = "";
+    });
+  }
+  if (state.valuesStep < steps.length - 1) {
+    state.valuesStep++;
+    render();
+  } else {
+    // Merge over the existing profile so a finish-the-new-questions pass
+    // never wipes earlier answers.
+    const values = { ...(state.userValues || {}), ...state.valuesDraft, completed: true };
+    saveUserValues(values);
+    trackEvent("values_onboarding_completed", { steps: steps.length, topUp: steps.length < VALUES_ONBOARDING_STEPS.length });
+    saveWorkspaceView("dashboard");
+    saveMobileView("home");
+    render();
+    showSuccessToast("Profile saved — PAM now tailors every answer to your goals.");
+  }
 }
 
 // Steps the user has never answered. Existing accounts keep completed=true
@@ -6373,7 +6420,18 @@ function wireInteractions() {
   document.querySelectorAll("[data-values-option]").forEach((button) => {
     button.addEventListener("click", () => {
       if (!state.valuesDraft) state.valuesDraft = {};
-      state.valuesDraft[button.dataset.valuesOption] = button.dataset.valuesValue;
+      const key = button.dataset.valuesOption;
+      state.valuesDraft[key] = button.dataset.valuesValue;
+      // Single-choice steps auto-advance — picking an answer IS the Continue.
+      // Group sub-fields don't (the screen has multiple inputs).
+      const steps = getActiveValuesSteps();
+      const step = steps[state.valuesStep];
+      if (step && step.type === "options" && step.key === key) {
+        render();
+        window.clearTimeout(state.valuesAutoAdvanceTimer);
+        state.valuesAutoAdvanceTimer = window.setTimeout(() => advanceValuesFlow(), 260);
+        return;
+      }
       render();
     });
   });
@@ -6392,38 +6450,8 @@ function wireInteractions() {
   });
   document.querySelectorAll("[data-values-next]").forEach((button) => {
     button.addEventListener("click", () => {
-      const steps = getActiveValuesSteps();
-      const step = steps[state.valuesStep];
-      if (step && step.type === "slider" && !state.valuesDraft[step.key]) {
-        state.valuesDraft[step.key] = step.defaultValue;
-      }
-      // Mark optional text steps as seen even when left blank, so the
-      // finish-profile card doesn't re-prompt for them forever.
-      if (step && step.type === "text") {
-        if (state.valuesDraft[step.key] === undefined) state.valuesDraft[step.key] = "";
-        if (step.subKey && state.valuesDraft[step.subKey] === undefined) state.valuesDraft[step.subKey] = "";
-      }
-      // Group steps: mark any unanswered sub-field as seen (optional text -> "",
-      // skipped options stay "" rather than undefined) so top-up doesn't re-ask.
-      if (step && step.type === "group") {
-        (step.fields || []).forEach((f) => {
-          if (state.valuesDraft[f.key] === undefined) state.valuesDraft[f.key] = "";
-        });
-      }
-      if (state.valuesStep < steps.length - 1) {
-        state.valuesStep++;
-        render();
-      } else {
-        // Merge over the existing profile so a finish-the-new-questions pass
-        // never wipes earlier answers.
-        const values = { ...(state.userValues || {}), ...state.valuesDraft, completed: true };
-        saveUserValues(values);
-        trackEvent("values_onboarding_completed", { steps: steps.length, topUp: steps.length < VALUES_ONBOARDING_STEPS.length });
-        saveWorkspaceView("dashboard");
-        saveMobileView("home");
-        render();
-        showSuccessToast("Profile saved — PAM now tailors every answer to your goals.");
-      }
+      window.clearTimeout(state.valuesAutoAdvanceTimer);
+      advanceValuesFlow();
     });
   });
   document.querySelectorAll("[data-values-back]").forEach((button) => {
