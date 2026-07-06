@@ -6433,6 +6433,32 @@ textarea::placeholder {
 .result-entering .result-section:nth-of-type(4) { animation-delay: 0.24s; }
 .result-entering .result-section:nth-of-type(5) { animation-delay: 0.32s; }
 
+/* Offline-asset detail rows (value + how tappable) */
+.offline-detail-list { display: grid; gap: 14px; margin-bottom: 16px; }
+.offline-detail-row {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--pam-surface-soft);
+  border: 1px solid var(--pam-border);
+  text-align: left;
+}
+.offline-detail-row > strong { color: var(--forest); font-size: 0.95rem; }
+.offline-detail-amount { display: grid; gap: 6px; }
+.offline-detail-amount span { font-size: 0.78rem; color: var(--ink-2); }
+.offline-detail-amount input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--pam-border-strong);
+  background: var(--pam-input-bg);
+  color: var(--forest);
+  font-size: 0.95rem;
+  width: 100%;
+}
+.offline-detail-liquidity { display: flex; flex-wrap: wrap; gap: 8px; }
+.values-option-btn.compact { padding: 8px 12px; font-size: 0.82rem; border-radius: 999px; }
+
 /* Tap-to-advance hint on single-choice steps */
 .values-tap-hint {
   margin: 12px 0 0;

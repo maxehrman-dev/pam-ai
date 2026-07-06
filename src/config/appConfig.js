@@ -270,6 +270,12 @@ export const VALUES_ONBOARDING_STEPS = [
     ]
   },
   {
+    key: "offline_details",
+    type: "offline-details",
+    question: "Quick numbers on those",
+    detail: "Rough guesses are fine — PAM calibrates with estimates, not audits."
+  },
+  {
     key: "going_for_you",
     question: "What do you have going for you?",
     detail: "The stuff a bank account can't show. Be honest — PAM doesn't judge, it calibrates.",

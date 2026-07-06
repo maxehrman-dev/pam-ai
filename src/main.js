@@ -3462,6 +3462,37 @@ function renderValuesOnboarding() {
       <div class="values-group">${fieldsHtml}</div>
       ${ready ? `<button class="button button-primary" type="button" data-values-next>Continue</button>` : ""}
     `;
+  } else if (step.type === "offline-details") {
+    // Follow-up to "anything your bank doesn't show": rough value + how
+    // tappable each selected item is. Only reached when items were selected.
+    const items = Array.isArray(draft.offline_factors) ? draft.offline_factors : [];
+    const details = draft.offline_details || {};
+    const debtItems = ["Student loans", "Money owed to friends/family"];
+    inputHtml = `
+      <div class="offline-detail-list">
+        ${items.map((item) => {
+          const d = details[item] || {};
+          const isDebt = debtItems.includes(item);
+          return `
+            <div class="offline-detail-row">
+              <strong>${escapeHtml(item)}</strong>
+              <label class="offline-detail-amount">
+                <span>${isDebt ? "Rough balance" : "Rough value"}</span>
+                <input type="number" inputmode="numeric" min="0" placeholder="$" value="${d.amount ?? ""}" data-offline-amount="${escapeHtml(item)}">
+              </label>
+              ${isDebt ? "" : `
+                <div class="offline-detail-liquidity" role="group" aria-label="How easy to tap">
+                  ${[["liquid", "Could tap it in days"], ["slow", "Weeks–months to tap"], ["locked", "Locked / hard to sell"]].map(([val, label]) => `
+                    <button type="button" class="values-option-btn compact ${d.liquidity === val ? "selected" : ""}" data-offline-liquidity="${escapeHtml(item)}" data-liquidity-value="${val}">${label}</button>
+                  `).join("")}
+                </div>
+              `}
+            </div>
+          `;
+        }).join("")}
+      </div>
+      <button class="button button-primary" type="button" data-values-next>Continue</button>
+    `;
   } else if (step.type === "review") {
     inputHtml = `
       ${renderStrategyPlayback(draft)}
@@ -3558,8 +3589,18 @@ function advanceValuesFlow() {
       if (state.valuesDraft[f.key] === undefined) state.valuesDraft[f.key] = "";
     });
   }
+  if (step && step.type === "offline-details" && state.valuesDraft.offline_details === undefined) {
+    state.valuesDraft.offline_details = {};
+  }
   if (state.valuesStep < steps.length - 1) {
     state.valuesStep++;
+    // The offline-details follow-up only applies when something was selected
+    // on the previous step — otherwise skip it silently.
+    const nextStep = steps[state.valuesStep];
+    if (nextStep?.type === "offline-details" && !(Array.isArray(state.valuesDraft.offline_factors) && state.valuesDraft.offline_factors.length)) {
+      state.valuesDraft.offline_details = {};
+      if (state.valuesStep < steps.length - 1) state.valuesStep++;
+    }
     render();
   } else {
     // Merge over the existing profile so a finish-the-new-questions pass
@@ -3582,6 +3623,13 @@ function getMissingValuesSteps() {
   return VALUES_ONBOARDING_STEPS.filter((step) => {
     // The review screen is not a data field — never treat it as "missing".
     if (step.type === "review") return false;
+    // Offline details only apply when off-account items were selected. If the
+    // factors question itself is still unanswered, keep the details step queued
+    // — the in-flow skip drops it when nothing ends up selected.
+    if (step.type === "offline-details") {
+      if (uv.offline_details !== undefined) return false;
+      return uv.offline_factors === undefined || (Array.isArray(uv.offline_factors) && uv.offline_factors.length > 0);
+    }
     // A group is missing if any of its sub-fields was never answered.
     if (step.type === "group") return (step.fields || []).some((f) => uv[f.key] === undefined);
     const value = uv[step.key];
@@ -6444,6 +6492,25 @@ function wireInteractions() {
         state.valuesAutoAdvanceTimer = window.setTimeout(() => advanceValuesFlow(), 260);
         return;
       }
+      render();
+    });
+  });
+  document.querySelectorAll("[data-offline-amount]").forEach((input) => {
+    input.addEventListener("input", () => {
+      if (!state.valuesDraft) state.valuesDraft = {};
+      const details = { ...(state.valuesDraft.offline_details || {}) };
+      const item = input.dataset.offlineAmount;
+      details[item] = { ...(details[item] || {}), amount: input.value === "" ? null : Number(input.value) };
+      state.valuesDraft.offline_details = details;
+    });
+  });
+  document.querySelectorAll("[data-offline-liquidity]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!state.valuesDraft) state.valuesDraft = {};
+      const details = { ...(state.valuesDraft.offline_details || {}) };
+      const item = button.dataset.offlineLiquidity;
+      details[item] = { ...(details[item] || {}), liquidity: button.dataset.liquidityValue };
+      state.valuesDraft.offline_details = details;
       render();
     });
   });
