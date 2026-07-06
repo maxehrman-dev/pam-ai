@@ -862,7 +862,7 @@ function buildScenarioAssumptions(draft, metrics) {
     if (draft.monthlyInvestingDelta) assumptions.push(`Applies a monthly save-or-invest change of ${formatCurrency(draft.monthlyInvestingDelta)}.`);
   }
 
-  assumptions.push(`Baseline monthly flex cash starts at ${formatCurrency(metrics.monthlyFreeCash)}.`);
+  assumptions.push(`Baseline monthly buffer starts at ${formatCurrency(metrics.monthlyFreeCash)}.`);
   assumptions.push("Results are directional, not tax or legal advice.");
 
   return assumptions;
@@ -1340,7 +1340,7 @@ function getConfidence(draft, followUp, prompt) {
 
 function buildAhaMoment(goalsSummary, scenarioRunoutMonths, scenario, currentPath) {
   if (Number.isFinite(scenarioRunoutMonths) && scenarioRunoutMonths < 18) {
-    return `You would run out of flexible cash in about ${formatMonthDelta(scenarioRunoutMonths)} if this path stayed unchanged.`;
+    return `You would run out of buffer in about ${formatMonthDelta(scenarioRunoutMonths)} if this path stayed unchanged.`;
   }
 
   if (goalsSummary?.mostImpactedGoal && Number.isFinite(goalsSummary.mostImpactedGoal.deltaMonths) && goalsSummary.mostImpactedGoal.deltaMonths > 0) {
@@ -1364,7 +1364,7 @@ function buildRecommendedNextStep(risk, mostImpactedGoal, scenarioMonthlyFreeCas
   }
 
   if (scenarioRunwayMonths < 7) {
-    return "Keep building cash first. A larger liquid cushion will make this decision far less fragile.";
+    return "Keep building cash first. A larger savings buffer will make this decision far less fragile.";
   }
 
   return "The move looks workable. Lock the numbers, then stress-test one downside assumption before committing.";
@@ -1452,7 +1452,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
         label: "Savings run-out",
         value: Number.isFinite(runoutMonths) ? formatMonthDelta(runoutMonths) : "Stable",
         detail: Number.isFinite(runoutMonths)
-          ? "How long flexible cash lasts if nothing else changes."
+          ? "How long your buffer lasts if nothing else changes."
           : "Current cash stays above zero under the modeled assumptions."
       },
       {
@@ -1631,7 +1631,7 @@ export function generateInsights(profile, goals, session) {
     {
       kind: "Takeaway",
       title: "The baseline gives you options",
-      body: `You are starting from ${formatCurrency(metrics.monthlyFreeCash)} of monthly flex cash and ${formatMonthDelta(metrics.runwayMonths)} of essential runway. That is enough structure to test tradeoffs instead of guessing.`
+      body: `You are starting from ${formatCurrency(metrics.monthlyFreeCash)} of monthly buffer and ${formatMonthDelta(metrics.runwayMonths)} of essential runway. That is enough structure to test tradeoffs instead of guessing.`
     },
     {
       kind: "Warning",

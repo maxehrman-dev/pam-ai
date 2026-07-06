@@ -722,7 +722,7 @@ function applyDisplayTheme() {
 }
 
 function saveWorkspaceView(view) {
-  state.workspaceView = ["landing", "account", "dashboard", "values"].includes(view) ? view : "landing";
+  state.workspaceView = ["landing", "account", "dashboard", "values", "unlock"].includes(view) ? view : "landing";
   try {
     window.localStorage.setItem(WORKSPACE_VIEW_KEY, state.workspaceView);
   } catch (_error) {
@@ -1130,7 +1130,7 @@ function getReadinessChecks() {
   return [
     {
       label: "Move-out readiness",
-      status: moveOutProgress >= 80 && monthlyBuffer >= 500 ? "Ready" : "Build more cushion",
+      status: moveOutProgress >= 80 && monthlyBuffer >= 500 ? "Ready" : "Build more buffer",
       tone: moveOutProgress >= 80 && monthlyBuffer >= 500 ? "good" : "warn",
       detail: moveOutGoal ? `${moveOutProgress}% funded · ${formatCurrency(monthlyBuffer)} buffer` : "Add a move-out goal"
     },
@@ -3536,9 +3536,9 @@ function renderStrategyPlayback(draft = {}) {
   }[draft.career_stage];
   const backing = {
     family: "family could bail you out",
-    strong_cushion: "a strong cushion but no family backstop",
-    modest_cushion: "a modest cushion and no backstop",
-    none: "no real cushion",
+    strong_cushion: "solid savings but no family backstop",
+    modest_cushion: "some savings and no backstop",
+    none: "almost no savings backstop",
     dependents: "people who depend on your income"
   }[draft.risk_backing];
   const mobility = {
@@ -3606,13 +3606,54 @@ function advanceValuesFlow() {
     // Merge over the existing profile so a finish-the-new-questions pass
     // never wipes earlier answers.
     const values = { ...(state.userValues || {}), ...state.valuesDraft, completed: true };
+    const wasTopUp = steps.length < VALUES_ONBOARDING_STEPS.length;
     saveUserValues(values);
-    trackEvent("values_onboarding_completed", { steps: steps.length, topUp: steps.length < VALUES_ONBOARDING_STEPS.length });
-    saveWorkspaceView("dashboard");
-    saveMobileView("home");
+    trackEvent("values_onboarding_completed", { steps: steps.length, topUp: wasTopUp });
+    // Fresh full onboarding ends at the unlock pitch (unless already paying).
+    // Top-up passes from existing users go straight back to the dashboard.
+    const isPaying = Boolean(state.subscription && ["active", "trialing"].includes(state.subscription.status));
+    if (!wasTopUp && !isPaying) {
+      saveWorkspaceView("unlock");
+      trackEvent("paywall_viewed");
+    } else {
+      saveWorkspaceView("dashboard");
+      saveMobileView("home");
+    }
     render();
     showSuccessToast("Profile saved — PAM now tailors every answer to your goals.");
   }
+}
+
+// Post-onboarding paywall: PAM has the strategy profile; unlocking connects
+// real money, the tailored AI deep-dive, and unlimited decisions. While
+// subscriptions are waived (beta / Stripe not yet enforced), a sample-data
+// path lets people continue without paying.
+function renderPaywallScreen() {
+  const uv = state.userValues || {};
+  const finishLine = uv.retirement_target_age ? `financially free around ${escapeHtml(String(uv.retirement_target_age))}` : "your goals";
+  return `
+    <section class="values-onboarding-shell">
+      <div class="values-onboarding-frame paywall-frame">
+        <div class="panel-kicker">Your profile is ready</div>
+        <h2>PAM knows your game. Now put it to work.</h2>
+        <p class="values-detail">You're aiming to be ${finishLine} — every answer from here is judged against that. Unlock PAM to run it on your real money.</p>
+        <ul class="paywall-benefits">
+          <li><strong>Connect your real accounts</strong> — securely through Plaid, read-only, so every call uses your actual numbers.</li>
+          <li><strong>PAM's tailored deep-dive</strong> — follow-up questions built from your profile that sharpen every answer.</li>
+          <li><strong>Unlimited decisions, with memory</strong> — every answer builds on your last, across devices.</li>
+        </ul>
+        <div class="paywall-price-card">
+          <div class="paywall-price"><strong>$7.99</strong><span>/month</span></div>
+          <p>Founding price — locked for life. $9.99 after launch. Cancel anytime.</p>
+        </div>
+        <button class="button button-primary marketing-btn-lg paywall-cta" type="button" data-checkout="monthly">Unlock PAM →</button>
+        ${hasActiveSubscription() ? `
+          <button class="paywall-skip" type="button" data-load-sandbox>Or try it with sample data first →</button>
+        ` : ""}
+        <p class="values-honesty-note">Educational modeling, not licensed financial advice. Payments are handled by Stripe.</p>
+      </div>
+    </section>
+  `;
 }
 
 // Steps the user has never answered. Existing accounts keep completed=true
@@ -3695,7 +3736,7 @@ function getSmartSuggestions() {
   const suggestions = [];
   if (uv.housing === "family") suggestions.push("Can I afford to move out this year?");
   if (uv.housing === "rent") suggestions.push("Should I keep renting or save to buy?");
-  if (uv.household === "support_family") suggestions.push("How big should my cushion be while supporting family?");
+  if (uv.household === "support_family") suggestions.push("How big should my buffer be while supporting family?");
   if (["hourly", "freelance"].includes(uv.worker_type) || uv.pay_frequency === "irregular") {
     suggestions.push("How much slack do I need with irregular pay?");
   }
@@ -5854,9 +5895,9 @@ const MARKETING_EXAMPLES = {
   moveout: {
     q: "Can I afford to move out? Rent would be $1,800.",
     verdict: "Yes — but cap it at $1,650.",
-    body: "At $1,800 your monthly cushion drops to $240 — too thin if anything breaks. At $1,650 you keep a real buffer and still hit your savings goal on time.",
+    body: "At $1,800 your monthly buffer drops to $240 — too thin if anything breaks. At $1,650 it stays healthy and you still hit your savings goal on time.",
     stats: [
-      { label: "Cushion at $1,800", value: "$240" },
+      { label: "Buffer at $1,800", value: "$240" },
       { label: "Safer rent", value: "$1,650" },
       { label: "Verdict", value: "Doable" }
     ]
@@ -5874,7 +5915,7 @@ const MARKETING_EXAMPLES = {
   nyc: {
     q: "Same-salary job offer in a bigger city, but I'd have to move. Worth it?",
     verdict: "On your numbers — make the move.",
-    body: "Same salary isn't a lateral move in your field. The bigger market nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one cushion dips to $760 — here's how to cover it.",
+    body: "Same salary isn't a lateral move in your field. The bigger market nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one buffer dips to $760 — here's how to cover it.",
     stats: [
       { label: "Retire age", value: "61 → 55" },
       { label: "After cost of living", value: "+$22k/yr" },
@@ -6201,9 +6242,11 @@ function render() {
           ? `${renderHero()}${renderLandingWorkspace()}`
           : state.workspaceView === "values"
             ? renderValuesOnboarding()
-            : state.workspaceView === "account"
-              ? renderAccountPage()
-              : renderWorkspaceHub()}
+            : state.workspaceView === "unlock"
+              ? renderPaywallScreen()
+              : state.workspaceView === "account"
+                ? renderAccountPage()
+                : renderWorkspaceHub()}
       </main>
       ${renderLegalFooter()}
       ${renderCookieConsentBanner()}

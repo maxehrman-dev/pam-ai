@@ -6433,6 +6433,42 @@ textarea::placeholder {
 .result-entering .result-section:nth-of-type(4) { animation-delay: 0.24s; }
 .result-entering .result-section:nth-of-type(5) { animation-delay: 0.32s; }
 
+/* Post-onboarding paywall */
+.paywall-frame { text-align: center; }
+.paywall-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+.paywall-benefits li { color: var(--ink-3); line-height: 1.5; padding-left: 24px; position: relative; }
+.paywall-benefits li::before { content: "✓"; position: absolute; left: 0; color: var(--mint-4); font-weight: 800; }
+.paywall-benefits strong { color: var(--forest); }
+.paywall-price-card {
+  margin: 8px 0 18px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--pam-surface-tint);
+  border: 1px solid var(--pam-border-strong);
+}
+.paywall-price { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
+.paywall-price strong { font-size: 2.2rem; color: var(--forest); letter-spacing: -0.02em; }
+.paywall-price span { color: var(--ink-2); }
+.paywall-price-card p { margin: 6px 0 0; font-size: 0.85rem; color: var(--ink-3); }
+.paywall-cta { width: 100%; }
+.paywall-skip {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-top: 14px;
+  color: var(--mint-4);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.paywall-skip:hover { text-decoration: underline; }
+
 /* Offline-asset detail rows (value + how tappable) */
 .offline-detail-list { display: grid; gap: 14px; margin-bottom: 16px; }
 .offline-detail-row {
