@@ -313,6 +313,25 @@ function hasActiveSubscription() {
   return ["active", "trialing"].includes(state.subscription.status);
 }
 
+// A real, paying subscription (never waived). Use for paywall gating.
+function isPayingSubscriber() {
+  return Boolean(state.subscription && ["active", "trialing"].includes(state.subscription.status));
+}
+
+// True only when the server enforces payment AND this user isn't paying.
+// With PAM_REQUIRE_SUBSCRIPTION unset (beta), this is always false.
+function subscriptionRequired() {
+  return Boolean(window.__pamRequireSubscription) && !isPayingSubscriber();
+}
+
+const FREE_DECISION_LIMIT = 3;
+function getFreeDecisionCount() {
+  try { return Number(window.localStorage.getItem("pam:free-decisions:v1") || 0); } catch (_e) { return 0; }
+}
+function bumpFreeDecisionCount() {
+  try { window.localStorage.setItem("pam:free-decisions:v1", String(getFreeDecisionCount() + 1)); } catch (_e) {}
+}
+
 function isFoundingMember() {
   return Boolean(state.subscription?.isFoundingMember);
 }
@@ -2095,12 +2114,21 @@ async function requestDecisionGuidance(question, result) {
 }
 
 async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.", options = {}) {
+  // Paywall: free users get FREE_DECISION_LIMIT sample decisions, then the
+  // unlock pitch. No-op while enforcement is off or the user is paying.
+  if (subscriptionRequired() && getFreeDecisionCount() >= FREE_DECISION_LIMIT) {
+    saveWorkspaceView("unlock");
+    setStatus("You've used your 3 free decisions. Unlock PAM to keep going.", "decision");
+    render();
+    return;
+  }
   saveQuestion(question);
   saveWorkspaceView("dashboard");
   saveMobileView("ask");
   const session = options.session || buildScenarioSession({ prompt: question, draft: options.draft || null });
   state.result = toLegacyDecisionFromSession(session);
   recordDecisionHistory(state.result);
+  if (subscriptionRequired()) bumpFreeDecisionCount();
   // New answer landing: stagger the result sections in, then settle.
   state.resultFresh = true;
   window.setTimeout(() => { state.resultFresh = false; }, 3000);
@@ -2610,6 +2638,13 @@ async function handleConnectSandboxAccount(options = {}) {
   }
   if (!hasAcceptedLegalTerms()) {
     setStatus("Accept PAM's legal terms before connecting financial data.", "account");
+    render();
+    return;
+  }
+  // Paywall: connecting real accounts is a paid feature once enforcement is on.
+  if (subscriptionRequired()) {
+    saveWorkspaceView("unlock");
+    setStatus("Connecting real accounts is part of the paid plan.", "account");
     render();
     return;
   }
@@ -3647,7 +3682,10 @@ function renderPaywallScreen() {
           <p>Founding price — locked for life. $9.99 after launch. Cancel anytime.</p>
         </div>
         <button class="button button-primary marketing-btn-lg paywall-cta" type="button" data-checkout="monthly">Unlock PAM →</button>
-        ${hasActiveSubscription() ? `
+        ${subscriptionRequired() && getFreeDecisionCount() >= FREE_DECISION_LIMIT ? `
+          <p class="values-detail">You've used your ${FREE_DECISION_LIMIT} free sample decisions.</p>
+        ` : ""}
+        ${!subscriptionRequired() ? `
           <button class="paywall-skip" type="button" data-load-sandbox>Or try it with sample data first →</button>
         ` : ""}
         <p class="values-honesty-note">Educational modeling, not licensed financial advice. Payments are handled by Stripe.</p>
@@ -6909,6 +6947,9 @@ export async function startApp() {
   if (checkoutParam === "success") {
     await loadSubscription();
     setStatus("You're subscribed. Welcome to PAM AI.", "account");
+    saveWorkspaceView("dashboard");
+    saveMobileView("home");
+    showSuccessToast("Welcome to PAM. Everything's unlocked.");
     window.history.replaceState({}, "", window.location.pathname);
   } else if (checkoutParam === "cancelled") {
     setStatus("Checkout cancelled — you can upgrade anytime from your profile.", "account");

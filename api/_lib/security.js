@@ -383,6 +383,7 @@ function getOptionalString(value, maxLength = 160) {
 
 module.exports = {
   MAX_BODY_BYTES,
+  envFlagEnabled,
   STATE_PATTERN,
   assertServiceEnabled,
   checkDailyUsageBudget,

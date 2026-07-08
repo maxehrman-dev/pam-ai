@@ -3,7 +3,7 @@ const { withErrorReporting } = require("../_lib/observability.js");
 const { getClerkPublishableKey, hasClerkConfig } = require("../_lib/clerk.js");
 const { hasPlaidConfig } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
-const { checkRateLimit } = require("../_lib/security.js");
+const { checkRateLimit, envFlagEnabled } = require("../_lib/security.js");
 const { checkSupabaseConnection } = require("../_lib/supabase.js");
 
 const __pamRouteHandler = async (req, res) => {
@@ -43,6 +43,7 @@ const __pamRouteHandler = async (req, res) => {
       configured: hasClerkConfig()
     },
     clientConfig: {
+      requireSubscription: envFlagEnabled("PAM_REQUIRE_SUBSCRIPTION"),
       sentryDsn: process.env.SENTRY_DSN || "",
       posthogKey: process.env.POSTHOG_KEY || "phc_qex4UsyDAYzV2YhWodw9ePHBLfA8pTJ7pSaWZdip3pfr",
       posthogHost: process.env.POSTHOG_HOST || "https://us.i.posthog.com",
