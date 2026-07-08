@@ -6540,6 +6540,8 @@ textarea::placeholder {
   width: 100%;
 }
 .offline-detail-liquidity { display: flex; flex-wrap: wrap; gap: 8px; }
+.goal-detail-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 480px) { .goal-detail-inputs { grid-template-columns: 1fr; } }
 .values-option-btn.compact { padding: 8px 12px; font-size: 0.82rem; border-radius: 999px; }
 
 /* Tap-to-advance hint on single-choice steps */

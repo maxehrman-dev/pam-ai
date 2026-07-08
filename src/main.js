@@ -3497,6 +3497,34 @@ function renderValuesOnboarding() {
       <div class="values-group">${fieldsHtml}</div>
       ${ready ? `<button class="button button-primary" type="button" data-values-next>Continue</button>` : ""}
     `;
+  } else if (step.type === "goal-details") {
+    // Rough target + timeline per picked goal. These become REAL engine goals
+    // (saveUserGoals) — they drive goal-delay math, not decoration.
+    const picks = Array.isArray(draft.goal_picks) ? draft.goal_picks : [];
+    const details = draft.goal_details || {};
+    inputHtml = `
+      <div class="offline-detail-list">
+        ${picks.map((goal) => {
+          const d = details[goal] || {};
+          return `
+            <div class="offline-detail-row">
+              <strong>${escapeHtml(goal)}</strong>
+              <div class="goal-detail-inputs">
+                <label class="offline-detail-amount">
+                  <span>Target amount</span>
+                  <input type="number" inputmode="numeric" min="0" placeholder="$" value="${d.amount ?? ""}" data-goal-amount="${escapeHtml(goal)}">
+                </label>
+                <label class="offline-detail-amount">
+                  <span>In how many months?</span>
+                  <input type="number" inputmode="numeric" min="1" max="600" placeholder="12" value="${d.months ?? ""}" data-goal-months="${escapeHtml(goal)}">
+                </label>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+      <button class="button button-primary" type="button" data-values-next>Continue</button>
+    `;
   } else if (step.type === "offline-details") {
     // Follow-up to "anything your bank doesn't show": rough value + how
     // tappable each selected item is. Only reached when items were selected.
@@ -3606,7 +3634,7 @@ function renderStrategyPlayback(draft = {}) {
 // into named phases so progress feels chunked, not endless.
 const VALUES_PHASES = [
   { name: "About you", keys: ["age", "city", "household", "housing", "worker_type", "pay_frequency"] },
-  { name: "Your strategy", keys: ["retirement_target_age", "work_philosophy", "location_flexible", "lifestyle_priorities", "career_strategy", "trajectory_moves", "future_strategy", "industry", "years_at_current_job"] },
+  { name: "Your strategy", keys: ["retirement_target_age", "goal_picks", "goal_details", "work_philosophy", "location_flexible", "lifestyle_priorities", "career_strategy", "trajectory_moves", "future_strategy", "industry", "years_at_current_job"] },
   { name: "Your full picture", keys: ["offline_factors", "offline_details", "going_for_you", "anything_else", "__review"] }
 ];
 
@@ -3646,11 +3674,19 @@ function advanceValuesFlow() {
   if (step && step.type === "offline-details" && state.valuesDraft.offline_details === undefined) {
     state.valuesDraft.offline_details = {};
   }
+  if (step && step.type === "goal-details" && state.valuesDraft.goal_details === undefined) {
+    state.valuesDraft.goal_details = {};
+  }
   if (state.valuesStep < steps.length - 1) {
     state.valuesStep++;
-    // The offline-details follow-up only applies when something was selected
-    // on the previous step — otherwise skip it silently.
-    const nextStep = steps[state.valuesStep];
+    // Detail follow-ups only apply when something was selected on their
+    // parent step — otherwise skip them silently.
+    let nextStep = steps[state.valuesStep];
+    if (nextStep?.type === "goal-details" && !(Array.isArray(state.valuesDraft.goal_picks) && state.valuesDraft.goal_picks.length)) {
+      state.valuesDraft.goal_details = {};
+      if (state.valuesStep < steps.length - 1) state.valuesStep++;
+      nextStep = steps[state.valuesStep];
+    }
     if (nextStep?.type === "offline-details" && !(Array.isArray(state.valuesDraft.offline_factors) && state.valuesDraft.offline_factors.length)) {
       state.valuesDraft.offline_details = {};
       if (state.valuesStep < steps.length - 1) state.valuesStep++;
@@ -3662,6 +3698,27 @@ function advanceValuesFlow() {
     const values = { ...(state.userValues || {}), ...state.valuesDraft, completed: true };
     const wasTopUp = steps.length < VALUES_ONBOARDING_STEPS.length;
     saveUserValues(values);
+    // Onboarding goals become REAL engine goals: they replace the mock-goal
+    // fallback and drive every goal-delay calculation from day one.
+    if (Array.isArray(values.goal_picks) && values.goal_picks.length) {
+      const details = values.goal_details || {};
+      const existing = Array.isArray(state.goals) ? state.goals : [];
+      const fromOnboarding = values.goal_picks.map((title, i) => {
+        const d = details[title] || {};
+        return normalizeGoalForScenario({
+          id: `onb-goal-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+          title,
+          category: title,
+          targetAmount: Number(d.amount) > 0 ? Number(d.amount) : 5000,
+          currentAmount: 0,
+          goalTimelineMonths: Number(d.months) > 0 ? Number(d.months) : 18,
+          priority: i === 0 ? "high" : "medium",
+          fundingSource: title === "Invest regularly" ? "invest" : "cash"
+        }, i);
+      });
+      const merged = [...fromOnboarding, ...existing.filter((g) => !fromOnboarding.some((n) => n.title === g.title))];
+      saveUserGoals(merged.slice(0, 5));
+    }
     trackEvent("values_onboarding_completed", { steps: steps.length, topUp: wasTopUp });
     // Fresh full onboarding ends at the unlock pitch (unless already paying).
     // Top-up passes from existing users go straight back to the dashboard.
@@ -3736,6 +3793,10 @@ function getMissingValuesSteps() {
     if (step.type === "offline-details") {
       if (uv.offline_details !== undefined) return false;
       return uv.offline_factors === undefined || (Array.isArray(uv.offline_factors) && uv.offline_factors.length > 0);
+    }
+    if (step.type === "goal-details") {
+      if (uv.goal_details !== undefined) return false;
+      return uv.goal_picks === undefined || (Array.isArray(uv.goal_picks) && uv.goal_picks.length > 0);
     }
     // A group is missing if any of its sub-fields was never answered.
     if (step.type === "group") return (step.fields || []).some((f) => uv[f.key] === undefined);
@@ -6624,6 +6685,16 @@ function wireInteractions() {
         return;
       }
       render();
+    });
+  });
+  document.querySelectorAll("[data-goal-amount], [data-goal-months]").forEach((input) => {
+    input.addEventListener("input", () => {
+      if (!state.valuesDraft) state.valuesDraft = {};
+      const details = { ...(state.valuesDraft.goal_details || {}) };
+      const goal = input.dataset.goalAmount || input.dataset.goalMonths;
+      const field = input.dataset.goalAmount ? "amount" : "months";
+      details[goal] = { ...(details[goal] || {}), [field]: input.value === "" ? null : Number(input.value) };
+      state.valuesDraft.goal_details = details;
     });
   });
   document.querySelectorAll("[data-offline-amount]").forEach((input) => {

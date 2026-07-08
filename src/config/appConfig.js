@@ -129,6 +129,19 @@ export const VALUES_ONBOARDING_STEPS = [
     defaultValue: 65
   },
   {
+    key: "goal_picks",
+    question: "What are you working toward right now?",
+    detail: "Pick everything you're actually saving for — PAM weighs every decision against these.",
+    type: "multiselect",
+    options: ["Move out", "Emergency fund", "Pay off a debt", "Buy a car", "Buy a home", "A big trip", "Invest regularly", "A wedding"]
+  },
+  {
+    key: "goal_details",
+    type: "goal-details",
+    question: "Rough targets for those",
+    detail: "Ballpark numbers are fine — you can tune them later in Goals."
+  },
+  {
     key: "work_philosophy",
     question: "How do you really feel about work?",
     type: "options",
