@@ -6433,6 +6433,22 @@ textarea::placeholder {
 .result-entering .result-section:nth-of-type(4) { animation-delay: 0.24s; }
 .result-entering .result-section:nth-of-type(5) { animation-delay: 0.32s; }
 
+/* Verdict badge — the one-word call, same three words everywhere */
+.verdict-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.01em;
+}
+.verdict-badge.verdict-worth { background: rgba(30, 138, 102, 0.16); color: var(--mint-5); border: 1px solid rgba(30, 138, 102, 0.35); }
+.verdict-badge.verdict-notyet { background: rgba(194, 122, 19, 0.14); color: #8a5a10; border: 1px solid rgba(194, 122, 19, 0.4); }
+.verdict-badge.verdict-dont { background: rgba(159, 29, 29, 0.12); color: #9f1d1d; border: 1px solid rgba(159, 29, 29, 0.35); }
+:root[data-theme="dark"] .verdict-badge.verdict-notyet { color: #ffd9a0; }
+:root[data-theme="dark"] .verdict-badge.verdict-dont { color: #ffb4b4; }
+
 /* Post-onboarding paywall */
 .paywall-frame { text-align: center; }
 .paywall-benefits {
@@ -6446,6 +6462,37 @@ textarea::placeholder {
 .paywall-benefits li { color: var(--ink-3); line-height: 1.5; padding-left: 24px; position: relative; }
 .paywall-benefits li::before { content: "✓"; position: absolute; left: 0; color: var(--mint-4); font-weight: 800; }
 .paywall-benefits strong { color: var(--forest); }
+.paywall-teaser {
+  position: relative;
+  margin: 6px 0 16px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--pam-border);
+}
+.paywall-teaser-blur {
+  filter: blur(6px);
+  opacity: 0.75;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  background: var(--pam-surface-soft);
+  pointer-events: none;
+  user-select: none;
+}
+.paywall-teaser-row { display: flex; justify-content: space-between; }
+.paywall-teaser-row span { color: var(--ink-2); font-size: 0.85rem; }
+.paywall-teaser-row strong { color: var(--forest); }
+.paywall-teaser-lock {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--forest);
+  font-size: 0.92rem;
+}
+.paywall-founding-count { margin: 8px 0 0 !important; font-weight: 700; color: var(--mint-4) !important; }
+
 .paywall-price-card {
   margin: 8px 0 18px;
   padding: 16px;

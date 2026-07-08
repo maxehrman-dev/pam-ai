@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["../server.js"],
       "port": 3000
+    },
+    {
+      "name": "baseball-gm",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/iwillfixthis/Documents/New project/baseball-gm/server.js"],
+      "port": 3060
     }
   ]
 }

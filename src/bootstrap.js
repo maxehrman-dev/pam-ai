@@ -186,9 +186,10 @@ async function boot() {
     initSentry(config.sentryDsn);
     // Paywall enforcement flag (server env PAM_REQUIRE_SUBSCRIPTION) — read by main.js.
     window.__pamRequireSubscription = Boolean(config.requireSubscription);
+    window.__pamFoundingClaimed = Number(config.foundingClaimed || 0);
     await initClerk(config.clerkPublishableKey);
 
-    const module = await import("./main.js?v=pam-ai-20260707-paygate1");
+    const module = await import("./main.js?v=pam-ai-20260708-verdict1");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }

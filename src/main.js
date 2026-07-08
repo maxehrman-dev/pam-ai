@@ -3547,7 +3547,7 @@ function renderValuesOnboarding() {
     <section class="values-onboarding-shell">
       <div class="values-onboarding-frame">
         <div class="values-progress-bar"><div style="width:${progress}%"></div></div>
-        <div class="panel-kicker">Step ${state.valuesStep + 1} of ${steps.length}</div>
+        <div class="panel-kicker">${getValuesPhaseLabel(steps, state.valuesStep)}</div>
         <h2>${escapeHtml(step.question)}</h2>
         ${step.detail ? `<p class="values-detail">${escapeHtml(step.detail)}</p>` : ""}
         <div class="values-input-area">${inputHtml}</div>
@@ -3600,6 +3600,25 @@ function renderStrategyPlayback(draft = {}) {
 
   if (!lines.length) return `<p class="values-detail">PAM will tailor advice as you answer more questions.</p>`;
   return `<div class="strategy-playback">${lines.map((l) => `<p>${l}</p>`).join("")}</div>`;
+}
+
+// 19 taps reads as a slog; 3 phases reads as a setup. Group the step counter
+// into named phases so progress feels chunked, not endless.
+const VALUES_PHASES = [
+  { name: "About you", keys: ["age", "city", "household", "housing", "worker_type", "pay_frequency"] },
+  { name: "Your strategy", keys: ["retirement_target_age", "work_philosophy", "location_flexible", "lifestyle_priorities", "career_strategy", "trajectory_moves", "future_strategy", "industry", "years_at_current_job"] },
+  { name: "Your full picture", keys: ["offline_factors", "offline_details", "going_for_you", "anything_else", "__review"] }
+];
+
+function getValuesPhaseLabel(steps, index) {
+  const step = steps[index];
+  if (!step) return "";
+  const phase = VALUES_PHASES.find((p) => p.keys.includes(step.key));
+  if (!phase) return `Step ${index + 1} of ${steps.length}`;
+  const phaseSteps = steps.filter((s) => phase.keys.includes(s.key));
+  const pos = phaseSteps.findIndex((s) => s.key === step.key) + 1;
+  const phaseNum = VALUES_PHASES.indexOf(phase) + 1;
+  return `${phase.name} (${phaseNum}/3) · ${pos} of ${phaseSteps.length}`;
 }
 
 // Advance the values flow one step (or complete it). Shared by the Continue
@@ -3677,9 +3696,18 @@ function renderPaywallScreen() {
           <li><strong>PAM's tailored deep-dive</strong> — follow-up questions built from your profile that sharpen every answer.</li>
           <li><strong>Unlimited decisions, with memory</strong> — every answer builds on your last, across devices.</li>
         </ul>
+        <div class="paywall-teaser" aria-hidden="true">
+          <div class="paywall-teaser-blur">
+            <div class="paywall-teaser-row"><span>Net worth</span><strong>$48,210</strong></div>
+            <div class="paywall-teaser-row"><span>Monthly buffer</span><strong>$1,430</strong></div>
+            <div class="paywall-teaser-row"><span>Retire-by goal</span><strong>On track</strong></div>
+          </div>
+          <div class="paywall-teaser-lock">Your real numbers appear here</div>
+        </div>
         <div class="paywall-price-card">
           <div class="paywall-price"><strong>$7.99</strong><span>/month</span></div>
           <p>Founding price — locked for life. $9.99 after launch. Cancel anytime.</p>
+          ${Number(window.__pamFoundingClaimed || 0) >= 15 ? `<p class="paywall-founding-count">${Math.min(Number(window.__pamFoundingClaimed), 100)} of 100 founding spots claimed</p>` : ""}
         </div>
         <button class="button button-primary marketing-btn-lg paywall-cta" type="button" data-checkout="monthly">Unlock PAM →</button>
         ${subscriptionRequired() && getFreeDecisionCount() >= FREE_DECISION_LIMIT ? `
@@ -5521,6 +5549,27 @@ function renderDecisionPanel() {
   `;
 }
 
+// The one-word call, everywhere the same: Worth it / Not yet / Don't.
+// Prefers the AI's structured verdict; falls back to a deterministic
+// risk-based mapping when AI guidance is unavailable.
+const VERDICT_META = {
+  worth_it: { label: "Worth it", className: "verdict-worth" },
+  not_yet: { label: "Not yet", className: "verdict-notyet" },
+  dont: { label: "Don't", className: "verdict-dont" }
+};
+
+function getCurrentVerdict(result) {
+  const ai = state.aiGuidance?.guidance?.verdict;
+  if (ai && VERDICT_META[ai]) return ai;
+  const risk = result?.risk?.label || "Medium";
+  return risk === "Low" ? "worth_it" : risk === "High" ? "dont" : "not_yet";
+}
+
+function renderVerdictBadge(result) {
+  const v = VERDICT_META[getCurrentVerdict(result)];
+  return `<span class="verdict-badge ${v.className}">${v.label}</span>`;
+}
+
 function renderResult() {
   if (!canAccessDashboard() || !hasAcceptedLegalTerms()) {
     return `
@@ -5553,6 +5602,7 @@ function renderResult() {
         <div class="result-header-actions">
           ${renderDataSourceBadge()}
           <button class="button button-secondary" type="button" data-save-scenario>Save scenario</button>
+          ${renderVerdictBadge(result)}
           <span class="risk-badge ${result.risk.className}">${result.risk.label} risk</span>
         </div>
       </div>
