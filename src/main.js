@@ -129,6 +129,7 @@ const state = {
   demoAccessBusy: false,
   demoAccessMessage: "",
   plaidBusy: false,
+  deepdive: { messages: [], busy: false, error: "" },
   resultFresh: false,
   sessionRestoring: false,
   sessionRestoreError: false,
@@ -741,7 +742,7 @@ function applyDisplayTheme() {
 }
 
 function saveWorkspaceView(view) {
-  state.workspaceView = ["landing", "account", "dashboard", "values", "unlock"].includes(view) ? view : "landing";
+  state.workspaceView = ["landing", "account", "dashboard", "values", "unlock", "deepdive"].includes(view) ? view : "landing";
   try {
     window.localStorage.setItem(WORKSPACE_VIEW_KEY, state.workspaceView);
   } catch (_error) {
@@ -3779,6 +3780,79 @@ function renderPaywallScreen() {
   `;
 }
 
+// ── Deep-dive session: PAM interviews the user (max 6 questions) and merges
+// what it learns into userValues so every future answer uses it. ──
+async function sendDeepDiveTurn(userText = "") {
+  const dd = state.deepdive;
+  if (dd.busy) return;
+  if (userText) dd.messages.push({ role: "user", text: String(userText).slice(0, 600) });
+  dd.busy = true;
+  dd.error = "";
+  render();
+  try {
+    const response = await fetch("/api/decision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "deepdive",
+        baseline: getConnectedSnapshot(state.baseline),
+        conversation: dd.messages.slice(-20)
+      })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!payload?.ok) {
+      dd.error = payload?.detail || payload?.error || "PAM couldn't continue the session. Try again.";
+    } else if (payload.done) {
+      saveUserValues({
+        ...(state.userValues || {}),
+        deepdive_done: true,
+        deepdive_summary: payload.summary || "",
+        deepdive_notes: Array.isArray(payload.notes) ? payload.notes : []
+      });
+      dd.messages.push({ role: "pam", text: payload.summary || "Got everything I need — your profile just got sharper." });
+      dd.done = true;
+      trackEvent("deepdive_completed", { notes: (payload.notes || []).length });
+      showSuccessToast("Deep-dive saved — every answer just got sharper.");
+    } else if (payload.question) {
+      dd.messages.push({ role: "pam", text: payload.question });
+    }
+  } catch (_error) {
+    dd.error = "Connection hiccup — your answers are safe. Try again.";
+  }
+  dd.busy = false;
+  render();
+  requestAnimationFrame(() => document.querySelector(".deepdive-thread")?.scrollTo({ top: 999999 }));
+}
+
+function renderDeepDiveScreen() {
+  const dd = state.deepdive;
+  const asked = dd.messages.filter((m) => m.role === "pam").length;
+  return `
+    <section class="values-onboarding-shell">
+      <div class="values-onboarding-frame deepdive-frame">
+        <div class="panel-kicker">PAM deep-dive · question ${Math.min(asked || 1, 6)} of ~6</div>
+        <h2>Let's get past the checkboxes.</h2>
+        <p class="values-detail">A few tailored questions the forms can't ask. Honest answers make every future call sharper.</p>
+        <div class="deepdive-thread">
+          ${dd.messages.map((m) => `<div class="deepdive-msg ${m.role === "pam" ? "from-pam" : "from-user"}">${escapeHtml(m.text)}</div>`).join("")}
+          ${dd.busy ? `<div class="deepdive-msg from-pam deepdive-typing"><span></span><span></span><span></span></div>` : ""}
+        </div>
+        ${dd.error ? `<p class="auth-status-message">${escapeHtml(dd.error)} <button class="button button-secondary" type="button" data-deepdive-retry>Try again</button></p>` : ""}
+        ${dd.done ? `
+          <button class="button button-primary marketing-btn-lg" type="button" data-open-view="dashboard">To my dashboard →</button>
+        ` : `
+          <form class="deepdive-form" data-deepdive-form>
+            <textarea rows="2" maxlength="600" placeholder="Type your answer…" ${dd.busy ? "disabled" : ""}></textarea>
+            <button class="button button-primary" type="submit" ${dd.busy ? "disabled" : ""}>Send</button>
+          </form>
+          <button class="paywall-skip" type="button" data-open-view="dashboard">Finish later — answers so far are saved</button>
+        `}
+        <p class="values-honesty-note">Judgment-free. This conversation stays in your profile, never sold or used to train models.</p>
+      </div>
+    </section>
+  `;
+}
+
 // Steps the user has never answered. Existing accounts keep completed=true
 // when new onboarding questions ship; this finds the gap so we can ask only
 // what's missing instead of forcing a full re-onboard (or a new account).
@@ -3817,6 +3891,18 @@ function getActiveValuesSteps() {
     if (missing.length) return missing;
   }
   return VALUES_ONBOARDING_STEPS;
+}
+
+// Dashboard entry to the deep-dive session (once, after values onboarding).
+function renderDeepDiveCard() {
+  if (!state.userValues?.completed || state.userValues?.deepdive_done) return "";
+  return `
+    <div class="insight-card values-cta-card deepdive-cta-card">
+      <strong>PAM's deep-dive: 6 questions, sharper everything</strong>
+      <p>A short conversation about the things checkboxes can't catch. Every answer after it gets more you-specific.</p>
+      <button class="button button-primary" type="button" data-start-deepdive>Start the deep-dive →</button>
+    </div>
+  `;
 }
 
 function renderFinishProfileCard() {
@@ -4429,7 +4515,7 @@ function renderMobileHomeScreen() {
       ` : ""}
 
       ${state.userValues?.completed
-        ? `${renderFinishProfileCard()}${renderInsightCards()}`
+        ? `${renderFinishProfileCard()}${renderDeepDiveCard()}${renderInsightCards()}`
         : `<div class="insight-card values-cta-card mobile-values-cta"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can give you specific, goal-based guidance.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
 
       <details class="mobile-home-more">
@@ -4686,7 +4772,7 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
-        ${state.userValues?.completed ? renderFinishProfileCard() : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
+        ${state.userValues?.completed ? `${renderFinishProfileCard()}${renderDeepDiveCard()}` : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
         ${renderInsightCards()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
@@ -6391,7 +6477,9 @@ function render() {
           ? `${renderHero()}${renderLandingWorkspace()}`
           : state.workspaceView === "values"
             ? renderValuesOnboarding()
-            : state.workspaceView === "unlock"
+            : state.workspaceView === "deepdive"
+              ? renderDeepDiveScreen()
+              : state.workspaceView === "unlock"
               ? renderPaywallScreen()
               : state.workspaceView === "account"
                 ? renderAccountPage()
@@ -6500,6 +6588,27 @@ function wireInteractions() {
   });
   document.querySelectorAll("[data-privacy-plain]").forEach((link) => {
     link.addEventListener("click", () => trackEvent("privacy_plain_opened"));
+  });
+  document.querySelectorAll("[data-start-deepdive]").forEach((button) => {
+    button.addEventListener("click", () => {
+      saveWorkspaceView("deepdive");
+      trackEvent("deepdive_started");
+      render();
+      if (!state.deepdive.messages.length && !state.deepdive.busy) sendDeepDiveTurn();
+    });
+  });
+  document.querySelectorAll("[data-deepdive-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const ta = form.querySelector("textarea");
+      const text = String(ta?.value || "").trim();
+      if (!text) return;
+      ta.value = "";
+      sendDeepDiveTurn(text);
+    });
+  });
+  document.querySelectorAll("[data-deepdive-retry]").forEach((button) => {
+    button.addEventListener("click", () => sendDeepDiveTurn());
   });
   document.querySelectorAll("[data-retry-restore]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -7068,8 +7177,13 @@ export async function startApp() {
   if (checkoutParam === "success") {
     await loadSubscription();
     setStatus("You're subscribed. Welcome to PAM AI.", "account");
-    saveWorkspaceView("dashboard");
-    saveMobileView("home");
+    if (state.userValues?.completed && !state.userValues?.deepdive_done) {
+      saveWorkspaceView("deepdive");
+      window.setTimeout(() => { if (!state.deepdive.messages.length && !state.deepdive.busy) sendDeepDiveTurn(); }, 80);
+    } else {
+      saveWorkspaceView("dashboard");
+      saveMobileView("home");
+    }
     showSuccessToast("Welcome to PAM. Everything's unlocked.");
     window.history.replaceState({}, "", window.location.pathname);
   } else if (checkoutParam === "cancelled") {
