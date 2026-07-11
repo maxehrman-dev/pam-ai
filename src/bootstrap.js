@@ -189,7 +189,7 @@ async function boot() {
     window.__pamFoundingClaimed = Number(config.foundingClaimed || 0);
     await initClerk(config.clerkPublishableKey);
 
-    const module = await import("./main.js?v=pam-ai-20260709-deepdive1");
+    const module = await import("./main.js?v=pam-ai-20260711-split1");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }

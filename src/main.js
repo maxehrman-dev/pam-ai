@@ -78,9 +78,10 @@ const state = {
   createAccountStep: 0,
   accountDraft: null,
   question: loadQuestion(),
-  decisionMode: "expense",
+  decisionMode: "split",
   structuredBuilderExpanded: false,
   structuredDecisionDraft: {
+    split: { payFrequency: "", bufferTargetMonths: "3", guiltFreePct: "10" },
     expense: { name: "", amount: "", priority: "Medium" },
     recurring: { name: "", amount: "", duration: "Ongoing" },
     invest: { amount: "200", years: "10", returnRate: "7" },
@@ -1250,6 +1251,7 @@ function getScenarioProfileFromBaseline(baseline) {
       archetype: "Connected Sandbox profile",
       city: baseline?.profile?.state || ui.stateCode || "US",
       creditScore: hasValue(baseline?.profile?.creditScore) ? toNumber(baseline.profile.creditScore, null) : null,
+      payFrequency: ["weekly", "biweekly", "semimonthly", "monthly"].includes(state.userValues?.pay_frequency) ? state.userValues.pay_frequency : "",
       objective: getGoalLabel(baseline) || "Make better money decisions before committing."
     },
     monthly: {
@@ -1337,7 +1339,25 @@ function toLegacyDecisionFromSession(session) {
   const monthlyImpact = result.monthlyCashFlowImpact || 0;
   const oneTimeImpact = -Math.abs(toNumber(draft.oneTimeCost || draft.upfrontCost || draft.moveCost || draft.legalCost, 0));
   const mostImpactedGoal = result.goalsSummary?.mostImpactedGoal;
+  // Compact deterministic split summary — rides along to /api/decision so the
+  // AI explains these exact numbers instead of inventing an allocation.
+  const splitPlan = result.splitPlan
+    ? {
+        payFrequency: result.splitPlan.payFrequencyLabel,
+        monthlyIncome: result.splitPlan.income,
+        perPaycheckIncome: result.splitPlan.perPaycheckIncome,
+        savingsRatePct: result.splitPlan.savingsRatePct,
+        bufferTargetAmount: result.splitPlan.bufferTargetAmount,
+        buckets: result.splitPlan.buckets.map((bucket) => ({
+          label: bucket.label,
+          monthly: bucket.monthly,
+          perPaycheck: bucket.perPaycheck,
+          percent: bucket.percent
+        }))
+      }
+    : null;
   return {
+    ...(splitPlan ? { paycheckSplit: splitPlan } : {}),
     question: session.prompt || draft.prompt || state.question,
     scenarioSession: session,
     decision: {
@@ -3961,9 +3981,9 @@ function getSmartSuggestions() {
     suggestions.push(`What do I need to save monthly to retire at ${Number(uv.retirement_target_age)}?`);
   }
   const fallbacks = [
+    "How should I split my paycheck?",
     "Can I afford a $400/month car payment?",
-    "What happens if my rent goes up $200?",
-    "Am I saving enough each month?"
+    "What happens if my rent goes up $200?"
   ];
   for (const f of fallbacks) {
     if (suggestions.length >= 3) break;
@@ -4605,9 +4625,8 @@ function renderMobileProfileScreen() {
             `).join("")}
           </div>
         </article>
-        <article>
-          <span>Security</span>
-          <strong>Password</strong>
+        <details class="profile-fold">
+          <summary><span>Security</span><strong>Change password</strong></summary>
           <form class="compact-password-form" data-password-form>
             <input type="password" name="currentPassword" placeholder="Current password" autocomplete="current-password" />
             <input type="password" name="newPassword" placeholder="New password" autocomplete="new-password" />
@@ -4615,24 +4634,22 @@ function renderMobileProfileScreen() {
             <button class="button button-secondary" type="submit" ${state.passwordBusy ? "disabled" : ""}>${state.passwordBusy ? "Updating..." : "Change password"}</button>
           </form>
           ${state.passwordMessage ? `<p class="auth-status-message">${escapeHtml(state.passwordMessage)}</p>` : ""}
-        </article>
-        <article>
-          <span>Feedback</span>
-          <strong>Help shape PAM</strong>
+        </details>
+        <details class="profile-fold" ${state.feedbackMessage ? "open" : ""}>
+          <summary><span>Feedback</span><strong>Help shape PAM</strong></summary>
           <form class="feedback-form compact-feedback-form" data-feedback-form>
             <textarea name="feedbackMessage" rows="3" maxlength="600" placeholder="What felt confusing or useful?"></textarea>
             <button class="button button-secondary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send feedback"}</button>
           </form>
           ${state.feedbackMessage ? `<p class="auth-status-message">${escapeHtml(state.feedbackMessage)}</p>` : ""}
-        </article>
-        <article>
-          <span>Saved scenarios</span>
-          <strong>${state.savedScenarios.length} saved</strong>
+        </details>
+        <details class="profile-fold">
+          <summary><span>Saved scenarios</span><strong>${state.savedScenarios.length} saved · export</strong></summary>
           <div class="settings-action-row small">
             <button class="button button-secondary" type="button" data-export-profile>Export profile</button>
             ${state.savedScenarios.length ? `<button class="button button-secondary" type="button" data-clear-saved-scenarios>Clear saved</button>` : ""}
           </div>
-        </article>
+        </details>
         <article>
           <span>Account</span>
           <strong>Session</strong>
@@ -4918,6 +4935,15 @@ function renderConnectedInsights() {
 
 function getStructuredDecisionModeConfig() {
   return {
+    split: {
+      label: "Paycheck",
+      title: "Paycheck split",
+      presets: [
+        { label: "Balanced", draft: { bufferTargetMonths: "3", guiltFreePct: "10" } },
+        { label: "Aggressive saver", draft: { bufferTargetMonths: "6", guiltFreePct: "5" } },
+        { label: "Debt crusher", draft: { bufferTargetMonths: "2", guiltFreePct: "8" } }
+      ]
+    },
     expense: {
       label: "Expense",
       title: "One-time spend",
@@ -4966,6 +4992,20 @@ function getStructuredDecisionDraft(mode = state.decisionMode) {
 }
 
 function renderStructuredDecisionFields(mode, draft) {
+  if (mode === "split") {
+    const savedFrequency = ["weekly", "biweekly", "semimonthly", "monthly"].includes(state.userValues?.pay_frequency)
+      ? state.userValues.pay_frequency
+      : "";
+    const frequency = draft.payFrequency || savedFrequency || "biweekly";
+    return `
+      <label><span>Pay frequency</span><select name="payFrequency">
+        ${[["weekly", "Weekly"], ["biweekly", "Every two weeks"], ["semimonthly", "Twice a month"], ["monthly", "Monthly"]].map(([value, label]) => `<option value="${value}" ${frequency === value ? "selected" : ""}>${label}</option>`).join("")}
+      </select></label>
+      <label><span>Buffer target (months)</span><input name="bufferTargetMonths" type="number" min="1" max="12" inputmode="numeric" value="${escapeHtml(draft.bufferTargetMonths || "3")}" placeholder="3" /></label>
+      <label><span>Guilt-free spending (%)</span><input name="guiltFreePct" type="number" min="0" max="40" inputmode="numeric" value="${escapeHtml(draft.guiltFreePct || "10")}" placeholder="10" /></label>
+    `;
+  }
+
   if (mode === "recurring") {
     return `
       <label><span>What is the monthly cost?</span><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Car payment, rent increase, subscription" /></label>
@@ -5008,6 +5048,10 @@ function renderStructuredDecisionFields(mode, draft) {
 }
 
 function buildStructuredDecisionQuestion(mode, formData) {
+  if (mode === "split") {
+    return "How should I split my paycheck?";
+  }
+
   if (mode === "recurring") {
     const name = String(formData.get("name") || "new recurring cost").trim();
     const amount = toNumber(formData.get("amount"), 0);
@@ -5044,6 +5088,16 @@ function parseDurationMonths(value) {
 }
 
 function buildStructuredScenarioDraft(mode, formData) {
+  if (mode === "split") {
+    return {
+      type: "paycheckSplit",
+      payFrequency: String(formData.get("payFrequency") || "biweekly"),
+      bufferTargetMonths: toNumber(formData.get("bufferTargetMonths"), 3),
+      guiltFreePct: toNumber(formData.get("guiltFreePct"), 10),
+      prompt: "How should I split my paycheck?"
+    };
+  }
+
   if (mode === "recurring") {
     const name = String(formData.get("name") || "new recurring cost").trim();
     return {
@@ -5120,6 +5174,15 @@ function renderStructuredDecisionBuilder() {
 }
 
 function getDecisionNextSteps(result) {
+  // Paycheck split results: chips adjust one assumption and re-run the split.
+  if (result?.paycheckSplit) {
+    return [
+      "Split my paycheck with a 6 month buffer",
+      "Split my paycheck with 15% guilt-free spending",
+      "Should I pay off debt or start investing?"
+    ];
+  }
+
   const monthlyImpact = Math.abs(toNumber(result?.decision?.monthlyImpact));
   const oneTimeImpact = Math.abs(toNumber(result?.decision?.oneTimeImpact));
   const smallerMonthly = monthlyImpact ? Math.max(Math.round(monthlyImpact * 0.7), 25) : 0;
@@ -5145,6 +5208,23 @@ function getAdvisorSummary(result, goalLabel) {
       interpretationSummary: guidance.interpretationSummary || "",
       followUpPrompt: guidance.followUpPrompt || "Want PAM to compare a safer version?",
       followUpChoiceLabels: Array.isArray(guidance.followUpChoiceLabels) ? guidance.followUpChoiceLabels : []
+    };
+  }
+
+  if (result?.paycheckSplit) {
+    const split = result.paycheckSplit;
+    // The engine's one split follow-up (pay cadence) uses self-contained chip
+    // labels, so surface it directly when it exists.
+    const sessionFollowUp = result.scenarioSession?.followUp;
+    return {
+      source: state.decisionBusy ? "AI refining..." : "Advisor summary",
+      headline: `Every ${split.payFrequency} gets a job before it hits checking.`,
+      body: result.explanation,
+      interpretationSummary: `PAM computed this split deterministically from your baseline: essentials and minimums first, then buffer, high-interest debt, investing, and a guilt-free floor. It saves ${split.savingsRatePct}% of income automatically.`,
+      followUpPrompt: sessionFollowUp?.prompt || "Adjust one assumption and re-run until the split feels livable.",
+      followUpChoiceLabels: sessionFollowUp
+        ? sessionFollowUp.choices.map((choice) => choice.label).slice(0, 3)
+        : getDecisionNextSteps(result).slice(0, 3)
     };
   }
 
@@ -5176,6 +5256,29 @@ function getAdvisorSummary(result, goalLabel) {
   };
 }
 
+function renderPaycheckSplitPlan(plan) {
+  if (!plan) return "";
+  return `
+    <h3>Where each ${escapeHtml(plan.payFrequencyLabel)} goes</h3>
+    ${plan.warnings.length ? plan.warnings.map((warning) => `<p class="input-warning">${escapeHtml(warning)}</p>`).join("") : ""}
+    <div class="goal-impact-stack split-plan-stack">
+      ${plan.buckets.map((bucket) => `
+        <div class="goal-impact-row split-bucket-row">
+          <span class="gi-name">${escapeHtml(bucket.label)}<small class="split-bucket-detail">${escapeHtml(bucket.detail)}</small></span>
+          <span class="gi-change neutral split-bucket-amounts"><strong>${formatCurrency(bucket.perPaycheck)}</strong> / paycheck<small>${formatCurrency(bucket.monthly)}/mo · ${bucket.percent}%</small></span>
+        </div>
+      `).join("")}
+    </div>
+    <details class="result-fold split-setup-fold">
+      <summary>How to set this up yourself</summary>
+      <ol class="split-setup-steps">
+        ${plan.setupSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+      </ol>
+      <p class="section-compact-note">PAM recommends the split — it never moves, holds, or routes money. You stay in control through your employer and bank.</p>
+    </details>
+  `;
+}
+
 function renderScenarioEngineDetails(result) {
   const session = result?.scenarioSession;
   const scenario = session?.result;
@@ -5194,6 +5297,7 @@ function renderScenarioEngineDetails(result) {
           <div><span>${escapeHtml(card.label)}</span><strong>${escapeHtml(card.value)}</strong><small>${escapeHtml(card.detail || "")}</small></div>
         `).join("")}
       </div>
+      ${renderPaycheckSplitPlan(scenario.splitPlan)}
       ${goals.length ? `
         <h3>Goal impact</h3>
         <div class="goal-impact-stack">
@@ -5650,8 +5754,8 @@ function renderDecisionPanel() {
         </div>
         <span class="decision-mode-pill">Advisor mode</span>
       </div>
-      <div class="decision-mobile-brief" aria-label="Current money context">
-        <p>Here’s what changed in your money.</p>
+      <details class="decision-brief-fold" aria-label="Current money context">
+        <summary>What changed in your money</summary>
         <div class="daily-update-list">
           <div class="daily-update">
             <span class="daily-icon mint">↗</span>
@@ -5666,7 +5770,7 @@ function renderDecisionPanel() {
             <div><strong>Spending ${formatCurrency(underPlan)} under plan</strong><p>${spendingPercent}% of ${formatCurrency(spendingPlan)} plan used.</p></div>
           </div>
         </div>
-      </div>
+      </details>
       <div class="ask-pam-card decision-ask-card">
         <h3>Ask PAM</h3>
         <form class="foresee-question-form ask-pam-mini-form decision-question-form" data-question-form>

@@ -11,6 +11,21 @@ const PRIORITY_WEIGHTS = {
 };
 
 const INTENT_KEYWORDS = {
+  paycheckSplit: [
+    "paycheck split",
+    "split my paycheck",
+    "split each paycheck",
+    "split my pay",
+    "divide my paycheck",
+    "allocate my paycheck",
+    "direct deposit split",
+    "budget my paycheck",
+    "where should my money go",
+    "where should each paycheck go",
+    "how should i divide my money",
+    "how much should i save each month",
+    "am i saving enough"
+  ],
   jobLoss: ["lose my job", "laid off", "layoff", "fired", "job loss", "unemployed", "out of work"],
   legal: ["sued", "lawsuit", "legal", "attorney", "court", "settlement"],
   car: ["car", "vehicle", "truck", "suv", "auto", "tesla", "lease", "finance a car"],
@@ -22,6 +37,7 @@ const INTENT_KEYWORDS = {
 };
 
 const INTENT_TO_STARTER = {
+  paycheckSplit: "paycheck-split",
   jobLoss: "job-loss",
   car: "buy-car",
   move: "move-apartments",
@@ -102,7 +118,9 @@ function parseRecurringAmount(prompt) {
 }
 
 function parsePercent(prompt) {
-  const percentMatch = String(prompt || "").match(/(\d+(?:\.\d+)?)\s*(?:%|percent)\b/i);
+  // "\b" after "%" can never match (both sides are non-word chars), so the
+  // boundary lives inside the group and only guards the word form.
+  const percentMatch = String(prompt || "").match(/(\d+(?:\.\d+)?)\s*(?:%|percent\b)/i);
   return percentMatch ? Number(percentMatch[1]) / 100 : null;
 }
 
@@ -132,6 +150,7 @@ function getIntentFlags(prompt) {
 
   return {
     normalized,
+    hasPaycheckSplit: hasAny(normalized, INTENT_KEYWORDS.paycheckSplit),
     hasJobLoss: hasAny(normalized, INTENT_KEYWORDS.jobLoss),
     hasLegal: hasAny(normalized, INTENT_KEYWORDS.legal),
     hasCar: hasAny(normalized, INTENT_KEYWORDS.car),
@@ -146,6 +165,7 @@ function getIntentFlags(prompt) {
 function listDetectedIntents(flags) {
   return Object.entries(INTENT_TO_STARTER)
     .filter(([key]) => {
+      if (key === "paycheckSplit") return flags.hasPaycheckSplit;
       if (key === "rentIncrease") return flags.hasRentIncrease;
       if (key === "incomeReduction") return flags.hasIncomeReduction;
       if (key === "jobLoss") return flags.hasJobLoss;
@@ -257,6 +277,7 @@ function detectScenarioId(prompt, catalog) {
   const flags = getIntentFlags(prompt);
   const intents = listDetectedIntents(flags);
 
+  if (flags.hasPaycheckSplit) return "paycheck-split";
   if (flags.hasJobLoss && flags.hasLegal) return "compound-shock";
   if (flags.hasRentIncrease) return "increase-rent";
   if (flags.hasJobLoss) return "job-loss";
@@ -317,6 +338,348 @@ function buildCustomStarter() {
       customFocus: "unknown",
       customDirection: "negative"
     }
+  };
+}
+
+// ─── Paycheck split (advice-only allocation plan, never money movement) ─────
+// A legible priority waterfall, not a clever formula: essentials + minimum debt
+// first, a guilt-free floor so the plan is followable, then buffer -> high-APR
+// debt -> investing. Every step is an auditable rule with editable assumptions.
+
+const PAY_FREQUENCY_META = {
+  weekly: { label: "weekly", noun: "weekly paycheck", perMonth: 52 / 12 },
+  biweekly: { label: "every two weeks", noun: "biweekly paycheck", perMonth: 26 / 12 },
+  semimonthly: { label: "twice a month", noun: "semimonthly paycheck", perMonth: 2 },
+  monthly: { label: "monthly", noun: "monthly paycheck", perMonth: 1 },
+  irregular: { label: "monthly", noun: "monthly income (irregular pay)", perMonth: 1 }
+};
+
+const SPLIT_DEFAULTS = {
+  bufferTargetMonths: 3,
+  guiltFreePct: 10,
+  highAprThreshold: 7
+};
+
+function buildPaycheckSplitStarter(profile) {
+  return {
+    id: "paycheck-split",
+    label: "Paycheck split",
+    title: "Split each paycheck with intention",
+    type: "paycheckSplit",
+    prompt: "How should I split my paycheck?",
+    defaults: {
+      payFrequency: profile?.user?.payFrequency || "",
+      bufferTargetMonths: SPLIT_DEFAULTS.bufferTargetMonths,
+      guiltFreePct: SPLIT_DEFAULTS.guiltFreePct,
+      highAprThreshold: SPLIT_DEFAULTS.highAprThreshold,
+      oneTimeCost: 0,
+      monthlyExpenseDelta: 0,
+      monthlyIncomeDelta: 0,
+      monthlyInvestingDelta: 0,
+      durationMonths: 12
+    }
+  };
+}
+
+function derivePaycheckSplitValues(draft) {
+  const numberOr = (value, fallback) => {
+    if (value === null || value === undefined || String(value).trim() === "") return fallback;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+  draft.payFrequency = PAY_FREQUENCY_META[draft.payFrequency] ? draft.payFrequency : draft.payFrequency ? "biweekly" : "";
+  draft.bufferTargetMonths = clamp(Math.round(numberOr(draft.bufferTargetMonths, SPLIT_DEFAULTS.bufferTargetMonths)), 1, 12);
+  draft.guiltFreePct = clamp(numberOr(draft.guiltFreePct, SPLIT_DEFAULTS.guiltFreePct), 0, 40);
+  draft.highAprThreshold = clamp(numberOr(draft.highAprThreshold, SPLIT_DEFAULTS.highAprThreshold), 0, 36);
+  draft.oneTimeCost = 0;
+  draft.monthlyExpenseDelta = 0;
+  draft.monthlyIncomeDelta = 0;
+}
+
+export function computePaycheckSplit(profile, rawDraft = {}) {
+  const draft = cloneValue({ ...SPLIT_DEFAULTS, ...rawDraft });
+  derivePaycheckSplitValues(draft);
+  const metrics = getProfileMetrics(profile);
+  const income = Math.max(Math.round(metrics.monthlyIncome), 0);
+  const frequency = PAY_FREQUENCY_META[draft.payFrequency] || PAY_FREQUENCY_META.biweekly;
+  const warnings = [];
+
+  // Essentials + minimum debt payments. Some profiles already carry a debt row
+  // inside essential fixed costs — only add liability minimums when they don't.
+  const debtInEssentials = (profile.monthly?.fixed || []).some(
+    (entry) => entry.essential && /debt|loan|student|credit/i.test(entry.label)
+  );
+  const debtMinimums = debtInEssentials ? 0 : Math.round(metrics.debtPayment);
+  const essentials = Math.round(metrics.essentialBurn) + debtMinimums;
+
+  // Guilt-free floor: a plan with $0 of fun money is a plan nobody follows.
+  let guiltFree = Math.round((income * draft.guiltFreePct) / 100);
+  let flexible = income - essentials - guiltFree;
+  if (flexible < 0) {
+    guiltFree = Math.max(income - essentials, 0);
+    flexible = 0;
+    if (income > 0 && essentials >= income) {
+      warnings.push("Essentials and minimum payments use your whole paycheck. The split can only improve once income rises or a fixed cost drops.");
+    } else if (income > 0) {
+      warnings.push("Guilt-free spending was reduced below the target floor so essentials stay covered.");
+    }
+  }
+  if (income <= 0) {
+    warnings.push("No monthly income detected yet. Connect accounts or add income so the split uses real numbers.");
+  }
+
+  // Buffer: fill toward the target before anything discretionary. While the
+  // buffer is short, half of every flexible dollar goes to cash — 80% when
+  // runway is under one month.
+  const bufferTargetAmount = Math.round(essentials * draft.bufferTargetMonths);
+  const liquid = Math.round(metrics.liquidAssets);
+  const bufferGap = Math.max(bufferTargetAmount - liquid, 0);
+  const bufferShare = metrics.runwayMonths < 1 ? 0.8 : 0.5;
+  let bufferContribution = bufferGap > 0 ? Math.round(flexible * bufferShare) : 0;
+  bufferContribution = Math.min(bufferContribution, flexible);
+  const bufferMonthsToTarget = bufferGap > 0 && bufferContribution > 0 ? bufferGap / bufferContribution : bufferGap > 0 ? Number.POSITIVE_INFINITY : 0;
+
+  // High-APR debt beats investing, mathematically: anything above the threshold
+  // rate gets 70% of what's left before long-term investing starts.
+  const highAprDebts = (profile.liabilities || [])
+    .filter((item) => Number(item.rate || 0) >= draft.highAprThreshold && Number(item.balance || 0) > 0)
+    .sort((left, right) => Number(right.rate || 0) - Number(left.rate || 0));
+  const highAprBalance = Math.round(sumAmounts(highAprDebts, "balance"));
+  const afterBuffer = flexible - bufferContribution;
+  let debtExtra = highAprBalance > 0 ? Math.min(Math.round(afterBuffer * 0.7), highAprBalance) : 0;
+  debtExtra = Math.max(debtExtra, 0);
+
+  // Investing absorbs the remainder so the buckets always sum to income exactly.
+  const investing = Math.max(income - essentials - guiltFree - bufferContribution - debtExtra, 0);
+
+  const perPaycheck = (monthly) => Math.round(monthly / frequency.perMonth);
+  const pct = (monthly) => (income > 0 ? Math.round((monthly / income) * 100) : 0);
+  const topDebt = highAprDebts[0] || null;
+  const debtPayoffMonths = topDebt && debtExtra > 0
+    ? Math.ceil(highAprBalance / (debtExtra + Math.round(sumAmounts(highAprDebts, "monthlyPayment"))))
+    : null;
+
+  const buckets = [
+    {
+      id: "essentials",
+      label: "Essentials & minimum payments",
+      monthly: essentials,
+      perPaycheck: perPaycheck(essentials),
+      percent: pct(essentials),
+      detail: "Rent, utilities, groceries, insurance, and every required debt minimum. Non-negotiable, so it comes off the top."
+    },
+    ...(bufferContribution > 0 ? [{
+      id: "buffer",
+      label: "Emergency buffer",
+      monthly: bufferContribution,
+      perPaycheck: perPaycheck(bufferContribution),
+      percent: pct(bufferContribution),
+      detail: `Fills your cash buffer toward ${formatCurrency(bufferTargetAmount)} (${draft.bufferTargetMonths} months of essentials). Once it's full, this slice rolls into investing.`
+    }] : []),
+    ...(debtExtra > 0 ? [{
+      id: "debt",
+      label: `Extra to high-interest debt`,
+      monthly: debtExtra,
+      perPaycheck: perPaycheck(debtExtra),
+      percent: pct(debtExtra),
+      detail: topDebt
+        ? `${topDebt.label} at ${topDebt.rate}% APR costs more than investing typically earns, so it gets attacked before long-term investing.`
+        : "Debt above your APR threshold gets paid down before long-term investing."
+    }] : []),
+    ...(investing > 0 ? [{
+      id: "invest",
+      label: "Investing & long-term goals",
+      monthly: investing,
+      perPaycheck: perPaycheck(investing),
+      percent: pct(investing),
+      detail: "Automatic long-term saving — tax-advantaged accounts first where they fit your timeline. PAM recommends allocation strategy, never specific funds."
+    }] : []),
+    {
+      id: "guiltFree",
+      label: "Guilt-free spending",
+      monthly: guiltFree,
+      perPaycheck: perPaycheck(guiltFree),
+      percent: pct(guiltFree),
+      detail: "Spend this without tracking or guilt. Everything else is already handled, which is the whole point of the split."
+    }
+  ];
+
+  const plannedSavings = bufferContribution + debtExtra + investing;
+  const savingsRatePct = pct(plannedSavings);
+
+  const setupSteps = [
+    `Ask payroll (or your employer portal) to split direct deposit: keep ${formatCurrency(perPaycheck(essentials + guiltFree))} per paycheck in checking and route ${formatCurrency(perPaycheck(plannedSavings))} to savings/investing accounts.`,
+    ...(bufferContribution > 0 ? [`If payroll can't split deposits, set an automatic transfer of ${formatCurrency(perPaycheck(bufferContribution))} from checking to savings on every payday.`] : []),
+    ...(debtExtra > 0 && topDebt ? [`Add ${formatCurrency(debtExtra)}/month as an extra automatic payment on ${topDebt.label} — autopay it the day after payday so it happens before willpower is involved.`] : []),
+    ...(investing > 0 ? [`Set a recurring ${formatCurrency(investing)}/month auto-invest transfer. If your bank supports "buckets" or sub-accounts, name them so each dollar has a job.`] : []),
+    "Re-run this split whenever income, rent, or a debt changes. PAM never moves money — you set these up once with your employer or bank."
+  ];
+
+  const assumptions = [
+    `Uses ${formatCurrency(income)}/month of detected income, paid ${frequency.label}.`,
+    `Essentials and minimum payments total ${formatCurrency(essentials)}/month from your baseline.`,
+    `Emergency buffer target: ${draft.bufferTargetMonths} months of essentials (${formatCurrency(bufferTargetAmount)}); you hold ${formatCurrency(liquid)} today.`,
+    `Debt above ${draft.highAprThreshold}% APR is paid down before long-term investing.`,
+    `Guilt-free floor: ${draft.guiltFreePct}% of income, so the plan stays livable.`,
+    "Every assumption above is editable — change it and re-run."
+  ];
+
+  return {
+    income,
+    payFrequency: draft.payFrequency || "biweekly",
+    payFrequencyLabel: frequency.noun,
+    paychecksPerMonth: frequency.perMonth,
+    perPaycheckIncome: perPaycheck(income),
+    buckets,
+    plannedSavings,
+    savingsRatePct,
+    essentials,
+    essentialsSharePct: pct(essentials),
+    guiltFree,
+    bufferContribution,
+    bufferTargetMonths: draft.bufferTargetMonths,
+    bufferTargetAmount,
+    bufferGap,
+    bufferMonthsToTarget,
+    debtExtra,
+    debtPayoffMonths,
+    topHighAprDebt: topDebt ? { label: topDebt.label, rate: Number(topDebt.rate || 0), balance: Number(topDebt.balance || 0) } : null,
+    investing,
+    warnings,
+    assumptions,
+    setupSteps
+  };
+}
+
+function getSplitRisk(plan) {
+  if (plan.income <= 0 || (plan.income > 0 && plan.essentials >= plan.income)) {
+    return {
+      label: "High",
+      detail: "Committed costs consume the whole paycheck, so there is no flexible money to allocate yet. The lever here is income or fixed costs, not willpower."
+    };
+  }
+  if (plan.essentialsSharePct > 65 || (plan.bufferGap > 0 && (!Number.isFinite(plan.bufferMonthsToTarget) || plan.bufferMonthsToTarget > 18))) {
+    return {
+      label: "Medium",
+      detail: "The split works, but essentials are heavy relative to income, so the buffer and long-term slices build slowly. Any income gain should go straight to the flexible pool."
+    };
+  }
+  return {
+    label: "Low",
+    detail: "Income comfortably covers essentials, so this split can run on autopilot without squeezing your day-to-day."
+  };
+}
+
+function buildSplitAhaMoment(plan) {
+  if (plan.bufferContribution > 0 && Number.isFinite(plan.bufferMonthsToTarget) && plan.bufferMonthsToTarget > 0) {
+    return `Routing ${formatCurrency(plan.bufferContribution)}/month of every paycheck into savings fills your ${formatCurrency(plan.bufferTargetAmount)} buffer by about ${addMonthsLabel(plan.bufferMonthsToTarget)} — automatically, before you can spend it.`;
+  }
+  if (plan.debtExtra > 0 && plan.topHighAprDebt && plan.debtPayoffMonths) {
+    return `An extra ${formatCurrency(plan.debtExtra)}/month clears ${plan.topHighAprDebt.label.toLowerCase()} (${plan.topHighAprDebt.rate}% APR) in about ${formatMonths(plan.debtPayoffMonths)} — a guaranteed return no investment matches.`;
+  }
+  if (plan.plannedSavings > 0) {
+    return `This split saves ${plan.savingsRatePct}% of your income (${formatCurrency(plan.plannedSavings)}/month) before it ever reaches your checking account, and still leaves ${formatCurrency(plan.guiltFree)} guilt-free.`;
+  }
+  return "Right now every dollar is committed before it lands. The split shows exactly where the paycheck goes, which is the first step to changing it.";
+}
+
+function buildSplitNextStep(plan) {
+  if (plan.income <= 0) {
+    return "Connect your accounts or add income first — the split needs a real paycheck number to be useful.";
+  }
+  if (plan.bufferContribution > 0) {
+    return `Start with one move: an automatic ${formatCurrency(Math.round(plan.bufferContribution / plan.paychecksPerMonth))} transfer to savings every payday. Add the other slices once that feels normal.`;
+  }
+  if (plan.debtExtra > 0) {
+    return `Start with the debt slice: automate the extra ${formatCurrency(plan.debtExtra)}/month payment, then layer in the rest of the split.`;
+  }
+  return "Set the transfers up with your bank or payroll this week — the split only works when it happens before you see the money.";
+}
+
+export function evaluatePaycheckSplit(profile, goals, draft) {
+  const metrics = getProfileMetrics(profile);
+  const normalizedDraft = cloneValue(draft);
+  derivePaycheckSplitValues(normalizedDraft);
+  const plan = computePaycheckSplit(profile, normalizedDraft);
+  const risk = getSplitRisk(plan);
+
+  // For goal math, the plan behaves like redirecting free cash into deliberate
+  // saving: compare planned buffer+investing against current contributions.
+  const investingDelta = plan.bufferContribution + plan.investing - Math.round(metrics.contributions);
+  const goalsSummary = evaluateGoals(goals, {
+    oneTimeCost: 0,
+    monthlyIncomeDelta: 0,
+    monthlyExpenseDelta: 0,
+    monthlyInvestingDelta: investingDelta,
+    type: "paycheckSplit"
+  });
+
+  const projectedNetWorth = metrics.projectedNetWorth + futureValueRecurring(investingDelta, INVEST_RETURN, DEFAULT_HORIZON_MONTHS);
+  const currentPath = {
+    monthlyFreeCash: metrics.monthlyFreeCash,
+    runwayMonths: metrics.runwayMonths,
+    projectedNetWorth: metrics.projectedNetWorth,
+    healthScore: metrics.healthScore,
+    liquidAssets: metrics.liquidAssets
+  };
+  const scenarioPath = {
+    // For a split, "buffer" reads as deliberate monthly saving: every dollar not
+    // consumed by essentials or guilt-free spending.
+    monthlyFreeCash: plan.plannedSavings,
+    runwayMonths: metrics.runwayMonths,
+    projectedNetWorth,
+    healthScore: Math.round(clamp(metrics.healthScore + (plan.plannedSavings - Math.max(metrics.monthlyFreeCash, 0)) / 40, 34, 97)),
+    liquidAssets: metrics.liquidAssets
+  };
+
+  const impactCards = [
+    {
+      label: "Automatic save rate",
+      value: `${plan.savingsRatePct}%`,
+      detail: `${formatCurrency(plan.plannedSavings)} of ${formatCurrency(plan.income)} each month goes to buffer, debt payoff, and investing before you can spend it.`
+    },
+    {
+      label: "Buffer target",
+      value: plan.bufferGap > 0
+        ? (Number.isFinite(plan.bufferMonthsToTarget) && plan.bufferMonthsToTarget > 0 ? addMonthsLabel(plan.bufferMonthsToTarget) : "Needs income room")
+        : "Funded",
+      detail: `${formatCurrency(plan.bufferTargetAmount)} target — ${plan.bufferTargetMonths || normalizedDraft.bufferTargetMonths} months of essentials.`
+    },
+    {
+      label: "High-interest debt",
+      value: plan.debtExtra > 0 ? `${formatCurrency(plan.debtExtra)}/mo extra` : "Minimums only",
+      detail: plan.topHighAprDebt
+        ? `${plan.topHighAprDebt.label} at ${plan.topHighAprDebt.rate}% APR${plan.debtPayoffMonths ? ` — gone in about ${formatMonths(plan.debtPayoffMonths)}` : ""}.`
+        : `No debt above ${normalizedDraft.highAprThreshold}% APR detected.`
+    },
+    {
+      label: "Guilt-free spending",
+      value: `${formatCurrency(plan.buckets[plan.buckets.length - 1].perPaycheck)}/paycheck`,
+      detail: risk.detail
+    }
+  ];
+
+  return {
+    draft: normalizedDraft,
+    scenario: {
+      ...normalizedDraft,
+      title: `Split your ${plan.payFrequencyLabel}`,
+      assumptions: plan.assumptions
+    },
+    splitPlan: plan,
+    currentPath,
+    scenarioPath,
+    shortTermLiquidityDelta: 0,
+    longTermNetWorthDelta: projectedNetWorth - metrics.projectedNetWorth,
+    monthlyCashFlowImpact: plan.plannedSavings - metrics.monthlyFreeCash,
+    savingsRunoutMonths: Number.POSITIVE_INFINITY,
+    risk,
+    creditReadiness: null,
+    confidence: { score: 90, label: "High confidence" },
+    goalsSummary,
+    ahaMoment: buildSplitAhaMoment(plan),
+    nextStep: buildSplitNextStep(plan),
+    impactCards
   };
 }
 
@@ -442,6 +805,9 @@ function reconcileDraft(draft, profile) {
     case "emergency":
       deriveEmergencyValues(nextDraft);
       break;
+    case "paycheckSplit":
+      derivePaycheckSplitValues(nextDraft);
+      break;
     default:
       deriveCustomValues(nextDraft);
       break;
@@ -496,6 +862,15 @@ function hydrateDraftFromPrompt(draft, prompt, profile) {
       break;
     case "emergency":
       if (firstAmount) draft.oneTimeCost = firstAmount;
+      break;
+    case "paycheckSplit":
+      if (percent) draft.guiltFreePct = clamp(percent * 100, 0, 40);
+      if (parsedMonths) draft.bufferTargetMonths = clamp(parsedMonths, 1, 12);
+      if (/\bweekly\b/i.test(normalized) && !/\bbi-?weekly\b/i.test(normalized)) draft.payFrequency = "weekly";
+      if (/\bbi-?weekly\b|every two weeks|every other week/i.test(normalized)) draft.payFrequency = "biweekly";
+      if (/\bmonthly\b|once a month/i.test(normalized)) draft.payFrequency = "monthly";
+      if (/twice a month|semi-?monthly/i.test(normalized)) draft.payFrequency = "semimonthly";
+      if (draft.payFrequency) draft.userSpecifiedPayFrequency = true;
       break;
     case "jobLoss":
       if (parsedMonths) draft.durationMonths = parsedMonths;
@@ -554,6 +929,23 @@ function buildFollowUp(draft, starter, prompt, profile) {
   const flags = getIntentFlags(prompt);
   const normalized = flags.normalized;
   const detectedIntents = listDetectedIntents(flags);
+
+  if (draft.type === "paycheckSplit") {
+    // Only one thing can block a useful split: not knowing the pay cadence.
+    // Labels double as self-contained prompts so the dashboard chips re-route
+    // back into the split with the cadence filled in.
+    if (!draft.payFrequency) {
+      return {
+        prompt: "How often does your paycheck land? I'll size each deposit split to match.",
+        choices: [
+          { label: "Split my paycheck — paid every two weeks", patch: { payFrequency: "biweekly", userSpecifiedPayFrequency: true } },
+          { label: "Split my paycheck — paid twice a month", patch: { payFrequency: "semimonthly", userSpecifiedPayFrequency: true } },
+          { label: "Split my paycheck — paid monthly", patch: { payFrequency: "monthly", userSpecifiedPayFrequency: true } }
+        ]
+      };
+    }
+    return null;
+  }
 
   if (draft.type === "compound") {
     if (!draft.compoundFocusResolved) {
@@ -813,6 +1205,8 @@ function buildScenarioTitle(draft) {
       return `Reduce income by ${formatCurrency(Math.abs(draft.monthlyIncomeDelta))} per month`;
     case "emergency":
       return `Absorb a ${formatCurrency(draft.oneTimeCost)} cash shock`;
+    case "paycheckSplit":
+      return `Split your ${(PAY_FREQUENCY_META[draft.payFrequency] || PAY_FREQUENCY_META.biweekly).noun}`;
     case "custom":
       return draft.prompt ? titleCase(draft.prompt) : "Model a custom financial decision";
     default:
@@ -883,6 +1277,38 @@ function getPromptSignals(prompt) {
 }
 
 function buildReasoningTrace(prompt, draft, result, metrics, followUp) {
+  if (draft.type === "paycheckSplit" && result.splitPlan) {
+    const plan = result.splitPlan;
+    const trace = [
+      {
+        label: "1. Read the request",
+        detail: `Treated this as a paycheck allocation plan built from ${formatCurrency(plan.income)}/month of detected income.`
+      },
+      {
+        label: "2. Cover the non-negotiables",
+        detail: `Essentials and minimum payments claim ${formatCurrency(plan.essentials)} (${plan.essentialsSharePct}% of income) off the top, plus a ${formatCurrency(plan.guiltFree)} guilt-free floor so the plan is livable.`
+      },
+      {
+        label: "3. Run the waterfall",
+        detail: plan.bufferContribution > 0
+          ? `Buffer first (${formatCurrency(plan.bufferContribution)}/mo toward the ${formatCurrency(plan.bufferTargetAmount)} target), then ${plan.debtExtra > 0 ? `${formatCurrency(plan.debtExtra)}/mo against high-APR debt, then ` : ""}${formatCurrency(plan.investing)}/mo to investing.`
+          : plan.debtExtra > 0
+            ? `Buffer is funded, so high-APR debt gets ${formatCurrency(plan.debtExtra)}/mo before ${formatCurrency(plan.investing)}/mo flows to investing.`
+            : `Buffer is funded and no high-APR debt is open, so ${formatCurrency(plan.investing)}/mo flows straight to investing.`
+      },
+      {
+        label: "4. Connect to goals",
+        detail: result.goalsSummary?.mostImpactedGoal
+          ? `${result.goalsSummary.mostImpactedGoal.title} moves the most under this saving pace.`
+          : "No single goal dominates; the split funds them evenly."
+      }
+    ];
+    if (followUp) {
+      trace.push({ label: "5. Ask the next best question", detail: followUp.prompt });
+    }
+    return trace;
+  }
+
   const signals = getPromptSignals(prompt);
   const trace = [
     {
@@ -1063,6 +1489,12 @@ function getFieldSchema(draft, profile) {
       ];
     case "emergency":
       return [field("oneTimeCost", "One-time cash hit", draft.oneTimeCost, 100, 0, "Emergency bill or discretionary spend.")];
+    case "paycheckSplit":
+      return [
+        field("bufferTargetMonths", "Buffer target (months of essentials)", draft.bufferTargetMonths, 1, 1, "How many months of essentials to hold in cash."),
+        field("guiltFreePct", "Guilt-free spending (% of income)", draft.guiltFreePct, 1, 0, "The floor reserved for spending without guilt."),
+        field("highAprThreshold", "High-interest threshold (% APR)", draft.highAprThreshold, 1, 0, "Debt above this rate gets paid down before investing.")
+      ];
     case "custom":
       return [
         field("oneTimeCost", "One-time balance change", draft.oneTimeCost, 100, -50000, "Use negative for extra cash in, positive for cash out."),
@@ -1325,6 +1757,12 @@ function estimateCreditReadiness(profile, metrics, draft, scenarioMonthlyFreeCas
 }
 
 function getConfidence(draft, followUp, prompt) {
+  if (draft.type === "paycheckSplit") {
+    // The split is pure baseline math — the only real unknown is pay cadence.
+    const score = followUp ? 82 : 90;
+    return { score, label: score >= 86 ? "High confidence" : "Medium confidence" };
+  }
+
   let score = 84;
   if (!collectMoneyCandidates(prompt).length) score -= 6;
   if (!parseMonths(prompt) && draft.type !== "emergency") score -= 4;
@@ -1371,6 +1809,12 @@ function buildRecommendedNextStep(risk, mostImpactedGoal, scenarioMonthlyFreeCas
 }
 
 export function evaluateScenario(profile, goals, draft, prompt = draft.prompt || "") {
+  // Paycheck split is an allocation plan, not a shock scenario — it has its own
+  // deterministic evaluator and skips the delta/stress-test framing entirely.
+  if (draft.type === "paycheckSplit") {
+    return { ...evaluatePaycheckSplit(profile, goals, draft), offsetPlan: null };
+  }
+
   const metrics = getProfileMetrics(profile);
   const normalizedDraft = reconcileDraft(draft, profile);
   const durationMonths = normalizedDraft.durationMonths || 12;
@@ -1503,7 +1947,8 @@ function buildAssistantMessage(draft, result, followUp) {
       invest: "I started with a monthly investing plan and left one question to set the contribution.",
       incomeReduction: "I started with an income drop and left one question to size the cut.",
       emergency: "I treated this like a cash shock first and left one question to refine the shape.",
-      custom: "I translated this into a custom money scenario and left one question so the model stays flexible instead of forcing a bad preset."
+      custom: "I translated this into a custom money scenario and left one question so the model stays flexible instead of forcing a bad preset.",
+      paycheckSplit: "I built your paycheck split from the baseline and left one question — pay cadence — so the per-deposit amounts are exact."
     };
 
     return {
@@ -1527,17 +1972,22 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
       ? buildCompoundStarter(metrics)
       : starterId === "custom-decision"
         ? buildCustomStarter()
+      : starterId === "paycheck-split"
+        ? buildPaycheckSplitStarter(profile)
       : starterId
         ? findStarter(catalog, starterId)
         : null;
 
+  const detectedId = detectScenarioId(prompt, catalog);
   let sessionDraft = draft
     ? cloneValue(draft)
     : buildDraftFromStarter(
         starter ||
-          (detectScenarioId(prompt, catalog) === "custom-decision"
+          (detectedId === "custom-decision"
             ? buildCustomStarter()
-            : findStarter(catalog, detectScenarioId(prompt, catalog))) ||
+            : detectedId === "paycheck-split"
+              ? buildPaycheckSplitStarter(profile)
+              : findStarter(catalog, detectedId)) ||
           buildCompoundStarter(metrics),
         profile,
         prompt
@@ -1576,6 +2026,8 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
             ? `PAM detected multiple moving pieces (${detectedIntents.join(", ")}) and chose the closest first-pass model before narrowing with a follow-up.`
             : sessionDraft.type === "custom"
               ? "PAM did not force this into a narrow preset. It opened a flexible custom scenario and is using follow-ups to learn the shape."
+          : sessionDraft.type === "paycheckSplit"
+              ? "PAM built a paycheck allocation plan from your baseline: essentials and minimums first, then buffer, high-interest debt, investing, and a guilt-free floor. Every number is deterministic and every assumption is editable."
           : `PAM treated this as a ${sessionDraft.type} scenario and translated it into cash flow, timeline, and goal effects.`
     }
   };

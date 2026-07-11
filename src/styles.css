@@ -6449,6 +6449,40 @@ textarea::placeholder {
 :root[data-theme="dark"] .verdict-badge.verdict-notyet { color: #ffd9a0; }
 :root[data-theme="dark"] .verdict-badge.verdict-dont { color: #ffb4b4; }
 
+/* Mobile compaction: folds for profile sections + the ask-screen brief */
+.profile-fold, .decision-brief-fold {
+  border: 1px solid var(--pam-border);
+  border-radius: 16px;
+  background: var(--pam-surface-soft);
+}
+.profile-fold > summary, .decision-brief-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 700;
+  color: var(--forest);
+  font-size: 0.95rem;
+}
+.profile-fold > summary::-webkit-details-marker,
+.decision-brief-fold > summary::-webkit-details-marker { display: none; }
+.profile-fold > summary::after, .decision-brief-fold > summary::after {
+  content: "▾"; float: right; color: var(--ink-2); transition: transform 0.2s ease;
+}
+.profile-fold[open] > summary::after, .decision-brief-fold[open] > summary::after { transform: rotate(180deg); }
+.profile-fold > summary span { display: block; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 2px; }
+.profile-fold[open], .decision-brief-fold[open] { padding-bottom: 14px; }
+.profile-fold[open] > *:not(summary), .decision-brief-fold[open] > *:not(summary) { margin-left: 16px; margin-right: 16px; }
+
+@media (max-width: 640px) {
+  /* Presentational trim only: the descriptive intro line + mode pill add
+     scroll without adding information on a phone. */
+  .decision-advisor-intro p, .decision-mode-pill { display: none; }
+  .decision-advisor-intro { margin-bottom: 4px; }
+  .result-section { padding: 14px; }
+  .result-header { gap: 8px; }
+  .mobile-profile-stack { gap: 10px; }
+}
+
 /* Deep-dive session (conversational) */
 .deepdive-frame { text-align: left; }
 .deepdive-thread {
@@ -7021,4 +7055,70 @@ textarea::placeholder {
   .marketing-feature-grid { grid-template-columns: 1fr; }
   .marketing-example-grid { grid-template-columns: 1fr; }
   .marketing-sub { max-width: none; }
+}
+
+/* ── Paycheck split plan ─────────────────────────────────────────────────── */
+.split-plan-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.split-bucket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--pam-border);
+  border-radius: 12px;
+  background: var(--pam-surface-soft);
+}
+
+.split-bucket-row .gi-name {
+  display: block;
+  font-weight: 600;
+}
+
+.split-bucket-detail {
+  display: block;
+  font-weight: 400;
+  font-size: 0.8rem;
+  opacity: 0.75;
+  margin-top: 3px;
+  max-width: 42ch;
+}
+
+.split-bucket-amounts {
+  text-align: right;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.split-bucket-amounts strong {
+  font-size: 1rem;
+}
+
+.split-bucket-amounts small {
+  display: block;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.split-setup-steps {
+  margin: 10px 0 4px;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .split-bucket-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .split-bucket-amounts {
+    text-align: left;
+  }
 }
