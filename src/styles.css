@@ -5698,16 +5698,34 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 
+  /* Compact chip row on phones: badges wrap side by side instead of stacking
+     into full-width pills that push the actual result below the fold. */
   .result-header-actions {
-    align-items: stretch;
     width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
   }
 
   .result-header-actions .button,
-  .result-header-actions .risk-badge {
-    width: 100%;
+  .result-header-actions .risk-badge,
+  .result-header-actions .verdict-badge {
+    width: auto;
+    flex: 0 1 auto;
     justify-content: center;
     text-align: center;
+  }
+
+  .result-header-actions .button {
+    min-height: 36px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    order: 5; /* status badges read first; the action comes last */
+  }
+
+  .result-header-actions .risk-badge {
+    padding: 8px 12px;
+    font-size: 0.85rem;
   }
 }
 
@@ -7078,6 +7096,8 @@ textarea::placeholder {
 .split-bucket-row .gi-name {
   display: block;
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .split-bucket-detail {
@@ -7113,12 +7133,26 @@ textarea::placeholder {
   font-size: 0.9rem;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .split-bucket-row {
     flex-direction: column;
     gap: 6px;
   }
   .split-bucket-amounts {
     text-align: left;
+    white-space: normal;
   }
+  .split-bucket-detail {
+    max-width: none;
+  }
+}
+
+/* Long labels, amounts, and assumption strings must wrap instead of pushing
+   the layout sideways, at every width. */
+.scenario-engine-output .outcome-grid div,
+.assumption-grid-foresee div,
+.goal-impact-row .gi-name,
+.goal-impact-row .gi-change {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
