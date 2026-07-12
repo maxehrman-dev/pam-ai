@@ -31,6 +31,7 @@ import {
   simulateBuyVsRent,
   simulateLocationArbitrage
 } from "./utils/scenarioEngine.js";
+import { getPersonaCoefficients } from "./utils/personaEngine.js";
 import {
   CREATE_ACCOUNT_STEPS,
   INDUSTRY_CITY_MAP,
@@ -1254,6 +1255,9 @@ function getScenarioProfileFromBaseline(baseline) {
       payFrequency: ["weekly", "biweekly", "semimonthly", "monthly"].includes(state.userValues?.pay_frequency) ? state.userValues.pay_frequency : "",
       objective: getGoalLabel(baseline) || "Make better money decisions before committing."
     },
+    persona: getPersonaCoefficients(state.userValues || {}, {
+      combinedTaxRate: toNumber(baseline?.tax?.combinedTaxRate, 0)
+    }),
     monthly: {
       income: [{ label: "Spendable income", amount: monthlyIncome }],
       fixed,
@@ -1348,6 +1352,7 @@ function toLegacyDecisionFromSession(session) {
         perPaycheckIncome: result.splitPlan.perPaycheckIncome,
         savingsRatePct: result.splitPlan.savingsRatePct,
         bufferTargetAmount: result.splitPlan.bufferTargetAmount,
+        personaTags: result.splitPlan.personaTags,
         buckets: result.splitPlan.buckets.map((bucket) => ({
           label: bucket.label,
           monthly: bucket.monthly,

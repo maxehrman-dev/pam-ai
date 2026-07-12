@@ -369,8 +369,8 @@ function buildPaycheckSplitStarter(profile) {
     prompt: "How should I split my paycheck?",
     defaults: {
       payFrequency: profile?.user?.payFrequency || "",
-      bufferTargetMonths: SPLIT_DEFAULTS.bufferTargetMonths,
-      guiltFreePct: SPLIT_DEFAULTS.guiltFreePct,
+      bufferTargetMonths: profile?.persona?.bufferTargetMonths ?? SPLIT_DEFAULTS.bufferTargetMonths,
+      guiltFreePct: profile?.persona?.guiltFreeFloorPct ?? SPLIT_DEFAULTS.guiltFreePct,
       highAprThreshold: SPLIT_DEFAULTS.highAprThreshold,
       oneTimeCost: 0,
       monthlyExpenseDelta: 0,
@@ -391,13 +391,28 @@ function derivePaycheckSplitValues(draft) {
   draft.bufferTargetMonths = clamp(Math.round(numberOr(draft.bufferTargetMonths, SPLIT_DEFAULTS.bufferTargetMonths)), 1, 12);
   draft.guiltFreePct = clamp(numberOr(draft.guiltFreePct, SPLIT_DEFAULTS.guiltFreePct), 0, 40);
   draft.highAprThreshold = clamp(numberOr(draft.highAprThreshold, SPLIT_DEFAULTS.highAprThreshold), 0, 36);
+  // Tax set-aside default comes from the persona at compute time; only clamp an
+  // explicit edit here.
+  if (draft.taxSetAsidePct !== undefined) {
+    draft.taxSetAsidePct = clamp(numberOr(draft.taxSetAsidePct, 0), 0, 40);
+  }
   draft.oneTimeCost = 0;
   draft.monthlyExpenseDelta = 0;
   draft.monthlyIncomeDelta = 0;
 }
 
 export function computePaycheckSplit(profile, rawDraft = {}) {
-  const draft = cloneValue({ ...SPLIT_DEFAULTS, ...rawDraft });
+  // Persona coefficients set the defaults; anything the user explicitly set on
+  // the draft wins. See BRAIN.md for the coefficient table.
+  const persona = profile?.persona && typeof profile.persona === "object" ? profile.persona : {};
+  const personaDefaults = {
+    ...(Number.isFinite(Number(persona.bufferTargetMonths)) ? { bufferTargetMonths: Number(persona.bufferTargetMonths) } : {}),
+    ...(Number.isFinite(Number(persona.guiltFreeFloorPct)) ? { guiltFreePct: Number(persona.guiltFreeFloorPct) } : {})
+  };
+  const providedDraft = Object.fromEntries(
+    Object.entries(rawDraft || {}).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+  const draft = cloneValue({ ...SPLIT_DEFAULTS, ...personaDefaults, ...providedDraft });
   derivePaycheckSplitValues(draft);
   const metrics = getProfileMetrics(profile);
   const income = Math.max(Math.round(metrics.monthlyIncome), 0);
@@ -412,14 +427,27 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
   const debtMinimums = debtInEssentials ? 0 : Math.round(metrics.debtPayment);
   const essentials = Math.round(metrics.essentialBurn) + debtMinimums;
 
+  // Self-employed people get a tax set-aside; irregular earners plan with a
+  // discounted income and keep the rest as a checking cushion.
+  const taxSetAsidePct = clamp(
+    Number.isFinite(Number(draft.taxSetAsidePct)) && draft.taxSetAsidePct !== undefined
+      ? Number(draft.taxSetAsidePct)
+      : Number(persona.taxSetAsidePct) || 0,
+    0,
+    40
+  );
+  const taxSetAside = Math.round((income * taxSetAsidePct) / 100);
+  const incomeReliability = clamp(Number(persona.incomeReliability) || 1, 0.5, 1);
+  const planningIncome = Math.round(income * incomeReliability);
+
   // Guilt-free floor: a plan with $0 of fun money is a plan nobody follows.
-  let guiltFree = Math.round((income * draft.guiltFreePct) / 100);
-  let flexible = income - essentials - guiltFree;
+  let guiltFree = Math.round((planningIncome * draft.guiltFreePct) / 100);
+  let flexible = planningIncome - essentials - taxSetAside - guiltFree;
   if (flexible < 0) {
-    guiltFree = Math.max(income - essentials, 0);
+    guiltFree = Math.max(planningIncome - essentials - taxSetAside, 0);
     flexible = 0;
-    if (income > 0 && essentials >= income) {
-      warnings.push("Essentials and minimum payments use your whole paycheck. The split can only improve once income rises or a fixed cost drops.");
+    if (income > 0 && essentials + taxSetAside >= planningIncome) {
+      warnings.push("Essentials, minimum payments, and the tax set-aside use the whole paycheck. The split can only improve once income rises or a fixed cost drops.");
     } else if (income > 0) {
       warnings.push("Guilt-free spending was reduced below the target floor so essentials stay covered.");
     }
@@ -449,8 +477,14 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
   let debtExtra = highAprBalance > 0 ? Math.min(Math.round(afterBuffer * 0.7), highAprBalance) : 0;
   debtExtra = Math.max(debtExtra, 0);
 
-  // Investing absorbs the remainder so the buckets always sum to income exactly.
-  const investing = Math.max(income - essentials - guiltFree - bufferContribution - debtExtra, 0);
+  // Investing absorbs the planning-income remainder; the volatility cushion then
+  // absorbs whatever full income remains beyond every allocated slice, so the
+  // buckets sum to income exactly even when essentials overflow the discounted
+  // planning income. (When essentials alone exceed FULL income, the sum honestly
+  // exceeds it — that overspend is the finding, and the warning above names it.)
+  const investing = Math.max(planningIncome - essentials - taxSetAside - guiltFree - bufferContribution - debtExtra, 0);
+  const allocated = essentials + taxSetAside + guiltFree + bufferContribution + debtExtra + investing;
+  const volatilityCushion = Math.max(income - allocated, 0);
 
   const perPaycheck = (monthly) => Math.round(monthly / frequency.perMonth);
   const pct = (monthly) => (income > 0 ? Math.round((monthly / income) * 100) : 0);
@@ -468,6 +502,14 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
       percent: pct(essentials),
       detail: "Rent, utilities, groceries, insurance, and every required debt minimum. Non-negotiable, so it comes off the top."
     },
+    ...(taxSetAside > 0 ? [{
+      id: "tax",
+      label: "Tax set-aside",
+      monthly: taxSetAside,
+      perPaycheck: perPaycheck(taxSetAside),
+      percent: pct(taxSetAside),
+      detail: `Self-employed income has no employer withholding — ${taxSetAsidePct}% moves to a separate tax account for quarterly estimates. Educational estimate; verify with a tax professional.`
+    }] : []),
     ...(bufferContribution > 0 ? [{
       id: "buffer",
       label: "Emergency buffer",
@@ -494,6 +536,14 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
       percent: pct(investing),
       detail: "Automatic long-term saving — tax-advantaged accounts first where they fit your timeline. PAM recommends allocation strategy, never specific funds."
     }] : []),
+    ...(volatilityCushion > 0 ? [{
+      id: "cushion",
+      label: "Volatility cushion",
+      monthly: volatilityCushion,
+      perPaycheck: perPaycheck(volatilityCushion),
+      percent: pct(volatilityCushion),
+      detail: "Irregular pay: this stays in checking so a light month doesn't break the plan. In strong months, sweep it to savings."
+    }] : []),
     {
       id: "guiltFree",
       label: "Guilt-free spending",
@@ -508,7 +558,8 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
   const savingsRatePct = pct(plannedSavings);
 
   const setupSteps = [
-    `Ask payroll (or your employer portal) to split direct deposit: keep ${formatCurrency(perPaycheck(essentials + guiltFree))} per paycheck in checking and route ${formatCurrency(perPaycheck(plannedSavings))} to savings/investing accounts.`,
+    `Ask payroll (or your employer portal) to split direct deposit: keep ${formatCurrency(perPaycheck(essentials + guiltFree + volatilityCushion))} per paycheck in checking and route ${formatCurrency(perPaycheck(plannedSavings + taxSetAside))} to savings/investing accounts.`,
+    ...(taxSetAside > 0 ? [`Open a separate savings account just for taxes and move ${formatCurrency(perPaycheck(taxSetAside))} there every payday — that money is not yours to spend, it's for quarterly estimated payments.`] : []),
     ...(bufferContribution > 0 ? [`If payroll can't split deposits, set an automatic transfer of ${formatCurrency(perPaycheck(bufferContribution))} from checking to savings on every payday.`] : []),
     ...(debtExtra > 0 && topDebt ? [`Add ${formatCurrency(debtExtra)}/month as an extra automatic payment on ${topDebt.label} — autopay it the day after payday so it happens before willpower is involved.`] : []),
     ...(investing > 0 ? [`Set a recurring ${formatCurrency(investing)}/month auto-invest transfer. If your bank supports "buckets" or sub-accounts, name them so each dollar has a job.`] : []),
@@ -521,11 +572,17 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
     `Emergency buffer target: ${draft.bufferTargetMonths} months of essentials (${formatCurrency(bufferTargetAmount)}); you hold ${formatCurrency(liquid)} today.`,
     `Debt above ${draft.highAprThreshold}% APR is paid down before long-term investing.`,
     `Guilt-free floor: ${draft.guiltFreePct}% of income, so the plan stays livable.`,
+    ...(Array.isArray(persona.notes) ? persona.notes : []),
     "Every assumption above is editable — change it and re-run."
   ];
 
   return {
     income,
+    planningIncome,
+    volatilityCushion,
+    taxSetAside,
+    taxSetAsidePct,
+    personaTags: Array.isArray(persona.tags) ? persona.tags : [],
     payFrequency: draft.payFrequency || "biweekly",
     payFrequencyLabel: frequency.noun,
     paychecksPerMonth: frequency.perMonth,
@@ -552,7 +609,7 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
 }
 
 function getSplitRisk(plan) {
-  if (plan.income <= 0 || (plan.income > 0 && plan.essentials >= plan.income)) {
+  if (plan.income <= 0 || (plan.income > 0 && plan.essentials + plan.taxSetAside >= plan.planningIncome)) {
     return {
       label: "High",
       detail: "Committed costs consume the whole paycheck, so there is no flexible money to allocate yet. The lever here is income or fixed costs, not willpower."
@@ -1493,7 +1550,8 @@ function getFieldSchema(draft, profile) {
       return [
         field("bufferTargetMonths", "Buffer target (months of essentials)", draft.bufferTargetMonths, 1, 1, "How many months of essentials to hold in cash."),
         field("guiltFreePct", "Guilt-free spending (% of income)", draft.guiltFreePct, 1, 0, "The floor reserved for spending without guilt."),
-        field("highAprThreshold", "High-interest threshold (% APR)", draft.highAprThreshold, 1, 0, "Debt above this rate gets paid down before investing.")
+        field("highAprThreshold", "High-interest threshold (% APR)", draft.highAprThreshold, 1, 0, "Debt above this rate gets paid down before investing."),
+        field("taxSetAsidePct", "Tax set-aside (% of income)", draft.taxSetAsidePct, 1, 0, "For self-employed income with no employer withholding.")
       ];
     case "custom":
       return [
