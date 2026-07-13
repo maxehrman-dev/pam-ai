@@ -256,6 +256,25 @@ function deriveIncomeStreams(transactions = []) {
     : [];
 }
 
+// Median month of deposits (P1-c): one unusually good month inflates an
+// average but not a median, so irregular earners plan on a typical month.
+// Falls back to 0 when fewer than two calendar months of data exist.
+function deriveMedianMonthlyIncome(transactions = []) {
+  const byMonth = new Map();
+  for (const transaction of transactions) {
+    const amount = Number(transaction.amount || 0);
+    if (amount >= 0) continue;
+    const month = String(transaction.date || "").slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month)) continue;
+    byMonth.set(month, (byMonth.get(month) || 0) + Math.abs(amount));
+  }
+  const totals = [...byMonth.values()].sort((a, b) => a - b);
+  if (totals.length < 2) return 0;
+  const middle = Math.floor(totals.length / 2);
+  const median = totals.length % 2 ? totals[middle] : (totals[middle - 1] + totals[middle]) / 2;
+  return Math.round(median);
+}
+
 function inferPayFrequency(transactions = []) {
   // Look at incoming deposits that look like paychecks (Plaid: negative amount = money in)
   const deposits = transactions
@@ -330,6 +349,7 @@ function toNormalizedBaseline({ accounts = [], transactions = [], liabilities = 
       grossMonthlyIncome: null,
       knownTakeHomeMonthlyIncome: null,
       detectedMonthlyIncome,
+      medianMonthlyIncome: deriveMedianMonthlyIncome(transactions),
       incomeStreams
     },
     expenses: {
@@ -474,3 +494,6 @@ exports.buildNormalizedBaseline = async ({ clientUserId, session: providedSessio
     profile: session.profile || {}
   });
 };
+
+// Exposed for the baseline regression suite. Pure function only.
+exports._test = { deriveMedianMonthlyIncome };

@@ -75,14 +75,14 @@ numbers**. That asymmetry is the product. Suggested floor:
 `riskFloorMonthly = max(300, essentialBurn * bufferTargetMonths / 24)` and
 runway floors scaled by `bufferTargetMonths / 3`.
 
-### P1-b. Self-employed money physics everywhere
+### P1-b. Self-employed money physics everywhere (STATUS: SHIPPED)
 The split now carries a tax set-aside bucket for freelancers. Extend the same
 concept to income scenarios: a `+$1,500/mo freelance` income delta should surface
 net-after-set-aside (`delta * (1 - taxSetAsidePct/100)`) in buffer math, with the
 gross-to-net shown in assumptions. W-2 deltas stay as-is (withheld at source).
 Educational-estimate framing, never tax advice.
 
-### P1-c. Irregular income in the baseline itself
+### P1-c. Irregular income in the baseline itself (STATUS: SHIPPED — medianMonthlyIncome in plaid.js, persona picks it client-side)
 The split plans with `incomeReliability`. Go deeper: when detecting income from
 transactions (Plaid baseline normalization), irregular earners should get the
 **trailing median month**, not the average — one great month shouldn't inflate
@@ -110,14 +110,14 @@ Output: the ceiling, where the asked amount sits vs it, and the gap. The AI's
 number. (Keep the AI rule that it never invents a precise limit — now it won't
 need to.)
 
-### P2-c. Milestone timeline engine ("when can I…")
+### P2-c. Milestone timeline engine (STATUS: SHIPPED — "when can I" asks get dates)
 Generic: `monthsTo(target, current, monthlyPace, annualReturn)` — this already
 exists as `calculateMonthsToGoal`; promote it to answer direct "when can I move
 out / buy / have 6 months saved" asks with a date, not just a goal delta.
 Move-out target = deposit + first/last month + moving cost + persona buffer
 months of the NEW rent.
 
-### P2-d. Retirement bridge math
+### P2-d. Retirement bridge math (STATUS: SHIPPED — computeRetirementBridge in financeKnowledge.js)
 `retirement_target_age < 59.5` → compute bridge years and a taxable-bridge share
 table: target < 50 → 60% taxable / 40% tax-advantaged; 50–55 → 50/50; 55+ →
 40/60. Deterministic numbers for the "Roth vs bridge" conversations the AI
@@ -133,7 +133,7 @@ State-level effective-rate table (partially present via `combinedTaxRate`) plus
 self-employment tax awareness (15.3% below the SS wage base) for freelancers.
 Estimates only, always verify-with-a-professional framing.
 
-### P3-c. Decision-memory pattern counters
+### P3-c. Decision-memory pattern counters (STATUS: SHIPPED — buildDecisionPatternsForAI in main.js)
 Deterministic counters over `recentDecisions`: nth discretionary stretch this
 month, cumulative buffer erosion across recent asks, repeated same-category
 asks. Emit as lines in the AI payload ("3rd stretch purchase in 30 days,

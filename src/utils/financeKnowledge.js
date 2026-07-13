@@ -128,6 +128,38 @@ export function computeAffordabilityCeilings({ monthlyTakeHome, persona = {}, de
   };
 }
 
+// ─── Retirement bridge math (P2-d) ───────────────────────────────────────────
+// Retirement accounts are generally locked until 59½. Anyone targeting an
+// earlier exit needs a taxable "bridge" that carries them from target age to
+// 59½ — this computes the gap and a deterministic allocation-philosophy split
+// (never specific funds). Share table: the earlier the exit, the more of new
+// long-term saving belongs in accessible taxable accounts.
+
+export function computeRetirementBridge({ targetAge, monthlyEssentials = 0 }) {
+  const age = Number(targetAge) || 0;
+  if (age <= 0 || age >= 59.5) return null;
+
+  const bridgeYears = Math.round((59.5 - age) * 10) / 10;
+  const taxableSharePct = age < 50 ? 60 : age <= 55 ? 50 : 40;
+  const essentials = Math.max(Number(monthlyEssentials) || 0, 0);
+  const bridgeFundTarget = essentials > 0 ? Math.round(essentials * 12 * bridgeYears) : null;
+
+  return {
+    targetAge: age,
+    bridgeYears,
+    taxableSharePct,
+    taxAdvantagedSharePct: 100 - taxableSharePct,
+    bridgeFundTarget,
+    notes: [
+      `Retiring at ${age} means ${bridgeYears} years before retirement accounts unlock at 59½ — that stretch runs on money you can actually touch.`,
+      `Deterministic split for new long-term saving at this target: ~${taxableSharePct}% accessible taxable investing / ~${100 - taxableSharePct}% tax-advantaged. Allocation philosophy, not fund advice.`,
+      ...(bridgeFundTarget
+        ? [`At current essential costs, the bridge itself needs roughly ${formatCurrency(bridgeFundTarget)} (${bridgeYears} years of essentials) before growth — an educational first screen, not a plan.`]
+        : [])
+    ]
+  };
+}
+
 // ─── Debt payoff planner (P2-a) ──────────────────────────────────────────────
 // Month-by-month simulation (exact, no closed-form approximations): pay every
 // minimum, throw `extraMonthly` plus freed-up minimums at one target debt at a

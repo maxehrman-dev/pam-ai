@@ -1203,7 +1203,15 @@ function getScenarioProfileFromBaseline(baseline) {
   const connectedAccounts = getConnectedAccounts(baseline);
   const recurringExpenses = getTopConnectedExpenses(baseline, 12);
   const liabilities = Array.isArray(baseline?.obligations?.liabilities) ? baseline.obligations.liabilities : [];
-  const monthlyIncome = getSpendableIncome(baseline);
+  const persona = getPersonaCoefficients(state.userValues || {}, {
+    combinedTaxRate: toNumber(baseline?.tax?.combinedTaxRate, 0)
+  });
+  // P1-c: irregular earners plan on their MEDIAN detected month, not the
+  // average — one great month shouldn't inflate every decision. Only applies
+  // when income came from detection (a user-entered take-home wins).
+  const medianIncome = toNumber(baseline?.income?.medianMonthlyIncome, 0);
+  const useMedianIncome = persona.incomeReliability < 1 && medianIncome > 0 && !hasValue(baseline?.income?.knownTakeHomeMonthlyIncome);
+  const monthlyIncome = useMedianIncome ? medianIncome : getSpendableIncome(baseline);
   const monthlyExpenses = getMonthlyExpenses(baseline);
   const monthlyObligations = getMonthlyObligations(baseline);
   const retirementContribution = toNumber(baseline?.tax?.retirementContributionMonthly, 0);
@@ -1253,12 +1261,11 @@ function getScenarioProfileFromBaseline(baseline) {
       city: baseline?.profile?.state || ui.stateCode || "US",
       creditScore: hasValue(baseline?.profile?.creditScore) ? toNumber(baseline.profile.creditScore, null) : null,
       age: toNumber(state.userValues?.age, null) ?? toNumber(ui.age, null),
+      retirementTargetAge: toNumber(state.userValues?.retirement_target_age, null),
       payFrequency: ["weekly", "biweekly", "semimonthly", "monthly"].includes(state.userValues?.pay_frequency) ? state.userValues.pay_frequency : "",
       objective: getGoalLabel(baseline) || "Make better money decisions before committing."
     },
-    persona: getPersonaCoefficients(state.userValues || {}, {
-      combinedTaxRate: toNumber(baseline?.tax?.combinedTaxRate, 0)
-    }),
+    persona,
     monthly: {
       income: [{ label: "Spendable income", amount: monthlyIncome }],
       fixed,
@@ -1370,6 +1377,8 @@ function toLegacyDecisionFromSession(session) {
     ...(result.affordability ? { affordability: result.affordability } : {}),
     ...(result.debtPlan ? { debtPlan: result.debtPlan } : {}),
     ...(result.goalFunding ? { goalFunding: result.goalFunding } : {}),
+    ...(result.milestones ? { milestones: result.milestones } : {}),
+    ...(result.retirementBridge ? { retirementBridge: result.retirementBridge } : {}),
     question: session.prompt || draft.prompt || state.question,
     scenarioSession: session,
     decision: {
@@ -2062,6 +2071,35 @@ function buildRecentDecisionsForAI(currentQuestion = "") {
     }));
 }
 
+// P3-c: deterministic pattern counters over the decision history — the AI
+// already has a memory voice; these give it receipts ("3rd stretch purchase
+// this month, $410/mo of cumulative new pressure") it can't miscount.
+function buildDecisionPatternsForAI() {
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const recent = (state.decisionHistory || []).filter((entry) => {
+    const at = new Date(entry.createdAt || 0).getTime();
+    return Number.isFinite(at) && at > cutoff;
+  });
+  if (recent.length < 2) return null;
+
+  const bufferReducers = recent.filter((entry) => toNumber(entry.monthlyImpact, 0) < 0);
+  const typeCounts = {};
+  recent.forEach((entry) => {
+    const key = String(entry.decisionType || "decision").toLowerCase().slice(0, 40);
+    typeCounts[key] = (typeCounts[key] || 0) + 1;
+  });
+
+  return {
+    windowDays: 30,
+    decisionsModeled: recent.length,
+    bufferReducingCount: bufferReducers.length,
+    newRecurringPressureMonthly: Math.round(bufferReducers.reduce((total, entry) => total + Math.abs(toNumber(entry.monthlyImpact, 0)), 0)),
+    oneTimeSpendModeled: Math.round(recent.reduce((total, entry) => total + Math.abs(Math.min(toNumber(entry.oneTimeImpact, 0), 0)), 0)),
+    highRiskCount: recent.filter((entry) => entry.risk === "High").length,
+    repeatedTypes: Object.entries(typeCounts).filter(([, count]) => count >= 3).map(([key, count]) => `${key} x${count}`)
+  };
+}
+
 // A deterministic financial summary so the AI sees net worth and account
 // COMPOSITION (liquid cash vs investments vs money locked in retirement
 // accounts), not just a single savings number. Composition drives strategist
@@ -2108,6 +2146,7 @@ function getConnectedSnapshot(baseline) {
     userValues: state.userValues || null,
     valuesInsights: buildValuesInsightsForAI(),
     recentDecisions: buildRecentDecisionsForAI(state.question),
+    decisionPatterns: buildDecisionPatternsForAI(),
     financialSummary: buildFinancialSummaryForAI(baseline)
   };
 }
@@ -5303,6 +5342,8 @@ function renderScenarioEngineDetails(result) {
   const affordability = scenario.affordability;
   const debtPlan = scenario.debtPlan;
   const moneyFacts = Array.isArray(scenario.moneyFacts) ? scenario.moneyFacts : [];
+  const milestones = scenario.milestones;
+  const retirementBridge = scenario.retirementBridge;
 
   return `
     <div class="result-section scenario-engine-output">
@@ -5325,6 +5366,17 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
       ` : ""}
+      ${milestones ? `
+        <h3>When you get there</h3>
+        <div class="goal-impact-stack">
+          ${milestones.goals.map((goal) => `
+            <div class="goal-impact-row">
+              <span class="gi-name">${escapeHtml(goal.title)}<small class="split-bucket-detail">at ${formatCurrency(goal.monthlyContribution)}/mo current pace</small></span>
+              <span class="gi-change neutral">${goal.months !== null ? `${escapeHtml(goal.dateLabel)} · ${formatMonths(goal.months)}` : "Not at current pace"}</span>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
       ${goalFunding ? `
         <h3>Goal funding pace</h3>
         <div class="goal-impact-stack">
@@ -5336,9 +5388,18 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
       ` : ""}
-      ${credit || offsetActions.length || trace.length || affordability || debtPlan || moneyFacts.length ? `
+      ${credit || offsetActions.length || trace.length || affordability || debtPlan || moneyFacts.length || retirementBridge ? `
         <details class="result-fold">
-          <summary>The full breakdown${credit ? " · credit fit" : ""}${affordability ? " · your ceilings" : ""}${debtPlan ? " · debt payoff" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+          <summary>The full breakdown${credit ? " · credit fit" : ""}${affordability ? " · your ceilings" : ""}${debtPlan ? " · debt payoff" : ""}${retirementBridge ? " · early-retirement bridge" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+          ${retirementBridge ? `
+            <h3>Early-retirement bridge</h3>
+            <div class="goal-impact-stack">
+              <div class="goal-impact-row"><span class="gi-name">Years before accounts unlock (59½)</span><span class="gi-change neutral">${retirementBridge.bridgeYears} years from age ${retirementBridge.targetAge}</span></div>
+              <div class="goal-impact-row"><span class="gi-name">New long-term saving split</span><span class="gi-change neutral">${retirementBridge.taxableSharePct}% accessible / ${retirementBridge.taxAdvantagedSharePct}% tax-advantaged</span></div>
+              ${retirementBridge.bridgeFundTarget ? `<div class="goal-impact-row"><span class="gi-name">Bridge fund first screen</span><span class="gi-change neutral">${formatCurrency(retirementBridge.bridgeFundTarget)}</span></div>` : ""}
+            </div>
+            <p class="section-compact-note">Allocation philosophy from your stated retirement age — educational, never specific funds.</p>
+          ` : ""}
           ${affordability ? `
             <h3>Your affordability ceilings</h3>
             <div class="goal-impact-stack">

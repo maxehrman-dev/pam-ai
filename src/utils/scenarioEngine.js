@@ -1,5 +1,5 @@
 import { clamp, formatCurrency, formatMonths, formatPercent, formatSignedCurrency } from "./formatters.js";
-import { buildDebtPayoffPlan, computeAffordabilityCeilings, getMoneyFacts } from "./financeKnowledge.js";
+import { buildDebtPayoffPlan, computeAffordabilityCeilings, computeRetirementBridge, getMoneyFacts } from "./financeKnowledge.js";
 
 const DEFAULT_HORIZON_MONTHS = 60;
 const CASH_RETURN = 0.024;
@@ -34,7 +34,8 @@ const INTENT_KEYWORDS = {
   rentIncrease: ["rent increase", "rent goes up", "increase rent", "rent jumps"],
   invest: ["invest", "brokerage", "401k", "401(k)", "roth", "index fund", "monthly investing"],
   emergency: ["emergency", "repair", "medical", "travel", "vacation", "trip", "expense", "bill"],
-  incomeReduction: ["reduce income", "pay cut", "income drops", "salary cut", "earn less", "income down"]
+  incomeReduction: ["reduce income", "pay cut", "income drops", "salary cut", "earn less", "income down"],
+  incomeGain: ["raise", "bonus", "promotion", "side hustle", "freelance income", "extra income", "side income", "second job", "more income", "windfall"]
 };
 
 const INTENT_TO_STARTER = {
@@ -45,7 +46,8 @@ const INTENT_TO_STARTER = {
   rentIncrease: "increase-rent",
   invest: "start-investing",
   emergency: "emergency-expense",
-  incomeReduction: "reduce-income"
+  incomeReduction: "reduce-income",
+  incomeGain: "custom-decision"
 };
 
 function cloneValue(value) {
@@ -159,7 +161,8 @@ function getIntentFlags(prompt) {
     hasRentIncrease: hasAny(normalized, INTENT_KEYWORDS.rentIncrease),
     hasInvest: hasAny(normalized, INTENT_KEYWORDS.invest),
     hasEmergency: hasAny(normalized, INTENT_KEYWORDS.emergency),
-    hasIncomeReduction: hasAny(normalized, INTENT_KEYWORDS.incomeReduction)
+    hasIncomeReduction: hasAny(normalized, INTENT_KEYWORDS.incomeReduction),
+    hasIncomeGain: hasAny(normalized, INTENT_KEYWORDS.incomeGain)
   };
 }
 
@@ -174,6 +177,7 @@ function listDetectedIntents(flags) {
       if (key === "move") return flags.hasMove;
       if (key === "invest") return flags.hasInvest;
       if (key === "emergency") return flags.hasEmergency;
+      if (key === "incomeGain") return flags.hasIncomeGain;
       return false;
     })
     .map(([key]) => key);
@@ -286,6 +290,10 @@ function detectScenarioId(prompt, catalog) {
   if (flags.hasMove) return "move-apartments";
   if (flags.hasInvest) return "start-investing";
   if (flags.hasIncomeReduction) return "reduce-income";
+  // Income gains route to the flexible custom path (which understands positive
+  // income deltas) — without this, "what if I get a raise?" would fall through
+  // to the emergency-expense bucket just because it contains a dollar amount.
+  if (flags.hasIncomeGain) return "custom-decision";
   if (flags.hasEmergency) return "emergency-expense";
 
   const hasMoney = collectMoneyCandidates(prompt).length > 0;
@@ -761,7 +769,7 @@ function buildDraftFromStarter(starter, profile, prompt) {
 
 function inferCustomFocus(normalized) {
   if (!normalized) return "unknown";
-  if (/\b(bonus|raise|promotion|windfall|inherit|sell|sold|profit|commission|side hustle)\b/i.test(normalized)) return "income";
+  if (/\b(bonus|raise|promotion|windfall|inherit|sell|sold|profit|commission|side hustle|freelance|side income|extra income|second job|more income)\b/i.test(normalized)) return "income";
   if (/\b(tuition|wedding|divorce|baby|kids|child|pet|vet|insurance claim|medical|tax|lawsuit|settlement)\b/i.test(normalized)) return "oneTime";
   if (/\b(subscription|gym|daycare|mortgage|rent|lease|utilities|payment|costs me)\b/i.test(normalized)) return "expense";
   if (/\b(invest|save|contribute|brokerage|401k|roth|retirement)\b/i.test(normalized)) return "invest";
@@ -952,7 +960,7 @@ function hydrateDraftFromPrompt(draft, prompt, profile) {
       break;
     case "custom":
       draft.customFocus = inferCustomFocus(normalized);
-      draft.customDirection = /\braise|bonus|promotion|windfall|profit|sell|sold|inherit|commission\b/i.test(normalized)
+      draft.customDirection = /\b(raise|bonus|promotion|windfall|profit|sell|sold|inherit|commission|side hustle|freelance|side income|extra income|second job|add)\b/i.test(normalized)
         ? "positive"
         : "negative";
       if (firstAmount) {
@@ -1935,10 +1943,21 @@ function buildDecisionKnowledge(profile, metrics, draft, prompt) {
     ? buildDebtPayoffPlan(profile.liabilities, Math.max(Math.round(Math.max(metrics.monthlyFreeCash, 0) * 0.5), 50))
     : null;
 
+  // P2-d: early-retirement targets get deterministic bridge math whenever the
+  // question touches retirement or long-term investing.
+  const retirementRelevant = /\b(retire|retirement|financial independence|fire|401k|401\(k\)|roth|ira|invest)\b/i.test(promptText);
+  const retirementBridge = retirementRelevant
+    ? computeRetirementBridge({
+        targetAge: profile?.user?.retirementTargetAge,
+        monthlyEssentials: metrics.essentialBurn
+      })
+    : null;
+
   return {
     ...(moneyFacts.length ? { moneyFacts } : {}),
     ...(affordability ? { affordability } : {}),
-    ...(debtPlan ? { debtPlan } : {})
+    ...(debtPlan ? { debtPlan } : {}),
+    ...(retirementBridge ? { retirementBridge } : {})
   };
 }
 
@@ -1953,6 +1972,19 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
   const normalizedDraft = reconcileDraft(draft, profile);
   const durationMonths = normalizedDraft.durationMonths || 12;
   const years = DEFAULT_HORIZON_MONTHS / 12;
+
+  const persona = profile?.persona && typeof profile.persona === "object" ? profile.persona : {};
+  const personaScale = clamp((Number(persona.bufferTargetMonths) || 3) / 3, 0.75, 1.75);
+  const bufferFloor = getPersonaBufferFloor(persona);
+
+  // P1-b: self-employed income has no withholding, so NEW income for a
+  // freelancer is only usable net of the tax set-aside. Applies to positive
+  // deltas only; W-2 personas (taxSetAsidePct 0) are untouched.
+  const grossIncomeDelta = Number(normalizedDraft.monthlyIncomeDelta || 0);
+  const incomeSetAsidePct = grossIncomeDelta > 0 ? clamp(Number(persona.taxSetAsidePct) || 0, 0, 40) : 0;
+  if (incomeSetAsidePct > 0) {
+    normalizedDraft.monthlyIncomeDelta = Math.round(grossIncomeDelta * (1 - incomeSetAsidePct / 100));
+  }
 
   const oneTimeCost =
     normalizedDraft.type === "compound"
@@ -1976,10 +2008,6 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     -futureValueLump(oneTimeCost, OPPORTUNITY_RETURN, years) + Number(normalizedDraft.residualValueAtHorizon || 0);
   const longTermNetWorthDelta = oneTimeDeltaAtHorizon + recurringDeltaAtHorizon + investmentDeltaAtHorizon;
   const scenarioProjectedNetWorth = metrics.projectedNetWorth + longTermNetWorthDelta;
-
-  const persona = profile?.persona && typeof profile.persona === "object" ? profile.persona : {};
-  const personaScale = clamp((Number(persona.bufferTargetMonths) || 3) / 3, 0.75, 1.75);
-  const bufferFloor = getPersonaBufferFloor(persona);
 
   const goalsSummary = evaluateGoals(goals, normalizedDraft);
   const risk = getRiskLabel(runoutMonths, scenarioMonthlyFreeCash, goalsSummary.mostImpactedGoal, scenarioRunwayMonths, personaScale);
@@ -2059,8 +2087,28 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     ]
   };
 
+  if (incomeSetAsidePct > 0) {
+    baseResult.scenario.assumptions.unshift(
+      `New self-employed income is counted net of a ${incomeSetAsidePct}% tax set-aside: ${formatCurrency(grossIncomeDelta)} gross becomes ${formatCurrency(monthlyIncomeDelta)} usable per month. Educational estimate, not tax advice.`
+    );
+  }
+
+  // P2-c: direct "when can I…" asks get dates, not just deltas.
+  const milestoneAsk = /\b(when can i|how long until|when will i|how soon can i)\b/i.test(prompt || "");
+  const milestones = milestoneAsk
+    ? {
+        goals: goalsSummary.goals.slice(0, 4).map((goal) => ({
+          title: goal.title,
+          months: Number.isFinite(goal.baselineMonths) ? Math.round(goal.baselineMonths) : null,
+          dateLabel: goal.baselineDateLabel,
+          monthlyContribution: Math.round(Number(goal.monthlyContribution) || 0)
+        }))
+      }
+    : null;
+
   return {
     ...baseResult,
+    ...(milestones ? { milestones } : {}),
     offsetPlan: buildSpendingOffsetPlan(profile, normalizedDraft, baseResult)
   };
 }

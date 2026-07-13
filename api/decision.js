@@ -448,6 +448,15 @@ function buildInput(payload) {
             Array.isArray(result?.moneyFacts) && result.moneyFacts.length
               ? `Deterministic money facts (educational, pre-verified — use these, do not contradict or extend them): ${result.moneyFacts.map((fact) => sanitizeString(String(fact))).join(" | ")}`
               : "",
+            result?.milestones && Array.isArray(result.milestones.goals)
+              ? `Deterministic milestone dates (the user asked "when can I" — answer with these exact dates): ${result.milestones.goals.map((goal) => `${sanitizeString(String(goal.title))}: ${goal.months !== null ? `${sanitizeString(String(goal.dateLabel))} (${goal.months} months at ${goal.monthlyContribution}/mo)` : "not reachable at current pace"}`).join("; ")}`
+              : "",
+            result?.retirementBridge
+              ? `Deterministic early-retirement bridge (from their stated target age — use these exact figures): target age ${result.retirementBridge.targetAge}, ${result.retirementBridge.bridgeYears} years before accounts unlock at 59.5, split new long-term saving ~${result.retirementBridge.taxableSharePct}% accessible taxable / ~${result.retirementBridge.taxAdvantagedSharePct}% tax-advantaged${result.retirementBridge.bridgeFundTarget ? `, bridge fund first screen ${result.retirementBridge.bridgeFundTarget}` : ""}. Allocation philosophy only.`
+              : "",
+            baseline?.decisionPatterns
+              ? `Deterministic decision-pattern counters (last ${baseline.decisionPatterns.windowDays} days — cite these when noticing patterns, do not recount): ${baseline.decisionPatterns.decisionsModeled} decisions modeled, ${baseline.decisionPatterns.bufferReducingCount} reduced the monthly buffer (cumulative new recurring pressure ${baseline.decisionPatterns.newRecurringPressureMonthly}/mo), one-time spending modeled ${baseline.decisionPatterns.oneTimeSpendModeled}, ${baseline.decisionPatterns.highRiskCount} rated High risk${Array.isArray(baseline.decisionPatterns.repeatedTypes) && baseline.decisionPatterns.repeatedTypes.length ? `, repeated asks: ${baseline.decisionPatterns.repeatedTypes.map((t) => sanitizeString(String(t))).join(", ")}` : ""}`
+              : "",
             `Risk: ${sanitizeString(result?.risk?.label, "Unknown")}`,
             `Tax impact summary: ${sanitizeString(result?.decision?.taxImpact, "No direct change")}`,
             `Local explanation: ${sanitizeString(result?.explanation, "No local explanation")}`

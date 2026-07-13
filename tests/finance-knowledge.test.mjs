@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildDebtPayoffPlan, computeAffordabilityCeilings, getMoneyFacts } from "../src/utils/financeKnowledge.js";
+import { buildDebtPayoffPlan, computeAffordabilityCeilings, computeRetirementBridge, getMoneyFacts } from "../src/utils/financeKnowledge.js";
+import plaidLib from "../api/_lib/plaid.js";
 import { buildDecisionSession } from "../src/utils/scenarioEngine.js";
 import { getPersonaCoefficients } from "../src/utils/personaEngine.js";
 import { defaultGoals, financialProfile, starterScenarios } from "../src/data/mockData.js";
@@ -78,6 +79,37 @@ test("retirement prompts surface the matching deterministic facts", () => {
   assert.equal(k401.some((fact) => fact.includes("$24,500")), true);
 
   assert.deepEqual(getMoneyFacts("can I afford a $2,500 trip?"), []);
+});
+
+// ─── Retirement bridge (P2-d) ────────────────────────────────────────────────
+
+test("bridge math follows the share table and skips conventional retirements", () => {
+  const at45 = computeRetirementBridge({ targetAge: 45, monthlyEssentials: 4000 });
+  assert.equal(at45.bridgeYears, 14.5);
+  assert.equal(at45.taxableSharePct, 60);
+  assert.equal(at45.bridgeFundTarget, 4000 * 12 * 14.5);
+
+  assert.equal(computeRetirementBridge({ targetAge: 52, monthlyEssentials: 4000 }).taxableSharePct, 50);
+  assert.equal(computeRetirementBridge({ targetAge: 57, monthlyEssentials: 4000 }).taxableSharePct, 40);
+  assert.equal(computeRetirementBridge({ targetAge: 65, monthlyEssentials: 4000 }), null);
+  assert.equal(computeRetirementBridge({ targetAge: null, monthlyEssentials: 4000 }), null);
+});
+
+// ─── Median monthly income (P1-c) ────────────────────────────────────────────
+
+test("median month resists a one-off windfall; average does not", () => {
+  const transactions = [
+    { amount: -3000, date: "2026-05-15" },
+    { amount: -9000, date: "2026-06-15" }, // one great month
+    { amount: -3200, date: "2026-07-15" }
+  ];
+  const median = plaidLib._test.deriveMedianMonthlyIncome(transactions);
+  assert.equal(median, 3200);
+  const average = Math.round((3000 + 9000 + 3200) / 3);
+  assert.equal(median < average, true);
+
+  // Under two months of data: no median, callers fall back to the average.
+  assert.equal(plaidLib._test.deriveMedianMonthlyIncome([{ amount: -3000, date: "2026-07-01" }]), 0);
 });
 
 // ─── Integration: knowledge rides on decision results ────────────────────────
