@@ -1,4 +1,5 @@
 import { clamp, formatCurrency, formatMonths, formatPercent, formatSignedCurrency } from "./formatters.js";
+import { buildDebtPayoffPlan, computeAffordabilityCeilings, getMoneyFacts } from "./financeKnowledge.js";
 
 const DEFAULT_HORIZON_MONTHS = 60;
 const CASH_RETURN = 0.024;
@@ -734,6 +735,7 @@ export function evaluatePaycheckSplit(profile, goals, draft) {
     creditReadiness: null,
     confidence: { score: 90, label: "High confidence" },
     goalsSummary,
+    goalFunding: buildGoalFundingCheck(goals),
     ahaMoment: buildSplitAhaMoment(plan),
     nextStep: buildSplitNextStep(plan),
     impactCards
@@ -1718,17 +1720,20 @@ function getSavingsRunoutMonths(liquidAssets, scenarioMonthlyFreeCash) {
   return liquidAssets / Math.abs(scenarioMonthlyFreeCash);
 }
 
-function getRiskLabel(runoutMonths, scenarioMonthlyFreeCash, mostImpactedGoal, scenarioRunwayMonths) {
+// personaScale > 1 = tighter thresholds (dependents, no backstop, irregular
+// pay); < 1 = looser (family backstop). Same numbers, different verdicts for
+// different people — see BRAIN.md P1-a.
+function getRiskLabel(runoutMonths, scenarioMonthlyFreeCash, mostImpactedGoal, scenarioRunwayMonths, personaScale = 1) {
   const goalDelay = Number.isFinite(mostImpactedGoal?.deltaMonths) ? mostImpactedGoal.deltaMonths : 18;
 
-  if (runoutMonths < 6 || scenarioMonthlyFreeCash < 0 || scenarioRunwayMonths < 5 || goalDelay > 12) {
+  if (runoutMonths < 6 * personaScale || scenarioMonthlyFreeCash < 0 || scenarioRunwayMonths < 5 * personaScale || goalDelay > 12) {
     return {
       label: "High",
       detail: "This move materially compresses flexibility and makes at least one important goal meaningfully harder to reach."
     };
   }
 
-  if (runoutMonths < 12 || scenarioRunwayMonths < 7 || goalDelay > 4) {
+  if (runoutMonths < 12 * personaScale || scenarioRunwayMonths < 7 * personaScale || goalDelay > 4) {
     return {
       label: "Medium",
       detail: "The decision is survivable, but timing and tradeoffs matter because your margin for error gets thinner."
@@ -1783,10 +1788,11 @@ function estimateCreditReadiness(profile, metrics, draft, scenarioMonthlyFreeCas
       ? Math.max(Number(draft.purchaseAmount || 0) - downPayment, 0)
       : Math.max(Number(draft.purchaseAmount || draft.oneTimeCost || 0), 0);
 
+  const bufferFloor = getPersonaBufferFloor(profile?.persona);
   let strength = "Needs more info";
   if (hasScore) {
-    if (score >= 720 && debtToIncome <= 0.36 && scenarioMonthlyFreeCash >= 600) strength = "Strong chance";
-    else if (score >= 680 && debtToIncome <= 0.43 && scenarioMonthlyFreeCash >= 300) strength = "Workable chance";
+    if (score >= 720 && debtToIncome <= 0.36 && scenarioMonthlyFreeCash >= bufferFloor) strength = "Strong chance";
+    else if (score >= 680 && debtToIncome <= 0.43 && scenarioMonthlyFreeCash >= bufferFloor / 2) strength = "Workable chance";
     else if (score >= 620 && debtToIncome <= 0.5 && scenarioMonthlyFreeCash >= 0) strength = "Possible but expensive";
     else strength = "Low chance";
   }
@@ -1794,7 +1800,7 @@ function estimateCreditReadiness(profile, metrics, draft, scenarioMonthlyFreeCas
   const constraints = [];
   if (!hasScore) constraints.push("Credit score missing");
   if (debtToIncome > 0.43) constraints.push("Debt-to-income looks high");
-  if (scenarioMonthlyFreeCash < 300) constraints.push("Monthly buffer is tight");
+  if (scenarioMonthlyFreeCash < bufferFloor / 2) constraints.push("Monthly buffer is tight for your risk profile");
   if (draft.type === "car" && loanAmount > 0 && downPayment / Math.max(Number(draft.purchaseAmount || loanAmount), 1) < 0.1) {
     constraints.push("Down payment may be light");
   }
@@ -1850,13 +1856,13 @@ function buildAhaMoment(goalsSummary, scenarioRunoutMonths, scenario, currentPat
   )}, which gives you more room to keep goals funded.`;
 }
 
-function buildRecommendedNextStep(risk, mostImpactedGoal, scenarioMonthlyFreeCash, scenarioRunwayMonths) {
+function buildRecommendedNextStep(risk, mostImpactedGoal, scenarioMonthlyFreeCash, scenarioRunwayMonths, bufferFloor = 600) {
   if (risk.label === "High" && Number.isFinite(mostImpactedGoal?.deltaMonths)) {
     return `Protect the next 90 days first. Either phase the decision, reduce the upfront cash hit, or preserve the contribution feeding ${mostImpactedGoal.title.toLowerCase()}.`;
   }
 
-  if (scenarioMonthlyFreeCash < 600) {
-    return "Proceed only if you pair this move with a recurring offset elsewhere. A tighter monthly buffer is the main weakness here.";
+  if (scenarioMonthlyFreeCash < bufferFloor) {
+    return `Proceed only if you pair this move with a recurring offset elsewhere. For your risk profile, a buffer under ${formatCurrency(bufferFloor)}/month is the main weakness here.`;
   }
 
   if (scenarioRunwayMonths < 7) {
@@ -1864,6 +1870,76 @@ function buildRecommendedNextStep(risk, mostImpactedGoal, scenarioMonthlyFreeCas
   }
 
   return "The move looks workable. Lock the numbers, then stress-test one downside assumption before committing.";
+}
+
+// Persona-derived safe-buffer floor: $200 per month of buffer target. A
+// three-month-target user keeps the old $600 line; someone supporting family
+// at 8 months needs $1,600 free before the same verdict.
+function getPersonaBufferFloor(persona) {
+  return clamp(Math.round((Number(persona?.bufferTargetMonths) || 3) * 200), 300, 1800);
+}
+
+// Goal funding check: for each goal, the exact monthly contribution its
+// timeline requires vs. what's actually flowing in. Deterministic and blunt —
+// this is how "account for goals" becomes a number instead of a vibe.
+function buildGoalFundingCheck(goals) {
+  const rows = (goals || [])
+    .map((goal) => {
+      const remaining = Math.max(Number(goal.targetAmount || 0) - Number(goal.currentAmount || 0), 0);
+      const timeline = Math.max(Number(goal.targetTimelineMonths || 0), 1);
+      const requiredMonthly = Math.ceil(remaining / timeline);
+      const actualMonthly = Math.round(Number(goal.monthlyContribution || 0));
+      return {
+        title: goal.title || "Goal",
+        requiredMonthly,
+        actualMonthly,
+        gapMonthly: Math.max(requiredMonthly - actualMonthly, 0),
+        funded: requiredMonthly <= actualMonthly,
+        reached: remaining <= 0
+      };
+    })
+    .filter((row) => Number.isFinite(row.requiredMonthly) && (row.requiredMonthly > 0 || row.actualMonthly > 0 || row.reached));
+
+  if (!rows.length) return null;
+
+  const underfunded = rows.filter((row) => !row.funded);
+  return {
+    goals: rows.slice(0, 4),
+    underfundedCount: underfunded.length,
+    totalMonthlyGap: underfunded.reduce((total, row) => total + row.gapMonthly, 0)
+  };
+}
+
+// Deterministic knowledge riders: facts, ceilings, and payoff math relevant to
+// this decision. Computed here so the AI narrates them instead of inventing
+// them, and the UI can show them even with the AI offline.
+function buildDecisionKnowledge(profile, metrics, draft, prompt) {
+  const persona = profile?.persona && typeof profile.persona === "object" ? profile.persona : {};
+  const promptText = prompt || draft.prompt || "";
+
+  const moneyFacts = getMoneyFacts(promptText, { age: profile?.user?.age });
+
+  const affordability = isCreditSensitiveDecision(draft, promptText)
+    ? computeAffordabilityCeilings({
+        monthlyTakeHome: metrics.monthlyIncome,
+        persona,
+        debtToIncome: metrics.monthlyIncome > 0 ? metrics.debtPayment / metrics.monthlyIncome : 0
+      })
+    : null;
+
+  const debtRelevant =
+    (profile.liabilities || []).length > 0 &&
+    (/\b(debt|pay ?off|payoff|loan|credit card|avalanche|snowball|interest)\b/i.test(promptText) ||
+      (profile.liabilities || []).some((item) => Number(item.rate) >= 10));
+  const debtPlan = debtRelevant
+    ? buildDebtPayoffPlan(profile.liabilities, Math.max(Math.round(Math.max(metrics.monthlyFreeCash, 0) * 0.5), 50))
+    : null;
+
+  return {
+    ...(moneyFacts.length ? { moneyFacts } : {}),
+    ...(affordability ? { affordability } : {}),
+    ...(debtPlan ? { debtPlan } : {})
+  };
 }
 
 export function evaluateScenario(profile, goals, draft, prompt = draft.prompt || "") {
@@ -1901,8 +1977,12 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
   const longTermNetWorthDelta = oneTimeDeltaAtHorizon + recurringDeltaAtHorizon + investmentDeltaAtHorizon;
   const scenarioProjectedNetWorth = metrics.projectedNetWorth + longTermNetWorthDelta;
 
+  const persona = profile?.persona && typeof profile.persona === "object" ? profile.persona : {};
+  const personaScale = clamp((Number(persona.bufferTargetMonths) || 3) / 3, 0.75, 1.75);
+  const bufferFloor = getPersonaBufferFloor(persona);
+
   const goalsSummary = evaluateGoals(goals, normalizedDraft);
-  const risk = getRiskLabel(runoutMonths, scenarioMonthlyFreeCash, goalsSummary.mostImpactedGoal, scenarioRunwayMonths);
+  const risk = getRiskLabel(runoutMonths, scenarioMonthlyFreeCash, goalsSummary.mostImpactedGoal, scenarioRunwayMonths, personaScale);
   const creditReadiness = estimateCreditReadiness(profile, metrics, normalizedDraft, scenarioMonthlyFreeCash, prompt);
   const confidence = getConfidence(normalizedDraft, null, prompt);
   const healthScore = Math.round(
@@ -1943,7 +2023,9 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     confidence,
     goalsSummary,
     ahaMoment: buildAhaMoment(goalsSummary, runoutMonths, scenarioPath, currentPath),
-    nextStep: buildRecommendedNextStep(risk, goalsSummary.mostImpactedGoal, scenarioMonthlyFreeCash, scenarioRunwayMonths),
+    nextStep: buildRecommendedNextStep(risk, goalsSummary.mostImpactedGoal, scenarioMonthlyFreeCash, scenarioRunwayMonths, bufferFloor),
+    goalFunding: buildGoalFundingCheck(goals),
+    ...buildDecisionKnowledge(profile, metrics, normalizedDraft, prompt),
     impactCards: [
       {
         label: "Monthly cash flow",

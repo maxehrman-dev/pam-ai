@@ -66,7 +66,7 @@ set-aside, 1.0 income reliability. Coefficients: `bufferTargetMonths`,
 
 ## Layer 2 — Engine backlog (build in this order)
 
-### P1-a. Persona-aware verdict thresholds
+### P1-a. Persona-aware verdict thresholds (STATUS: SHIPPED)
 Today `scenarioEngine.js` hardcodes safety lines (e.g. buffer `< 600`/`< 300` in
 `buildRecommendedNextStep` / credit readiness; runway `< 5`/`< 7` in risk labels).
 Replace with persona floors: a parent supporting family should get "Not yet"
@@ -89,7 +89,7 @@ transactions (Plaid baseline normalization), irregular earners should get the
 every decision. Persist both (`detectedMonthlyIncome`, `medianMonthlyIncome`)
 and let persona pick.
 
-### P2-a. Debt payoff planner engine
+### P2-a. Debt payoff planner engine (STATUS: SHIPPED — src/utils/financeKnowledge.js)
 Input: liabilities (balance, rate, minimum). Output per strategy:
 - **Avalanche** (rate desc) vs **snowball** (balance asc): payoff date per debt,
   total interest paid, interest saved vs minimums-only.
@@ -100,7 +100,7 @@ Input: liabilities (balance, rate, minimum). Output per strategy:
 Feeds: "should I pay off debt or invest" (compare top APR vs `INVEST_RETURN`),
 the paycheck-split debt bucket, and a payoff-date line in every debt answer.
 
-### P2-b. Affordability ceiling engine
+### P2-b. Affordability ceiling engine (STATUS: SHIPPED — src/utils/financeKnowledge.js)
 "Can I afford X?" answers get a deterministic ceiling, persona-adjusted:
 - Rent ceiling: 30% of gross (28% with dependents; 33% if no debt + strong buffer).
 - Car all-in (payment + insurance + fuel): 15% of take-home (10% when DTI > 36%).
@@ -123,12 +123,12 @@ table: target < 50 → 60% taxable / 40% tax-advantaged; 50–55 → 50/50; 55+ 
 40/60. Deterministic numbers for the "Roth vs bridge" conversations the AI
 already has in prose. Allocation philosophy only — never named funds/securities.
 
-### P3-a. Benchmark tables (static data, honestly framed)
+### P3-a. Benchmark tables (STATUS: PARTIAL — age-band heuristics shipped in financeKnowledge.js)
 Savings-rate and buffer norms by age band and income band as static tables
 ("typical range for your bracket" — cite as heuristic, not peer data). Powers
 "am I doing okay?" with numbers instead of vibes.
 
-### P3-b. Tax sharpening
+### P3-b. Tax sharpening (STATUS: PARTIAL — retirement-account facts shipped in financeKnowledge.js; state tables remain)
 State-level effective-rate table (partially present via `combinedTaxRate`) plus
 self-employment tax awareness (15.3% below the SS wage base) for freelancers.
 Estimates only, always verify-with-a-professional framing.

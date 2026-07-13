@@ -1252,6 +1252,7 @@ function getScenarioProfileFromBaseline(baseline) {
       archetype: "Connected Sandbox profile",
       city: baseline?.profile?.state || ui.stateCode || "US",
       creditScore: hasValue(baseline?.profile?.creditScore) ? toNumber(baseline.profile.creditScore, null) : null,
+      age: toNumber(state.userValues?.age, null) ?? toNumber(ui.age, null),
       payFrequency: ["weekly", "biweekly", "semimonthly", "monthly"].includes(state.userValues?.pay_frequency) ? state.userValues.pay_frequency : "",
       objective: getGoalLabel(baseline) || "Make better money decisions before committing."
     },
@@ -1363,6 +1364,12 @@ function toLegacyDecisionFromSession(session) {
     : null;
   return {
     ...(splitPlan ? { paycheckSplit: splitPlan } : {}),
+    // Deterministic knowledge riders — computed by the engine, narrated by the
+    // AI, and rendered even when the AI is unavailable.
+    ...(Array.isArray(result.moneyFacts) && result.moneyFacts.length ? { moneyFacts: result.moneyFacts } : {}),
+    ...(result.affordability ? { affordability: result.affordability } : {}),
+    ...(result.debtPlan ? { debtPlan: result.debtPlan } : {}),
+    ...(result.goalFunding ? { goalFunding: result.goalFunding } : {}),
     question: session.prompt || draft.prompt || state.question,
     scenarioSession: session,
     decision: {
@@ -5292,6 +5299,10 @@ function renderScenarioEngineDetails(result) {
   const offsetActions = scenario.offsetPlan?.actions || [];
   const trace = scenario.reasoningTrace || [];
   const credit = scenario.creditReadiness;
+  const goalFunding = scenario.goalFunding;
+  const affordability = scenario.affordability;
+  const debtPlan = scenario.debtPlan;
+  const moneyFacts = Array.isArray(scenario.moneyFacts) ? scenario.moneyFacts : [];
 
   return `
     <div class="result-section scenario-engine-output">
@@ -5314,9 +5325,44 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
       ` : ""}
-      ${credit || offsetActions.length || trace.length ? `
+      ${goalFunding ? `
+        <h3>Goal funding pace</h3>
+        <div class="goal-impact-stack">
+          ${goalFunding.goals.map((goal) => `
+            <div class="goal-impact-row">
+              <span class="gi-name">${escapeHtml(goal.title)}<small class="split-bucket-detail">${goal.reached ? "target amount reached" : `needs ${formatCurrency(goal.requiredMonthly)}/mo · currently ${formatCurrency(goal.actualMonthly)}/mo`}</small></span>
+              <span class="gi-change ${goal.funded ? "neutral" : "bad"}">${goal.reached ? "Target reached" : goal.funded ? "On pace" : `${formatCurrency(goal.gapMonthly)}/mo short`}</span>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${credit || offsetActions.length || trace.length || affordability || debtPlan || moneyFacts.length ? `
         <details class="result-fold">
-          <summary>The full breakdown${credit ? " · credit fit" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+          <summary>The full breakdown${credit ? " · credit fit" : ""}${affordability ? " · your ceilings" : ""}${debtPlan ? " · debt payoff" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+          ${affordability ? `
+            <h3>Your affordability ceilings</h3>
+            <div class="goal-impact-stack">
+              <div class="goal-impact-row"><span class="gi-name">Rent ceiling</span><span class="gi-change neutral">${formatCurrency(affordability.rentMonthly)}/mo · ${affordability.rentPct}% of take-home</span></div>
+              <div class="goal-impact-row"><span class="gi-name">Car all-in ceiling</span><span class="gi-change neutral">${formatCurrency(affordability.carAllInMonthly)}/mo · ${affordability.carPct}%</span></div>
+              <div class="goal-impact-row"><span class="gi-name">Home price ceiling</span><span class="gi-change neutral">${formatCurrency(affordability.homePriceMax)} · ~${affordability.homeMultiple}x annual take-home</span></div>
+            </div>
+            <p class="section-compact-note">Persona-adjusted first screens, not approvals — tighter risk profiles get tighter ceilings.</p>
+          ` : ""}
+          ${debtPlan ? `
+            <h3>Debt payoff plan</h3>
+            <div class="goal-impact-stack">
+              <div class="goal-impact-row"><span class="gi-name">Strategy</span><span class="gi-change neutral">${escapeHtml(debtPlan.recommendation === "snowball" ? "Snowball (smallest balance first)" : "Avalanche (highest APR first)")}</span></div>
+              <div class="goal-impact-row"><span class="gi-name">Debt-free in</span><span class="gi-change neutral">${debtPlan.stalled ? "Not on current payments" : formatMonths((debtPlan.recommendation === "snowball" ? debtPlan.snowball.months : debtPlan.avalanche.months) || 0)}</span></div>
+              ${!debtPlan.stalled ? `<div class="goal-impact-row"><span class="gi-name">Total interest on this path</span><span class="gi-change neutral">${formatCurrency((debtPlan.recommendation === "snowball" ? debtPlan.snowball.totalInterest : debtPlan.avalanche.totalInterest) || 0)}</span></div>` : ""}
+            </div>
+            <p class="section-compact-note">${escapeHtml(debtPlan.reason)} Assumes ${formatCurrency(debtPlan.extraMonthly)}/mo extra beyond minimums.</p>
+          ` : ""}
+          ${moneyFacts.length ? `
+            <h3>Money facts that apply here</h3>
+            <div class="reasoning-trace-list">
+              ${moneyFacts.map((fact) => `<p>${escapeHtml(fact)}</p>`).join("")}
+            </div>
+          ` : ""}
           ${credit ? `
             <h3>Credit and approval fit</h3>
             <div class="goal-impact-stack">

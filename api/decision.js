@@ -436,6 +436,18 @@ function buildInput(payload) {
             result?.paycheckSplit && Array.isArray(result.paycheckSplit.buckets)
               ? `Deterministic paycheck split plan (advice-only — the user sets it up themselves via employer direct-deposit split or bank transfers; PAM never moves money; use these exact numbers, never invent an allocation): income ${result.paycheckSplit.monthlyIncome}/mo paid ${sanitizeString(String(result.paycheckSplit.payFrequency), "biweekly")} (${result.paycheckSplit.perPaycheckIncome} per paycheck); automatic save rate ${result.paycheckSplit.savingsRatePct}%; buffer target ${result.paycheckSplit.bufferTargetAmount}; buckets: ${result.paycheckSplit.buckets.map((bucket) => `${sanitizeString(String(bucket.label))} ${bucket.monthly}/mo (${bucket.perPaycheck} per paycheck, ${bucket.percent}%)`).join("; ")}${Array.isArray(result.paycheckSplit.personaTags) && result.paycheckSplit.personaTags.length ? `; tailored for: ${result.paycheckSplit.personaTags.map((tag) => sanitizeString(String(tag))).join(", ")}` : ""}`
               : "",
+            result?.goalFunding && Array.isArray(result.goalFunding.goals)
+              ? `Deterministic goal funding check (use these exact numbers when discussing their goals): ${result.goalFunding.goals.map((goal) => `${sanitizeString(String(goal.title))} needs ${goal.requiredMonthly}/mo for its timeline, currently ${goal.actualMonthly}/mo${goal.funded ? " (on pace)" : ` (short ${goal.gapMonthly}/mo)`}`).join("; ")}`
+              : "",
+            result?.affordability
+              ? `Deterministic affordability ceilings (persona-adjusted; anchor any affordability call to these, never invent a limit): rent ${result.affordability.rentMonthly}/mo (${result.affordability.rentPct}% of take-home), car all-in ${result.affordability.carAllInMonthly}/mo (${result.affordability.carPct}%), home price ~${result.affordability.homePriceMax} (~${result.affordability.homeMultiple}x annual take-home)`
+              : "",
+            result?.debtPlan
+              ? `Deterministic debt payoff plan (${result.debtPlan.debtCount} debts, ${result.debtPlan.totalBalance} total balance, ${result.debtPlan.extraMonthly}/mo extra assumed): avalanche ${result.debtPlan.avalanche?.months ?? "n/a"} months with ${result.debtPlan.avalanche?.totalInterest ?? "n/a"} interest; snowball ${result.debtPlan.snowball?.months ?? "n/a"} months with ${result.debtPlan.snowball?.totalInterest ?? "n/a"} interest; recommendation: ${sanitizeString(String(result.debtPlan.recommendation))} — ${sanitizeString(String(result.debtPlan.reason))}`
+              : "",
+            Array.isArray(result?.moneyFacts) && result.moneyFacts.length
+              ? `Deterministic money facts (educational, pre-verified — use these, do not contradict or extend them): ${result.moneyFacts.map((fact) => sanitizeString(String(fact))).join(" | ")}`
+              : "",
             `Risk: ${sanitizeString(result?.risk?.label, "Unknown")}`,
             `Tax impact summary: ${sanitizeString(result?.decision?.taxImpact, "No direct change")}`,
             `Local explanation: ${sanitizeString(result?.explanation, "No local explanation")}`
