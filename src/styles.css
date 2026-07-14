@@ -7156,3 +7156,95 @@ textarea::placeholder {
   min-width: 0;
   overflow-wrap: break-word;
 }
+
+/* ── Mobile chrome styling for the FULL mobile range ─────────────────────────
+   The app chrome, welcome card, and bottom nav are switched on at <=900px but
+   their visual styling previously lived only in the <=640px block — leaving
+   tablets and half-snapped windows (641-900px) with an unstyled jumble. These
+   rules make the whole range render identically to phones. */
+@media (max-width: 900px) {
+  .mobile-app-chrome {
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 22px;
+    background: var(--pam-surface-strong);
+    border: 1px solid rgba(30, 138, 102, 0.13);
+    box-shadow: 0 16px 38px rgba(20, 55, 41, 0.12);
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+  }
+
+  .mobile-brand-lockup > span {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    color: white;
+    background: #063f2b;
+    font-size: 0.66rem;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+  }
+
+  .mobile-brand-lockup strong,
+  .mobile-brand-lockup small {
+    display: block;
+  }
+
+  .mobile-brand-lockup strong {
+    color: var(--ink-5);
+    font-size: 0.94rem;
+    line-height: 1;
+  }
+
+  .mobile-app-chrome button {
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: var(--pam-surface-tint);
+    color: var(--mint-5);
+    font-size: 0.8rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .mobile-welcome-card {
+    padding: 14px 16px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(216, 243, 229, 0.62), rgba(255, 253, 249, 0.86));
+    border: 1px solid rgba(30, 138, 102, 0.11);
+  }
+
+  .mobile-bottom-nav {
+    gap: 4px;
+    border-radius: 24px;
+    background: var(--pam-surface-strong);
+    border: 1px solid rgba(30, 138, 102, 0.16);
+    box-shadow: 0 20px 50px rgba(20, 55, 41, 0.18);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-bottom-nav button {
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    color: var(--ink-3);
+    font-size: 0.74rem;
+    font-weight: 900;
+  }
+
+  .mobile-bottom-nav button:focus,
+  .mobile-bottom-nav button:hover,
+  .mobile-bottom-nav button.active {
+    color: var(--mint-5);
+    background: var(--pam-surface-tint);
+  }
+}
