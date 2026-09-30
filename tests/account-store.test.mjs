@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -5,8 +6,10 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 const require = createRequire(import.meta.url);
-const modulePath = "/Users/iwillfixthis/Documents/New project/pam-ai/api/_lib/account-store.js";
+const modulePath = path.join(repoRoot, "api/_lib/account-store.js");
 
 async function withFreshAccountStore(run) {
   const originalCwd = process.cwd();

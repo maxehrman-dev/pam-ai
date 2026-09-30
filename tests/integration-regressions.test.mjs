@@ -1,11 +1,15 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
 import { createRequire } from "node:module";
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 const require = createRequire(import.meta.url);
-const root = "/Users/iwillfixthis/Documents/New project/pam-ai";
+const root = repoRoot;
 const accountSessionModulePath = `${root}/api/account/session.js`;
 const clerkModulePath = `${root}/api/_lib/clerk.js`;
 const supabaseModulePath = `${root}/api/_lib/supabase.js`;

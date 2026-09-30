@@ -10,7 +10,7 @@
     {
       "name": "baseball-gm",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["/Users/iwillfixthis/Documents/New project/baseball-gm/server.js"],
+      "runtimeArgs": ["/Users/iwillfixthis/Developer/baseball-gm/server.js"],
       "port": 3060
     }
   ]

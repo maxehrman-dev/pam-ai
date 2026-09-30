@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -5,10 +6,12 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 const require = createRequire(import.meta.url);
-const securityModulePath = "/Users/iwillfixthis/Documents/New project/pam-ai/api/_lib/security.js";
-const accountStoreModulePath = "/Users/iwillfixthis/Documents/New project/pam-ai/api/_lib/account-store.js";
-const accountSessionModulePath = "/Users/iwillfixthis/Documents/New project/pam-ai/api/account/session.js";
+const securityModulePath = path.join(repoRoot, "api/_lib/security.js");
+const accountStoreModulePath = path.join(repoRoot, "api/_lib/account-store.js");
+const accountSessionModulePath = path.join(repoRoot, "api/account/session.js");
 
 function freshSecurity() {
   global.__PAM_RATE_LIMIT_STORE__ = new Map();

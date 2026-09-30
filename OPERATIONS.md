@@ -18,7 +18,7 @@ table of contents, then use it like a cookbook.
 
 ## 1. Daily driving: how to make changes with Claude Code
 
-Open Claude Code **in the repo folder** (`New project/pam-ai`). Model choice:
+Open Claude Code **in the repo folder** (`~/Developer/pam-ai`). Model choice:
 
 | Task | Model |
 |---|---|
