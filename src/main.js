@@ -3175,10 +3175,10 @@ function renderHero() {
   return `
     <section class="pam-hero foresee-panel">
       <div class="hero-copy">
-        <div class="panel-kicker">PAM AI • Personal Asset Manager</div>
+        <div class="panel-kicker">PAM SI • Personal Asset Manager</div>
         <h1>Know what happens before you decide.</h1>
         <p>
-          PAM AI models your money decisions before you make them, so you can see the impact on your
+          PAM SI models your money decisions before you make them, so you can see the impact on your
           monthly buffer, taxes, savings, risk, and long-term goals before you commit.
         </p>
         <div class="pam-hero-actions">
@@ -3188,7 +3188,7 @@ function renderHero() {
         </div>
         <p class="founding-note">Free to join. Early members lock in founding pricing forever.</p>
       </div>
-      <div class="hero-preview-card" aria-label="PAM AI product preview">
+      <div class="hero-preview-card" aria-label="PAM SI product preview">
         <div class="preview-window-bar">
           <strong>PAM dashboard</strong>
           <span>Decision mode</span>
@@ -4264,9 +4264,9 @@ function renderAuthPage() {
     <div class="foresee-shell auth-standalone">
       ${renderDisclaimerBanner()}
       <header class="marketing-nav">
-        <a class="foresee-brand" href="/" aria-label="PAM AI home">
+        <a class="foresee-brand" href="/" aria-label="PAM SI home">
           <span>PAM</span>
-          <div><strong>PAM AI</strong><small>Personal Asset Manager</small></div>
+          <div><strong>PAM SI</strong><small>Personal Asset Manager</small></div>
         </a>
         <button class="page-back-button" type="button" data-open-view="landing" aria-label="Back to landing">← Back</button>
       </header>
@@ -4426,7 +4426,7 @@ function renderMobileAppChrome() {
     <div class="mobile-app-chrome" aria-label="PAM mobile app header">
       <div class="mobile-brand-lockup">
         <span>PAM</span>
-        <div><strong>PAM AI</strong><small>Personal Asset Manager</small></div>
+        <div><strong>PAM SI</strong><small>Personal Asset Manager</small></div>
       </div>
       ${renderDataSourceBadge()}
       <button type="button" data-mobile-view="profile" aria-label="Open profile">Profile</button>
@@ -5664,7 +5664,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
         ${!state.subscription || state.subscription.status === "inactive" ? `
         <article class="settings-card settings-card-wide upgrade-card">
           <div>
-            <span>PAM AI</span>
+            <span>PAM SI</span>
             <strong>${isFoundingMember() ? "Founding member · $7.99/mo" : "Upgrade · $9.99/mo"}</strong>
           </div>
           <p>Unlock unlimited decisions, Plaid account connections, and AI-powered guidance. Founding pricing locked in forever for early members.</p>
@@ -5677,7 +5677,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
         <article class="settings-card">
           <div>
             <span>Subscription</span>
-            <strong>${isFoundingMember() ? "Founding member · $7.99/mo" : "PAM AI · $9.99/mo"}</strong>
+            <strong>${isFoundingMember() ? "Founding member · $7.99/mo" : "PAM SI · $9.99/mo"}</strong>
           </div>
           <p>Status: ${escapeHtml(state.subscription.status)}${isFoundingMember() ? " · Founding pricing locked in." : ""}</p>
         </article>
@@ -6130,10 +6130,10 @@ function renderWaitlistPage() {
       ${renderDisclaimerBanner()}
       <header class="waitlist-page-header">
         <button class="page-back-button" type="button" data-go-back aria-label="Go back">← Back</button>
-        <a class="foresee-brand" href="/waitlist" aria-label="PAM AI waitlist">
+        <a class="foresee-brand" href="/waitlist" aria-label="PAM SI waitlist">
           <span>PAM</span>
           <div>
-            <strong>PAM AI</strong>
+            <strong>PAM SI</strong>
             <small>Personal Asset Manager</small>
           </div>
         </a>
@@ -6144,7 +6144,7 @@ function renderWaitlistPage() {
           <div class="panel-kicker">PAM waitlist</div>
           <h1 id="waitlist-title">${state.waitlistJoined ? "You're on the list." : "Know what happens before you decide."}</h1>
           <p>
-            PAM AI helps young adults test financial decisions before making them. Join the founding list for launch access and founding pricing.
+            PAM SI helps young adults test financial decisions before making them. Join the founding list for launch access and founding pricing.
           </p>
           <div class="waitlist-proof-grid">
             <div><span>Decision engine</span><strong>Rent, cars, trips, job changes</strong></div>
@@ -6164,7 +6164,7 @@ function renderWaitlistPage() {
           `}
         </section>
       </main>
-      <p class="waitlist-page-footer">PAM AI is in private build. Waitlist signup does not open the work-in-progress app.</p>
+      <p class="waitlist-page-footer">PAM SI is in private build. Waitlist signup does not open the work-in-progress app.</p>
       ${renderLegalFooter()}
       ${renderCookieConsentBanner()}
     </div>
@@ -6219,7 +6219,7 @@ function renderLegalGate() {
       <form class="legal-acceptance-form" data-legal-acceptance-form>
         <label>
           <input type="checkbox" name="acceptedAdvisorDisclaimer" required />
-          <span>I understand PAM AI is a financial modeling tool, not a licensed advisor, and nothing is financial, tax, legal, or investment advice.</span>
+          <span>I understand PAM SI is a financial modeling tool, not a licensed advisor, and nothing is financial, tax, legal, or investment advice.</span>
         </label>
         <label>
           <input type="checkbox" name="acceptedTermsPrivacy" required />
@@ -6238,10 +6238,10 @@ function renderLegalPage(route) {
     terms: {
       title: "Terms of Service",
       eyebrow: "Legal · Last updated May 18, 2026",
-      intro: "Plain-English terms for using PAM AI. These terms protect both you and PAM while the product remains a financial modeling tool, not a licensed advisor.",
+      intro: "Plain-English terms for using PAM SI. These terms protect both you and PAM while the product remains a financial modeling tool, not a licensed advisor.",
       sections: [
-        ["Who these terms apply to", "By using PAM AI you agree to these terms. You must be at least 18 years old to create an account. Do not create an account on behalf of someone else without their permission."],
-        ["PAM is not a licensed advisor", "PAM AI is a software-based financial modeling tool. PAM AI is not a registered investment adviser, broker-dealer, bank, accountant, attorney, tax preparer, or fiduciary. Nothing in the product constitutes financial, investment, tax, legal, credit, insurance, or accounting advice."],
+        ["Who these terms apply to", "By using PAM SI you agree to these terms. You must be at least 18 years old to create an account. Do not create an account on behalf of someone else without their permission."],
+        ["PAM is not a licensed advisor", "PAM SI is a software-based financial modeling tool. PAM SI is not a registered investment adviser, broker-dealer, bank, accountant, attorney, tax preparer, or fiduciary. Nothing in the product constitutes financial, investment, tax, legal, credit, insurance, or accounting advice."],
         ["No guarantees", "PAM may show projections, scenarios, risk levels, goal delays, tax estimates, and compound-growth examples. These outputs are hypothetical, assumption-based, and not guaranteed. Real outcomes can differ materially."],
         ["Your responsibility", "You are responsible for your own financial decisions. Before acting on any PAM output, consult qualified professionals such as a licensed financial advisor, CPA, attorney, or tax professional."],
         ["Data use", "We use your data solely to provide and improve the PAM service. We do not sell user data to third parties."],
@@ -6250,7 +6250,7 @@ function renderLegalPage(route) {
         ["Plans, trials, billing, and refunds", "PAM may offer a free tier, free trial, or paid subscription in the future. A paid subscription is not active until Stripe or another payment provider is connected and you complete checkout. If paid billing is enabled, renewal, cancellation, failed-payment handling, receipts, and refund eligibility will be shown at checkout and in these terms before purchase."],
         ["Cancellation and data after cancellation", "Cancelling stops future subscription renewals but does not automatically delete your account data. You may request deletion by emailing hello@pamadvisor.com, subject to legal, security, fraud-prevention, and backup-retention requirements."],
         ["Account termination", "We may suspend or terminate accounts that abuse the service, attempt unauthorized access, violate these terms, or create legal or security risk. You may stop using PAM at any time."],
-        ["Limitation of liability", "To the fullest extent permitted by law, PAM AI and its operators are not liable for lost profits, investment losses, tax consequences, missed opportunities, data loss, or indirect, incidental, consequential, special, or punitive damages arising from use of the service."],
+        ["Limitation of liability", "To the fullest extent permitted by law, PAM SI and its operators are not liable for lost profits, investment losses, tax consequences, missed opportunities, data loss, or indirect, incidental, consequential, special, or punitive damages arising from use of the service."],
         ["Governing law", "These terms are governed by the laws of the State of California, without regard to conflict-of-law rules. Disputes will be resolved in the courts of California."],
         ["Contact", "Questions about these terms? Email hello@pamadvisor.com."]
       ]
@@ -6293,7 +6293,7 @@ function renderLegalPage(route) {
         ["Acceptable use", "Use PAM to ask financial decision questions, compare scenarios, understand tradeoffs, and learn how assumptions may affect your future."],
         ["Do not paste copyrighted material", "Do not paste books, articles, paid reports, proprietary documents, private legal or tax files, or any other copyrighted or confidential material unless you own the rights or have explicit permission."],
         ["No illegal or harmful use", "Do not use PAM to evade taxes, hide income, commit fraud, deceive lenders, bypass bank rules, or harm another person. PAM will not help you hide or misrepresent financial information."],
-        ["AI output limitations", "PAM AI outputs are generated by AI and may not be accurate. Always verify important financial information with authoritative sources or qualified professionals before acting on it."],
+        ["AI output limitations", "PAM SI outputs are generated by AI and may not be accurate. Always verify important financial information with authoritative sources or qualified professionals before acting on it."],
         ["Input filtering", "PAM may warn or block unusually large pasted text to reduce copyright and privacy risk. Summarize the financial decision in your own words instead of pasting third-party content."],
         ["Enforcement", "Violations may result in account suspension or termination. Report misuse to hello@pamadvisor.com."]
       ]
@@ -6303,7 +6303,7 @@ function renderLegalPage(route) {
       eyebrow: "Help",
       intro: "Fast answers for people trying PAM for the first time.",
       sections: [
-        ["What is PAM AI?", "PAM AI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit — so you know what happens before you decide."],
+        ["What is PAM SI?", "PAM SI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit — so you know what happens before you decide."],
         ["Is PAM a financial advisor?", "No. PAM is not a licensed financial advisor, RIA, tax professional, attorney, bank, or broker. It provides educational modeling only. Always consult a qualified professional before making major financial decisions."],
         ["Does PAM connect to my bank?", "Yes. PAM uses Plaid Sandbox to securely connect financial accounts. PAM never sees your bank login credentials — Plaid handles authentication. Connected account data is used only to build your financial baseline inside PAM."],
         ["Is my financial data safe?", "Yes. PAM uses HTTPS for all data in transit, stores Plaid access tokens encrypted server-side, and never exposes API secrets to the browser. We do not sell or share your financial data."],
@@ -6322,10 +6322,10 @@ function renderLegalPage(route) {
       ${renderDisclaimerBanner()}
       <header class="waitlist-page-header legal-page-header">
         <button class="page-back-button" type="button" data-go-back aria-label="Go back">← Back</button>
-        <a class="foresee-brand" href="/" aria-label="PAM AI home">
+        <a class="foresee-brand" href="/" aria-label="PAM SI home">
           <span>PAM</span>
           <div>
-            <strong>PAM AI</strong>
+            <strong>PAM SI</strong>
             <small>Personal Asset Manager</small>
           </div>
         </a>
@@ -6475,9 +6475,9 @@ function renderPublicLaunchGate(mode = "public") {
     <div class="foresee-shell marketing-shell">
       ${renderDisclaimerBanner()}
       <header class="marketing-nav">
-        <a class="foresee-brand" href="/" aria-label="PAM AI home">
+        <a class="foresee-brand" href="/" aria-label="PAM SI home">
           <span>PAM</span>
-          <div><strong>PAM AI</strong><small>Personal Asset Manager</small></div>
+          <div><strong>PAM SI</strong><small>Personal Asset Manager</small></div>
         </a>
         <div class="marketing-nav-actions">
           <button class="marketing-signin-link" type="button" ${signinAttr}>Sign in</button>
@@ -6693,7 +6693,7 @@ function render() {
         <a class="foresee-brand" href="/">
           <span>PAM</span>
           <div>
-            <strong>PAM AI</strong>
+            <strong>PAM SI</strong>
             <small>Personal Asset Manager</small>
           </div>
         </a>
@@ -7410,7 +7410,7 @@ export async function startApp() {
   const checkoutParam = new URLSearchParams(window.location.search).get("checkout");
   if (checkoutParam === "success") {
     await loadSubscription();
-    setStatus("You're subscribed. Welcome to PAM AI.", "account");
+    setStatus("You're subscribed. Welcome to PAM SI.", "account");
     if (state.userValues?.completed && !state.userValues?.deepdive_done) {
       saveWorkspaceView("deepdive");
       window.setTimeout(() => { if (!state.deepdive.messages.length && !state.deepdive.busy) sendDeepDiveTurn(); }, 80);

@@ -13,10 +13,10 @@ function renderBootError(error) {
       <main class="workspace-section">
         <div class="workspace-heading">
           <div>
-            <p class="eyebrow">PAM AI</p>
+            <p class="eyebrow">PAM SI</p>
             <h2>The simulator hit a startup issue.</h2>
           </div>
-          <p>PAM AI could not finish loading the decision engine. Refresh the page or redeploy the latest build.</p>
+          <p>PAM SI could not finish loading the decision engine. Refresh the page or redeploy the latest build.</p>
         </div>
 
         <section class="surface-panel" aria-live="polite">
@@ -195,7 +195,7 @@ async function boot() {
     }
     await module.startApp();
   } catch (error) {
-    console.error("PAM AI failed to boot.", error);
+    console.error("PAM SI failed to boot.", error);
     if (window.__pamSentryReady && window.Sentry) {
       window.Sentry.captureException(error);
     }

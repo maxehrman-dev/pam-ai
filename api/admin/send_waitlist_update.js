@@ -11,7 +11,7 @@ const broadcastSchema = {
   required: []
 };
 
-const SUBJECT = "What we're building with PAM AI";
+const SUBJECT = "What we're building with PAM SI";
 const PREVIEW = "A quick note on PAM's goals, roadmap, and how to think about the product.";
 
 function getRequiredEnv(name) {
@@ -51,12 +51,12 @@ function renderUpdateEmail() {
         <div style="padding:34px 18px;">
           <div style="max-width:660px;margin:0 auto;background:#fffdf9;border:1px solid rgba(30,138,102,0.16);border-radius:30px;overflow:hidden;box-shadow:0 22px 55px rgba(20,55,41,0.10);">
             <div style="padding:30px 32px 10px;">
-              <span style="display:inline-block;padding:9px 12px;border-radius:999px;background:#d8f3e5;color:#0d6549;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;font-weight:800;">PAM AI</span>
-              <h1 style="margin:18px 0 10px;font-family:Georgia,Times New Roman,serif;font-size:44px;line-height:0.95;letter-spacing:-0.045em;color:#143729;">A quick update from PAM AI</h1>
+              <span style="display:inline-block;padding:9px 12px;border-radius:999px;background:#d8f3e5;color:#0d6549;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;font-weight:800;">PAM SI</span>
+              <h1 style="margin:18px 0 10px;font-family:Georgia,Times New Roman,serif;font-size:44px;line-height:0.95;letter-spacing:-0.045em;color:#143729;">A quick update from PAM SI</h1>
               <p style="margin:0;color:#0d6549;font-size:13px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;">Personal Asset Manager</p>
             </div>
             <div style="padding:10px 32px 32px;">
-              <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">Hey, thanks for being on the early PAM AI waitlist.</p>
+              <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">Hey, thanks for being on the early PAM SI waitlist.</p>
               <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">The goal is simple: help young adults understand what could happen before they make a financial decision. Rent, a car payment, a trip, freelance income, moving out, investing earlier, taxes, emergency savings — PAM is being built to model the ripple effects before you commit.</p>
               <div style="margin:22px 0;padding:18px;border-radius:22px;background:#eefaf3;border:1px solid rgba(30,138,102,0.16);">
                 <p style="margin:0 0 10px;color:#143729;font-size:18px;font-weight:900;">What we're working toward</p>
@@ -69,11 +69,11 @@ function renderUpdateEmail() {
                 </ul>
               </div>
               <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">Near term, we're focused on making the prototype more reliable, easier to use on mobile, and clearer about what changed after every button press. Longer term, PAM should become a decision engine that connects today's choices to future goals.</p>
-              <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">Important note: PAM AI is a financial modeling and education tool. PAM AI is not a licensed financial advisor, registered investment adviser, tax professional, attorney, bank, or broker. Nothing from PAM is financial, tax, legal, or investment advice, and results are hypothetical estimates based on assumptions. Always verify important information and talk to a qualified professional before making major financial decisions.</p>
-              <p style="margin:22px 0 0;color:#143729;font-weight:800;font-size:16px;">— The PAM AI team</p>
+              <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">Important note: PAM SI is a financial modeling and education tool. PAM SI is not a licensed financial advisor, registered investment adviser, tax professional, attorney, bank, or broker. Nothing from PAM is financial, tax, legal, or investment advice, and results are hypothetical estimates based on assumptions. Always verify important information and talk to a qualified professional before making major financial decisions.</p>
+              <p style="margin:22px 0 0;color:#143729;font-weight:800;font-size:16px;">— The PAM SI team</p>
             </div>
             <div style="padding:18px 32px 28px;border-top:1px solid rgba(30,138,102,0.12);color:#809687;font-size:13px;line-height:1.5;">
-              You are receiving this because you joined the PAM AI waitlist at pamadvisor.com.
+              You are receiving this because you joined the PAM SI waitlist at pamadvisor.com.
             </div>
           </div>
         </div>
@@ -83,9 +83,9 @@ function renderUpdateEmail() {
 }
 
 function renderTextEmail() {
-  return `A quick update from PAM AI
+  return `A quick update from PAM SI
 
-Hey, thanks for being on the early PAM AI waitlist.
+Hey, thanks for being on the early PAM SI waitlist.
 
 The goal is simple: help young adults understand what could happen before they make a financial decision. Rent, a car payment, a trip, freelance income, moving out, investing earlier, taxes, emergency savings — PAM is being built to model the ripple effects before you commit.
 
@@ -98,11 +98,11 @@ What we're working toward:
 
 Near term, we're focused on making the prototype more reliable, easier to use on mobile, and clearer about what changed after every button press. Longer term, PAM should become a decision engine that connects today's choices to future goals.
 
-Important note: PAM AI is a financial modeling and education tool. PAM AI is not a licensed financial advisor, registered investment adviser, tax professional, attorney, bank, or broker. Nothing from PAM is financial, tax, legal, or investment advice, and results are hypothetical estimates based on assumptions. Always verify important information and talk to a qualified professional before making major financial decisions.
+Important note: PAM SI is a financial modeling and education tool. PAM SI is not a licensed financial advisor, registered investment adviser, tax professional, attorney, bank, or broker. Nothing from PAM is financial, tax, legal, or investment advice, and results are hypothetical estimates based on assumptions. Always verify important information and talk to a qualified professional before making major financial decisions.
 
-— The PAM AI team
+— The PAM SI team
 
-You are receiving this because you joined the PAM AI waitlist at pamadvisor.com.`;
+You are receiving this because you joined the PAM SI waitlist at pamadvisor.com.`;
 }
 
 async function getWaitlistRows() {
@@ -217,7 +217,7 @@ const __pamRouteHandler = async (req, res) => {
       audienceId,
       from,
       replyTo: from,
-      name: "PAM AI waitlist update",
+      name: "PAM SI waitlist update",
       subject: SUBJECT,
       previewText: PREVIEW,
       html: renderUpdateEmail(),

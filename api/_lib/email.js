@@ -5,7 +5,7 @@ const WAITLIST_NOTIFY_EMAIL = process.env.WAITLIST_NOTIFY_EMAIL || "mbewebdesign
 const PAM_SITE_URL = (process.env.PAM_SITE_URL || "https://pamadvisor.com").replace(/\/$/, "");
 const WAITLIST_URL = `${PAM_SITE_URL}/waitlist`;
 const WAITLIST_FOUNDING_NOTE =
-  "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
+  "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM SI team";
 
 function getResendClient() {
   if (!RESEND_API_KEY) return null;
@@ -42,14 +42,14 @@ async function sendVerificationEmail({ emailAddress, firstName = "", verificatio
     throw new Error("Resend email delivery is not configured.");
   }
 
-  const subject = "Your PAM AI verification code";
+  const subject = "Your PAM SI verification code";
   const greeting = firstName ? `Hi ${firstName},` : "Hi,";
   const html = renderPamEmail({
     eyebrow: "Secure sign in",
-    title: "Your PAM AI code",
-    preview: "Use this code to finish creating your PAM AI account.",
+    title: "Your PAM SI code",
+    preview: "Use this code to finish creating your PAM SI account.",
     body: `
-      <p style="${styles.paragraph}">${greeting} use this code to finish creating your PAM AI account.</p>
+      <p style="${styles.paragraph}">${greeting} use this code to finish creating your PAM SI account.</p>
       <div style="${styles.codeBox}">${verificationCode}</div>
       <p style="${styles.muted}">This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>
     `
@@ -59,7 +59,7 @@ async function sendVerificationEmail({ emailAddress, firstName = "", verificatio
     to: emailAddress,
     subject,
     html,
-    text: `Your PAM AI verification code is ${verificationCode}. It expires in 10 minutes.`
+    text: `Your PAM SI verification code is ${verificationCode}. It expires in 10 minutes.`
   });
 }
 
@@ -97,7 +97,7 @@ async function sendWaitlistNotification(details) {
   const html = renderPamEmail({
     eyebrow: "PAM waitlist",
     title: "New waitlist signup",
-    preview: `${emailAddress} joined the PAM AI waitlist.`,
+    preview: `${emailAddress} joined the PAM SI waitlist.`,
     body: `
       ${renderWaitlistDetails(details)}
       <a href="${WAITLIST_URL}" style="${styles.button}">Open waitlist page</a>
@@ -106,9 +106,9 @@ async function sendWaitlistNotification(details) {
 
   await sendEmail({
     to: WAITLIST_NOTIFY_EMAIL,
-    subject: "New PAM AI waitlist signup",
+    subject: "New PAM SI waitlist signup",
     html,
-    text: `New PAM AI waitlist signup:
+    text: `New PAM SI waitlist signup:
 Email: ${emailAddress}
 Name: ${details.fullName || ""}
 Age: ${details.age || ""}
@@ -120,21 +120,21 @@ Goal: ${details.goal || ""}`
 async function sendWaitlistConfirmation({ emailAddress, fullName = "" }) {
   const greeting = fullName ? `Hi ${fullName.split(/\s+/)[0]},` : "Hey,";
   const html = renderPamEmail({
-    eyebrow: "PAM AI early access",
+    eyebrow: "PAM SI early access",
     title: "You're on the waitlist",
-    preview: "You are on the PAM AI waitlist.",
+    preview: "You are on the PAM SI waitlist.",
     body: `
-      <p style="${styles.paragraph}">${greeting} you're on the PAM AI waitlist.</p>
+      <p style="${styles.paragraph}">${greeting} you're on the PAM SI waitlist.</p>
       <p style="${styles.paragraph}">We'll email you when early access opens with a direct signup link. Early members will lock in founding pricing at <strong>$7.99/month</strong>.</p>
       <p style="${styles.paragraph}">PAM is being built to help people test money decisions before making them.</p>
       <a href="${WAITLIST_URL}" style="${styles.button}">View waitlist page</a>
-      <p style="${styles.signature}">— The PAM AI team</p>
+      <p style="${styles.signature}">— The PAM SI team</p>
     `
   });
 
   await sendEmail({
     to: emailAddress,
-    subject: "You're on the PAM AI waitlist",
+    subject: "You're on the PAM SI waitlist",
     html,
     text: WAITLIST_FOUNDING_NOTE
   });
@@ -202,7 +202,7 @@ function renderPamEmail({ eyebrow, title, preview, body }) {
         <div style="${styles.shell}">
           <div style="${styles.card}">
             <div style="${styles.header}">
-              <span style="${styles.mark}">PAM AI</span>
+              <span style="${styles.mark}">PAM SI</span>
               <h1 style="${styles.title}">${title}</h1>
               <p style="margin:0;color:#0d6549;font-size:13px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;">${eyebrow}</p>
             </div>
@@ -210,8 +210,8 @@ function renderPamEmail({ eyebrow, title, preview, body }) {
               ${body}
             </div>
             <div style="${styles.footer}">
-              PAM AI helps young adults know what happens before they decide.<br />
-              <a href="${WAITLIST_URL}" style="color:#0d6549;font-weight:800;">Join the PAM AI waitlist</a>
+              PAM SI helps young adults know what happens before they decide.<br />
+              <a href="${WAITLIST_URL}" style="color:#0d6549;font-weight:800;">Join the PAM SI waitlist</a>
             </div>
           </div>
         </div>

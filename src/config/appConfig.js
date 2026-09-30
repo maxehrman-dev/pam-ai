@@ -19,7 +19,7 @@ export const TERMS_VERSION = "2026-05-18";
 export const PRIVACY_VERSION = "2026-05-18";
 
 export const LEGAL_DISCLAIMER =
-  "PAM AI is a financial modeling tool, not a licensed financial advisor, investment adviser, tax professional, attorney, or RIA. Nothing in PAM is financial, tax, legal, or investment advice. Consult a qualified professional before making financial decisions.";
+  "PAM SI is a financial modeling tool, not a licensed financial advisor, investment adviser, tax professional, attorney, or RIA. Nothing in PAM is financial, tax, legal, or investment advice. Consult a qualified professional before making financial decisions.";
 
 // Trust section config. LEGAL OWNS THIS: each commitment must stay true in code.
 // Set verified:false to pull a line — a line with verified:false is never rendered.
@@ -47,7 +47,7 @@ export const TRUST_NEVER = [
 ];
 
 export const WAITLIST_FOUNDING_NOTE =
-  "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM AI team";
+  "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM SI team";
 
 export const VALUES_ONBOARDING_STEPS = [
   {

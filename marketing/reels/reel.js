@@ -54,7 +54,7 @@ function statClass(c){ return c==="bad"?"bad":c==="warn"?"warn":"good"; }
 function build(s){
   return `
   <div class="scene hook" data-i="0">
-    <div class="kicker">PAM AI</div>
+    <div class="kicker">PAM SI</div>
     <div class="big">${s.hook}</div>
   </div>
 

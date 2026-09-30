@@ -175,7 +175,7 @@ const server = http.createServer((req, res) => {
       }
       return sendJson(res, 200, {
         ok: true,
-        app: "PAM AI",
+        app: "PAM SI",
         message: "Local server is healthy"
       });
     }

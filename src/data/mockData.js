@@ -480,7 +480,7 @@ export const trustHighlights = [
     eyebrow: "Privacy by design",
     title: "Scenario math lives on normalized profile data",
     copy:
-      "PAM AI is designed so connected-account data can be reduced to balances, liabilities, and cash-flow snapshots before it ever touches the simulator."
+      "PAM SI is designed so connected-account data can be reduced to balances, liabilities, and cash-flow snapshots before it ever touches the simulator."
   },
   {
     eyebrow: "Security posture",
@@ -492,7 +492,7 @@ export const trustHighlights = [
     eyebrow: "Plaid-ready",
     title: "Prepared for Plaid without becoming a raw credential sink",
     copy:
-      "The intended integration path uses server-created link tokens, token exchange, and normalized account snapshots so PAM AI can stay decision-first."
+      "The intended integration path uses server-created link tokens, token exchange, and normalized account snapshots so PAM SI can stay decision-first."
   }
 ];
 
@@ -500,7 +500,7 @@ export const plaidQuickstart = {
   title: "Plaid quickstart path",
   sourceUrl: "https://plaid.com/docs/quickstart/",
   summary:
-    "The next integration step is to keep Plaid on the authentication side and feed PAM AI only the normalized snapshot needed for scenario modeling.",
+    "The next integration step is to keep Plaid on the authentication side and feed PAM SI only the normalized snapshot needed for scenario modeling.",
   steps: [
     {
       title: "Create a link token on the server",
@@ -604,12 +604,12 @@ export const privacyPolicy = {
   version: "1.1",
   effectiveDate: "April 21, 2026",
   summary:
-    "PAM AI helps users model financial decisions. The product is designed to minimize raw financial data exposure, keep security controls visible, and separate connected-account access from the decision engine itself.",
+    "PAM SI helps users model financial decisions. The product is designed to minimize raw financial data exposure, keep security controls visible, and separate connected-account access from the decision engine itself.",
   sections: [
     {
-      title: "What PAM AI collects",
+      title: "What PAM SI collects",
       paragraphs: [
-        "PAM AI uses a financial profile, user-defined goals, scenario inputs, and account-security settings in order to simulate decisions and show their consequences.",
+        "PAM SI uses a financial profile, user-defined goals, scenario inputs, and account-security settings in order to simulate decisions and show their consequences.",
         "In this MVP, seeded mock data powers the experience unless a future linked account snapshot is normalized into the profile store."
       ],
       bullets: [
@@ -621,15 +621,15 @@ export const privacyPolicy = {
     {
       title: "How decision modeling works",
       paragraphs: [
-        "PAM AI compares a current financial path against a hypothetical one using structured cash flow, savings, and long-term compounding assumptions.",
+        "PAM SI compares a current financial path against a hypothetical one using structured cash flow, savings, and long-term compounding assumptions.",
         "The product is designed to work from normalized financial data rather than direct banking credentials."
       ]
     },
     {
       title: "Future Plaid connectivity",
       paragraphs: [
-        "If Plaid is connected, Plaid would handle account authentication and token exchange. PAM AI's role is to receive scoped account data, map it into a normalized profile, and use that profile for decision modeling.",
-        "PAM AI is not intended to store bank usernames or passwords."
+        "If Plaid is connected, Plaid would handle account authentication and token exchange. PAM SI's role is to receive scoped account data, map it into a normalized profile, and use that profile for decision modeling.",
+        "PAM SI is not intended to store bank usernames or passwords."
       ]
     },
     {
@@ -649,7 +649,7 @@ export const privacyPolicy = {
     {
       title: "Retention and deletion",
       paragraphs: [
-        "PAM AI should retain only the profile, goals, scenario history, and security metadata needed to deliver the product and protect user accounts.",
+        "PAM SI should retain only the profile, goals, scenario history, and security metadata needed to deliver the product and protect user accounts.",
         "When a linked account is disconnected in the future, the intended behavior is to remove or refresh outdated normalized snapshots rather than keep stale raw banking data."
       ]
     },

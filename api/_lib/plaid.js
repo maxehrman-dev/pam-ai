@@ -403,7 +403,7 @@ function toNormalizedBaseline({ accounts = [], transactions = [], liabilities = 
 
 exports.createLinkToken = async ({ clientUserId, legalName, emailAddress }) => {
   return callPlaid("/link/token/create", {
-    client_name: "PAM AI",
+    client_name: "PAM SI",
     country_codes: PLAID_COUNTRY_CODES,
     language: "en",
     user: {
