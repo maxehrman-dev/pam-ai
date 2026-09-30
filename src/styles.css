@@ -7248,3 +7248,74 @@ textarea::placeholder {
     background: var(--pam-surface-tint);
   }
 }
+
+/* ── Sample-data bar: one honest line, two real exits ────────────────────── */
+.sample-data-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: rgba(194, 143, 32, 0.10);
+  border: 1px solid rgba(194, 143, 32, 0.32);
+}
+
+.sample-data-bar p {
+  margin: 0;
+  color: var(--ink-4, #4c4636);
+  font-size: 0.88rem;
+}
+
+.sample-data-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sample-data-bar-actions .button {
+  min-height: 38px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+}
+
+.sample-data-manual-link {
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  color: var(--mint-5);
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+:root[data-theme="dark"] .sample-data-bar {
+  background: rgba(224, 176, 70, 0.12);
+  border-color: rgba(224, 176, 70, 0.35);
+}
+
+:root[data-theme="dark"] .sample-data-bar p {
+  color: #e8dcbf;
+}
+
+/* ── De-blockify the mobile dashboard ────────────────────────────────────────
+   At mobile widths the app chrome + bottom nav ARE the navigation; the desktop
+   workspace shell (Workspace heading, account chip, Account/Dashboard tab
+   pills, card-in-card panel padding) just stacks four header blocks before any
+   content. Hide the shell and let the app own the page. */
+@media (max-width: 900px) {
+  .workspace-view-dashboard .workspace-header,
+  .workspace-view-dashboard .workspace-tabs {
+    display: none;
+  }
+
+  .workspace-view-dashboard.foresee-panel {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+}

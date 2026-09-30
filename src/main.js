@@ -4223,7 +4223,7 @@ function renderWorkspaceHub() {
   const isComplete = canUseFinancialFeatures();
   const baseline = getUiBaseline(state.baseline);
   return `
-    <section class="foresee-panel workspace-panel" id="workspace-panel">
+    <section class="foresee-panel workspace-panel workspace-view-${escapeHtml(state.workspaceView)}" id="workspace-panel">
       ${renderSetupBanner()}
       <div class="workspace-header">
         <div>
@@ -4360,6 +4360,7 @@ function renderDashboardWorkspace() {
   return `
     <div class="workspace-guide-grid compact-workspace-view mobile-dashboard-view mobile-view-${escapeHtml(state.mobileView)}" id="dashboard-section">
       ${renderMobileAppChrome()}
+      ${renderSampleDataBar()}
       ${renderDailyDashboardHome()}
       ${renderFeedbackPanel()}
       ${renderMobileBottomNav()}
@@ -4371,6 +4372,7 @@ function renderMobileDashboardWorkspace() {
   return `
     <div class="workspace-guide-grid compact-workspace-view mobile-dashboard-view mobile-app-router mobile-view-${escapeHtml(state.mobileView)}" id="dashboard-section">
       ${renderMobileAppChrome()}
+      ${renderSampleDataBar()}
       <main class="mobile-active-screen" data-active-mobile-screen="${escapeHtml(state.mobileView)}">
         ${renderMobileActiveScreen()}
       </main>
@@ -4401,6 +4403,22 @@ function renderDataSourceBadge() {
   if (source === "plaid_mock") return `<span class="data-source-badge" title="These numbers are demonstration data, not your real accounts.">SAMPLE DATA</span>`;
   if (source.startsWith("plaid")) return `<span class="data-source-badge sandbox" title="Connected through Plaid Sandbox test institutions, not live bank accounts.">SANDBOX DATA</span>`;
   return "";
+}
+
+// One slim, honest bar whenever the dashboard is running on demonstration
+// numbers: say so plainly and offer the two real paths out. Disappears the
+// moment real (sandbox/manual) data is in play.
+function renderSampleDataBar() {
+  if (String(state.baseline?.source || "") !== "plaid_mock") return "";
+  return `
+    <div class="sample-data-bar" role="note">
+      <p><strong>Sample numbers.</strong> This dashboard is a demo so you can try PAM — none of it is your real money.</p>
+      <div class="sample-data-bar-actions">
+        <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect accounts"}</button>
+        <button type="button" class="sample-data-manual-link" data-open-view="account">or enter numbers manually</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderMobileAppChrome() {
