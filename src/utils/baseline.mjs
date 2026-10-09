@@ -219,6 +219,23 @@ export function estimateTaxProfile(baseline) {
   };
 }
 
+export function getMarginalTaxRates(baseline) {
+  const profile = estimateTaxProfile(baseline);
+  if (!(profile.grossAnnual > 0)) return null;
+  const federalMarginal = profile.taxableIncome > 191950 ? 0.32
+    : profile.taxableIncome > 100525 ? 0.24
+      : profile.taxableIncome > 47150 ? 0.22
+        : profile.taxableIncome > 11600 ? 0.12
+          : 0.1;
+  return {
+    federalMarginal,
+    stateRate: STATE_TAX_RATES[baseline?.profile?.state] ?? STATE_TAX_RATES.OTHER,
+    taxableIncome: Math.round(profile.taxableIncome),
+    grossAnnual: Math.round(profile.grossAnnual),
+    employmentStatus: baseline?.profile?.employmentStatus || "unknown"
+  };
+}
+
 export function getSpendableIncome(baseline) {
   const knownTakeHome = toNumber(baseline?.income?.knownTakeHomeMonthlyIncome, 0);
   if (knownTakeHome > 0) return knownTakeHome;

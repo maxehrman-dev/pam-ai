@@ -140,6 +140,26 @@ asks. Emit as lines in the AI payload ("3rd stretch purchase in 30 days,
 cumulative buffer cost $410/mo") — the AI already has the memory voice; give it
 deterministic receipts.
 
+### P4-a. Seeded Monte Carlo range (STATUS: SHIPPED — src/utils/monteCarlo.js)
+Market-exposed asks (invest/retire/401k/Roth/HSA, or any positive investing
+delta) get 1,000 simulated paths at 6.8% mean / 15% volatility, log-normal
+monthly. Seed is hashed from the inputs, so the same ask always returns the
+same low (p10) / typical (p50) / high (p90) — testable, and the integrity
+allowlist covers it. Invested goals (annualReturn >= 4%) also get "% of paths
+that hit the target on time". Cash-flow asks (rent, car) skip it on purpose.
+
+### P4-b. Tax-account comparison + tax analytics (STATUS: SHIPPED — src/utils/taxStrategies.js)
+Same out-of-pocket dollars through taxable, Roth IRA, Roth 401(k), Traditional
+401(k), and HSA (conditional), all on one shared seed so only tax treatment
+differs. Per account: after-tax low/typical/high, taxes paid now / during
+growth / at withdrawal, effective rate. Limits, phase-outs, and LTCG brackets
+live in `TAX_FACTS` (update annually, keep in sync with MONEY_FACTS). Legal
+strategy notes (match, backdoor/mega-backdoor Roth, Solo 401k/QBI, 0% gain
+harvesting, loss harvesting, asset location, Saver's Credit, low-year Roth
+conversions, early-access penalty) fire only when their condition matches.
+Missing tax data falls back to 22% federal + 5% state, stated in assumptions.
+Known gap: `baseline.mjs` brackets are still 2024 single-filer figures.
+
 ## Layer 3 — Persona fixtures: how "every user" becomes enforceable
 
 Create `tests/fixtures/personas.mjs` with named, fully-specified users. Every new

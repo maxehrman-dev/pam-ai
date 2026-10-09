@@ -1,5 +1,7 @@
 import { clamp, formatCurrency, formatMonths, formatPercent, formatSignedCurrency } from "./formatters.js";
 import { buildDebtPayoffPlan, computeAffordabilityCeilings, computeRetirementBridge, getMoneyFacts } from "./financeKnowledge.js";
+import { simulateMarketRange } from "./monteCarlo.js";
+import { compareTaxStrategies } from "./taxStrategies.js";
 
 const DEFAULT_HORIZON_MONTHS = 60;
 const CASH_RETURN = 0.024;
@@ -89,7 +91,7 @@ function amountFromMatch(raw, suffix = "") {
 function collectMoneyCandidates(prompt) {
   const candidates = [];
   const patterns = [
-    /(?:\$|usd\s*)(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?/gi,
+    /(?:\$|usd\s*)(\d[\d,]*(?:\.\d+)?)(?:\s*([kKmM])\b)?/gi,
     /(\d[\d,]*(?:\.\d+)?)\s*([kKmM])\b/g,
     /(\d[\d,]*(?:\.\d+)?)\s*(?:dollars?|bucks|usd)\b/gi
   ];
@@ -265,6 +267,7 @@ export function getProfileMetrics(profile) {
     essentialBurn,
     liquidAssets,
     investableAssets,
+    investContribution,
     totalAssets,
     totalLiabilities,
     debtPayment,
@@ -1961,6 +1964,83 @@ function buildDecisionKnowledge(profile, metrics, draft, prompt) {
   };
 }
 
+const MARKET_PROMPT_PATTERN = /\b(retire|retirement|financial independence|fire|401k|401\(k\)|roth|ira|hsa|invest|investing|index fund|stocks?|brokerage|portfolio|market)\b/i;
+
+function getMarketHorizonMonths(profile, prompt) {
+  const age = Number(profile?.user?.age);
+  const targetAge = Number(profile?.user?.retirementTargetAge);
+  if (/\b(retire|retirement|financial independence|fire)\b/i.test(prompt || "") && age > 0 && targetAge > age) {
+    return Math.round(clamp((targetAge - age) * 12, 12, 540));
+  }
+  return 120;
+}
+
+// Seeded Monte Carlo range for anything market-exposed: the user's invested
+// balance under today's contributions vs the scenario's, plus the chance each
+// invested goal lands on time. Cash goals stay on the deterministic timeline.
+function buildMarketRange(profile, metrics, draft, prompt, goalsSummary) {
+  const investingDelta = Number(draft.monthlyInvestingDelta || 0);
+  if (!MARKET_PROMPT_PATTERN.test(prompt || "") && investingDelta === 0) return null;
+
+  const months = getMarketHorizonMonths(profile, prompt);
+  const startBalance = Math.max(metrics.investableAssets, 0);
+  const currentContribution = Math.max(metrics.investContribution, 0);
+  const scenarioContribution = Math.max(currentContribution + investingDelta, 0);
+  if (startBalance <= 0 && scenarioContribution <= 0) return null;
+
+  const current = simulateMarketRange({ startBalance, monthlyContribution: currentContribution, months });
+  const scenario = investingDelta !== 0
+    ? simulateMarketRange({ startBalance, monthlyContribution: scenarioContribution, months })
+    : current;
+
+  const goalOdds = (goalsSummary?.goals || [])
+    .filter((goal) => Number(goal.annualReturn) >= 0.04 && Number(goal.targetTimelineMonths) > 0 && Number(goal.targetAmount) > 0)
+    .slice(0, 3)
+    .map((goal) => {
+      const run = simulateMarketRange({
+        startBalance: goal.scenarioCurrentAmount ?? goal.currentAmount,
+        monthlyContribution: goal.scenarioMonthlyContribution ?? goal.monthlyContribution,
+        months: goal.targetTimelineMonths,
+        goalAmount: goal.targetAmount,
+        annualReturn: Number(goal.annualReturn)
+      });
+      return {
+        title: goal.title,
+        targetAmount: Math.round(Number(goal.targetAmount)),
+        months: run.months,
+        probabilityPct: run.goalProbabilityPct
+      };
+    });
+
+  return {
+    months,
+    years: Math.round((months / 12) * 10) / 10,
+    current,
+    scenario,
+    changed: investingDelta !== 0,
+    goalOdds,
+    assumptions: [
+      `${scenario.runs.toLocaleString("en-US")} simulated market paths at ${scenario.annualReturnPct}% average yearly return with ${scenario.annualVolatilityPct}% volatility. Same inputs always give the same range.`,
+      "Low = 1 in 10 paths ended below it; high = 1 in 10 ended above it. Not a forecast or a guarantee — markets can do worse than any simulated path."
+    ]
+  };
+}
+
+const TAX_PROMPT_PATTERN = /\b(tax|taxes|roth|traditional|401k|401\(k\)|ira|hsa|backdoor|capital gains?|harvest(?:ing)?|brokerage)\b/i;
+
+// Same out-of-pocket dollars through every account type's tax rules.
+function buildTaxStrategies(profile, metrics, draft, prompt) {
+  const investingDelta = Number(draft.monthlyInvestingDelta || 0);
+  if (!TAX_PROMPT_PATTERN.test(prompt || "") && !MARKET_PROMPT_PATTERN.test(prompt || "") && investingDelta <= 0) return null;
+  const monthlyBudget = investingDelta > 0 ? investingDelta : Math.max(metrics.investContribution, 0);
+  return compareTaxStrategies({
+    monthlyBudget,
+    months: getMarketHorizonMonths(profile, prompt),
+    tax: profile?.tax || {},
+    age: profile?.user?.age
+  });
+}
+
 export function evaluateScenario(profile, goals, draft, prompt = draft.prompt || "") {
   // Paycheck split is an allocation plan, not a shock scenario — it has its own
   // deterministic evaluator and skips the delta/stress-test framing entirely.
@@ -2106,9 +2186,22 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
       }
     : null;
 
+  const marketRange = buildMarketRange(profile, metrics, normalizedDraft, prompt, goalsSummary);
+  const taxStrategies = buildTaxStrategies(profile, metrics, normalizedDraft, prompt);
+  if (marketRange) {
+    const range = marketRange.scenario;
+    baseResult.impactCards.push({
+      label: `Invested in ${marketRange.years} yrs`,
+      value: formatCurrency(range.typical),
+      detail: `Typical outcome. Range ${formatCurrency(range.low)}–${formatCurrency(range.high)} across ${range.runs.toLocaleString("en-US")} simulated markets.`
+    });
+  }
+
   return {
     ...baseResult,
     ...(milestones ? { milestones } : {}),
+    ...(marketRange ? { marketRange } : {}),
+    ...(taxStrategies ? { taxStrategies } : {}),
     offsetPlan: buildSpendingOffsetPlan(profile, normalizedDraft, baseResult)
   };
 }

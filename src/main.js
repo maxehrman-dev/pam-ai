@@ -2,6 +2,7 @@ import { escapeHtml, formatCurrency, formatPercent, formatSignedCurrency } from 
 import {
   estimateGoalDefaults,
   estimateTaxProfile,
+  getMarginalTaxRates,
   getCurrentSavings,
   getEmptyBaseline,
   getGoalLabel,
@@ -1266,6 +1267,7 @@ function getScenarioProfileFromBaseline(baseline) {
       objective: getGoalLabel(baseline) || "Make better money decisions before committing."
     },
     persona,
+    tax: getMarginalTaxRates(baseline) || {},
     monthly: {
       income: [{ label: "Spendable income", amount: monthlyIncome }],
       fixed,
@@ -1379,6 +1381,35 @@ function toLegacyDecisionFromSession(session) {
     ...(result.goalFunding ? { goalFunding: result.goalFunding } : {}),
     ...(result.milestones ? { milestones: result.milestones } : {}),
     ...(result.retirementBridge ? { retirementBridge: result.retirementBridge } : {}),
+    ...(result.marketRange ? {
+      marketRange: {
+        years: result.marketRange.years,
+        low: result.marketRange.scenario.low,
+        typical: result.marketRange.scenario.typical,
+        high: result.marketRange.scenario.high,
+        currentTypical: result.marketRange.current.typical,
+        runs: result.marketRange.scenario.runs,
+        goalOdds: result.marketRange.goalOdds
+      }
+    } : {}),
+    ...(result.taxStrategies ? {
+      taxStrategies: {
+        monthlyBudget: result.taxStrategies.monthlyBudget,
+        months: result.taxStrategies.months,
+        rates: result.taxStrategies.rates,
+        bestLabel: result.taxStrategies.bestLabel,
+        bestVsTaxableTypical: result.taxStrategies.bestVsTaxableTypical,
+        strategies: result.taxStrategies.strategies.map((strategy) => ({
+          label: strategy.label,
+          conditional: Boolean(strategy.conditional),
+          eligible: strategy.eligible !== false,
+          afterTaxTypical: strategy.afterTax.typical,
+          taxTotal: strategy.taxes.total,
+          effectiveTaxRatePct: strategy.effectiveTaxRatePct
+        })),
+        notes: result.taxStrategies.strategyNotes.map((note) => note.text)
+      }
+    } : {}),
     question: session.prompt || draft.prompt || state.question,
     scenarioSession: session,
     decision: {
@@ -1428,7 +1459,7 @@ function parseMoneyValue(value, suffix = "") {
 function collectAmounts(question) {
   const amounts = [];
   const patterns = [
-    /(?:\$|usd\s*)\s*(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?/g,
+    /(?:\$|usd\s*)\s*(\d[\d,]*(?:\.\d+)?)(?:\s*([kKmM])\b)?/g,
     /(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?\s*(?:dollars?|bucks|usd)\b/gi
   ];
 
@@ -5362,6 +5393,9 @@ function renderScenarioEngineDetails(result) {
   const moneyFacts = Array.isArray(scenario.moneyFacts) ? scenario.moneyFacts : [];
   const milestones = scenario.milestones;
   const retirementBridge = scenario.retirementBridge;
+  const marketRange = scenario.marketRange;
+  const taxStrategies = scenario.taxStrategies;
+  const taxNotes = taxStrategies?.strategyNotes || [];
 
   return `
     <div class="result-section scenario-engine-output">
@@ -5395,6 +5429,30 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
       ` : ""}
+      ${marketRange ? `
+        <h3>Range of outcomes · ${marketRange.years} years</h3>
+        <div class="goal-impact-stack">
+          <div class="goal-impact-row"><span class="gi-name">Rough markets<small class="split-bucket-detail">1 in 10 paths ended lower</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.low)}</span></div>
+          <div class="goal-impact-row"><span class="gi-name">Typical<small class="split-bucket-detail">${marketRange.changed ? `today's plan: ${formatCurrency(marketRange.current.typical)}` : `${formatCurrency(marketRange.scenario.monthlyContribution)}/mo invested`}</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.typical)}</span></div>
+          <div class="goal-impact-row"><span class="gi-name">Strong markets<small class="split-bucket-detail">1 in 10 paths ended higher</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.high)}</span></div>
+          ${marketRange.goalOdds.map((goal) => `
+            <div class="goal-impact-row"><span class="gi-name">${escapeHtml(goal.title)}<small class="split-bucket-detail">${formatCurrency(goal.targetAmount)} within ${formatMonths(goal.months)}</small></span><span class="gi-change ${goal.probabilityPct >= 70 ? "neutral" : "bad"}">${goal.probabilityPct}% of paths</span></div>
+          `).join("")}
+        </div>
+        <p class="section-compact-note">${escapeHtml(marketRange.assumptions.join(" "))}</p>
+      ` : ""}
+      ${taxStrategies ? `
+        <h3>Same ${formatCurrency(taxStrategies.monthlyBudget)}/mo, after tax</h3>
+        <div class="goal-impact-stack">
+          ${taxStrategies.strategies.map((strategy) => `
+            <div class="goal-impact-row">
+              <span class="gi-name">${escapeHtml(strategy.label)}${strategy.id === taxStrategies.bestId ? " · best fit" : ""}<small class="split-bucket-detail">${strategy.conditional ? "if eligible · " : ""}${strategy.eligible === false ? "not eligible at your income · " : ""}taxes ${formatCurrency(strategy.taxes.total)} (${strategy.effectiveTaxRatePct}%)</small></span>
+              <span class="gi-change neutral">${formatCurrency(strategy.afterTax.typical)}</span>
+            </div>
+          `).join("")}
+        </div>
+        <p class="section-compact-note">Typical after-tax value in ${formatMonths(taxStrategies.months)}. ${escapeHtml(taxStrategies.bestLabel)} keeps ${formatCurrency(taxStrategies.bestVsTaxableTypical)} more than a taxable account. Tax bracket now ~${taxStrategies.rates.currentPct}%, assumed in retirement ~${taxStrategies.rates.retirementPct}%.</p>
+      ` : ""}
       ${goalFunding ? `
         <h3>Goal funding pace</h3>
         <div class="goal-impact-stack">
@@ -5406,9 +5464,21 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
       ` : ""}
-      ${credit || offsetActions.length || trace.length || affordability || debtPlan || moneyFacts.length || retirementBridge ? `
+      ${credit || offsetActions.length || trace.length || affordability || debtPlan || moneyFacts.length || retirementBridge || taxNotes.length ? `
         <details class="result-fold">
-          <summary>The full breakdown${credit ? " · credit fit" : ""}${affordability ? " · your ceilings" : ""}${debtPlan ? " · debt payoff" : ""}${retirementBridge ? " · early-retirement bridge" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+          <summary>The full breakdown${taxNotes.length ? " · tax strategies" : ""}${credit ? " · credit fit" : ""}${affordability ? " · your ceilings" : ""}${debtPlan ? " · debt payoff" : ""}${retirementBridge ? " · early-retirement bridge" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+          ${taxNotes.length ? `
+            <h3>Tax strategies that fit you</h3>
+            <div class="reasoning-trace-list">
+              ${taxNotes.map((note) => `<p>${escapeHtml(note.text)}</p>`).join("")}
+            </div>
+            <div class="goal-impact-stack">
+              ${taxStrategies.strategies.map((strategy) => `
+                <div class="goal-impact-row"><span class="gi-name">${escapeHtml(strategy.label)}<small class="split-bucket-detail">${escapeHtml(strategy.note)}</small></span><span class="gi-change neutral">now ${formatCurrency(strategy.taxes.upfront)} · growth ${formatCurrency(strategy.taxes.duringGrowth)} · exit ${formatCurrency(strategy.taxes.atWithdrawal)}</span></div>
+              `).join("")}
+            </div>
+            <p class="section-compact-note">${escapeHtml(taxStrategies.assumptions.join(" "))}</p>
+          ` : ""}
           ${retirementBridge ? `
             <h3>Early-retirement bridge</h3>
             <div class="goal-impact-stack">
