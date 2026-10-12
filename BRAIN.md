@@ -187,7 +187,7 @@ for 10 different people" is the tailoring story, shown deterministically.
 - Real ML / model training — no data, no benefit, pure liability.
 - More prompt tokens as a substitute for code — that's the expensive direction.
 - A rules-engine framework or DSL — plain functions + data tables, like now.
-- Money movement of any kind (see paycheck split guardrail — permanent).
+- Money movement inside PAM. PAM never holds or moves money (see the paycheck split guardrail). Real accounts, if they ever happen, come only through a regulated brokerage partner as a separate, explicitly approved project; see the North Star in PRODUCT.md.
 - A rewrite. All of this lands inside `scenarioEngine.js` / small `src/utils/*`
   modules with tests, exactly as `personaEngine.js` did.
 

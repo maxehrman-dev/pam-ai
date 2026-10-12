@@ -37,6 +37,7 @@ Important files:
 - `src/styles.css` - full visual system and responsive layout.
 - `src/utils/scenarioEngine.js` - richer deterministic scenario engine.
 - `src/utils/personaEngine.js` - persona coefficients that personalize every engine.
+- `PRODUCT.md` - plain-language product doc, including the long-term North Star and what PAM is not (yet).
 - `BRAIN.md` - the deterministic-personalization strategy and engine backlog. Read it before adding decision logic.
 - `server.js` - local Node server.
 - `api/*.js` - Vercel API routes.
@@ -381,7 +382,7 @@ git diff --check
 Current expected test count:
 
 ```text
-64 passing tests
+77 passing tests
 ```
 
 Known harmless warning:
