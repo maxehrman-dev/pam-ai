@@ -3672,9 +3672,9 @@ function renderValuesOnboarding() {
       <div class="values-next-up">
         <h3>What happens next</h3>
         <ol>
-          <li><strong>Connect your accounts</strong> — securely through Plaid, so PAM works from your real numbers (sample data works too).</li>
-          <li><strong>Ask your first decision</strong> — get a straight, risk-rated call built on everything above.</li>
-          <li><strong>Go deeper</strong> — PAM's tailored follow-up questions sharpen your profile as you use it.</li>
+          <li><strong>Connect your accounts</strong>: securely through Plaid, so PAM works from your real numbers (sample data works too).</li>
+          <li><strong>Ask your first decision</strong>: get a straight, risk-rated call built on everything above.</li>
+          <li><strong>Go deeper</strong>: PAM's tailored follow-up questions sharpen your profile as you use it.</li>
         </ol>
       </div>
       <button class="button button-primary" type="button" data-values-next>This looks right →</button>
@@ -3692,7 +3692,7 @@ function renderValuesOnboarding() {
         <div class="values-nav-row">
           ${state.valuesStep > 0 ? `<button class="button button-ghost" type="button" data-values-back>Back</button>` : ""}
         </div>
-        <p class="values-honesty-note">Judgment-free zone. Honest answers in, sharper calls out — PAM calibrates, it doesn't judge.</p>
+        <p class="values-honesty-note">Judgment-free zone. Honest answers in, sharper calls out. PAM calibrates, it doesn't judge.</p>
       </div>
     </section>
   `;
@@ -3734,7 +3734,7 @@ function renderStrategyPlayback(draft = {}) {
   if (Array.isArray(draft.trajectory_moves) && draft.trajectory_moves.filter((m) => m !== "Not sure yet").length) {
     lines.push(`Big moves you're weighing: <strong>${draft.trajectory_moves.filter((m) => m !== "Not sure yet").map((m) => escapeHtml(m)).join(", ")}</strong>.`);
   }
-  if (backing) lines.push(`If a bet goes wrong, you've got ${escapeHtml(backing)} — that sets how aggressive PAM will tell you to be.`);
+  if (backing) lines.push(`If a bet goes wrong, you've got ${escapeHtml(backing)}, that sets how aggressive PAM will tell you to be.`);
 
   if (!lines.length) return `<p class="values-detail">PAM will tailor advice as you answer more questions.</p>`;
   return `<div class="strategy-playback">${lines.map((l) => `<p>${l}</p>`).join("")}</div>`;
@@ -3841,7 +3841,7 @@ function advanceValuesFlow() {
       saveMobileView("home");
     }
     render();
-    showSuccessToast("Profile saved — PAM now tailors every answer to your goals.");
+    showSuccessToast("Profile saved: PAM now tailors every answer to your goals.");
   }
 }
 
@@ -3857,11 +3857,11 @@ function renderPaywallScreen() {
       <div class="values-onboarding-frame paywall-frame">
         <div class="panel-kicker">Your profile is ready</div>
         <h2>PAM knows your game. Now put it to work.</h2>
-        <p class="values-detail">You're aiming to be ${finishLine} — every answer from here is judged against that. Unlock PAM to run it on your real money.</p>
+        <p class="values-detail">You're aiming to be ${finishLine}, every answer from here is judged against that. Unlock PAM to run it on your real money.</p>
         <ul class="paywall-benefits">
-          <li><strong>Connect your real accounts</strong> — securely through Plaid, read-only, so every call uses your actual numbers.</li>
-          <li><strong>PAM's tailored deep-dive</strong> — follow-up questions built from your profile that sharpen every answer.</li>
-          <li><strong>Unlimited decisions, with memory</strong> — every answer builds on your last, across devices.</li>
+          <li><strong>Connect your real accounts</strong>: securely through Plaid, read-only, so every call uses your actual numbers.</li>
+          <li><strong>PAM's tailored deep-dive</strong>: follow-up questions built from your profile that sharpen every answer.</li>
+          <li><strong>Unlimited decisions, with memory</strong>: every answer builds on your last, across devices.</li>
         </ul>
         <div class="paywall-teaser" aria-hidden="true">
           <div class="paywall-teaser-blur">
@@ -3873,7 +3873,7 @@ function renderPaywallScreen() {
         </div>
         <div class="paywall-price-card">
           <div class="paywall-price"><strong>$7.99</strong><span>/month</span></div>
-          <p>Founding price — locked for life. $9.99 after launch. Cancel anytime.</p>
+          <p>Founding price, locked for life. $9.99 after launch. Cancel anytime.</p>
           ${Number(window.__pamFoundingClaimed || 0) >= 15 ? `<p class="paywall-founding-count">${Math.min(Number(window.__pamFoundingClaimed), 100)} of 100 founding spots claimed</p>` : ""}
         </div>
         <button class="button button-primary marketing-btn-lg paywall-cta" type="button" data-checkout="monthly">Unlock PAM →</button>
@@ -3918,15 +3918,15 @@ async function sendDeepDiveTurn(userText = "") {
         deepdive_summary: payload.summary || "",
         deepdive_notes: Array.isArray(payload.notes) ? payload.notes : []
       });
-      dd.messages.push({ role: "pam", text: payload.summary || "Got everything I need — your profile just got sharper." });
+      dd.messages.push({ role: "pam", text: payload.summary || "Got everything I need, your profile just got sharper." });
       dd.done = true;
       trackEvent("deepdive_completed", { notes: (payload.notes || []).length });
-      showSuccessToast("Deep-dive saved — every answer just got sharper.");
+      showSuccessToast("Deep-dive saved, every answer just got sharper.");
     } else if (payload.question) {
       dd.messages.push({ role: "pam", text: payload.question });
     }
   } catch (_error) {
-    dd.error = "Connection hiccup — your answers are safe. Try again.";
+    dd.error = "Connection hiccup, your answers are safe. Try again.";
   }
   dd.busy = false;
   render();
@@ -3954,7 +3954,7 @@ function renderDeepDiveScreen() {
             <textarea rows="2" maxlength="600" placeholder="Type your answer…" ${dd.busy ? "disabled" : ""}></textarea>
             <button class="button button-primary" type="submit" ${dd.busy ? "disabled" : ""}>Send</button>
           </form>
-          <button class="paywall-skip" type="button" data-open-view="dashboard">Finish later — answers so far are saved</button>
+          <button class="paywall-skip" type="button" data-open-view="dashboard">Finish later, answers so far are saved</button>
         `}
         <p class="values-honesty-note">Judgment-free. This conversation stays in your profile, never sold or used to train models.</p>
       </div>
@@ -4021,7 +4021,7 @@ function renderFinishProfileCard() {
   return `
     <div class="insight-card values-cta-card finish-profile-card">
       <strong>PAM has ${missing.length} new question${missing.length === 1 ? "" : "s"} for you</strong>
-      <p>We added more profile questions since you set up. Answering them makes every PAM answer sharper — takes under a minute.</p>
+      <p>We added more profile questions since you set up. Answering them makes every PAM answer sharper, takes under a minute.</p>
       <button class="button button-primary" type="button" data-open-view="values">Finish my profile (${missing.length}) →</button>
     </div>
   `;
@@ -4147,7 +4147,7 @@ function renderBuyVsRentCard() {
   if (!relevant) return "";
   return `
     <details class="insight-card buyvsrent-card">
-      <summary><span class="insight-label blue">Housing</span> Buy vs. rent — based on your goals</summary>
+      <summary><span class="insight-label blue">Housing</span> Buy vs. rent, based on your goals</summary>
       <div class="insight-body">
         <div class="velocity-comparison">
           <div class="velocity-path ${sim.recommendation === "buy" ? "velocity-path-b" : ""}">
@@ -4164,7 +4164,7 @@ function renderBuyVsRentCard() {
         <p class="insight-callout">
           ${sim.recommendation === "rent"
             ? `Based on your goals, renting and investing the difference could leave you ${formatCurrency(sim.netWorthDelta)} ahead in 10 years.`
-            : `Buying may be worth it for you — the 10-year wealth gap is ${formatCurrency(sim.netWorthDelta)} in favor of owning.`}
+            : `Buying may be worth it for you, the 10-year wealth gap is ${formatCurrency(sim.netWorthDelta)} in favor of owning.`}
         </p>
         <button class="button button-ghost button-sm" type="button" data-ask-about="Should I buy a home or keep renting given my goals?">Run the full analysis →</button>
       </div>
@@ -4247,7 +4247,7 @@ function renderSetupBanner() {
   return `
     <div class="setup-banner" role="status">
       <div class="setup-banner-copy">
-        <strong>You're almost in — finish creating your account</strong>
+        <strong>You're almost in, finish creating your account</strong>
         <p>${doneCount} of ${steps.length} steps done. Next: ${escapeHtml(next?.label || "Open your dashboard")}.</p>
       </div>
       <div class="setup-banner-steps">
@@ -4450,7 +4450,7 @@ function renderSampleDataBar() {
   if (String(state.baseline?.source || "") !== "plaid_mock") return "";
   return `
     <div class="sample-data-bar" role="note">
-      <p><strong>Sample numbers.</strong> This dashboard is a demo so you can try PAM — none of it is your real money.</p>
+      <p><strong>Sample numbers.</strong> This dashboard is a demo so you can try PAM. None of it is your real money.</p>
       <div class="sample-data-bar-actions">
         <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Connecting..." : "Connect accounts"}</button>
         <button type="button" class="sample-data-manual-link" data-open-view="account">or enter numbers manually</button>
@@ -4896,12 +4896,12 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
-        ${state.userValues?.completed ? `${renderFinishProfileCard()}${renderDeepDiveCard()}` : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals — not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
+        ${state.userValues?.completed ? `${renderFinishProfileCard()}${renderDeepDiveCard()}` : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals, not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
         ${renderInsightCards()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
           <div class="panel-kicker">Net worth ${renderDataSourceBadge()}</div>
-          <h2>${state.plaidBusy && !hasConnectedData ? "…" : hasConnectedData ? formatCurrency(netWorth) : "—"}</h2>
+          <h2>${state.plaidBusy && !hasConnectedData ? "…" : hasConnectedData ? formatCurrency(netWorth) : "No data yet"}</h2>
           <p>${state.plaidBusy ? "Pulling your latest balances from Plaid…" : hasConnectedData ? `Assets minus liabilities across ${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"}.` : "Connect your accounts to see your real net worth."}</p>
         </div>
         <div class="daily-metric-strip">
@@ -5381,7 +5381,7 @@ function renderPaycheckSplitPlan(plan) {
       <ol class="split-setup-steps">
         ${plan.setupSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
       </ol>
-      <p class="section-compact-note">PAM recommends the split — it never moves, holds, or routes money. You stay in control through your employer and bank.</p>
+      <p class="section-compact-note">PAM recommends the split, it never moves, holds, or routes money. You stay in control through your employer and bank.</p>
     </details>
   `;
 }
@@ -5508,7 +5508,7 @@ function renderScenarioEngineDetails(result) {
               <div class="goal-impact-row"><span class="gi-name">New long-term saving split</span><span class="gi-change neutral">${retirementBridge.taxableSharePct}% accessible / ${retirementBridge.taxAdvantagedSharePct}% tax-advantaged</span></div>
               ${retirementBridge.bridgeFundTarget ? `<div class="goal-impact-row"><span class="gi-name">Bridge fund first screen</span><span class="gi-change neutral">${formatCurrency(retirementBridge.bridgeFundTarget)}</span></div>` : ""}
             </div>
-            <p class="section-compact-note">Allocation philosophy from your stated retirement age — educational, never specific funds.</p>
+            <p class="section-compact-note">Allocation philosophy from your stated retirement age, educational, never specific funds.</p>
           ` : ""}
           ${affordability ? `
             <h3>Your affordability ceilings</h3>
@@ -5517,7 +5517,7 @@ function renderScenarioEngineDetails(result) {
               <div class="goal-impact-row"><span class="gi-name">Car all-in ceiling</span><span class="gi-change neutral">${formatCurrency(affordability.carAllInMonthly)}/mo · ${affordability.carPct}%</span></div>
               <div class="goal-impact-row"><span class="gi-name">Home price ceiling</span><span class="gi-change neutral">${formatCurrency(affordability.homePriceMax)} · ~${affordability.homeMultiple}x annual take-home</span></div>
             </div>
-            <p class="section-compact-note">Persona-adjusted first screens, not approvals — tighter risk profiles get tighter ceilings.</p>
+            <p class="section-compact-note">Persona-adjusted first screens, not approvals, tighter risk profiles get tighter ceilings.</p>
           ` : ""}
           ${debtPlan ? `
             <h3>Debt payoff plan</h3>
@@ -5657,7 +5657,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
           <div class="connect-first-panel">
             <div class="panel-kicker">First, what do you actually want?</div>
             <h3>What matters most to you?</h3>
-            <p>Pick what you're working toward. PAM tailors every answer to this — generic advice is often wrong for what <em>you</em> want.</p>
+            <p>Pick what you're working toward. PAM tailors every answer to this, generic advice is often wrong for what <em>you</em> want.</p>
             <div class="life-values-row">
               ${LIFE_VALUES.map(v => `<button type="button" class="life-value-chip ${(state.lifeValues||[]).includes(v) ? "selected" : ""}" data-life-value="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join("")}
             </div>
@@ -5795,8 +5795,8 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
 function renderPlaidTrustNote() {
   return `
     <ul class="plaid-trust-list">
-      <li>Encrypted connection via Plaid — used by Venmo, SoFi, and Chime</li>
-      <li>Read-only access — PAM can never move or touch your money</li>
+      <li>Encrypted connection via Plaid, used by Venmo, SoFi, and Chime</li>
+      <li>Read-only access: PAM can never move or touch your money</li>
       <li>PAM never sees your bank login. You enter it with Plaid, not us</li>
       <li>Disconnect anytime from your profile</li>
     </ul>
@@ -5813,7 +5813,7 @@ function renderPlaidConnecting(message = "Connecting your accounts…") {
         <strong>${escapeHtml(message)}</strong>
         <span class="working-step step-1">Linking securely through Plaid</span>
         <span class="working-step step-2">Reading balances, income &amp; spending</span>
-        <span class="working-step step-3">Building your baseline — numbers land in a moment</span>
+        <span class="working-step step-3">Building your baseline, numbers land in a moment</span>
       </div>
     </div>
   `;
@@ -5834,7 +5834,7 @@ function renderBaselinePanel() {
         ${state.authView === "signin" ? `
           <div class="panel-kicker">Welcome back</div>
           <h2>Sign in</h2>
-          <p class="auth-clean-sub">Pick up right where you left off — straight to your dashboard and what's changed.</p>
+          <p class="auth-clean-sub">Pick up right where you left off, straight to your dashboard and what's changed.</p>
           <div class="auth-clean-actions">
             <button class="button button-primary auth-clean-primary" type="button" data-clerk-signin>Sign in →</button>
             <button class="auth-clean-link" type="button" data-clerk-signup>New to PAM? <strong>Start free</strong></button>
@@ -5842,7 +5842,7 @@ function renderBaselinePanel() {
         ` : `
           <div class="panel-kicker">Get started</div>
           <h2>Start your account</h2>
-          <p class="auth-clean-sub">Set up your profile free — you only pay when you start running real decisions.</p>
+          <p class="auth-clean-sub">Set up your profile free, you only pay when you start running real decisions.</p>
           <div class="auth-clean-actions">
             <button class="button button-primary auth-clean-primary" type="button" data-clerk-signup>Start free →</button>
             <button class="auth-clean-link" type="button" data-clerk-signin>Already have an account? <strong>Sign in</strong></button>
@@ -5850,7 +5850,7 @@ function renderBaselinePanel() {
           <p class="auth-clean-price">Then <strong>$7.99/mo</strong> for founding members ($9.99 after launch) · cancel anytime</p>
         `}
         <ul class="auth-clean-trust">
-          <li>Read-only — PAM can't move money</li>
+          <li>Read-only: PAM can't move money</li>
           <li>No card to set up your profile</li>
           <li>Never sold or used to train AI</li>
         </ul>
@@ -6052,7 +6052,7 @@ function renderResult() {
           <h2>${canAccessDashboard() ? "Accept PAM's terms to see your results." : "Connect your accounts to start modeling."}</h2>
         </div>
       </div>
-      ${canAccessDashboard() ? renderLegalGate() : "<p>PAM models decisions against your real numbers. Connect your accounts and your results will appear here instantly — no manual entry needed.</p>"}
+      ${canAccessDashboard() ? renderLegalGate() : "<p>PAM models decisions against your real numbers. Connect your accounts and your results will appear here instantly, no manual entry needed.</p>"}
     </section>
   `;
   }
@@ -6090,7 +6090,7 @@ function renderResult() {
           <p>${escapeHtml(advisorSummary.body)}</p>
           ${advisorSummary.interpretationSummary ? `<p>${escapeHtml(advisorSummary.interpretationSummary)}</p>` : ""}
         </div>
-        <p class="advisor-disclosure">${escapeHtml(state.aiGuidance?.disclosure || "Educational estimate from PAM's financial model — not financial, tax, legal, or investment advice.")}</p>
+        <p class="advisor-disclosure">${escapeHtml(state.aiGuidance?.disclosure || "Educational estimate from PAM's financial model, not financial, tax, legal, or investment advice.")}</p>
         ${state.decisionBusy && !state.aiGuidance?.guidance ? `
           <div class="decision-working-card" aria-live="polite" role="status">
             <div class="decision-working-spinner"></div>
@@ -6142,7 +6142,7 @@ function renderResult() {
         <p>${result.compoundOpportunity ? `If you redirected ${formatCurrency(result.decision.compoundMonthlyDelta)}/month into a long-term investment earning a 6.8% average annual return (PAM's planning assumption), it could grow to about ${formatCurrency(result.compoundOpportunity.futureValue)} by age ${result.compoundOpportunity.retirementAge}. If this were held in a Roth-style account and eligibility rules were met, qualified withdrawals may be tax-free. Educational estimate only, not guaranteed.` : result.compoundGrowth ? `If invested monthly, this could hypothetically grow to about ${formatCurrency(result.compoundGrowth)} over 10 years at a 6.8% average annual return. Not guaranteed.` : "No direct compound-growth impact detected for this decision."}</p>
         <h3>Explanation</h3>
         <p>${escapeHtml(result.explanation)}</p>
-        <p class="disclaimer">Educational estimate, AI-assisted. Not financial advice — verify before acting.</p>
+        <p class="disclaimer">Educational estimate, AI-assisted. Not financial advice, verify before acting.</p>
       </details>
     </section>
   `;
@@ -6383,14 +6383,14 @@ function renderLegalPage(route) {
     "privacy-plain": {
       title: "Exactly what we store",
       eyebrow: "Privacy, in plain English",
-      intro: "The short version of how PAM handles your data. The full policy is on the Privacy page — this is the human one.",
+      intro: "The short version of how PAM handles your data. The full policy is on the Privacy page, this is the human one.",
       sections: [
-        ["The 10-second version", "PAM reads your money data so it can give you a straight answer. It's read-only — PAM can't move a dollar, can't see your password, and never sells or trains on your data."],
-        ["What we store", "Your email and profile, the balances, transactions, investments and liabilities from accounts you connect, and the goals and decisions you run. We never store your bank login — Plaid handles that."],
+        ["The 10-second version", "PAM reads your money data so it can give you a straight answer. It's read-only: PAM can't move a dollar, can't see your password, and never sells or trains on your data."],
+        ["What we store", "Your email and profile, the balances, transactions, investments and liabilities from accounts you connect, and the goals and decisions you run. We never store your bank login. Plaid handles that."],
         ["What we never touch", "Your bank password. Any ability to move, send, or trade money. Your data for ad targeting. Your data for training AI models."],
-        ["How long we keep it", "While your account is active. Disconnecting wipes your connected financial data right away. Deleting your account removes the rest — email us and it's gone (minus anything we're legally required to retain)."],
-        ["Who can see it inside PAM", "Only a small team, only when needed to run or fix the product. It's encrypted in transit and at rest, and stored server-side — never exposed to your browser."],
-        ["How to delete it", "Tap \"Disconnect financial data\" in your profile — that revokes Plaid access and purges your connected data in one step. To delete your whole account, email hello@pamadvisor.com."],
+        ["How long we keep it", "While your account is active. Disconnecting wipes your connected financial data right away. Deleting your account removes the rest, email us and it's gone (minus anything we're legally required to retain)."],
+        ["Who can see it inside PAM", "Only a small team, only when needed to run or fix the product. It's encrypted in transit and at rest, and stored server-side, never exposed to your browser."],
+        ["How to delete it", "Tap \"Disconnect financial data\" in your profile, that revokes Plaid access and purges your connected data in one step. To delete your whole account, email hello@pamadvisor.com."],
         ["Questions", "Email hello@pamadvisor.com. PAM is a financial modeling tool, not a licensed advisor."]
       ]
     },
@@ -6412,9 +6412,9 @@ function renderLegalPage(route) {
       eyebrow: "Help",
       intro: "Fast answers for people trying PAM for the first time.",
       sections: [
-        ["What is PAM SI?", "PAM SI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit — so you know what happens before you decide."],
+        ["What is PAM SI?", "PAM SI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit, so you know what happens before you decide."],
         ["Is PAM a financial advisor?", "No. PAM is not a licensed financial advisor, RIA, tax professional, attorney, bank, or broker. It provides educational modeling only. Always consult a qualified professional before making major financial decisions."],
-        ["Does PAM connect to my bank?", "Yes. PAM uses Plaid Sandbox to securely connect financial accounts. PAM never sees your bank login credentials — Plaid handles authentication. Connected account data is used only to build your financial baseline inside PAM."],
+        ["Does PAM connect to my bank?", "Yes. PAM uses Plaid Sandbox to securely connect financial accounts. PAM never sees your bank login credentials. Plaid handles authentication. Connected account data is used only to build your financial baseline inside PAM."],
         ["Is my financial data safe?", "Yes. PAM uses HTTPS for all data in transit, stores Plaid access tokens encrypted server-side, and never exposes API secrets to the browser. We do not sell or share your financial data."],
         ["Are payments live?", "No. Stripe subscriptions are not live yet. Founding pricing is communicated on the waitlist, but no charges are made until a payment flow is set up and you confirm checkout."],
         ["Are the results guaranteed?", "No. PAM's results are hypothetical estimates based on the data and assumptions available. Real-life outcomes can differ materially. Treat PAM as a planning aid, not a source of truth."],
@@ -6472,8 +6472,8 @@ function renderLegalPage(route) {
 const MARKETING_EXAMPLES = {
   moveout: {
     q: "Can I afford to move out? Rent would be $1,800.",
-    verdict: "Yes — but cap it at $1,650.",
-    body: "At $1,800 your monthly buffer drops to $240 — too thin if anything breaks. At $1,650 it stays healthy and you still hit your savings goal on time.",
+    verdict: "Yes, but cap it at $1,650.",
+    body: "At $1,800 your monthly buffer drops to $240, too thin if anything breaks. At $1,650 it stays healthy and you still hit your savings goal on time.",
     stats: [
       { label: "Buffer at $1,800", value: "$240" },
       { label: "Safer rent", value: "$1,650" },
@@ -6913,7 +6913,7 @@ function renderSessionRestoreError() {
       <div class="pam-transition-card">
         <div class="pam-transition-brand"><span>PAM</span></div>
         <h1>Couldn't load your data.</h1>
-        <p class="pam-transition-copy">Your account is fine — the connection just hiccuped. Give it another try.</p>
+        <p class="pam-transition-copy">Your account is fine, the connection just hiccuped. Give it another try.</p>
         <button class="button button-primary marketing-btn-lg" type="button" data-retry-restore>Try again</button>
       </div>
     </div>
@@ -7728,7 +7728,7 @@ export async function startApp() {
     showSuccessToast("Welcome to PAM. Everything's unlocked.");
     window.history.replaceState({}, "", window.location.pathname);
   } else if (checkoutParam === "cancelled") {
-    setStatus("Checkout cancelled — you can upgrade anytime from your profile.", "account");
+    setStatus("Checkout cancelled, you can upgrade anytime from your profile.", "account");
     window.history.replaceState({}, "", window.location.pathname);
   }
   state.goals = loadUserGoals();

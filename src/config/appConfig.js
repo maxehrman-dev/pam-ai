@@ -47,13 +47,13 @@ export const TRUST_NEVER = [
 ];
 
 export const WAITLIST_FOUNDING_NOTE =
-  "Hey — you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. — The PAM SI team";
+  "Hey, you're in. We'll email you the moment PAM launches with a direct link to sign up. As an early member you'll lock in our founding price of $7.99/month permanently. We're building something that actually helps you make smarter money decisions. Stay tuned. The PAM SI team";
 
 export const VALUES_ONBOARDING_STEPS = [
   {
     key: "age",
     question: "How old are you?",
-    detail: "Age sets your runway — every projection depends on it.",
+    detail: "Age sets your runway, every projection depends on it.",
     type: "slider",
     min: 16,
     max: 70,
@@ -131,7 +131,7 @@ export const VALUES_ONBOARDING_STEPS = [
   {
     key: "goal_picks",
     question: "What are you working toward right now?",
-    detail: "Pick everything you're actually saving for — PAM weighs every decision against these.",
+    detail: "Pick everything you're actually saving for. PAM weighs every decision against these.",
     type: "multiselect",
     options: ["Move out", "Emergency fund", "Pay off a debt", "Buy a car", "Buy a home", "A big trip", "Invest regularly", "A wedding"]
   },
@@ -139,7 +139,7 @@ export const VALUES_ONBOARDING_STEPS = [
     key: "goal_details",
     type: "goal-details",
     question: "Rough targets for those",
-    detail: "Ballpark numbers are fine — you can tune them later in Goals."
+    detail: "Ballpark numbers are fine, you can tune them later in Goals."
   },
   {
     key: "work_philosophy",
@@ -147,7 +147,7 @@ export const VALUES_ONBOARDING_STEPS = [
     type: "options",
     options: [
       { value: "hate_working", label: "I hate it. The sooner I'm out, the better." },
-      { value: "work_to_live", label: "It's a means to an end — not my identity." },
+      { value: "work_to_live", label: "It's a means to an end, not my identity." },
       { value: "career_driven", label: "I'm ambitious. I want to climb and earn more." },
       { value: "entrepreneur", label: "I want to build something of my own." }
     ]
@@ -157,9 +157,9 @@ export const VALUES_ONBOARDING_STEPS = [
     question: "Would you relocate for the right opportunity?",
     type: "options",
     options: [
-      { value: "yes", label: "Absolutely — I'll go where the money is." },
+      { value: "yes", label: "Absolutely: I'll go where the money is." },
       { value: "maybe", label: "Maybe, with the right offer on the table." },
-      { value: "no", label: "No — I'm rooted where I am." }
+      { value: "no", label: "No: I'm rooted where I am." }
     ]
   },
   {
@@ -172,7 +172,7 @@ export const VALUES_ONBOARDING_STEPS = [
   {
     key: "industry",
     question: "What industry are you in?",
-    detail: "Pick the closest match — PAM uses this to spot career and location upside.",
+    detail: "Pick the closest match: PAM uses this to spot career and location upside.",
     type: "options",
     options: [
       { value: "finance", label: "Finance & banking" },
@@ -231,7 +231,7 @@ export const VALUES_ONBOARDING_STEPS = [
   {
     key: "trajectory_moves",
     question: "Any big moves on the table?",
-    detail: "Things you're seriously weighing — PAM factors these into every call.",
+    detail: "Things you're seriously weighing. PAM factors these into every call.",
     type: "multiselect",
     options: ["Grad / professional school", "Start a business", "Switch fields", "Relocate", "Buy a home", "Not sure yet"]
   },
@@ -239,7 +239,7 @@ export const VALUES_ONBOARDING_STEPS = [
     key: "future_strategy",
     type: "group",
     question: "Your ambition and your backing",
-    detail: "What you're aiming for — and the safety net behind your bets.",
+    detail: "What you're aiming for, and the safety net behind your bets.",
     fields: [
       {
         key: "aspirational_lifestyle",
@@ -247,10 +247,10 @@ export const VALUES_ONBOARDING_STEPS = [
         label: "The lifestyle you're aiming for",
         required: true,
         options: [
-          { value: "lean", label: "Lean & simple — freedom over stuff" },
+          { value: "lean", label: "Lean & simple, freedom over stuff" },
           { value: "comfortable", label: "Comfortable middle-class" },
-          { value: "upper", label: "Upper-middle — room to spend" },
-          { value: "wealthy", label: "Wealthy — no ceiling" }
+          { value: "upper", label: "Upper-middle, room to spend" },
+          { value: "wealthy", label: "Wealthy, no ceiling" }
         ]
       },
       {
@@ -262,7 +262,7 @@ export const VALUES_ONBOARDING_STEPS = [
           { value: "family", label: "Family could bail me out" },
           { value: "strong_cushion", label: "Strong savings cushion, no family" },
           { value: "modest_cushion", label: "Modest cushion, no backstop" },
-          { value: "none", label: "No real cushion — close to the edge" },
+          { value: "none", label: "No real cushion, close to the edge" },
           { value: "dependents", label: "Others depend on my income" }
         ]
       }
@@ -271,7 +271,7 @@ export const VALUES_ONBOARDING_STEPS = [
   {
     key: "offline_factors",
     question: "Anything your bank accounts don't show?",
-    detail: "Connected data misses these — pick everything that applies.",
+    detail: "Connected data misses these, pick everything that applies.",
     type: "multiselect",
     options: [
       "I own a car",
@@ -286,12 +286,12 @@ export const VALUES_ONBOARDING_STEPS = [
     key: "offline_details",
     type: "offline-details",
     question: "Quick numbers on those",
-    detail: "Rough guesses are fine — PAM calibrates with estimates, not audits."
+    detail: "Rough guesses are fine: PAM calibrates with estimates, not audits."
   },
   {
     key: "going_for_you",
     question: "What do you have going for you?",
-    detail: "The stuff a bank account can't show. Be honest — PAM doesn't judge, it calibrates.",
+    detail: "The stuff a bank account can't show. Be honest: PAM doesn't judge, it calibrates.",
     type: "multiselect",
     options: [
       "Rent-free or cheap living situation",
@@ -307,7 +307,7 @@ export const VALUES_ONBOARDING_STEPS = [
   {
     key: "anything_else",
     question: "Anything else PAM should know?",
-    detail: "In your own words — life stuff the questions above can't catch. Totally optional.",
+    detail: "In your own words, life stuff the questions above can't catch. Totally optional.",
     type: "text",
     placeholder: "e.g. going through a divorce, visa runs out next year, helping my sister with rent…"
   },

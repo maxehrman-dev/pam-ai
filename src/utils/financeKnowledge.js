@@ -14,12 +14,12 @@ const MONEY_FACTS = [
   {
     id: "401k-limit",
     topics: ["401k", "401(k)", "contribution limit", "max my 401k"],
-    text: "2026 401(k) employee contribution limit: $24,500 ($8,000 extra catch-up at 50+). Educational figure — verify the current-year IRS limit."
+    text: "2026 401(k) employee contribution limit: $24,500 ($8,000 extra catch-up at 50+). Educational figure, verify the current-year IRS limit."
   },
   {
     id: "401k-match",
     topics: ["401k", "401(k)", "employer match", "match"],
-    text: "An employer 401(k) match is an immediate 50–100% return on the matched dollars — contributing at least enough to capture the full match beats almost every other use of that money."
+    text: "An employer 401(k) match is an immediate 50–100% return on the matched dollars, contributing at least enough to capture the full match beats almost every other use of that money."
   },
   {
     id: "401k-lock",
@@ -29,7 +29,7 @@ const MONEY_FACTS = [
   {
     id: "roth-limit",
     topics: ["roth", "ira", "contribution limit"],
-    text: "2026 IRA contribution limit (Roth + traditional combined): $7,500 ($1,100 extra catch-up at 50+). Roth contributions phase out at higher incomes (roughly $150k+ single). Educational figure — verify current-year limits."
+    text: "2026 IRA contribution limit (Roth + traditional combined): $7,500 ($1,100 extra catch-up at 50+). Roth contributions phase out at higher incomes (roughly $150k+ single). Educational figure, verify current-year limits."
   },
   {
     id: "roth-access",
@@ -49,7 +49,7 @@ const MONEY_FACTS = [
   {
     id: "hsa",
     topics: ["hsa", "health savings"],
-    text: "An HSA is triple tax-advantaged (deductible in, grows untaxed, tax-free out for medical costs). 2026 limits: about $4,400 self / $8,750 family. Educational figure — verify current-year limits."
+    text: "An HSA is triple tax-advantaged (deductible in, grows untaxed, tax-free out for medical costs). 2026 limits: about $4,400 self / $8,750 family. Educational figure, verify current-year limits."
   },
   {
     id: "debt-vs-invest",
@@ -59,7 +59,7 @@ const MONEY_FACTS = [
   {
     id: "emergency-first",
     topics: ["emergency fund", "buffer", "safety net", "how much should i save"],
-    text: "The standard emergency buffer is 3–6 months of essential costs in cash — more for irregular income, self-employment, or dependents; less matters when a reliable backstop exists."
+    text: "The standard emergency buffer is 3–6 months of essential costs in cash, more for irregular income, self-employment, or dependents; less matters when a reliable backstop exists."
   }
 ];
 
@@ -121,8 +121,8 @@ export function computeAffordabilityCeilings({ monthlyTakeHome, persona = {}, de
     homePriceMax: Math.round(income * 12 * homeMultiple),
     homeMultiple: Math.round(homeMultiple * 10) / 10,
     notes: [
-      `Rent ceiling: ${Math.round(rentPct * 100)}% of take-home (${formatCurrency(Math.round(income * rentPct))}/mo)${bufferMonths > 3 ? " — tightened for your risk profile" : ""}.`,
-      `Car all-in ceiling (payment + insurance + fuel): ${Math.round(carPct * 100)}% of take-home (${formatCurrency(Math.round(income * carPct))}/mo)${Number(debtToIncome) > 0.36 ? " — reduced because existing debt payments are heavy" : ""}.`,
+      `Rent ceiling: ${Math.round(rentPct * 100)}% of take-home (${formatCurrency(Math.round(income * rentPct))}/mo)${bufferMonths > 3 ? ", tightened for your risk profile" : ""}.`,
+      `Car all-in ceiling (payment + insurance + fuel): ${Math.round(carPct * 100)}% of take-home (${formatCurrency(Math.round(income * carPct))}/mo)${Number(debtToIncome) > 0.36 ? ", reduced because existing debt payments are heavy" : ""}.`,
       `Home price ceiling: about ${Math.round(homeMultiple * 10) / 10}x annual take-home (${formatCurrency(Math.round(income * 12 * homeMultiple))}). Rate and down payment move this; treat it as a first screen, not pre-approval.`
     ]
   };
@@ -151,10 +151,10 @@ export function computeRetirementBridge({ targetAge, monthlyEssentials = 0 }) {
     taxAdvantagedSharePct: 100 - taxableSharePct,
     bridgeFundTarget,
     notes: [
-      `Retiring at ${age} means ${bridgeYears} years before retirement accounts unlock at 59½ — that stretch runs on money you can actually touch.`,
+      `Retiring at ${age} means ${bridgeYears} years before retirement accounts unlock at 59½, that stretch runs on money you can actually touch.`,
       `Deterministic split for new long-term saving at this target: ~${taxableSharePct}% accessible taxable investing / ~${100 - taxableSharePct}% tax-advantaged. Allocation philosophy, not fund advice.`,
       ...(bridgeFundTarget
-        ? [`At current essential costs, the bridge itself needs roughly ${formatCurrency(bridgeFundTarget)} (${bridgeYears} years of essentials) before growth — an educational first screen, not a plan.`]
+        ? [`At current essential costs, the bridge itself needs roughly ${formatCurrency(bridgeFundTarget)} (${bridgeYears} years of essentials) before growth, an educational first screen, not a plan.`]
         : [])
     ]
   };
@@ -253,9 +253,9 @@ export function buildDebtPayoffPlan(liabilities = [], extraMonthly = 0) {
     recommendation,
     stalled: recommended.stalled,
     reason: recommended.stalled
-      ? "Current payments don't cover the interest — the balances grow instead of shrinking. The lever is a bigger payment or a lower rate, not payoff order."
+      ? "Current payments don't cover the interest, the balances grow instead of shrinking. The lever is a bigger payment or a lower rate, not payoff order."
       : preferSnowball
         ? `Snowball: clearing ${smallest.label} (${formatCurrency(smallest.balance)}) first is a fast win that frees its payment${interestGap ? `, costing about ${formatCurrency(interestGap)} more interest than avalanche` : ""}.`
-        : `Avalanche: paying the highest APR first (${byRate[0].label} at ${byRate[0].apr}%) minimizes total interest${interestGap ? ` — about ${formatCurrency(interestGap)} less than smallest-balance-first` : ""}.`
+        : `Avalanche: paying the highest APR first (${byRate[0].label} at ${byRate[0].apr}%) minimizes total interest${interestGap ? `, about ${formatCurrency(interestGap)} less than smallest-balance-first` : ""}.`
   };
 }

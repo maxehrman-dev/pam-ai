@@ -521,7 +521,7 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
       monthly: taxSetAside,
       perPaycheck: perPaycheck(taxSetAside),
       percent: pct(taxSetAside),
-      detail: `Self-employed income has no employer withholding — ${taxSetAsidePct}% moves to a separate tax account for quarterly estimates. Educational estimate; verify with a tax professional.`
+      detail: `Self-employed income has no employer withholding. ${taxSetAsidePct}% moves to a separate tax account for quarterly estimates. Educational estimate; verify with a tax professional.`
     }] : []),
     ...(bufferContribution > 0 ? [{
       id: "buffer",
@@ -547,7 +547,7 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
       monthly: investing,
       perPaycheck: perPaycheck(investing),
       percent: pct(investing),
-      detail: "Automatic long-term saving — tax-advantaged accounts first where they fit your timeline. PAM recommends allocation strategy, never specific funds."
+      detail: "Automatic long-term saving, tax-advantaged accounts first where they fit your timeline. PAM recommends allocation strategy, never specific funds."
     }] : []),
     ...(volatilityCushion > 0 ? [{
       id: "cushion",
@@ -572,11 +572,11 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
 
   const setupSteps = [
     `Ask payroll (or your employer portal) to split direct deposit: keep ${formatCurrency(perPaycheck(essentials + guiltFree + volatilityCushion))} per paycheck in checking and route ${formatCurrency(perPaycheck(plannedSavings + taxSetAside))} to savings/investing accounts.`,
-    ...(taxSetAside > 0 ? [`Open a separate savings account just for taxes and move ${formatCurrency(perPaycheck(taxSetAside))} there every payday — that money is not yours to spend, it's for quarterly estimated payments.`] : []),
+    ...(taxSetAside > 0 ? [`Open a separate savings account just for taxes and move ${formatCurrency(perPaycheck(taxSetAside))} there every payday, that money is not yours to spend, it's for quarterly estimated payments.`] : []),
     ...(bufferContribution > 0 ? [`If payroll can't split deposits, set an automatic transfer of ${formatCurrency(perPaycheck(bufferContribution))} from checking to savings on every payday.`] : []),
-    ...(debtExtra > 0 && topDebt ? [`Add ${formatCurrency(debtExtra)}/month as an extra automatic payment on ${topDebt.label} — autopay it the day after payday so it happens before willpower is involved.`] : []),
+    ...(debtExtra > 0 && topDebt ? [`Add ${formatCurrency(debtExtra)}/month as an extra automatic payment on ${topDebt.label}, autopay it the day after payday so it happens before willpower is involved.`] : []),
     ...(investing > 0 ? [`Set a recurring ${formatCurrency(investing)}/month auto-invest transfer. If your bank supports "buckets" or sub-accounts, name them so each dollar has a job.`] : []),
-    "Re-run this split whenever income, rent, or a debt changes. PAM never moves money — you set these up once with your employer or bank."
+    "Re-run this split whenever income, rent, or a debt changes. PAM never moves money, you set these up once with your employer or bank."
   ];
 
   const assumptions = [
@@ -586,7 +586,7 @@ export function computePaycheckSplit(profile, rawDraft = {}) {
     `Debt above ${draft.highAprThreshold}% APR is paid down before long-term investing.`,
     `Guilt-free floor: ${draft.guiltFreePct}% of income, so the plan stays livable.`,
     ...(Array.isArray(persona.notes) ? persona.notes : []),
-    "Every assumption above is editable — change it and re-run."
+    "Every assumption above is editable, change it and re-run."
   ];
 
   return {
@@ -642,10 +642,10 @@ function getSplitRisk(plan) {
 
 function buildSplitAhaMoment(plan) {
   if (plan.bufferContribution > 0 && Number.isFinite(plan.bufferMonthsToTarget) && plan.bufferMonthsToTarget > 0) {
-    return `Routing ${formatCurrency(plan.bufferContribution)}/month of every paycheck into savings fills your ${formatCurrency(plan.bufferTargetAmount)} buffer by about ${addMonthsLabel(plan.bufferMonthsToTarget)} — automatically, before you can spend it.`;
+    return `Routing ${formatCurrency(plan.bufferContribution)}/month of every paycheck into savings fills your ${formatCurrency(plan.bufferTargetAmount)} buffer by about ${addMonthsLabel(plan.bufferMonthsToTarget)}, automatically, before you can spend it.`;
   }
   if (plan.debtExtra > 0 && plan.topHighAprDebt && plan.debtPayoffMonths) {
-    return `An extra ${formatCurrency(plan.debtExtra)}/month clears ${plan.topHighAprDebt.label.toLowerCase()} (${plan.topHighAprDebt.rate}% APR) in about ${formatMonths(plan.debtPayoffMonths)} — a guaranteed return no investment matches.`;
+    return `An extra ${formatCurrency(plan.debtExtra)}/month clears ${plan.topHighAprDebt.label.toLowerCase()} (${plan.topHighAprDebt.rate}% APR) in about ${formatMonths(plan.debtPayoffMonths)}, a guaranteed return no investment matches.`;
   }
   if (plan.plannedSavings > 0) {
     return `This split saves ${plan.savingsRatePct}% of your income (${formatCurrency(plan.plannedSavings)}/month) before it ever reaches your checking account, and still leaves ${formatCurrency(plan.guiltFree)} guilt-free.`;
@@ -655,7 +655,7 @@ function buildSplitAhaMoment(plan) {
 
 function buildSplitNextStep(plan) {
   if (plan.income <= 0) {
-    return "Connect your accounts or add income first — the split needs a real paycheck number to be useful.";
+    return "Connect your accounts or add income first, the split needs a real paycheck number to be useful.";
   }
   if (plan.bufferContribution > 0) {
     return `Start with one move: an automatic ${formatCurrency(Math.round(plan.bufferContribution / plan.paychecksPerMonth))} transfer to savings every payday. Add the other slices once that feels normal.`;
@@ -663,7 +663,7 @@ function buildSplitNextStep(plan) {
   if (plan.debtExtra > 0) {
     return `Start with the debt slice: automate the extra ${formatCurrency(plan.debtExtra)}/month payment, then layer in the rest of the split.`;
   }
-  return "Set the transfers up with your bank or payroll this week — the split only works when it happens before you see the money.";
+  return "Set the transfers up with your bank or payroll this week, the split only works when it happens before you see the money.";
 }
 
 export function evaluatePaycheckSplit(profile, goals, draft) {
@@ -713,13 +713,13 @@ export function evaluatePaycheckSplit(profile, goals, draft) {
       value: plan.bufferGap > 0
         ? (Number.isFinite(plan.bufferMonthsToTarget) && plan.bufferMonthsToTarget > 0 ? addMonthsLabel(plan.bufferMonthsToTarget) : "Needs income room")
         : "Funded",
-      detail: `${formatCurrency(plan.bufferTargetAmount)} target — ${plan.bufferTargetMonths || normalizedDraft.bufferTargetMonths} months of essentials.`
+      detail: `${formatCurrency(plan.bufferTargetAmount)} target: ${plan.bufferTargetMonths || normalizedDraft.bufferTargetMonths} months of essentials.`
     },
     {
       label: "High-interest debt",
       value: plan.debtExtra > 0 ? `${formatCurrency(plan.debtExtra)}/mo extra` : "Minimums only",
       detail: plan.topHighAprDebt
-        ? `${plan.topHighAprDebt.label} at ${plan.topHighAprDebt.rate}% APR${plan.debtPayoffMonths ? ` — gone in about ${formatMonths(plan.debtPayoffMonths)}` : ""}.`
+        ? `${plan.topHighAprDebt.label} at ${plan.topHighAprDebt.rate}% APR${plan.debtPayoffMonths ? `, gone in about ${formatMonths(plan.debtPayoffMonths)}` : ""}.`
         : `No debt above ${normalizedDraft.highAprThreshold}% APR detected.`
     },
     {
@@ -1009,9 +1009,9 @@ function buildFollowUp(draft, starter, prompt, profile) {
       return {
         prompt: "How often does your paycheck land? I'll size each deposit split to match.",
         choices: [
-          { label: "Split my paycheck — paid every two weeks", patch: { payFrequency: "biweekly", userSpecifiedPayFrequency: true } },
-          { label: "Split my paycheck — paid twice a month", patch: { payFrequency: "semimonthly", userSpecifiedPayFrequency: true } },
-          { label: "Split my paycheck — paid monthly", patch: { payFrequency: "monthly", userSpecifiedPayFrequency: true } }
+          { label: "Split my paycheck, paid every two weeks", patch: { payFrequency: "biweekly", userSpecifiedPayFrequency: true } },
+          { label: "Split my paycheck, paid twice a month", patch: { payFrequency: "semimonthly", userSpecifiedPayFrequency: true } },
+          { label: "Split my paycheck, paid monthly", patch: { payFrequency: "monthly", userSpecifiedPayFrequency: true } }
         ]
       };
     }
@@ -2263,7 +2263,7 @@ function buildAssistantMessage(draft, result, followUp) {
       incomeReduction: "I started with an income drop and left one question to size the cut.",
       emergency: "I treated this like a cash shock first and left one question to refine the shape.",
       custom: "I translated this into a custom money scenario and left one question so the model stays flexible instead of forcing a bad preset.",
-      paycheckSplit: "I built your paycheck split from the baseline and left one question — pay cadence — so the per-deposit amounts are exact."
+      paycheckSplit: "I built your paycheck split from the baseline and left one question, pay cadence, so the per-deposit amounts are exact."
     };
 
     return {
