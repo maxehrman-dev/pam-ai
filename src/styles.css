@@ -7571,3 +7571,10 @@ textarea::placeholder {
   .sample-data-bar-actions .button { min-height: 44px; }
   .sample-data-manual-link { min-height: 44px; }
 }
+
+/* Account page: the page title and header buttons already say where you are,
+   so the workspace title and Account/Dashboard pills don't repeat it. */
+.workspace-view-account .workspace-header,
+.workspace-view-account .workspace-tabs {
+  display: none;
+}

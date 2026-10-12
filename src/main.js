@@ -1537,16 +1537,6 @@ function canUseFinancialFeatures() {
   return canAccessDashboard() && hasAcceptedLegalTerms();
 }
 
-function getPrimaryActionLabel() {
-  if (canUseFinancialFeatures()) return "Open dashboard";
-  if (hasPrototypeAccount()) return "Finish setup";
-  return "Create your account";
-}
-
-function getPrimaryActionView() {
-  return canUseFinancialFeatures() ? "dashboard" : "account";
-}
-
 function getAccountPageTitle() {
   if (canUseFinancialFeatures()) return "Your account.";
   if (hasPrototypeAccount()) return "Finish setup.";
@@ -3208,187 +3198,6 @@ function openWorkspaceView(view) {
   }
 }
 
-function renderHero() {
-  const hasAccount = hasPrototypeAccount();
-  return `
-    <section class="pam-hero foresee-panel">
-      <div class="hero-copy">
-        <div class="panel-kicker">PAM SI • Personal Asset Manager</div>
-        <h1>Know what happens before you decide.</h1>
-        <p>
-          PAM SI models your money decisions before you make them, so you can see the impact on your
-          monthly buffer, taxes, savings, risk, and long-term goals before you commit.
-        </p>
-        <div class="pam-hero-actions">
-          <button class="button button-primary" type="button" data-open-view="${getPrimaryActionView()}">${escapeHtml(getPrimaryActionLabel())}</button>
-          ${hasAccount ? `<button class="button button-secondary" type="button" data-open-view="account">Profile</button>` : `<button class="button button-secondary" type="button" data-open-signin>Sign in</button>`}
-          ${!state.waitlistJoined && !hasAccount ? `<button class="button button-secondary optional-hero-action" type="button" data-open-waitlist>${escapeHtml(getWaitlistActionLabel())}</button>` : ""}
-        </div>
-        <p class="founding-note">Free to join. Early members lock in founding pricing forever.</p>
-      </div>
-      <div class="hero-preview-card" aria-label="PAM SI product preview">
-        <div class="preview-window-bar">
-          <strong>PAM dashboard</strong>
-          <span>Decision mode</span>
-        </div>
-        <div class="preview-advisor-note">
-          <span>Question</span>
-          <strong>Can I buy a car with a $400/month payment?</strong>
-        </div>
-        <div class="preview-metric-row">
-          <div><span>Monthly buffer</span><strong>$1,270 → $870</strong></div>
-          <div><span>Risk</span><strong>Medium</strong></div>
-        </div>
-        <div class="preview-goal-callout">
-          <span>Goal impact</span>
-          <strong>Moving out delayed by 6-9 months</strong>
-        </div>
-      </div>
-    </section>
-  `;
-}
-
-function renderEducationSections() {
-  return `
-    <section class="foresee-panel split-section" id="positioning">
-      <div>
-        <div class="panel-kicker">Before wealth management</div>
-        <h2>Built for people before wealth management.</h2>
-      </div>
-      <p>Traditional financial advisors and premium wealth platforms are built for people who already have significant money to manage. PAM starts earlier. It helps young adults make smarter first decisions around income, rent, cars, taxes, saving, investing, and independence.</p>
-    </section>
-  `;
-}
-
-function renderPlanningModules() {
-  const modules = [
-    ["decisions", "Decisions", "Test choices like rent, cars, trips, job changes, and big purchases."],
-    ["taxes", "Taxes", "Understand estimated tax impact, W-2 vs 1099 income, deductions, and take-home pay."],
-    ["goals", "Goals", "See whether a decision delays goals like moving out, emergency savings, or investing."],
-    ["growth", "Growth", "Model compound interest and long-term saving/investing tradeoffs."],
-    ["cash-flow", "Cash Flow", "Understand monthly buffer, expenses, obligations, and runway."],
-    ["guidance", "Guidance", "Get plain-English explanations without needing a spreadsheet or financial advisor."]
-  ];
-
-  return `
-    <section class="foresee-panel modules-section" id="planning-modules">
-      <div class="section-heading-row">
-        <div>
-          <div class="panel-kicker">Planning modules</div>
-          <h2>Everything your financial future needs, in one place.</h2>
-        </div>
-        <p>PAM organizes the moving pieces of a young adult financial life into one decision engine.</p>
-      </div>
-      <div class="module-card-grid">
-        ${modules.map(([id, title, copy]) => `
-          <article class="module-card" id="${id}">
-            <span>${title}</span>
-            <p>${copy}</p>
-          </article>
-        `).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function renderDecisionDemo() {
-  return `
-    <section class="foresee-panel product-demo-section" id="decision-input">
-      <div class="demo-copy">
-        <div class="panel-kicker">Decision engine</div>
-        <h2>A preview of how PAM turns a question into a plan.</h2>
-        <p>PAM is not a chatbot thread. It interprets the decision, runs deterministic math, and shows the tradeoff clearly.</p>
-        <button class="button button-primary" type="button" data-open-view="${getPrimaryActionView()}">${escapeHtml(getPrimaryActionLabel())}</button>
-      </div>
-      <div class="advisor-demo-window">
-        <div class="demo-window-header">
-          <strong>PAM analysis</strong>
-          <span>Example</span>
-        </div>
-        <div class="demo-question">“Can I buy a car with a $400/month payment?”</div>
-        <div class="demo-result-grid">
-          <div><span>Monthly impact</span><strong>-$400</strong></div>
-          <div><span>Risk</span><strong>Medium</strong></div>
-          <div><span>Goal impact</span><strong>Delays moving out by 6-9 months</strong></div>
-          <div><span>Tax impact</span><strong>No direct change</strong></div>
-        </div>
-        <p>You can afford it, but your monthly buffer becomes tighter and your moving-out goal slows down.</p>
-      </div>
-    </section>
-  `;
-}
-
-function renderExamplesSection() {
-  return `
-    <section class="foresee-panel example-stack-section" id="examples">
-      <div class="section-heading-row">
-        <div>
-          <div class="panel-kicker">Examples</div>
-          <h2>From decision to consequence.</h2>
-        </div>
-      </div>
-      <div class="example-stack-grid">
-        <article class="decision-example-card">
-          <span>Question</span>
-          <h3>“Can I buy a car with a $400/month payment?”</h3>
-          <ul>
-            <li><strong>Monthly impact:</strong> -$400</li>
-            <li><strong>Risk:</strong> Medium</li>
-            <li><strong>Goal impact:</strong> This delays moving out by 6-9 months.</li>
-            <li><strong>Tax impact:</strong> No direct change.</li>
-          </ul>
-          <p>You can afford it, but your monthly buffer becomes tighter and your moving-out goal slows down.</p>
-        </article>
-        <article class="decision-example-card">
-          <span>Question</span>
-          <h3>“What if I invest $200/month instead of spending it?”</h3>
-          <ul>
-            <li><strong>Monthly impact:</strong> -$200</li>
-            <li><strong>Compound growth:</strong> Hypothetical projection based on assumptions.</li>
-            <li><strong>Goal impact:</strong> Improves long-term savings.</li>
-            <li><strong>Disclaimer:</strong> Educational estimate only. Not financial, tax, legal, or investment advice.</li>
-          </ul>
-        </article>
-      </div>
-    </section>
-  `;
-}
-
-function renderFutureIntegrations() {
-  return `
-    <section class="foresee-panel split-section integrations-section">
-      <div>
-        <div class="panel-kicker">Future integrations</div>
-        <h2>Automatic baselines later. Clear decisions now.</h2>
-      </div>
-      <p>Future versions can connect financial accounts and automatically build a baseline from income, balances, recurring expenses, and liabilities. For now, Sandbox data keeps the prototype decision-focused without making integrations the homepage story.</p>
-    </section>
-  `;
-}
-
-function renderPricingModel() {
-  return `
-    <section class="foresee-panel pricing-section" id="pricing">
-      <div class="section-heading-row">
-        <div>
-          <div class="panel-kicker">One plan</div>
-          <h2>Try PAM free. Keep one simple plan.</h2>
-        </div>
-        <button class="button button-secondary" type="button" data-open-waitlist>${escapeHtml(getWaitlistActionLabel())}</button>
-      </div>
-      <article class="pricing-card single-plan-card">
-        <h3>Founding plan</h3>
-        <p>One membership for decision modeling, tax-aware estimates, goal impact, compound-growth projections, and saved scenarios.</p>
-        <ul>
-          <li>Free trial before billing</li>
-          <li>Founding members lock in early pricing</li>
-          <li>No separate free tier cluttering the product</li>
-        </ul>
-      </article>
-    </section>
-  `;
-}
-
 function getDraftModelSignals(draft = ensureAccountDraft()) {
   const age = toNumber(draft.age, null);
   const stateCode = inferStateFromLocation(draft.cityOrZip) || String(draft.stateCode || "OTHER");
@@ -4310,7 +4119,7 @@ function renderAuthPage() {
       </header>
       <div class="auth-split">
         <div class="auth-value">
-          <div class="marketing-eyebrow">Your personal financial advisor</div>
+          <div class="marketing-eyebrow">Decision simulator for your money</div>
           ${isSignin ? `
             <h1>Welcome back.</h1>
             <p class="auth-value-sub">Sign in to jump straight to your dashboard and what's changed since you were last here.</p>
@@ -4344,7 +4153,7 @@ function renderAccountPage() {
     <section class="auth-page-shell">
       <div class="auth-page-frame">
         <div class="auth-page-brand">
-          <button class="auth-page-back" type="button" data-open-view="landing">Back to homepage</button>
+          ${canUseFinancialFeatures() ? `<button class="auth-page-back" type="button" data-open-view="dashboard">← Back to dashboard</button>` : ""}
           <div>
             <div class="panel-kicker">PAM account</div>
             <h1>${getAccountPageTitle()}</h1>
@@ -4353,16 +4162,6 @@ function renderAccountPage() {
         ${renderWorkspaceHub()}
       </div>
     </section>
-  `;
-}
-
-function renderLandingWorkspace() {
-  return `
-    <div class="workspace-guide-grid compact-workspace-view landing-grid">
-      ${renderHowItWorksSteps()}
-      ${renderExamplesSection()}
-      ${renderPricingModel()}
-    </div>
   `;
 }
 
@@ -6148,22 +5947,6 @@ function renderResult() {
   `;
 }
 
-function renderHowItWorksSteps() {
-  return `
-    <section class="foresee-panel" id="how-it-works">
-      <div class="panel-kicker">How it works</div>
-      <h2>From account to decision.</h2>
-      <div class="steps-grid">
-        <div><strong>1</strong><span>Build your baseline</span></div>
-        <div><strong>2</strong><span>Ask a financial question</span></div>
-        <div><strong>3</strong><span>PAM models the outcome</span></div>
-        <div><strong>4</strong><span>See your risk, taxes, buffer, and goal impact</span></div>
-        <div><strong>5</strong><span>Compare safer alternatives</span></div>
-      </div>
-    </section>
-  `;
-}
-
 function renderWaitlistModal() {
   if (!state.waitlistOpen) return "";
   if (state.waitlistPartnerMode) {
@@ -6968,6 +6751,12 @@ function render() {
     wireInteractions();
     return;
   }
+  // Signed-in users have exactly one home. The old in-app homepage is gone, so
+  // "landing" (logo, back buttons, stale saved view) means the dashboard, or
+  // account setup until the dashboard unlocks.
+  if (hasPrototypeAccount() && state.workspaceView === "landing") {
+    state.workspaceView = canUseFinancialFeatures() ? "dashboard" : "account";
+  }
   // Signed-out visitors (who already have access, e.g. demo) get the marketing
   // landing — never the old in-app homepage. The explicit account view drops
   // them into the clean standalone sign-in / create-account page.
@@ -6987,21 +6776,12 @@ function render() {
             <small>Personal Asset Manager</small>
           </div>
         </a>
-        ${state.workspaceView === "landing" ? `
-          <nav class="foresee-nav" aria-label="Homepage sections">
-            <button type="button" data-scroll-target="#how-it-works">How it works</button>
-            <button type="button" data-scroll-target="#examples">Examples</button>
-            <button type="button" data-scroll-target="#pricing">Pricing</button>
-          </nav>
-        ` : ""}
         <div class="foresee-header-actions">
           ${renderHeaderActions()}
         </div>
       </header>
       <main class="pam-homepage">
-        ${state.workspaceView === "landing"
-          ? `${renderHero()}${renderLandingWorkspace()}`
-          : state.workspaceView === "values"
+        ${state.workspaceView === "values"
             ? renderValuesOnboarding()
             : state.workspaceView === "deepdive"
               ? renderDeepDiveScreen()
