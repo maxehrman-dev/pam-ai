@@ -29,8 +29,8 @@ export const TRUST_COMMITMENTS = [
   { text: "We never see your login. Plaid handles sign-in; PAM only receives the numbers.", verified: true },
   { text: "We don't sell your data or share it with ad networks.", verified: true },
   { text: "We don't train models on your financial data.", verified: true },
-  { text: "Disconnect anytime. One tap revokes access and wipes your connected data.", verified: true },
-  { text: "Encrypted in transit and at rest.", verified: true }
+  { text: "Disconnect anytime. One tap revokes access and wipes your connected data.", verified: true, showOnHomepage: true },
+  { text: "Encrypted in transit and at rest.", verified: true, showOnHomepage: true }
 ];
 
 export const TRUST_TOUCHES = [

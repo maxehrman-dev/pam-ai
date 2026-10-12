@@ -6622,6 +6622,29 @@ function renderTrustSection(variant = "marketing") {
   const commitments = TRUST_COMMITMENTS.filter((c) => c.verified);
   const ctaVariant = isConnect ? "connect" : "marketing";
   const ctaLabel = isConnect ? "Connect securely with Plaid →" : "Connect securely with Plaid →";
+  if (!isConnect) {
+    // Homepage variant: the compare columns already cover the "never" lines,
+    // so only commitments marked showOnHomepage add a line of their own.
+    const extras = commitments.filter((c) => c.showOnHomepage);
+    return `
+      <div class="trust-section trust-marketing" aria-labelledby="trust-heading">
+        <h2 id="trust-heading">Connecting accounts, minus the creepy part</h2>
+        <p class="trust-sub">PAM links through Plaid, the same connection your banking app uses. It reads your numbers so it can give you a straight answer, and nothing else.</p>
+        <div class="trust-compare">
+          <div class="trust-col trust-col-touch">
+            <h3>What PAM reads <span>(read-only)</span></h3>
+            <ul>${TRUST_TOUCHES.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>
+          </div>
+          <div class="trust-col trust-col-never">
+            <h3>What PAM never touches</h3>
+            <ul>${TRUST_NEVER.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>
+          </div>
+        </div>
+        ${extras.length ? `<p class="trust-extra">${extras.map((c) => escapeHtml(c.text)).join(" ")}</p>` : ""}
+        <a class="trust-privacy-link" href="/privacy-plain" data-privacy-plain>Read exactly what we store →</a>
+      </div>
+    `;
+  }
   return `
     <section class="trust-section ${isConnect ? "trust-connect" : "trust-marketing"} reveal-on-scroll reveal-up" aria-labelledby="trust-heading">
       <div class="trust-head">
@@ -6666,32 +6689,47 @@ function renderPublicLaunchGate(mode = "public") {
     ? "Set up your profile free. You only pay when you start modeling: $7.99/mo founding price ($9.99 after), cancel anytime."
     : "Founding members lock in $7.99/mo for life ($9.99 after launch). Free to join the list.";
   const steps = [
-    { title: "Tell PAM what you want", body: "Move out, pay off loans, retire early, travel. Your goals set the bar every answer is judged against." },
-    { title: "Add your numbers", body: "Connect accounts through Plaid or type a few numbers in. Linking is optional, and PAM can never move money." },
-    { title: "Ask anything", body: "Get a clear call with the math behind it: what changes, what it risks, and a safer version if the answer is not yet." }
+    { title: "Tell PAM what you want", body: "Your goals set the bar every answer is judged against." },
+    { title: "Add your numbers", body: "Connect through Plaid or type a few in. Linking is optional." },
+    { title: "Ask anything", body: "Get a clear call with the math behind it." }
   ];
-  const featureRows = [
+  const showcase = [
     {
-      kicker: "Decisions",
+      id: "decisions",
+      tab: "Decisions",
+      tabShort: "Decisions",
       title: "Test any decision before you make it.",
       body: "Rent, a car, a trip, a job offer in a new city. PAM runs it against your real buffer and goals and tells you plainly whether it works.",
       bullets: ["Monthly buffer, savings runway, and goal impact", "A one-word call: worth it, not yet, or don't", "A safer version when the answer is no"],
       visual: () => renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)
     },
     {
-      kicker: "Range of outcomes",
+      id: "range",
+      tab: "Range of outcomes",
+      tabShort: "Range",
       title: "See the range, not a single guess.",
       body: "Markets don't move in a straight line, so PAM runs 1,000 of them. You see a rough, typical, and strong outcome, plus your odds of hitting a goal on time.",
       bullets: ["1,000 simulated markets on every investing question", "The chance each goal lands by its deadline", "Same question, same answer: results are reproducible"],
       visual: () => renderMarketingOddsCard()
     },
     {
-      kicker: "Tax analytics",
+      id: "tax",
+      tab: "Tax analytics",
+      tabShort: "Taxes",
       title: "Keep more of it after tax.",
       body: "The same dollars land very differently in a Roth, a 401(k), an HSA, or a regular brokerage account. PAM runs them through identical markets, so the only difference is tax.",
       bullets: ["Taxes paid now, during growth, and when you withdraw", "Roth vs Traditional based on your bracket", "Only the strategies that fit your income and goals"],
       visual: () => renderMarketingTaxCard()
     }
+  ];
+  const activeShowcase = Math.min(Math.max(Number(state.marketingShowcaseTab) || 0, 0), showcase.length - 1);
+  const asks = [
+    "Can I afford to move out this year?",
+    "Should I take the higher-paying job in a new city?",
+    "Pay off my loans or start investing?",
+    "Is grad school actually worth it?",
+    "Can I afford this $400/mo car?",
+    "Am I saving enough to retire at 50?"
   ];
   const capabilities = [
     "Paycheck split", "Debt payoff plan", "Affordability ceilings", "Move-out budget", "Job offer and relocation", "Rent vs buy",
@@ -6723,87 +6761,73 @@ function renderPublicLaunchGate(mode = "public") {
           <p class="marketing-sub">Ask PAM about any money move, from a new lease to a job offer to investing, and see what it does to your monthly buffer, your goals, and your next 20 years. Built on your real numbers, so you get a straight call instead of generic advice.</p>
           <div class="marketing-hero-actions">
             <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
-            <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See how it works</button>
+            <button class="button button-secondary" type="button" data-scroll-target="#marketing-features">See it in action</button>
           </div>
           <p class="marketing-hero-note">${escapeHtml(heroNote)}</p>
         </div>
         <div class="marketing-hero-visual reveal-on-scroll reveal-fade">
           ${renderMarketingRangeCard()}
         </div>
-      </section>
-
-      <section class="marketing-section marketing-steps-section" id="marketing-example">
-        <div class="marketing-section-head reveal-on-scroll reveal-up">
-          <div class="panel-kicker">How it works</div>
-          <h2>Two minutes to your first answer.</h2>
-        </div>
-        <ol class="marketing-steps">
+        <ol class="marketing-steps" aria-label="How PAM works">
           ${steps.map((step, index) => `
-            <li class="marketing-step reveal-on-scroll reveal-up">
+            <li class="marketing-step">
               <span class="marketing-step-number" aria-hidden="true">${index + 1}</span>
-              <h3>${escapeHtml(step.title)}</h3>
-              <p>${escapeHtml(step.body)}</p>
+              <div><strong>${escapeHtml(step.title)}</strong><span>${escapeHtml(step.body)}</span></div>
             </li>
           `).join("")}
         </ol>
       </section>
 
-      <section class="marketing-section marketing-rows">
-        ${featureRows.map((row, index) => `
-          <div class="marketing-row ${index % 2 ? "is-reversed" : ""}">
-            <div class="marketing-row-copy reveal-on-scroll reveal-up">
-              <div class="panel-kicker">${escapeHtml(row.kicker)}</div>
-              <h2>${escapeHtml(row.title)}</h2>
-              <p>${escapeHtml(row.body)}</p>
+      <section class="marketing-section marketing-showcase" id="marketing-features" aria-labelledby="showcase-heading">
+        <div class="marketing-showcase-head">
+          <h2 id="showcase-heading">One question. <em>The whole picture.</em></h2>
+          <div class="showcase-tabs" role="tablist" aria-label="What PAM does">
+            ${showcase.map((item, index) => `
+              <button type="button" role="tab" class="showcase-tab" id="showcase-tab-${item.id}" aria-controls="showcase-panel-${item.id}" aria-selected="${index === activeShowcase}" tabindex="${index === activeShowcase ? 0 : -1}" data-showcase-tab="${index}" aria-label="${escapeHtml(item.tab)}"><span class="showcase-tab-long" aria-hidden="true">${escapeHtml(item.tab)}</span><span class="showcase-tab-short" aria-hidden="true">${escapeHtml(item.tabShort)}</span></button>
+            `).join("")}
+          </div>
+        </div>
+        <div class="showcase-panels">
+        ${showcase.map((item, index) => `
+          <div class="showcase-panel marketing-row" role="tabpanel" id="showcase-panel-${item.id}" aria-labelledby="showcase-tab-${item.id}" ${index === activeShowcase ? "" : "hidden"}>
+            <div class="marketing-row-copy">
+              <h3>${escapeHtml(item.title)}</h3>
+              <p>${escapeHtml(item.body)}</p>
               <ul class="marketing-checklist">
-                ${row.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
+                ${item.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
               </ul>
             </div>
-            <div class="marketing-row-visual reveal-on-scroll reveal-fade">${row.visual()}</div>
+            <div class="marketing-row-visual">${item.visual()}</div>
           </div>
         `).join("")}
+        </div>
       </section>
 
-      <section class="marketing-section marketing-asks reveal-on-scroll reveal-up">
-        <div class="marketing-section-head">
-          <div class="panel-kicker">What you can ask</div>
-          <h2>Big calls and everyday ones.</h2>
-        </div>
+      <section class="marketing-section marketing-asks reveal-on-scroll reveal-up" aria-labelledby="asks-heading">
+        <h2 id="asks-heading">Big calls and everyday ones.</h2>
         <div class="marketing-ask-chips">
-          ${[
-            "Can I afford to move out this year?",
-            "Should I take the higher-paying job in a new city?",
-            "Pay off my loans or start investing?",
-            "Is grad school actually worth it?",
-            "Can I afford this $400/mo car?",
-            "Am I saving enough to retire at 50?",
-            "Should I buy a place or keep renting?",
-            "Can I take this trip without wrecking my goal?"
-          ].map((q) => `<button type="button" class="marketing-ask-chip" ${primaryAttr}>"${escapeHtml(q)}"</button>`).join("")}
+          ${asks.map((q) => `<button type="button" class="marketing-ask-chip" ${primaryAttr}>"${escapeHtml(q)}"</button>`).join("")}
         </div>
-        <p class="marketing-capabilities-label">Built in</p>
-        <ul class="marketing-capabilities">
+        <ul class="marketing-capabilities" aria-label="Built into PAM">
           ${capabilities.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
       </section>
 
-      <section class="marketing-section marketing-why">
-        <div class="marketing-section-head reveal-on-scroll reveal-up">
+      <section class="marketing-section marketing-trust-why reveal-on-scroll reveal-up" aria-labelledby="why-heading">
+        <div class="marketing-why">
           <div class="panel-kicker">Why PAM</div>
-          <h2>Straight answers, <em>on your side.</em></h2>
+          <h2 id="why-heading">Straight answers, <em>on your side.</em></h2>
+          <div class="marketing-why-list">
+            ${whyPoints.map((point) => `
+              <div class="marketing-why-point">
+                <h3>${escapeHtml(point.title)}</h3>
+                <p>${escapeHtml(point.body)}</p>
+              </div>
+            `).join("")}
+          </div>
         </div>
-        <div class="marketing-why-grid">
-          ${whyPoints.map((point) => `
-            <div class="marketing-why-point reveal-on-scroll reveal-up">
-              <span class="marketing-card-accent" aria-hidden="true"></span>
-              <h3>${escapeHtml(point.title)}</h3>
-              <p>${escapeHtml(point.body)}</p>
-            </div>
-          `).join("")}
-        </div>
+        ${renderTrustSection("marketing")}
       </section>
-
-      ${renderTrustSection("marketing")}
 
       <section class="marketing-section marketing-partners reveal-on-scroll reveal-up" aria-labelledby="partners-heading">
         <div class="marketing-partners-card">
@@ -7381,6 +7405,29 @@ function wireInteractions() {
       clearStatus("account");
       render();
       requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    });
+  });
+  // Homepage showcase tabs: toggle panels in place (no re-render), arrow keys
+  // move between tabs per the WAI-ARIA tabs pattern.
+  const showcaseTabs = [...document.querySelectorAll("[data-showcase-tab]")];
+  const selectShowcaseTab = (index, focus = false) => {
+    state.marketingShowcaseTab = index;
+    showcaseTabs.forEach((tab, tabIndex) => {
+      const selected = tabIndex === index;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      const panel = document.getElementById(tab.getAttribute("aria-controls"));
+      if (panel) panel.hidden = !selected;
+    });
+    if (focus) showcaseTabs[index]?.focus();
+  };
+  showcaseTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => selectShowcaseTab(index));
+    tab.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const step = event.key === "ArrowRight" ? 1 : -1;
+      selectShowcaseTab((index + step + showcaseTabs.length) % showcaseTabs.length, true);
     });
   });
   document.querySelectorAll("[data-open-waitlist]").forEach((button) => button.addEventListener("click", () => {
