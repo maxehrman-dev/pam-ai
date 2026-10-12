@@ -3,6 +3,7 @@ const { withErrorReporting } = require("../_lib/observability.js");
 const { Resend } = require("resend");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { buildAdminStats } = require("../_lib/adminStats.js");
 
 const broadcastSchema = {
   properties: {
@@ -188,7 +189,63 @@ async function syncContacts(resend, audienceId, rows) {
   };
 }
 
+// Read-only admin stats (GET). Same secret as the broadcast. Reads with the
+// service role server-side and returns aggregates only.
+async function readAdminTable(path, { count = false } = {}) {
+  const supabaseUrl = String(process.env.PAM_SUPABASE_SUPABASE_URL || process.env.SUPABASE_URL || "").trim().replace(/\/$/, "");
+  const serviceRoleKey = String(process.env.PAM_SUPABASE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  if (!supabaseUrl || !serviceRoleKey) throw new Error("Supabase is not configured.");
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    method: count ? "HEAD" : "GET",
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      ...(count ? { Prefer: "count=exact", Range: "0-0" } : {})
+    }
+  });
+  if (count) {
+    const total = Number(String(response.headers.get("content-range") || "").split("/")[1]);
+    return Number.isFinite(total) ? total : null;
+  }
+  if (!response.ok) return [];
+  const text = await response.text();
+  return text ? JSON.parse(text) : [];
+}
+
+async function handleAdminStats(req, res) {
+  assertAdmin(req);
+  if (
+    !checkRateLimit(req, res, {
+      routeKey: "admin:stats",
+      userKey: "admin",
+      ipLimit: { windowMs: 60 * 1000, max: 20 },
+      userLimit: { windowMs: 60 * 1000, max: 20 }
+    })
+  ) {
+    return;
+  }
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const [waitlist, events, runs, feedbackDesc, accountCount] = await Promise.all([
+    readAdminTable("pam_waitlist?select=age,stage,goal,created_at&order=created_at.asc&limit=10000"),
+    readAdminTable(`pam_events?select=id,event_name,session_id,created_at&created_at=gte.${encodeURIComponent(since)}&limit=20000`),
+    readAdminTable("pam_scenario_runs?select=question,created_at&order=created_at.desc&limit=5000"),
+    readAdminTable("pam_feedback?select=rating,message,page,created_at&order=created_at.desc&limit=8"),
+    readAdminTable("pam_baselines?select=account_id", { count: true })
+  ]);
+  return sendJson(res, 200, {
+    ok: true,
+    stats: buildAdminStats({ waitlist, events, runs, feedback: [...feedbackDesc].reverse(), accountCount })
+  });
+}
+
 const __pamRouteHandler = async (req, res) => {
+  if (req.method === "GET") {
+    try {
+      return await handleAdminStats(req, res);
+    } catch (error) {
+      return sendJson(res, error.statusCode || 500, { ok: false, error: error.statusCode === 401 ? "Unauthorized." : "Could not load stats." });
+    }
+  }
   if (req.method !== "POST") {
     return sendMethodNotAllowed(res);
   }

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Admin | PAM SI</title>
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/styles.css?v=pam-ai-20261012-admin" />
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header class="admin-header">
+        <div>
+          <p class="panel-kicker">Private</p>
+          <h1>PAM admin</h1>
+        </div>
+        <button class="button button-secondary" type="button" id="admin-refresh" hidden>Refresh</button>
+      </header>
+      <form class="admin-login profile-form" id="admin-login">
+        <label for="admin-secret"><span>Admin secret</span>
+          <input id="admin-secret" name="secret" type="password" autocomplete="current-password" required />
+        </label>
+        <button class="button button-primary" type="submit">Open dashboard</button>
+        <p class="admin-status" id="admin-status" role="status"></p>
+      </form>
+      <div id="admin-content"></div>
+    </main>
+    <script type="module" src="/src/admin.js?v=pam-ai-20261012-admin"></script>
+  </body>
+</html>

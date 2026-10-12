@@ -7593,3 +7593,40 @@ textarea::placeholder {
 .invite-error { color: #9f1d1d; }
 :root[data-theme="dark"] .invite-error { color: #ffb4b4; }
 .invite-footnote { margin: 14px 0 0; font-size: 0.88rem; color: var(--ink-3); }
+
+/* Private admin page */
+.admin-shell { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+.admin-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.admin-header h1 { margin: 4px 0 0; color: var(--forest); font-size: clamp(1.6rem, 3vw, 2.2rem); }
+.admin-login { max-width: 360px; }
+.admin-status { min-height: 1.4em; color: var(--ink-3); }
+.admin-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.admin-total, .admin-card {
+  background: var(--pam-surface-strong);
+  border: 1px solid var(--pam-border);
+  border-radius: 18px;
+  padding: 16px;
+}
+.admin-total span { display: block; color: var(--ink-2); font-size: 0.82rem; }
+.admin-total strong { font-size: 1.6rem; color: var(--forest); font-variant-numeric: tabular-nums; }
+.admin-card { margin-bottom: 14px; }
+.admin-card h2 { margin: 0 0 4px; font-size: 1.05rem; color: var(--forest); }
+.admin-note { margin: 0 0 12px; color: var(--ink-2); font-size: 0.85rem; }
+.admin-empty { margin: 0; color: var(--ink-2); }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.admin-grid .admin-card { margin-bottom: 14px; }
+.admin-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.admin-bars li { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr auto; align-items: center; gap: 10px; }
+.admin-bar-label { color: var(--ink-4); font-size: 0.9rem; }
+.admin-bars meter { width: 100%; height: 12px; }
+.admin-bars strong { font-variant-numeric: tabular-nums; color: var(--forest); min-width: 2ch; text-align: right; }
+.admin-quotes { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.admin-quotes li { padding: 10px 12px; border-radius: 12px; background: var(--pam-surface-tint); }
+.admin-quotes p { margin: 0 0 4px; color: var(--ink-4); }
+.admin-quotes small { color: var(--ink-2); }
+@media (max-width: 640px) {
+  .admin-grid { grid-template-columns: 1fr; }
+  .admin-bars li { grid-template-columns: 1fr auto; }
+  .admin-bars meter { grid-column: 1 / -1; grid-row: 2; }
+}
+.admin-shell [hidden] { display: none !important; }
