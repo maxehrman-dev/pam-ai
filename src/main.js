@@ -6207,14 +6207,16 @@ function renderLegalPage(route) {
     "privacy-plain": {
       title: "Exactly what we store",
       eyebrow: "Privacy, in plain English",
-      intro: "The short version of how PAM handles your data. The full policy is on the Privacy page, this is the human one.",
+      intro: "The short version of how PAM handles your data. The full policy is on the Privacy page. This is the human one.",
       sections: [
         ["The 10-second version", "PAM reads your money data so it can give you a straight answer. It's read-only: PAM can't move a dollar, can't see your password, and never sells or trains on your data."],
         ["What we store", "Your email and profile, the balances, transactions, investments and liabilities from accounts you connect, and the goals and decisions you run. We never store your bank login. Plaid handles that."],
         ["What we never touch", "Your bank password. Any ability to move, send, or trade money. Your data for ad targeting. Your data for training AI models."],
+        ["Cookies: what PAM itself sets", "None. PAM's own code never sets a cookie. It keeps a few things in your browser's local storage so the app works: your cookie choice, your profile answers and saved numbers, your terms acceptance, recent questions and decisions, display settings like dark mode, whether you joined the waitlist, an invite-code unlock (30 days), and an anonymous session ID. That storage stays on your device and is cleared when you sign out or clear site data."],
+        ["Cookies and data from services we use", "Clerk sets sign-in cookies so you stay logged in (essential). PostHog analytics loads only if you choose Allow analytics; it then sets its own cookie and sends usage events to PostHog in the US. Plaid's secure window may set its own cookies while you connect a bank, on Plaid's domain. Error reports go to Sentry with financial details removed. PAM's own usage events go to PAM's servers only after you allow analytics, except basic security signals like rate limits."],
         ["How long we keep it", "While your account is active. Disconnecting wipes your connected financial data right away. Deleting your account removes the rest, email us and it's gone (minus anything we're legally required to retain)."],
         ["Who can see it inside PAM", "Only a small team, only when needed to run or fix the product. It's encrypted in transit and at rest, and stored server-side, never exposed to your browser."],
-        ["How to delete it", "Tap \"Disconnect financial data\" in your profile, that revokes Plaid access and purges your connected data in one step. To delete your whole account, email hello@pamadvisor.com."],
+        ["How to delete it", "Tap \"Disconnect financial data\" in your profile. That revokes Plaid access and purges your connected data in one step. To delete your whole account, email hello@pamadvisor.com."],
         ["Questions", "Email hello@pamadvisor.com. PAM is a financial modeling tool, not a licensed advisor."]
       ]
     },
