@@ -35,7 +35,8 @@ import {
 import { getPersonaCoefficients } from "./utils/personaEngine.js";
 import { simulateMarketRange } from "./utils/monteCarlo.js";
 import { compareTaxStrategies } from "./utils/taxStrategies.js";
-import { renderRangeChartSvg } from "./utils/rangeChart.js";
+import { renderRangeChartSvg, renderStartEarlyChartSvg } from "./utils/rangeChart.js";
+import { START_EARLY_LIMITS, computeStartEarly } from "./utils/startEarly.js";
 import {
   CREATE_ACCOUNT_STEPS,
   INDUSTRY_CITY_MAP,
@@ -3118,6 +3119,10 @@ function handleDismissWalkthrough() {
 
 function scrollToSection(id) {
   document.querySelector(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function isStartEarlyRoute() {
+  return window.location.pathname === "/start-early";
 }
 
 function isWaitlistRoute() {
@@ -6400,6 +6405,85 @@ function renderMarketingOddsCard() {
   `;
 }
 
+// ─── Start early simulator ─────────────────────────────────────────────────
+// Same monthly amount started now, in 5, and in 10 years. Sliders update the
+// results in place (no full re-render), and the results region is announced
+// politely to screen readers.
+function renderStartEarlyResults(result, { compact = false } = {}) {
+  const [now, ...later] = result.paths;
+  const fiveYears = later[0];
+  return `
+    ${compact ? "" : renderStartEarlyChartSvg(result.paths)}
+    <ul class="start-early-legend">
+      ${result.paths.map((path, index) => `
+        <li class="start-early-key-${index}">
+          <span>Start at ${path.startAge}</span>
+          <strong>${escapeHtml(formatCompactCurrency(path.final))}</strong>
+          <small>${path.delay === 0 ? `you put in ${escapeHtml(formatCompactCurrency(path.contributed))}` : `${escapeHtml(formatCompactCurrency(path.costVsNow))} less`}</small>
+        </li>
+      `).join("")}
+    </ul>
+    ${fiveYears ? `<p class="start-early-callout">Waiting ${fiveYears.delay} years costs about <strong>${escapeHtml(formatCurrency(fiveYears.costVsNow))}</strong> by ${result.inputs.endAge}. To catch up, you'd need about <strong>${escapeHtml(formatCurrency(fiveYears.catchUpMonthly))}/mo</strong> instead of ${escapeHtml(formatCurrency(result.inputs.monthly))}.</p>` : ""}
+    ${compact
+      ? `<p class="section-compact-note">${result.annualReturnPct}% average return, compounded monthly. <a href="/start-early">Open the full simulator →</a></p>`
+      : `<p class="section-compact-note">${now.growth > 0 ? `${result.growthShareNow}% of the start-now total is growth, not money you put in. ` : ""}${result.annualReturnPct}% average annual return, compounded monthly. Real markets vary year to year; educational estimate, not advice.</p>`}
+  `;
+}
+
+function renderStartEarlySimulator({ compact = false } = {}) {
+  const result = computeStartEarly(state.startEarly || {});
+  const { monthly, age, endAge } = result.inputs;
+  const slider = (name, label, value, limits, format) => `
+    <label class="start-early-control">
+      <span>${label} <output data-start-early-output="${name}">${escapeHtml(format(value))}</output></span>
+      <input type="range" name="${name}" min="${limits.min}" max="${limits.max}" step="${limits.step}" value="${value}" data-start-early-input />
+    </label>
+  `;
+  return `
+    <div class="start-early marketing-sample-card">
+      <div class="start-early-controls">
+        ${slider("monthly", "Invest each month", monthly, START_EARLY_LIMITS.monthly, (value) => `${formatCurrency(value)}/mo`)}
+        ${slider("age", "Your age", age, START_EARLY_LIMITS.age, (value) => String(value))}
+        ${compact ? "" : slider("endAge", "Until age", endAge, START_EARLY_LIMITS.endAge, (value) => String(value))}
+      </div>
+      <div class="start-early-results" data-start-early-results="${compact ? "compact" : "full"}" aria-live="polite">${renderStartEarlyResults(result, { compact })}</div>
+    </div>
+  `;
+}
+
+function renderStartEarlyPage() {
+  const isApp = hasPrototypeAccount() || !shouldShowPublicLaunchGate();
+  return `
+    <div class="foresee-shell marketing-shell start-early-page">
+      ${renderDisclaimerBanner()}
+      <header class="marketing-nav">
+        <a class="foresee-brand" href="/">
+          <span aria-hidden="true">PAM</span>
+          <div><strong>PAM SI</strong><small>Personal Asset Manager</small></div>
+        </a>
+        <div class="marketing-nav-actions">
+          <a class="button button-secondary" href="/">PAM home</a>
+        </div>
+      </header>
+      <section class="marketing-section">
+        <div class="marketing-section-head">
+          <div class="panel-kicker">Start early simulator</div>
+          <h1 class="start-early-title">The cheapest money you'll ever invest is <em>the money you invest first.</em></h1>
+          <p class="marketing-section-sub">Slide the numbers. Same monthly amount, three start dates. The gap is compounding.</p>
+        </div>
+        <div class="start-early-page-body">${renderStartEarlySimulator()}</div>
+        <div class="marketing-final-cta">
+          <p>Want this run on your real numbers, with your goals and taxes?</p>
+          <button class="button button-primary marketing-btn-lg" type="button" ${isApp ? "data-start-free" : "data-open-waitlist"}>${isApp ? "Start free →" : "Join the waitlist →"}</button>
+        </div>
+      </section>
+      ${renderLegalFooter()}
+      ${renderCookieConsentBanner()}
+      ${renderWaitlistModal()}
+    </div>
+  `;
+}
+
 function renderMarketingTaxCard() {
   const example = getMarketingTaxExample();
   const shown = example.strategies.filter((strategy) => ["taxable", "roth-ira", "traditional-401k"].includes(strategy.id));
@@ -6548,6 +6632,15 @@ function renderPublicLaunchGate(mode = "public") {
       body: "Markets don't move in a straight line, so PAM runs 1,000 of them. You see a rough, typical, and strong outcome, plus your odds of hitting a goal on time.",
       bullets: ["1,000 simulated markets on every investing question", "The chance each goal lands by its deadline", "Same question, same answer: results are reproducible"],
       visual: () => renderMarketingOddsCard()
+    },
+    {
+      id: "start",
+      tab: "Start early",
+      tabShort: "Start",
+      title: "See what starting now is worth.",
+      body: "Slide your monthly amount and age. PAM shows the same money started now, in 5 years, and in 10, and what waiting really costs.",
+      bullets: ["Three start dates on one chart", "The monthly amount a late start needs to catch up", "How much of the total is growth, not deposits"],
+      visual: () => renderStartEarlySimulator({ compact: true })
     },
     {
       id: "tax",
@@ -6744,7 +6837,7 @@ const ROUTE_TITLES = {
 };
 
 function updateDocumentTitle() {
-  const title = ROUTE_TITLES[getLegalRoute()] || (isWaitlistRoute() ? "Join the Waitlist | PAM SI" : "PAM SI | Personal Asset Manager");
+  const title = ROUTE_TITLES[getLegalRoute()] || (isStartEarlyRoute() ? "Start Early Simulator | PAM SI" : isWaitlistRoute() ? "Join the Waitlist | PAM SI" : "PAM SI | Personal Asset Manager");
   if (document.title !== title) document.title = title;
 }
 
@@ -6769,6 +6862,11 @@ function render() {
   const legalRoute = getLegalRoute();
   if (legalRoute) {
     app.innerHTML = renderLegalPage(legalRoute);
+    wireInteractions();
+    return;
+  }
+  if (isStartEarlyRoute()) {
+    app.innerHTML = renderStartEarlyPage();
     wireInteractions();
     return;
   }
@@ -7258,6 +7356,30 @@ function wireInteractions() {
       requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
     });
   });
+  // Start early sliders update results in place; one analytics event per page view.
+  document.querySelectorAll("[data-start-early-input]").forEach((input) => input.addEventListener("input", () => {
+    state.startEarly = { ...(state.startEarly || {}), [input.name]: Number(input.value) };
+    const result = computeStartEarly(state.startEarly);
+    const formats = {
+      monthly: (value) => `${formatCurrency(value)}/mo`,
+      age: (value) => String(value),
+      endAge: (value) => String(value)
+    };
+    document.querySelectorAll("[data-start-early-input]").forEach((other) => {
+      const value = result.inputs[other.name];
+      if (other !== input && Number(other.value) !== value) other.value = String(value);
+    });
+    document.querySelectorAll("[data-start-early-output]").forEach((output) => {
+      output.textContent = formats[output.dataset.startEarlyOutput](result.inputs[output.dataset.startEarlyOutput]);
+    });
+    document.querySelectorAll("[data-start-early-results]").forEach((region) => {
+      region.innerHTML = renderStartEarlyResults(result, { compact: region.dataset.startEarlyResults === "compact" });
+    });
+    if (!state.startEarlyTracked) {
+      state.startEarlyTracked = true;
+      trackEvent("start_early_used", { path: window.location.pathname });
+    }
+  }));
   // Homepage showcase tabs: toggle panels in place (no re-render), arrow keys
   // move between tabs per the WAI-ARIA tabs pattern.
   const showcaseTabs = [...document.querySelectorAll("[data-showcase-tab]")];

@@ -14,6 +14,7 @@ const FILES = [
   "src/utils/taxStrategies.js",
   "src/utils/playbook.js",
   "src/utils/compounding.js",
+  "src/utils/startEarly.js",
   "src/admin.js",
   "admin.html",
   "api/_lib/adminStats.js",

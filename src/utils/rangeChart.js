@@ -72,3 +72,37 @@ export function renderRangeChartSvg({ series, startAge = null, goalAmount = null
     </figure>
   `;
 }
+
+// Multi-line chart for the start-early simulator: one line per start age,
+// all on the same axes so the gap is the story.
+export function renderStartEarlyChartSvg(paths = []) {
+  if (!paths.length || paths[0].series.length < 2) return "";
+  const series0 = paths[0].series;
+  const firstAge = series0[0].age;
+  const lastAge = series0[series0.length - 1].age;
+  const plotWidth = WIDTH - PAD.left - PAD.right;
+  const plotHeight = HEIGHT - PAD.top - PAD.bottom;
+  const maxValue = niceCeiling(Math.max(...paths.map((path) => path.final)));
+  const x = (age) => PAD.left + ((age - firstAge) / Math.max(lastAge - firstAge, 1)) * plotWidth;
+  const y = (value) => PAD.top + plotHeight - (Math.max(value, 0) / maxValue) * plotHeight;
+  const midAge = Math.round((firstAge + lastAge) / 2);
+  const summary = paths.map((path) => `Start at ${path.startAge}: about ${formatCompactCurrency(path.final)} by ${lastAge}`).join("; ");
+  return `
+    <figure class="range-chart start-early-chart">
+      <svg viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="${escapeHtml(summary)}" preserveAspectRatio="xMidYMid meet">
+        <line class="range-chart-axis" x1="${PAD.left}" y1="${PAD.top + plotHeight}" x2="${WIDTH - PAD.right}" y2="${PAD.top + plotHeight}" />
+        ${[maxValue / 2, maxValue].map((value) => `
+          <line class="range-chart-grid" x1="${PAD.left}" y1="${y(value).toFixed(1)}" x2="${WIDTH - PAD.right}" y2="${y(value).toFixed(1)}" />
+          <text class="range-chart-label" x="${PAD.left - 8}" y="${(y(value) + 4).toFixed(1)}" text-anchor="end">${escapeHtml(formatCompactCurrency(value))}</text>
+        `).join("")}
+        ${paths.map((path, index) => `
+          <path class="start-early-line start-early-line-${index}" d="${path.series.map((point, i) => `${i ? "L" : "M"}${x(point.age).toFixed(1)},${y(point.balance).toFixed(1)}`).join(" ")}" />
+          <circle class="start-early-dot start-early-dot-${index}" cx="${x(lastAge).toFixed(1)}" cy="${y(path.final).toFixed(1)}" r="4" />
+        `).join("")}
+        ${[firstAge, midAge, lastAge].map((age, index) => `
+          <text class="range-chart-label" x="${x(age).toFixed(1)}" y="${HEIGHT - 8}" text-anchor="${index === 0 ? "start" : index === 2 ? "end" : "middle"}">Age ${age}</text>
+        `).join("")}
+      </svg>
+    </figure>
+  `;
+}
