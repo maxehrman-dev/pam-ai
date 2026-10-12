@@ -57,6 +57,21 @@ const MONEY_FACTS = [
     text: "Paying down debt is a guaranteed return equal to its APR. Debt above roughly 7% APR beats expected long-run market returns; below ~4%, investing alongside minimum payments usually wins; in between it's a judgment call on risk tolerance."
   },
   {
+    id: "compound-basics",
+    topics: ["compound interest", "compounding", "how does interest work", "how does investing grow"],
+    text: "Compounding means your returns earn returns. Time matters more than amount: money invested in your 20s gets several extra doublings that money invested in your 30s never catches up on."
+  },
+  {
+    id: "rule-of-72",
+    topics: ["rule of 72", "double my money", "how long to double", "doubling"],
+    text: "Rule of 72: divide 72 by the annual rate to estimate the years it takes to double. At 7% that's about 10 years; at a 24% credit card APR, an unpaid balance doubles in about 3."
+  },
+  {
+    id: "apy-vs-apr",
+    topics: ["apy", "apr", "high yield", "high-yield", "savings account interest"],
+    text: "APY includes compounding and APR doesn't, so compare savings accounts by APY and loans by APR. A 5% APR compounded daily is about a 5.13% APY."
+  },
+  {
     id: "emergency-first",
     topics: ["emergency fund", "buffer", "safety net", "how much should i save"],
     text: "The standard emergency buffer is 3–6 months of essential costs in cash, more for irregular income, self-employment, or dependents; less matters when a reliable backstop exists."

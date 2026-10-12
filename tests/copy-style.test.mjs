@@ -13,6 +13,7 @@ const FILES = [
   "src/utils/personaEngine.js",
   "src/utils/taxStrategies.js",
   "src/utils/playbook.js",
+  "src/utils/compounding.js",
   "src/utils/monteCarlo.js",
   "src/utils/rangeChart.js",
   "api/_lib/email.js",

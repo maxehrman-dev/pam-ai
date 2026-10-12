@@ -476,6 +476,9 @@ function buildInput(payload) {
             result?.taxStrategies && Array.isArray(result.taxStrategies.strategies)
               ? `Deterministic tax-account comparison (same ${result.taxStrategies.monthlyBudget}/mo out of pocket for ${result.taxStrategies.months} months through identical simulated markets; bracket now ~${result.taxStrategies.rates?.currentPct}%, assumed in retirement ~${result.taxStrategies.rates?.retirementPct}%; educational estimate, not tax advice, use these exact figures): ${result.taxStrategies.strategies.map((strategy) => `${sanitizeString(String(strategy.label))}${strategy.conditional ? " (if eligible)" : ""}${strategy.eligible ? "" : " (not eligible at their income)"} typical after-tax ${strategy.afterTaxTypical}, total tax ${strategy.taxTotal} (${strategy.effectiveTaxRatePct}%)`).join("; ")}; best fit ${sanitizeString(String(result.taxStrategies.bestLabel))}, ${result.taxStrategies.bestVsTaxableTypical} more than taxable${Array.isArray(result.taxStrategies.notes) && result.taxStrategies.notes.length ? `. Legal strategies that apply to this user: ${result.taxStrategies.notes.map((note) => sanitizeString(String(note))).join(" | ")}` : ""}`
               : "",
+            Array.isArray(result?.compounding) && result.compounding.length
+              ? `Deterministic compounding math (this user's numbers, 6.8% average return compounded monthly; use these exact figures, frame as an estimate): ${result.compounding.slice(0, 3).map((text) => sanitizeString(String(text))).join(" | ")}`
+              : "",
             Array.isArray(result?.playbook) && result.playbook.length
               ? `Deterministic smart-money playbook (vetted, current-law, educational; mention at most one, only if it genuinely helps this decision; never frame it as personalized tax advice): ${result.playbook.slice(0, 3).map((text) => sanitizeString(String(text))).join(" | ")}`
               : "",

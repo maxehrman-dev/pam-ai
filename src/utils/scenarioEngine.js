@@ -3,6 +3,7 @@ import { buildDebtPayoffPlan, computeAffordabilityCeilings, computeRetirementBri
 import { simulateMarketRange } from "./monteCarlo.js";
 import { compareTaxStrategies } from "./taxStrategies.js";
 import { getPlaybook } from "./playbook.js";
+import { buildCompoundingInsights } from "./compounding.js";
 
 const DEFAULT_HORIZON_MONTHS = 60;
 const CASH_RETURN = 0.024;
@@ -35,7 +36,7 @@ const INTENT_KEYWORDS = {
   car: ["car", "vehicle", "truck", "suv", "auto", "tesla", "lease", "finance a car"],
   move: ["move apartments", "move", "apartment", "lease", "new place", "one-bedroom", "studio"],
   rentIncrease: ["rent increase", "rent goes up", "increase rent", "rent jumps"],
-  invest: ["invest", "brokerage", "401k", "401(k)", "roth", "index fund", "monthly investing"],
+  invest: ["invest", "investing", "invested", "investment", "investments", "brokerage", "401k", "401(k)", "roth", "index fund", "index funds", "etf", "etfs", "monthly investing"],
   emergency: ["emergency", "repair", "medical", "travel", "vacation", "trip", "expense", "bill"],
   incomeReduction: ["reduce income", "pay cut", "income drops", "salary cut", "earn less", "income down"],
   incomeGain: ["raise", "bonus", "promotion", "side hustle", "freelance income", "extra income", "side income", "second job", "more income", "windfall"]
@@ -2212,6 +2213,13 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
 
   const marketRange = buildMarketRange(profile, metrics, normalizedDraft, prompt, goalsSummary);
   const taxStrategies = buildTaxStrategies(profile, metrics, normalizedDraft, prompt);
+  const compounding = buildCompoundingInsights({
+    prompt,
+    age: profile?.user?.age,
+    retirementAge: profile?.user?.retirementTargetAge,
+    monthlyInvesting: Number(normalizedDraft.monthlyInvestingDelta || 0) > 0 ? Number(normalizedDraft.monthlyInvestingDelta) : metrics.investContribution,
+    liabilities: profile.liabilities
+  });
   const playbook = getPlaybook({
     prompt,
     type: normalizedDraft.type,
@@ -2236,6 +2244,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     ...(marketRange ? { marketRange } : {}),
     ...(taxStrategies ? { taxStrategies } : {}),
     ...(playbook.length ? { playbook } : {}),
+    ...(compounding ? { compounding } : {}),
     offsetPlan: buildSpendingOffsetPlan(profile, normalizedDraft, baseResult)
   };
 }

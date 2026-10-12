@@ -90,21 +90,17 @@ Always keep GitHub and Vercel in sync after meaningful changes unless the user e
 
 ## Access / Launch Gate
 
-There is a private-preview gate that can show:
+The private-beta gate is switched by the `PAM_LAUNCH_GATE` env var in Vercel (`on`/`true` = gated, unset = open). No deploy needed to flip it; it reaches the browser through `/api/integrations/status` (`clientConfig.launchGate`).
 
-```text
-Oops, not time yet.
-```
+When it's on, visitors see the marketing page in waitlist mode: a "Private beta" pill, "Join the waitlist", and "Have an invite code?" (a dialog that checks the code via `api/account/session.js`). Members always get through: anyone signed in, or any device unlocked by a code (30 days, stored locally). "Sign in" opens the real sign-in.
 
-The user asked to remove it, then immediately said to bring it back. It is currently back and should remain unless the user asks again.
+It is a soft gate, not a security boundary: the unlock flag lives in the browser and APIs keep their own auth. For a hard lock, use Clerk's invitation-only sign-up mode.
 
-Demo tester fallback codes are handled by `api/account/session.js` and tests:
+Invite codes come from `DEMO_ACCESS_CODE` (comma-separated). If unset, these fallback codes work, so set `DEMO_ACCESS_CODE` before turning the gate on publicly:
 
 - `PAMDEVTEAM`
 - `pam dev team`
 - `pam demo`
-
-Do not expose private app functionality to random visitors if the gate is supposed to be on.
 
 ## UX Direction
 
@@ -382,7 +378,7 @@ git diff --check
 Current expected test count:
 
 ```text
-89 passing tests
+97 passing tests
 ```
 
 Known harmless warning:

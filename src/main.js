@@ -1402,6 +1402,7 @@ function toLegacyDecisionFromSession(session) {
       }
     } : {}),
     ...(Array.isArray(result.playbook) && result.playbook.length ? { playbook: result.playbook.map((play) => play.text) } : {}),
+    ...(result.compounding ? { compounding: result.compounding.lines } : {}),
     ...(result.taxStrategies ? {
       taxStrategies: {
         monthlyBudget: result.taxStrategies.monthlyBudget,
@@ -5208,6 +5209,7 @@ function renderScenarioEngineDetails(result) {
   const taxStrategies = scenario.taxStrategies;
   const taxNotes = taxStrategies?.strategyNotes || [];
   const playbook = Array.isArray(scenario.playbook) ? scenario.playbook : [];
+  const compounding = scenario.compounding;
 
   const impactCards = scenario.impactCards || [];
   const delayedGoals = goals.filter((goal) => !Number.isFinite(goal.deltaMonths) || goal.deltaMonths > 0);
@@ -5262,6 +5264,13 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
         <p class="section-compact-note">Typical after-tax value in ${formatMonths(taxStrategies.months)}. ${escapeHtml(taxStrategies.bestLabel)} keeps ${formatCurrency(taxStrategies.bestVsTaxableTypical)} more than a taxable account. Tax bracket now ~${taxStrategies.rates.currentPct}%, assumed in retirement ~${taxStrategies.rates.retirementPct}%.</p>
+      ` : ""}
+      ${compounding ? `
+        <h3>How compounding plays out for you</h3>
+        <div class="reasoning-trace-list">
+          ${compounding.lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+        </div>
+        <p class="section-compact-note">${escapeHtml(compounding.assumption)}</p>
       ` : ""}
       ${playbook.length ? `
         <h3>Moves that fit this</h3>
