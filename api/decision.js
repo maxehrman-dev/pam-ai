@@ -4,6 +4,7 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("./_lib/security.js");
+const { loadRuntimeSettings } = require("./_lib/runtimeSettings.js");
 
 const decisionSchema = {
   properties: {
@@ -730,10 +731,12 @@ const __pamRouteHandler = async (req, res) => {
     if (payload.mode !== "deepdive" && !sanitizeString(payload.prompt)) {
       return sendJson(res, 400, { ok: false, error: "request body.prompt is required." });
     }
+    await loadRuntimeSettings();
     if (
       !assertServiceEnabled(res, {
         serviceName: "AI guidance",
-        envKeys: ["PAM_DISABLE_AI", "DISABLE_AI"]
+        envKeys: ["PAM_DISABLE_AI", "DISABLE_AI"],
+        runtimeFlag: "disableAi"
       })
     ) {
       return;

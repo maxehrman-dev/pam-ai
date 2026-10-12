@@ -1,3 +1,4 @@
+const { loadRuntimeSettings } = require("../_lib/runtimeSettings.js");
 const { buildNormalizedBaseline, getStoredSession, hasPlaidConfig } = require("../_lib/plaid.js");
 const { withErrorReporting } = require("../_lib/observability.js");
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
@@ -40,10 +41,12 @@ const __pamRouteHandler = async (req, res) => {
     // account-keyed Supabase lookup entirely and fall back to the ephemeral
     // per-browser session below (fail closed for cross-user data).
     const accountId = clerkAccount?.id || "";
+    await loadRuntimeSettings();
     if (
       !assertServiceEnabled(res, {
         serviceName: "Plaid Sandbox",
-        envKeys: ["PAM_DISABLE_PLAID", "DISABLE_PLAID"]
+        envKeys: ["PAM_DISABLE_PLAID", "DISABLE_PLAID"],
+        runtimeFlag: "disablePlaid"
       })
     ) {
       return;

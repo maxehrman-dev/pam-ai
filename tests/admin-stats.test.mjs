@@ -43,3 +43,49 @@ test("question topics", () => {
   assert.equal(topicForQuestion("Can I afford rent at $1,800?"), "Rent & moving");
   assert.equal(topicForQuestion("Should I take the job offer in Denver?"), "Job & income");
 });
+
+const { sanitizeSettings } = require("../api/_lib/runtimeSettings.js");
+const { assertServiceEnabled } = require("../api/_lib/security.js");
+
+test("runtime settings accept only known keys and trim the banner", () => {
+  const clean = sanitizeSettings({ launchGate: "yes", disableAi: true, disablePlaid: "true", evil: 1, announcement: `  Beta opens   Nov 1 ${"x".repeat(300)}` });
+  assert.equal(clean.launchGate, undefined);
+  assert.equal(clean.disableAi, true);
+  assert.equal(clean.disablePlaid, undefined);
+  assert.equal(clean.evil, undefined);
+  assert.ok(clean.announcement.startsWith("Beta opens Nov 1"));
+  assert.equal(clean.announcement.length, 160);
+  assert.deepEqual(sanitizeSettings({ launchGate: null }), { launchGate: null });
+});
+
+test("services stay on when no switch is set", () => {
+  const res = { statusCode: 200, setHeader() {}, end() {} };
+  assert.equal(assertServiceEnabled(res, { serviceName: "AI", envKeys: ["PAM_TEST_NEVER_SET"], runtimeFlag: "disableAi" }), true);
+});
+
+test("the public telemetry endpoint can't write admin settings rows", async () => {
+  const path = require.resolve("../api/telemetry.js");
+  delete require.cache[path];
+  global.__PAM_RATE_LIMIT_STORE__ = new Map();
+  let statusCode = 0;
+  const headers = {};
+  const res = { statusCode: 200, setHeader(k, v) { headers[k.toLowerCase()] = v; }, getHeader(k) { return headers[k.toLowerCase()]; }, hasHeader(k) { return k.toLowerCase() in headers; }, writeHead(code) { this.statusCode = code; }, end() { statusCode = this.statusCode; } };
+  await require(path)({ method: "POST", clientIp: "127.0.0.1", headers: {}, body: { eventType: "admin", eventName: "settings_updated", properties: { disableAi: true } } }, res);
+  assert.equal(statusCode, 400);
+});
+
+test("admin stats include daily sessions, conversion, and AI health", () => {
+  const stats = buildAdminStats({
+    now,
+    events: [
+      { id: "1", event_name: "signup_started", session_id: "a", created_at: new Date(now - day).toISOString() },
+      { id: "2", event_name: "signup_started", session_id: "b", created_at: new Date(now - day).toISOString() },
+      { id: "3", event_name: "values_onboarding_completed", session_id: "a", created_at: new Date(now - day).toISOString() },
+      { id: "4", event_name: "ai_guidance_received", session_id: "a", created_at: new Date(now - day).toISOString() },
+      { id: "5", event_name: "ai_guidance_unavailable", session_id: "b", created_at: new Date(now - 2 * day).toISOString() }
+    ]
+  });
+  assert.equal(stats.funnel[1].conversionPct, 50);
+  assert.equal(stats.aiHealth.successPct, 50);
+  assert.equal(stats.dailySessions.length, 2);
+});

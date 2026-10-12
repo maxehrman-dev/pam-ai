@@ -272,8 +272,14 @@ function envFlagEnabled(name) {
   return ["1", "true", "yes", "on"].includes(value);
 }
 
-function assertServiceEnabled(res, { serviceName = "This service", envKeys = [] } = {}) {
-  const disabledBy = envKeys.find((key) => envFlagEnabled(key));
+// runtimeFlag: an /admin switch (see runtimeSettings.js). Callers load the
+// settings first; this reads the cached copy so it stays synchronous.
+function assertServiceEnabled(res, { serviceName = "This service", envKeys = [], runtimeFlag = "" } = {}) {
+  let disabledBy = envKeys.find((key) => envFlagEnabled(key));
+  if (!disabledBy && runtimeFlag) {
+    const { getCachedRuntimeSettings } = require("./runtimeSettings.js");
+    if (getCachedRuntimeSettings()[runtimeFlag] === true) disabledBy = `admin:${runtimeFlag}`;
+  }
   if (!disabledBy) return true;
 
   sendJson(res, 503, {

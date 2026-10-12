@@ -7662,3 +7662,35 @@ textarea::placeholder {
 @media (max-width: 480px) {
   .start-early-legend { grid-template-columns: 1fr; }
 }
+
+.announcement-bar {
+  margin: 8px auto 0;
+  max-width: 1080px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: var(--forest);
+  color: var(--cream-0);
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.admin-card-controls { border-color: var(--pam-border-strong); }
+.admin-controls { display: grid; gap: 14px; }
+.admin-fieldset { border: 1px solid var(--pam-border); border-radius: 14px; padding: 10px 14px 12px; margin: 0; display: grid; gap: 4px; }
+.admin-fieldset legend { padding: 0 6px; font-weight: 800; color: var(--forest); font-size: 0.92rem; }
+.admin-option { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 44px; color: var(--ink-4); cursor: pointer; }
+.admin-option input { width: 20px; height: 20px; accent-color: var(--mint-4); }
+.admin-field { display: grid; gap: 6px; font-weight: 700; color: var(--ink-4); font-size: 0.92rem; }
+.admin-field input { min-height: 44px; border-radius: 12px; border: 1px solid var(--pam-border-strong); padding: 0 12px; font: inherit; background: var(--pam-input-bg); color: var(--ink-4); }
+.admin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.admin-actions .admin-status { margin: 0; }
+.admin-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.76rem; font-weight: 800; }
+.admin-chip-ok { background: var(--mint-1); color: var(--mint-5); }
+.admin-chip-warn { background: rgba(194, 122, 19, 0.16); color: #8a5a10; }
+.admin-chip-off { background: var(--pam-track); color: var(--ink-3); }
+:root[data-theme="dark"] .admin-chip-warn { color: #ffd9a0; }
+.admin-integrations { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.admin-integrations li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--pam-border); }
+.admin-integrations li:last-child { border-bottom: none; }
+.admin-integration-name { font-weight: 700; color: var(--ink-4); }
+.admin-integrations small { grid-column: 1 / -1; color: var(--ink-2); }

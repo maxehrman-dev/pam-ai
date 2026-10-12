@@ -4,6 +4,8 @@ const { Resend } = require("resend");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, validatePayload } = require("../_lib/security.js");
 const { buildAdminStats } = require("../_lib/adminStats.js");
+const { listSettingsHistory, loadRuntimeSettings, saveRuntimeSettings } = require("../_lib/runtimeSettings.js");
+const { envFlagEnabled } = require("../_lib/security.js");
 
 const broadcastSchema = {
   properties: {
@@ -212,6 +214,54 @@ async function readAdminTable(path, { count = false } = {}) {
   return text ? JSON.parse(text) : [];
 }
 
+const settingsSchema = {
+  properties: {
+    action: { type: "string", enum: ["update_settings"] },
+    settings: { type: "object", allowUnknown: true }
+  },
+  required: ["action", "settings"]
+};
+
+// Vercel-level switches and setup the admin should see next to the controls.
+function getEnvironmentChecks() {
+  const isSet = (name) => Boolean(String(process.env[name] || "").trim());
+  return {
+    killSwitches: {
+      ai: envFlagEnabled("PAM_DISABLE_AI") || envFlagEnabled("DISABLE_AI"),
+      plaid: envFlagEnabled("PAM_DISABLE_PLAID") || envFlagEnabled("DISABLE_PLAID"),
+      email: envFlagEnabled("PAM_DISABLE_EMAIL") || envFlagEnabled("DISABLE_EMAIL"),
+      billing: envFlagEnabled("PAM_DISABLE_BILLING")
+    },
+    launchGateEnv: envFlagEnabled("PAM_LAUNCH_GATE"),
+    setup: {
+      mailingAddress: isSet("PAM_MAILING_ADDRESS"),
+      inviteCodes: isSet("DEMO_ACCESS_CODE"),
+      stripe: isSet("STRIPE_SECRET_KEY"),
+      sentry: isSet("SENTRY_DSN"),
+      posthog: isSet("POSTHOG_KEY"),
+      resendAudience: isSet("RESEND_AUDIENCE_ID"),
+      requireSubscription: envFlagEnabled("PAM_REQUIRE_SUBSCRIPTION")
+    }
+  };
+}
+
+function toCsvCell(value) {
+  const text = String(value ?? "");
+  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+async function handleWaitlistExport(res) {
+  const rows = await readAdminTable("pam_waitlist?select=email_address,full_name,age,stage,goal,created_at&order=created_at.asc&limit=10000");
+  const header = ["email", "full_name", "age", "stage", "goal", "joined"];
+  const lines = [header.join(",")].concat(rows.map((row) => [row.email_address, row.full_name, row.age, row.stage, row.goal, row.created_at].map(toCsvCell).join(",")));
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Disposition", 'attachment; filename="pam-waitlist.csv"');
+  res.end(lines.join("\n"));
+}
+
 async function handleAdminStats(req, res) {
   assertAdmin(req);
   if (
@@ -232,15 +282,24 @@ async function handleAdminStats(req, res) {
     readAdminTable("pam_feedback?select=rating,message,page,created_at&order=created_at.desc&limit=8"),
     readAdminTable("pam_baselines?select=account_id", { count: true })
   ]);
+  const [settings, settingsHistory] = await Promise.all([loadRuntimeSettings({ force: true }), listSettingsHistory(8)]);
   return sendJson(res, 200, {
     ok: true,
-    stats: buildAdminStats({ waitlist, events, runs, feedback: [...feedbackDesc].reverse(), accountCount })
+    stats: buildAdminStats({ waitlist, events, runs, feedback: [...feedbackDesc].reverse(), accountCount }),
+    settings,
+    settingsHistory,
+    environment: getEnvironmentChecks()
   });
 }
 
 const __pamRouteHandler = async (req, res) => {
   if (req.method === "GET") {
     try {
+      if (String(req.query?.export || new URL(req.url || "/", "http://x").searchParams.get("export") || "") === "waitlist") {
+        assertAdmin(req);
+        if (!checkRateLimit(req, res, { routeKey: "admin:export", userKey: "admin", ipLimit: { windowMs: 60 * 1000, max: 5 }, userLimit: { windowMs: 60 * 1000, max: 5 } })) return;
+        return await handleWaitlistExport(res);
+      }
       return await handleAdminStats(req, res);
     } catch (error) {
       return sendJson(res, error.statusCode || 500, { ok: false, error: error.statusCode === 401 ? "Unauthorized." : "Could not load stats." });
@@ -252,6 +311,12 @@ const __pamRouteHandler = async (req, res) => {
 
   try {
     assertAdmin(req);
+    if (req.body?.action === "update_settings") {
+      const update = validatePayload(req.body, settingsSchema, "request body");
+      if (!checkRateLimit(req, res, { routeKey: "admin:settings", userKey: "admin", ipLimit: { windowMs: 60 * 1000, max: 20 }, userLimit: { windowMs: 60 * 1000, max: 20 } })) return;
+      const settings = await saveRuntimeSettings(update.settings);
+      return sendJson(res, 200, { ok: true, settings });
+    }
     const body = validatePayload(req.body, broadcastSchema, "request body");
 
     if (

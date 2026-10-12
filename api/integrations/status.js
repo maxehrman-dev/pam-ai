@@ -5,11 +5,13 @@ const { hasPlaidConfig } = require("../_lib/plaid.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, envFlagEnabled } = require("../_lib/security.js");
 const { checkSupabaseConnection } = require("../_lib/supabase.js");
+const { loadRuntimeSettings } = require("../_lib/runtimeSettings.js");
 
 const __pamRouteHandler = async (req, res) => {
   if (req.method !== "GET") {
     return sendMethodNotAllowed(res);
   }
+  const runtime = await loadRuntimeSettings();
 
   if (
     !checkRateLimit(req, res, {
@@ -44,7 +46,8 @@ const __pamRouteHandler = async (req, res) => {
     },
     clientConfig: {
       requireSubscription: envFlagEnabled("PAM_REQUIRE_SUBSCRIPTION"),
-      launchGate: envFlagEnabled("PAM_LAUNCH_GATE"),
+      launchGate: typeof runtime.launchGate === "boolean" ? runtime.launchGate : envFlagEnabled("PAM_LAUNCH_GATE"),
+      announcement: runtime.announcement || "",
       foundingClaimed: Number.parseInt(process.env.PAM_FOUNDING_CLAIMED || "0", 10) || 0,
       sentryDsn: process.env.SENTRY_DSN || "",
       posthogKey: process.env.POSTHOG_KEY || "phc_qex4UsyDAYzV2YhWodw9ePHBLfA8pTJ7pSaWZdip3pfr",

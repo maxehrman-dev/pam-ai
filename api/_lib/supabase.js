@@ -467,6 +467,7 @@ async function checkSupabaseConnection() {
 }
 
 module.exports = {
+  supabaseRequest,
   checkSupabaseConnection,
   findSubscriptionByClerkUserId,
   upsertSubscription,

@@ -200,10 +200,11 @@ async function boot() {
     // Paywall enforcement flag (server env PAM_REQUIRE_SUBSCRIPTION) — read by main.js.
     window.__pamRequireSubscription = Boolean(config.requireSubscription);
     window.__pamLaunchGate = Boolean(config.launchGate);
+    window.__pamAnnouncement = String(config.announcement || "").slice(0, 160);
     window.__pamFoundingClaimed = Number(config.foundingClaimed || 0);
     await initClerk(config.clerkPublishableKey);
 
-    const module = await import("./main.js?v=pam-ai-20261012-startearly");
+    const module = await import("./main.js?v=pam-ai-20261012-controls");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }

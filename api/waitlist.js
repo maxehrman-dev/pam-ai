@@ -1,5 +1,6 @@
 const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification, syncWaitlistContact } = require("./_lib/email.js");
 const { withErrorReporting } = require("./_lib/observability.js");
+const { getCachedRuntimeSettings, loadRuntimeSettings } = require("./_lib/runtimeSettings.js");
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { checkDailyUsageBudget, checkRateLimit, validatePayload } = require("./_lib/security.js");
 const { hasSupabaseConfig, isRecoverableSupabaseStorageError, upsertWaitlistEntry, upsertWaitlistEntryLegacy } = require("./_lib/supabase.js");
@@ -21,6 +22,7 @@ function getRequestIp(req) {
 }
 
 function isEmailPaused() {
+  if (getCachedRuntimeSettings().disableEmail === true) return true;
   return ["1", "true", "yes", "on"].includes(String(process.env.PAM_DISABLE_EMAIL || process.env.DISABLE_EMAIL || "").trim().toLowerCase());
 }
 
@@ -65,6 +67,7 @@ const __pamRouteHandler = async (req, res) => {
   }
 
   try {
+    await loadRuntimeSettings();
     const body = validatePayload(req.body, waitlistSchema, "request body");
     if (
       !checkRateLimit(req, res, {

@@ -66,6 +66,39 @@ function buildAdminStats({ waitlist = [], events = [], runs = [], feedback = [],
     sessionsByEvent.set(event.event_name, set);
   }
   const funnel = FUNNEL_STEPS.map(([name, label]) => ({ name, label, sessions: sessionsByEvent.get(name)?.size || 0 }));
+  funnel.forEach((step, index) => {
+    const previous = index ? funnel[index - 1].sessions : null;
+    step.conversionPct = previous ? Math.round((step.sessions / previous) * 100) : null;
+  });
+  const count = (name) => recentEvents.filter((event) => event.event_name === name).length;
+  const sessions = (name) => sessionsByEvent.get(name)?.size || 0;
+
+  const dailySessionSets = new Map();
+  for (const event of recentEvents) {
+    const day = String(event.created_at || "").slice(0, 10);
+    if (!day) continue;
+    const set = dailySessionSets.get(day) || new Set();
+    set.add(event.session_id || event.id);
+    dailySessionSets.set(day, set);
+  }
+  const dailySessions = [...dailySessionSets.entries()].sort((left, right) => left[0].localeCompare(right[0])).slice(-14).map(([label, set]) => ({ label, count: set.size }));
+
+  const aiReceived = count("ai_guidance_received");
+  const aiUnavailable = count("ai_guidance_unavailable");
+  const aiHealth = {
+    received: aiReceived,
+    unavailable: aiUnavailable,
+    successPct: aiReceived + aiUnavailable ? Math.round((aiReceived / (aiReceived + aiUnavailable)) * 100) : null
+  };
+  const highlights = [
+    { label: "Start early simulator used", count: sessions("start_early_used") },
+    { label: "Invite code dialog opened", count: sessions("invite_code_opened") },
+    { label: "Invite code unlocks", count: sessions("demo_access_unlocked") },
+    { label: "Partner requests sent", count: sessions("partner_interest_submitted") },
+    { label: "Waitlist joins (tracked)", count: sessions("waitlist_joined") },
+    { label: "Decisions analyzed", count: count("decision_analyzed") },
+    { label: "Client errors", count: count("client_error") + count("client_unhandled_rejection") }
+  ];
 
   const partners = waitlist.filter((row) => row.stage === "School or employer partner");
   const people = waitlist.filter((row) => row.stage !== "School or employer partner");
@@ -85,6 +118,9 @@ function buildAdminStats({ waitlist = [], events = [], runs = [], feedback = [],
     recentGoals: people.filter((row) => row.goal).slice(-12).reverse().map((row) => ({ goal: String(row.goal).slice(0, 220), stage: row.stage || "", when: row.created_at })),
     partnerRequests: partners.slice(-10).reverse().map((row) => ({ organization: String(row.goal || "").slice(0, 220), when: row.created_at })),
     funnel,
+    dailySessions,
+    aiHealth,
+    highlights,
     topEvents: countBy(recentEvents, (event) => event.event_name).slice(0, 12),
     questionTopics: countBy(runs, (run) => topicForQuestion(run.question)),
     recentFeedback: feedback.slice(-8).reverse().map((item) => ({ rating: item.rating ?? null, message: String(item.message || "").slice(0, 400), page: item.page || "", when: item.created_at }))

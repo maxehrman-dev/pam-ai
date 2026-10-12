@@ -1,3 +1,4 @@
+const { loadRuntimeSettings } = require("../_lib/runtimeSettings.js");
 const { createLinkToken, hasPlaidConfig } = require("../_lib/plaid.js");
 const { withErrorReporting } = require("../_lib/observability.js");
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
@@ -34,10 +35,12 @@ const __pamRouteHandler = async (req, res) => {
       return sendJson(res, 401, { ok: false, error: "Sign in before connecting a Sandbox account." });
     }
     const clientUserId = clerkAccount?.id || body.clientUserId;
+    await loadRuntimeSettings();
     if (
       !assertServiceEnabled(res, {
         serviceName: "Plaid Sandbox",
-        envKeys: ["PAM_DISABLE_PLAID", "DISABLE_PLAID"]
+        envKeys: ["PAM_DISABLE_PLAID", "DISABLE_PLAID"],
+        runtimeFlag: "disablePlaid"
       })
     ) {
       return;

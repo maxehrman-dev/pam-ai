@@ -6114,6 +6114,7 @@ function renderDisclaimerBanner() {
     <div class="legal-disclaimer-banner" role="note">
       <span><strong>PAM</strong> is a modeling tool, not financial advice.</span>
     </div>
+    ${window.__pamAnnouncement ? `<p class="announcement-bar" role="status">${escapeHtml(window.__pamAnnouncement)}</p>` : ""}
   `;
 }
 
