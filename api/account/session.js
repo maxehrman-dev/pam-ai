@@ -192,7 +192,7 @@ const __pamRouteHandler = async (req, res) => {
       if (!ok) {
         return sendJson(res, 401, {
           ok: false,
-          error: "That demo code does not work yet."
+          error: "That code didn't work. Check it for typos, or join the waitlist and we'll send you one."
         });
       }
 

@@ -490,10 +490,15 @@ function saveDemoAccess(expiresDays = 30) {
   }
 }
 
+// Soft private-beta gate, switched by PAM_LAUNCH_GATE in Vercel (no deploy
+// needed). Members always get through: anyone signed in, or anyone who
+// unlocked this device with an invite code. Not a security boundary; the APIs
+// keep their own auth.
 function shouldShowPublicLaunchGate() {
-  // Launch gate removed: the marketing landing is the public homepage and anyone
-  // can create an account. (To re-gate the beta, return !hasDemoAccess() here.)
-  return false;
+  if (typeof window === "undefined" || !window.__pamLaunchGate) return false;
+  if (hasDemoAccess()) return false;
+  if (getClerkAccount() || hasPrototypeAccount() || state.sessionToken) return false;
+  return true;
 }
 
 function saveWaitlistJoined() {
@@ -1608,7 +1613,7 @@ async function handleDemoAccessSubmit(event) {
   const code = String(formData.get("demoAccessCode") || "").trim();
 
   if (!code) {
-    state.demoAccessMessage = "Enter the demo tester code.";
+    state.demoAccessMessage = "Enter your invite code.";
     render();
     return;
   }
@@ -1625,13 +1630,13 @@ async function handleDemoAccessSubmit(event) {
 
   state.demoAccessBusy = false;
   if (error || !payload?.ok) {
-    state.demoAccessMessage = payload?.error || error || "That demo code does not work yet.";
+    state.demoAccessMessage = payload?.error || error || "That code didn't work. Check it for typos, or join the waitlist and we'll send you one.";
     render();
     return;
   }
 
   saveDemoAccess(payload.expiresDays || 30);
-  state.demoAccessMessage = "Preview unlocked. Loading PAM.";
+  state.demoAccessMessage = "You're in. Loading PAM.";
   trackEvent("demo_access_unlocked");
   window.location.reload();
 }
@@ -5947,6 +5952,33 @@ function renderResult() {
   `;
 }
 
+// Invite code dialog for the private-beta gate. A visible, plain-text field
+// (codes aren't passwords, and typos should be easy to spot) with errors read
+// out by screen readers.
+function renderInviteModal() {
+  if (!state.inviteOpen) return "";
+  const message = state.demoAccessMessage;
+  const succeeded = /loading pam/i.test(message || "");
+  return `
+    <div class="modal-backdrop" data-close-invite>
+      <div class="waitlist-modal invite-modal" role="dialog" aria-modal="true" aria-labelledby="invite-heading">
+        <div class="panel-kicker">Private beta</div>
+        <h2 id="invite-heading">Enter your invite code</h2>
+        <p>Codes come from the PAM team. Already have an account? <button class="invite-code-link" type="button" data-signin>Sign in instead</button>.</p>
+        <form class="profile-form" data-demo-access-form>
+          <label for="demoAccessCode"><span>Invite code</span>
+            <input id="demoAccessCode" name="demoAccessCode" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" required ${state.demoAccessBusy ? "disabled" : ""} />
+          </label>
+          ${message ? `<p class="auth-status-message ${succeeded ? "" : "invite-error"}" role="${succeeded ? "status" : "alert"}">${escapeHtml(message)}</p>` : ""}
+          <button class="button button-primary" type="submit" ${state.demoAccessBusy ? "disabled" : ""}>${state.demoAccessBusy ? "Checking..." : "Unlock PAM"}</button>
+        </form>
+        <button class="button button-secondary" type="button" data-close-invite-button>Close</button>
+        <p class="invite-footnote">No code yet? <button class="invite-code-link" type="button" data-open-waitlist>Join the waitlist</button> and we'll send one when there's room.</p>
+      </div>
+    </div>
+  `;
+}
+
 function renderWaitlistModal() {
   if (!state.waitlistOpen) return "";
   if (state.waitlistPartnerMode) {
@@ -6474,14 +6506,14 @@ function renderPublicLaunchGate(mode = "public") {
   // Sign in lead to the create-account / sign-in page for onboarding.
   const isApp = mode === "app";
   const primaryAttr = isApp ? `data-start-free` : `data-open-waitlist`;
-  const primaryLabel = isApp ? "Start free" : (state.waitlistJoined ? "You're on the list" : "Get started");
-  const heroPrimaryLabel = isApp ? "Start free →" : (state.waitlistJoined ? "You're on the list ✓" : "Get started →");
+  const primaryLabel = isApp ? "Start free" : (state.waitlistJoined ? "You're on the list" : "Join the waitlist");
+  const heroPrimaryLabel = isApp ? "Start free →" : (state.waitlistJoined ? "You're on the list ✓" : "Join the waitlist →");
   // Sign in is a shortcut for returning users — straight to sign-in, NOT the
   // create-account page that "Start free" opens.
-  const signinAttr = isApp ? `data-signin` : `data-reveal-beta`;
+  const signinAttr = "data-signin";
   const heroNote = isApp
     ? "Set up your profile free. You only pay when you start modeling: $7.99/mo founding price ($9.99 after), cancel anytime."
-    : "Founding members lock in $7.99/mo for life ($9.99 after launch). Free to join the list.";
+    : "PAM is in private beta. Join the list for early access and the $7.99/mo founding price, locked for life ($9.99 after launch).";
   const steps = [
     { title: "Tell PAM what you want", body: "Your goals set the bar every answer is judged against." },
     { title: "Add your numbers", body: "Connect through Plaid or type a few in. Linking is optional." },
@@ -6550,7 +6582,7 @@ function renderPublicLaunchGate(mode = "public") {
 
       <section class="marketing-hero">
         <div class="marketing-hero-copy reveal-on-scroll reveal-up">
-          <div class="marketing-eyebrow">Decision simulator for your money</div>
+          <div class="marketing-eyebrow">${isApp ? "" : `<span class="beta-pill">Private beta</span>`}Decision simulator for your money</div>
           <h1>Know what happens <em>before</em> you decide.</h1>
           <p class="marketing-sub">Ask PAM about any money move, from a new lease to a job offer to investing, and see what it does to your monthly buffer, your goals, and your next 20 years. Built on your real numbers, so you get a straight call instead of generic advice.</p>
           <div class="marketing-hero-actions">
@@ -6558,6 +6590,7 @@ function renderPublicLaunchGate(mode = "public") {
             <button class="button button-secondary" type="button" data-scroll-target="#marketing-features">See it in action</button>
           </div>
           <p class="marketing-hero-note">${escapeHtml(heroNote)}</p>
+          ${isApp ? "" : `<button class="invite-code-link" type="button" data-open-invite>Have an invite code?</button>`}
         </div>
         <div class="marketing-hero-visual reveal-on-scroll reveal-fade">
           ${renderMarketingRangeCard()}
@@ -6645,23 +6678,10 @@ function renderPublicLaunchGate(mode = "public") {
         <h2>Know what happens <em>before</em> you decide.</h2>
         <p>${isApp ? "Free to set up. Linking accounts is optional." : "Free to join. Founding members lock in $7.99/mo for life."}</p>
         <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
+        ${isApp ? "" : `<p><button class="invite-code-link" type="button" data-open-invite>Have an invite code?</button></p>`}
       </section>
 
-      ${isApp ? "" : `
-      <section class="marketing-section marketing-beta-section">
-        <details class="marketing-beta" id="beta-access" ${state.demoAccessMessage ? "open" : ""}>
-          <summary>Returning member or have a beta code?</summary>
-          <form class="launch-gate-form" data-demo-access-form>
-            <label for="demoAccessCode">Beta access</label>
-            <div>
-              <input id="demoAccessCode" name="demoAccessCode" type="password" autocomplete="off" placeholder="Enter your code" ${state.demoAccessBusy ? "disabled" : ""} />
-              <button class="button button-secondary" type="submit" ${state.demoAccessBusy ? "disabled" : ""}>${state.demoAccessBusy ? "Checking..." : "Enter"}</button>
-            </div>
-          </form>
-          ${state.demoAccessMessage ? `<p class="auth-status-message launch-gate-message">${escapeHtml(state.demoAccessMessage)}</p>` : ""}
-        </details>
-      </section>
-      `}
+      ${isApp ? "" : renderInviteModal()}
 
       ${renderLegalFooter()}
       ${renderCookieConsentBanner()}
@@ -6836,16 +6856,28 @@ function wireInteractions() {
       window.location.href = button.dataset.legalRoute || "/terms";
     });
   });
-  document.querySelectorAll("[data-reveal-beta]").forEach((button) => {
+  document.querySelectorAll("[data-open-invite]").forEach((button) => {
     button.addEventListener("click", () => {
-      const details = document.getElementById("beta-access");
-      if (details) {
-        details.open = true;
-        details.scrollIntoView({ behavior: "smooth", block: "center" });
-        details.querySelector("input")?.focus();
-      }
+      state.inviteOpen = true;
+      state.demoAccessMessage = "";
+      trackEvent("invite_code_opened");
+      render();
+      document.getElementById("demoAccessCode")?.focus();
     });
   });
+  const closeInvite = () => {
+    state.inviteOpen = false;
+    render();
+  };
+  document.querySelectorAll("[data-close-invite]").forEach((backdrop) => backdrop.addEventListener("click", (event) => {
+    if (event.target.matches("[data-close-invite]")) closeInvite();
+  }));
+  document.querySelectorAll("[data-close-invite-button]").forEach((button) => button.addEventListener("click", closeInvite));
+  if (state.inviteOpen) {
+    document.querySelector(".invite-modal")?.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeInvite();
+    });
+  }
   // "Sign in" shortcut for returning users — straight to sign-in, not the
   // create-account page. Clerk opens its sign-in directly; otherwise the auth
   // page opens pre-set to sign-in mode.
@@ -7240,6 +7272,7 @@ function wireInteractions() {
   });
   document.querySelectorAll("[data-open-waitlist]").forEach((button) => button.addEventListener("click", () => {
     const presetStage = button.dataset.waitlistStage || "";
+    state.inviteOpen = false;
     state.waitlistOpen = true;
     state.waitlistPartnerMode = Boolean(presetStage);
     state.waitlistPartnerSent = false;
@@ -7418,6 +7451,10 @@ export async function startApp() {
   if (shouldShowPublicLaunchGate()) {
     trackEvent("launch_gate_viewed", {
       path: window.location.pathname || "/"
+    });
+    // A member signing in from the gate reloads straight into their account.
+    window.addEventListener("pam:clerk:change", () => {
+      if (getClerkAccount()) window.location.reload();
     });
     render();
     return;

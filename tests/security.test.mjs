@@ -240,3 +240,31 @@ test("account passwords are hashed at rest and never persisted in plaintext", as
     assert.equal(raw.includes("VeryStrongPass123"), false);
   });
 });
+
+test("the launch gate is off unless PAM_LAUNCH_GATE is set, and a wrong invite code gets a helpful 401", async () => {
+  const statusPath = accountSessionModulePath.replace(/account[\\/]session\.js$/, "integrations/status.js");
+  const original = process.env.PAM_LAUNCH_GATE;
+  const readGate = async () => {
+    delete require.cache[require.resolve(statusPath)];
+    global.__PAM_RATE_LIMIT_STORE__ = new Map();
+    const res = createMockResponse();
+    await require(statusPath)({ method: "GET", clientIp: "127.0.0.1", headers: {} }, res);
+    return JSON.parse(res.body).clientConfig.launchGate;
+  };
+  try {
+    delete process.env.PAM_LAUNCH_GATE;
+    assert.equal(await readGate(), false);
+    process.env.PAM_LAUNCH_GATE = "on";
+    assert.equal(await readGate(), true);
+  } finally {
+    if (original === undefined) delete process.env.PAM_LAUNCH_GATE;
+    else process.env.PAM_LAUNCH_GATE = original;
+  }
+
+  global.__PAM_RATE_LIMIT_STORE__ = new Map();
+  delete require.cache[require.resolve(accountSessionModulePath)];
+  const res = createMockResponse();
+  await require(accountSessionModulePath)({ method: "POST", clientIp: "127.0.0.1", body: { action: "demo_access", code: "definitely-wrong" } }, res);
+  assert.equal(res.statusCode, 401);
+  assert.match(res.body, /join the waitlist/i);
+});

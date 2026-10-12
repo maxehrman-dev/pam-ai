@@ -6932,20 +6932,6 @@ textarea::placeholder {
   box-shadow: var(--pam-contrast-shadow);
 }
 
-.marketing-beta-section { padding-top: 8px; text-align: center; }
-.marketing-beta { display: inline-block; text-align: left; max-width: 420px; width: 100%; }
-.marketing-beta > summary {
-  list-style: none;
-  cursor: pointer;
-  text-align: center;
-  color: var(--ink-2);
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 10px;
-}
-.marketing-beta > summary::-webkit-details-marker { display: none; }
-.marketing-beta[open] > summary { margin-bottom: 8px; }
-
 /* Scroll-reveal animation — premium feel: fade + slide, GPU-friendly */
 .reveal-on-scroll {
   opacity: 0;
@@ -7578,3 +7564,32 @@ textarea::placeholder {
 .workspace-view-account .workspace-tabs {
   display: none;
 }
+
+/* Private-beta gate: pill, invite link, invite dialog */
+.beta-pill {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--forest);
+  color: var(--cream-0);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+}
+.invite-code-link {
+  background: none;
+  border: none;
+  padding: 10px 2px;
+  min-height: 44px;
+  color: var(--mint-5);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.invite-modal .invite-code-link { min-height: 0; padding: 0; }
+.invite-error { color: #9f1d1d; }
+:root[data-theme="dark"] .invite-error { color: #ffb4b4; }
+.invite-footnote { margin: 14px 0 0; font-size: 0.88rem; color: var(--ink-3); }
