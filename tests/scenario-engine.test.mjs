@@ -149,3 +149,28 @@ test("split converts monthly buckets into per-paycheck amounts by cadence", () =
   const monthly = computePaycheckSplit(financialProfile, { payFrequency: "monthly" });
   assert.equal(monthly.perPaycheckIncome, monthly.income);
 });
+
+test("the aha line describes the buffer's real direction", async () => {
+  const { defaultGoals, financialProfile, starterScenarios } = await import("../src/data/mockData.js");
+  const ask = (prompt) => buildDecisionSession({ prompt, profile: financialProfile, goals: defaultGoals, catalog: starterScenarios }).result.ahaMoment;
+  const investing = ask("What if I invest $300 more a month?");
+  assert.ok(!/drops .* more room/.test(investing), investing);
+  if (/buffer/.test(investing)) assert.match(investing, /drops|stays/);
+});
+
+test("new monthly costs come out of free cash before goal savings are cut", async () => {
+  const { financialProfile, starterScenarios } = await import("../src/data/mockData.js");
+  const goals = [{ id: "g", title: "Emergency fund", category: "Emergency", targetAmount: 20000, currentAmount: 5000, monthlyContribution: 400, priority: "high", fundingSource: "cash", targetTimelineMonths: 36, annualReturn: 0.024 }];
+  const session = buildDecisionSession({ prompt: "Can I afford a $200/month gym and streaming bundle?", draft: { type: "custom", monthlyExpenseDelta: 200, prompt: "gym" }, profile: financialProfile, goals, catalog: starterScenarios });
+  const goal = session.result.goalsSummary.goals[0];
+  assert.equal(goal.scenarioMonthlyContribution, 400, "spare cash covers $200, so the goal keeps its $400/mo");
+});
+
+test("a funded goal dipped by a one-time cost refills from spare cash instead of taking a decade", async () => {
+  const { financialProfile, starterScenarios } = await import("../src/data/mockData.js");
+  const goals = [{ id: "g", title: "Move out safely", category: "Move out", targetAmount: 17000, currentAmount: 17000, monthlyContribution: 0, priority: "high", fundingSource: "cash", targetTimelineMonths: 18, annualReturn: 0.024 }];
+  const session = buildDecisionSession({ prompt: "Can I afford a $450/month car payment?", profile: financialProfile, goals, catalog: starterScenarios });
+  const goal = session.result.goalsSummary.goals[0];
+  assert.ok(Number.isFinite(goal.deltaMonths) && goal.deltaMonths <= 24, `delay should be months, not years (got ${goal.deltaMonths})`);
+  assert.ok(goal.scenarioMonthlyContribution > 0);
+});

@@ -1985,17 +1985,19 @@ function getRisk(newBuffer) {
 }
 
 function formatMonths(months) {
-  return `${months} ${months === 1 ? "month" : "months"}`;
+  const value = Number(months) || 0;
+  const rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${rounded} ${rounded === 1 ? "month" : "months"}`;
 }
 
-function estimateCompoundGrowth(monthlyContribution, years = 10, annualReturn = 0.06) {
+function estimateCompoundGrowth(monthlyContribution, years = 10, annualReturn = 0.068) {
   if (monthlyContribution <= 0) return 0;
   const monthlyReturn = annualReturn / 12;
   const months = years * 12;
   return monthlyContribution * (((1 + monthlyReturn) ** months - 1) / monthlyReturn);
 }
 
-function estimateCompoundOpportunity(monthlyContribution, age, annualReturn = 0.1, retirementAge = 65) {
+function estimateCompoundOpportunity(monthlyContribution, age, annualReturn = 0.068, retirementAge = 65) {
   if (monthlyContribution <= 0 || !hasValue(age)) return null;
   const years = Math.max(retirementAge - toNumber(age), 0);
   if (years <= 0) return null;
@@ -4459,12 +4461,12 @@ function renderSampleDataBar() {
 
 function renderMobileAppChrome() {
   return `
-    <div class="mobile-app-chrome" aria-label="PAM mobile app header">
+    <div class="mobile-app-chrome">
       <div class="mobile-brand-lockup">
-        <span>PAM</span>
+        <span aria-hidden="true">PAM</span>
         <div><strong>PAM SI</strong><small>Personal Asset Manager</small></div>
       </div>
-      ${renderDataSourceBadge()}
+      ${String(state.baseline?.source || "") === "plaid_mock" ? "" : renderDataSourceBadge()}
       <button type="button" data-mobile-view="profile" aria-label="Open profile">Profile</button>
     </div>
   `;
@@ -5307,7 +5309,7 @@ function getAdvisorSummary(result, goalLabel) {
   const guidance = state.aiGuidance?.guidance;
   if (guidance) {
     return {
-      source: "AI advisor summary",
+      source: "Explained by AI",
       headline: guidance.assistant?.headline || "PAM has a read on this decision.",
       body: guidance.assistant?.body || result.explanation,
       interpretationSummary: guidance.interpretationSummary || "",
@@ -5322,7 +5324,7 @@ function getAdvisorSummary(result, goalLabel) {
     // labels, so surface it directly when it exists.
     const sessionFollowUp = result.scenarioSession?.followUp;
     return {
-      source: state.decisionBusy ? "AI refining..." : "Advisor summary",
+      source: state.decisionBusy ? "AI refining..." : "From PAM's model",
       headline: `Every ${split.payFrequency} gets a job before it hits checking.`,
       body: result.explanation,
       interpretationSummary: `PAM computed this split deterministically from your baseline: essentials and minimums first, then buffer, high-interest debt, investing, and a guilt-free floor. It saves ${split.savingsRatePct}% of income automatically.`,
@@ -5352,7 +5354,7 @@ function getAdvisorSummary(result, goalLabel) {
   const body = `${bufferText} PAM sees ${impactText} of impact, with ${result.risk.label.toLowerCase()} risk based on your current baseline. ${goalText}`;
 
   return {
-    source: state.decisionBusy ? "AI refining..." : "Advisor summary",
+    source: state.decisionBusy ? "AI refining..." : "From PAM's model",
     headline,
     body,
     interpretationSummary: `PAM treated this as a ${result.decision.type.toLowerCase()} and compared it against your cash flow, savings, tax estimate, and main goal.`,
@@ -5403,23 +5405,20 @@ function renderScenarioEngineDetails(result) {
   const taxNotes = taxStrategies?.strategyNotes || [];
   const playbook = Array.isArray(scenario.playbook) ? scenario.playbook : [];
 
+  const impactCards = scenario.impactCards || [];
+  const delayedGoals = goals.filter((goal) => !Number.isFinite(goal.deltaMonths) || goal.deltaMonths > 0);
+
   return `
     <div class="result-section scenario-engine-output">
-      <h3>Aha moment</h3>
-      <p>${escapeHtml(scenario.ahaMoment || result.explanation)}</p>
-      <div class="outcome-grid">
-        ${(scenario.impactCards || []).map((card) => `
-          <div><span>${escapeHtml(card.label)}</span><strong>${escapeHtml(card.value)}</strong><small>${escapeHtml(card.detail || "")}</small></div>
-        `).join("")}
-      </div>
+      <p class="aha-callout"><span>Aha</span>${escapeHtml(scenario.ahaMoment || result.explanation)}</p>
       ${renderPaycheckSplitPlan(scenario.splitPlan)}
-      ${goals.length ? `
+      ${delayedGoals.length ? `
         <h3>Goal impact</h3>
         <div class="goal-impact-stack">
-          ${goals.slice(0, 3).map((goal) => `
+          ${delayedGoals.slice(0, 3).map((goal) => `
             <div class="goal-impact-row">
               <span class="gi-name">${escapeHtml(goal.title)}</span>
-              <span class="gi-change ${goal.deltaMonths > 0 ? "bad" : "neutral"}">${Number.isFinite(goal.deltaMonths) ? formatMonths(Math.max(Math.round(goal.deltaMonths), 0)) : escapeHtml(goal.status || "At risk")}</span>
+              <span class="gi-change bad">${Number.isFinite(goal.deltaMonths) ? `${formatMonths(Math.max(Math.round(goal.deltaMonths), 0))} later` : escapeHtml(goal.status || "At risk")}</span>
             </div>
           `).join("")}
         </div>
@@ -5467,7 +5466,18 @@ function renderScenarioEngineDetails(result) {
         </div>
         <p class="section-compact-note">Educational, not tax or legal advice. Rules shown are current law; confirm details for your situation.</p>
       ` : ""}
-      ${goalFunding ? `
+      ${impactCards.length || goalFunding || credit || offsetActions.length || trace.length || affordability || debtPlan || moneyFacts.length || retirementBridge || taxNotes.length ? `
+        <details class="result-fold">
+          <summary>The full breakdown${taxNotes.length ? " · tax strategies" : ""}${goalFunding ? " · goal pace" : ""}${credit ? " · credit fit" : ""}${affordability ? " · your ceilings" : ""}${debtPlan ? " · debt payoff" : ""}${retirementBridge ? " · early-retirement bridge" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+          ${impactCards.length ? `
+            <h3>All the numbers</h3>
+            <div class="outcome-grid">
+              ${impactCards.map((card) => `
+                <div><span>${escapeHtml(card.label)}</span><strong>${escapeHtml(card.value)}</strong><small>${escapeHtml(card.detail || "")}</small></div>
+              `).join("")}
+            </div>
+          ` : ""}
+          ${goalFunding ? `
         <h3>Goal funding pace</h3>
         <div class="goal-impact-stack">
           ${goalFunding.goals.map((goal) => `
@@ -5478,9 +5488,7 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
       ` : ""}
-      ${credit || offsetActions.length || trace.length || affordability || debtPlan || moneyFacts.length || retirementBridge || taxNotes.length ? `
-        <details class="result-fold">
-          <summary>The full breakdown${taxNotes.length ? " · tax strategies" : ""}${credit ? " · credit fit" : ""}${affordability ? " · your ceilings" : ""}${debtPlan ? " · debt payoff" : ""}${retirementBridge ? " · early-retirement bridge" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
+
           ${taxNotes.length ? `
             <h3>Tax strategies that fit you</h3>
             <div class="reasoning-trace-list">
@@ -5966,7 +5974,6 @@ function renderDecisionPanel() {
           <h2>Ask a financial question</h2>
           <p>Run one decision at a time. PAM estimates the outcome from your baseline.</p>
         </div>
-        <span class="decision-mode-pill">Advisor mode</span>
       </div>
       <details class="decision-brief-fold" aria-label="Current money context">
         <summary>What changed in your money</summary>
@@ -6053,7 +6060,8 @@ function renderResult() {
   state.result = result;
   const goalLabel = getGoalLabel(state.baseline);
   const advisorSummary = getAdvisorSummary(result, goalLabel);
-  const advisorFollowUps = advisorSummary.followUpChoiceLabels
+  const followUpLabels = advisorSummary.followUpChoiceLabels.length ? advisorSummary.followUpChoiceLabels : getDecisionNextSteps(result);
+  const advisorFollowUps = followUpLabels
     .slice(0, 3)
     .map((label) => `<button type="button" data-question-example="${escapeHtml(label)}">${escapeHtml(label)}</button>`)
     .join("");
@@ -6122,13 +6130,6 @@ function renderResult() {
         </div>
       </div>
       ${renderScenarioEngineDetails(result)}
-      <div class="result-section next-step-box">
-        <h3>Next step</h3>
-        <p>${result.risk.label === "Low" ? "This looks workable. PAM can still help test a cleaner version before you commit." : result.risk.label === "Medium" ? "This is possible, but the safer move is to compare a lower-cost version or a better time to do it." : "This needs a safer version before it becomes realistic."}</p>
-        <div class="quick-question-row next-step-actions">
-          ${getDecisionNextSteps(result).map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}
-        </div>
-      </div>
       <details class="result-fold result-section explanation-box">
         <summary>Tax, compound growth &amp; long-term detail</summary>
         <h3>Tax impact</h3>
@@ -6138,7 +6139,7 @@ function renderResult() {
         <h3>Connected baseline insight</h3>
         <p>${escapeHtml(result.sandboxInsight)}</p>
         <h3>Compound growth impact</h3>
-        <p>${result.compoundOpportunity ? `If you redirected ${formatCurrency(result.decision.compoundMonthlyDelta)}/month into a long-term investment earning a hypothetical 10% average annual return, it could grow to about ${formatCurrency(result.compoundOpportunity.futureValue)} by age ${result.compoundOpportunity.retirementAge}. If this were held in a Roth-style account and eligibility rules were met, qualified withdrawals may be tax-free. Educational estimate only, not guaranteed.` : result.compoundGrowth ? `If invested monthly, this could hypothetically grow to about ${formatCurrency(result.compoundGrowth)} over 10 years at a 6% assumed annual return. Not guaranteed.` : "No direct compound-growth impact detected for this decision."}</p>
+        <p>${result.compoundOpportunity ? `If you redirected ${formatCurrency(result.decision.compoundMonthlyDelta)}/month into a long-term investment earning a 6.8% average annual return (PAM's planning assumption), it could grow to about ${formatCurrency(result.compoundOpportunity.futureValue)} by age ${result.compoundOpportunity.retirementAge}. If this were held in a Roth-style account and eligibility rules were met, qualified withdrawals may be tax-free. Educational estimate only, not guaranteed.` : result.compoundGrowth ? `If invested monthly, this could hypothetically grow to about ${formatCurrency(result.compoundGrowth)} over 10 years at a 6.8% average annual return. Not guaranteed.` : "No direct compound-growth impact detected for this decision."}</p>
         <h3>Explanation</h3>
         <p>${escapeHtml(result.explanation)}</p>
         <p class="disclaimer">Educational estimate, AI-assisted. Not financial advice — verify before acting.</p>
@@ -6986,11 +6987,13 @@ function render() {
             <small>Personal Asset Manager</small>
           </div>
         </a>
-        <nav class="foresee-nav" aria-label="Homepage sections">
-          <button type="button" data-scroll-target="#how-it-works">How it works</button>
-          <button type="button" data-scroll-target="#examples">Examples</button>
-          <button type="button" data-scroll-target="#pricing">Pricing</button>
-        </nav>
+        ${state.workspaceView === "landing" ? `
+          <nav class="foresee-nav" aria-label="Homepage sections">
+            <button type="button" data-scroll-target="#how-it-works">How it works</button>
+            <button type="button" data-scroll-target="#examples">Examples</button>
+            <button type="button" data-scroll-target="#pricing">Pricing</button>
+          </nav>
+        ` : ""}
         <div class="foresee-header-actions">
           ${renderHeaderActions()}
         </div>

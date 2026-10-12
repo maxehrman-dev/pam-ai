@@ -1586,7 +1586,9 @@ function getFieldSchema(draft, profile) {
   }
 }
 
-function computeGoalContributionShift(goals, draft) {
+// availableFreeCash: unallocated monthly money that absorbs a new cost before
+// any goal contribution is cut. Goals only lose funding once it runs out.
+function computeGoalContributionShift(goals, draft, availableFreeCash = 0) {
   const nextGoals = goals.map((goal) => ({
     ...goal,
     scenarioCurrentAmount: goal.currentAmount,
@@ -1609,7 +1611,7 @@ function computeGoalContributionShift(goals, draft) {
     });
   }
 
-  let remainingDeficit = Math.max(-(Number(draft.monthlyIncomeDelta || 0) - Number(draft.monthlyExpenseDelta || 0)), 0);
+  let remainingDeficit = Math.max(Math.max(-(Number(draft.monthlyIncomeDelta || 0) - Number(draft.monthlyExpenseDelta || 0)), 0) - Math.max(Number(availableFreeCash) || 0, 0), 0);
   if (remainingDeficit > 0) {
     ["low", "medium", "high"].forEach((priority) => {
       nextGoals
@@ -1656,6 +1658,20 @@ function computeGoalContributionShift(goals, draft) {
     }
   }
 
+  // A one-time cost can knock an already-funded goal back below target. People
+  // rebuild those from spare cash, so half of what's left after any new monthly
+  // cost refills them. Only goals that were fully funded beforehand qualify;
+  // in-progress goals keep their normal pace so the scenario isn't flattered.
+  const newMonthlyCost = Math.max(-(Number(draft.monthlyIncomeDelta || 0) - Number(draft.monthlyExpenseDelta || 0)), 0);
+  const leftoverFreeCash = Math.max((Number(availableFreeCash) || 0) - newMonthlyCost, 0);
+  const dippedFundedGoals = shockPool.filter((goal) => goal.currentAmount >= goal.targetAmount && goal.scenarioCurrentAmount < goal.targetAmount);
+  if (totalShock > 0 && leftoverFreeCash > 0 && dippedFundedGoals.length) {
+    const refillWeight = dippedFundedGoals.reduce((total, goal) => total + PRIORITY_WEIGHTS[goal.priority || "medium"], 0);
+    dippedFundedGoals.forEach((goal) => {
+      goal.scenarioMonthlyContribution += leftoverFreeCash * 0.5 * (PRIORITY_WEIGHTS[goal.priority || "medium"] / refillWeight);
+    });
+  }
+
   nextGoals.forEach((goal) => {
     goal.scenarioMonthlyContribution = Math.max(goal.scenarioMonthlyContribution, 0);
   });
@@ -1687,8 +1703,8 @@ function describeGoalStatus(goal, monthsToGoal) {
   return "At risk";
 }
 
-function evaluateGoals(goals, draft) {
-  const scenarioGoals = computeGoalContributionShift(goals, draft);
+function evaluateGoals(goals, draft, availableFreeCash = 0) {
+  const scenarioGoals = computeGoalContributionShift(goals, draft, availableFreeCash);
 
   const outcomes = scenarioGoals.map((goal) => {
     const baselineMonths = calculateMonthsToGoal(goal, goal.currentAmount, goal.monthlyContribution);
@@ -1863,9 +1879,15 @@ function buildAhaMoment(goalsSummary, scenarioRunoutMonths, scenario, currentPat
     )}.`;
   }
 
-  return `Your monthly buffer moves from ${formatCurrency(currentPath.monthlyFreeCash)} to ${formatCurrency(
-    scenario.monthlyFreeCash
-  )}, which gives you more room to keep goals funded.`;
+  const before = currentPath.monthlyFreeCash;
+  const after = scenario.monthlyFreeCash;
+  if (Math.round(after) > Math.round(before)) {
+    return `Your monthly buffer grows from ${formatCurrency(before)} to ${formatCurrency(after)}, which gives you more room to keep goals funded.`;
+  }
+  if (Math.round(after) < Math.round(before)) {
+    return `Your monthly buffer drops from ${formatCurrency(before)} to ${formatCurrency(after)}, but your goals stay on schedule.`;
+  }
+  return `Your monthly buffer stays at ${formatCurrency(before)}, so this doesn't squeeze your other goals.`;
 }
 
 function buildRecommendedNextStep(risk, mostImpactedGoal, scenarioMonthlyFreeCash, scenarioRunwayMonths, bufferFloor = 600) {
@@ -2091,7 +2113,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
   const longTermNetWorthDelta = oneTimeDeltaAtHorizon + recurringDeltaAtHorizon + investmentDeltaAtHorizon;
   const scenarioProjectedNetWorth = metrics.projectedNetWorth + longTermNetWorthDelta;
 
-  const goalsSummary = evaluateGoals(goals, normalizedDraft);
+  const goalsSummary = evaluateGoals(goals, normalizedDraft, metrics.monthlyFreeCash);
   const risk = getRiskLabel(runoutMonths, scenarioMonthlyFreeCash, goalsSummary.mostImpactedGoal, scenarioRunwayMonths, personaScale);
   const creditReadiness = estimateCreditReadiness(profile, metrics, normalizedDraft, scenarioMonthlyFreeCash, prompt);
   const confidence = getConfidence(normalizedDraft, null, prompt);

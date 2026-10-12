@@ -7477,11 +7477,14 @@ textarea::placeholder {
    workspace shell (Workspace heading, account chip, Account/Dashboard tab
    pills, card-in-card panel padding) just stacks four header blocks before any
    content. Hide the shell and let the app own the page. */
+/* The app header (logo + Profile) is the navigation; the workspace title and
+   Account/Dashboard pills only repeat it, so the dashboard skips them. */
+.workspace-view-dashboard .workspace-header,
+.workspace-view-dashboard .workspace-tabs {
+  display: none;
+}
+
 @media (max-width: 900px) {
-  .workspace-view-dashboard .workspace-header,
-  .workspace-view-dashboard .workspace-tabs {
-    display: none;
-  }
 
   .workspace-view-dashboard.foresee-panel {
     background: transparent;
@@ -7534,4 +7537,37 @@ textarea::placeholder {
 
 @media (max-width: 600px) {
   .marketing-ask-chips .marketing-ask-chip:nth-child(n + 5) { display: none; }
+}
+
+/* One-line insight under the summary, instead of a second numbers grid */
+.aha-callout {
+  margin: 0 0 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--pam-surface-tint);
+  color: var(--ink-4);
+  line-height: 1.5;
+}
+.aha-callout span {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--mint-4);
+  color: var(--cream-0);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+:root[data-theme="dark"] .aha-callout span { color: #06100c; }
+
+/* Phone app header + sample bar: one tidy row each. */
+@media (max-width: 600px) {
+  .mobile-brand-lockup small { display: none; }
+  .sample-data-bar { padding: 10px 12px; gap: 8px; border-radius: 14px; }
+  .sample-data-bar p { font-size: 0.82rem; }
+  .sample-data-bar-actions { gap: 4px 10px; }
+  .sample-data-bar-actions .button { min-height: 44px; }
+  .sample-data-manual-link { min-height: 44px; }
 }

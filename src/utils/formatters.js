@@ -23,7 +23,9 @@ export function formatPercent(value, digits = 0) {
 }
 
 export function formatMonths(value) {
-  return `${value.toFixed(1)} mo`;
+  const months = Number(value) || 0;
+  const rounded = months >= 10 ? Math.round(months) : Math.round(months * 10) / 10;
+  return `${rounded} mo`;
 }
 
 export function formatDateLabel(value) {
