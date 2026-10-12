@@ -37,7 +37,15 @@ function assertAdmin(req) {
   }
 }
 
-function renderUpdateEmail() {
+function escapeEmailText(value) {
+  return String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+}
+
+// CAN-SPAM: every marketing email carries a working opt-out (Resend fills in
+// a per-recipient link for the placeholder) and the sender's postal address.
+const UNSUBSCRIBE_URL = "{{{RESEND_UNSUBSCRIBE_URL}}}";
+
+function renderUpdateEmail(mailingAddress = "") {
   return `
     <!doctype html>
     <html>
@@ -57,23 +65,24 @@ function renderUpdateEmail() {
             </div>
             <div style="padding:10px 32px 32px;">
               <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">Hey, thanks for being on the early PAM SI waitlist.</p>
-              <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">The goal is simple: help young adults understand what could happen before they make a financial decision. Rent, a car payment, a trip, freelance income, moving out, investing earlier, taxes, emergency savings — PAM is being built to model the ripple effects before you commit.</p>
+              <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">The goal is simple: help young adults understand what could happen before they make a financial decision. Rent, a car payment, a trip, freelance income, moving out, investing earlier, taxes, emergency savings: PAM is being built to model the ripple effects before you commit.</p>
               <div style="margin:22px 0;padding:18px;border-radius:22px;background:#eefaf3;border:1px solid rgba(30,138,102,0.16);">
                 <p style="margin:0 0 10px;color:#143729;font-size:18px;font-weight:900;">What we're working toward</p>
                 <ul style="margin:0;padding-left:20px;color:#45584c;font-size:16px;line-height:1.7;">
                   <li>A cleaner account setup that builds a real financial baseline.</li>
                   <li>Decision modeling that shows monthly buffer, risk, taxes, savings, and goal impact.</li>
                   <li>Future account integrations that can summarize income, balances, recurring expenses, and liabilities automatically.</li>
-                  <li>Plain-English guidance that feels closer to a financial advisor than a chatbot or spreadsheet.</li>
+                  <li>Plain-English guidance grounded in your real numbers, not a generic chatbot answer or a spreadsheet.</li>
                   <li>A product that starts with young adults before traditional wealth management usually makes sense.</li>
                 </ul>
               </div>
               <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">Near term, we're focused on making the prototype more reliable, easier to use on mobile, and clearer about what changed after every button press. Longer term, PAM should become a decision engine that connects today's choices to future goals.</p>
               <p style="margin:0 0 16px;color:#45584c;font-size:17px;line-height:1.62;">Important note: PAM SI is a financial modeling and education tool. PAM SI is not a licensed financial advisor, registered investment adviser, tax professional, attorney, bank, or broker. Nothing from PAM is financial, tax, legal, or investment advice, and results are hypothetical estimates based on assumptions. Always verify important information and talk to a qualified professional before making major financial decisions.</p>
-              <p style="margin:22px 0 0;color:#143729;font-weight:800;font-size:16px;">— The PAM SI team</p>
+              <p style="margin:22px 0 0;color:#143729;font-weight:800;font-size:16px;">The PAM SI team</p>
             </div>
             <div style="padding:18px 32px 28px;border-top:1px solid rgba(30,138,102,0.12);color:#809687;font-size:13px;line-height:1.5;">
-              You are receiving this because you joined the PAM SI waitlist at pamadvisor.com.
+              You are receiving this because you joined the PAM SI waitlist at pamadvisor.com.<br />
+              <a href="${UNSUBSCRIBE_URL}" style="color:#0d6549;font-weight:700;">Unsubscribe</a>${mailingAddress ? ` · ${escapeEmailText(mailingAddress)}` : ""}
             </div>
           </div>
         </div>
@@ -82,27 +91,29 @@ function renderUpdateEmail() {
   `;
 }
 
-function renderTextEmail() {
+function renderTextEmail(mailingAddress = "") {
   return `A quick update from PAM SI
 
 Hey, thanks for being on the early PAM SI waitlist.
 
-The goal is simple: help young adults understand what could happen before they make a financial decision. Rent, a car payment, a trip, freelance income, moving out, investing earlier, taxes, emergency savings — PAM is being built to model the ripple effects before you commit.
+The goal is simple: help young adults understand what could happen before they make a financial decision. Rent, a car payment, a trip, freelance income, moving out, investing earlier, taxes, emergency savings: PAM is being built to model the ripple effects before you commit.
 
 What we're working toward:
 - A cleaner account setup that builds a real financial baseline.
 - Decision modeling that shows monthly buffer, risk, taxes, savings, and goal impact.
 - Future account integrations that can summarize income, balances, recurring expenses, and liabilities automatically.
-- Plain-English guidance that feels closer to a financial advisor than a chatbot or spreadsheet.
+- Plain-English guidance grounded in your real numbers, not a generic chatbot answer or a spreadsheet.
 - A product that starts with young adults before traditional wealth management usually makes sense.
 
 Near term, we're focused on making the prototype more reliable, easier to use on mobile, and clearer about what changed after every button press. Longer term, PAM should become a decision engine that connects today's choices to future goals.
 
 Important note: PAM SI is a financial modeling and education tool. PAM SI is not a licensed financial advisor, registered investment adviser, tax professional, attorney, bank, or broker. Nothing from PAM is financial, tax, legal, or investment advice, and results are hypothetical estimates based on assumptions. Always verify important information and talk to a qualified professional before making major financial decisions.
 
-— The PAM SI team
+The PAM SI team
 
-You are receiving this because you joined the PAM SI waitlist at pamadvisor.com.`;
+You are receiving this because you joined the PAM SI waitlist at pamadvisor.com.
+Unsubscribe: ${UNSUBSCRIBE_URL}${mailingAddress ? `
+${mailingAddress}` : ""}`;
 }
 
 async function getWaitlistRows() {
@@ -200,6 +211,12 @@ const __pamRouteHandler = async (req, res) => {
     const resend = new Resend(getRequiredEnv("RESEND_API_KEY"));
     const audienceId = getRequiredEnv("RESEND_AUDIENCE_ID");
     const from = getRequiredEnv("PAM_FROM_EMAIL");
+    const mailingAddress = String(process.env.PAM_MAILING_ADDRESS || "").trim();
+    if (!body.dryRun && !mailingAddress) {
+      const error = new Error("PAM_MAILING_ADDRESS is not configured. CAN-SPAM requires a valid postal address (street address, or a PO box or private mailbox registered with USPS) in every marketing email. Set it in Vercel before sending.");
+      error.statusCode = 412;
+      throw error;
+    }
     const waitlistRows = await getWaitlistRows();
     const syncSummary = await syncContacts(resend, audienceId, waitlistRows);
 
@@ -220,8 +237,8 @@ const __pamRouteHandler = async (req, res) => {
       name: "PAM SI waitlist update",
       subject: SUBJECT,
       previewText: PREVIEW,
-      html: renderUpdateEmail(),
-      text: renderTextEmail()
+      html: renderUpdateEmail(mailingAddress),
+      text: renderTextEmail(mailingAddress)
     });
     if (created.error) throw new Error(created.error.message || "Could not create broadcast.");
 

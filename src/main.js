@@ -401,6 +401,7 @@ function saveCookieConsent(value) {
   }
   try {
     if (normalized === "accepted") {
+      window.__pamLoadAnalytics?.();
       window.posthog?.opt_in_capturing?.();
     } else {
       window.posthog?.opt_out_capturing?.();
@@ -4299,8 +4300,8 @@ function renderAuthPage() {
     <div class="foresee-shell auth-standalone">
       ${renderDisclaimerBanner()}
       <header class="marketing-nav">
-        <a class="foresee-brand" href="/" aria-label="PAM SI home">
-          <span>PAM</span>
+        <a class="foresee-brand" href="/">
+          <span aria-hidden="true">PAM</span>
           <div><strong>PAM SI</strong><small>Personal Asset Manager</small></div>
         </a>
         <button class="page-back-button" type="button" data-open-view="landing" aria-label="Back to landing">← Back</button>
@@ -6237,8 +6238,8 @@ function renderWaitlistPage() {
       ${renderDisclaimerBanner()}
       <header class="waitlist-page-header">
         <button class="page-back-button" type="button" data-go-back aria-label="Go back">← Back</button>
-        <a class="foresee-brand" href="/waitlist" aria-label="PAM SI waitlist">
-          <span>PAM</span>
+        <a class="foresee-brand" href="/waitlist">
+          <span aria-hidden="true">PAM</span>
           <div>
             <strong>PAM SI</strong>
             <small>Personal Asset Manager</small>
@@ -6429,8 +6430,8 @@ function renderLegalPage(route) {
       ${renderDisclaimerBanner()}
       <header class="waitlist-page-header legal-page-header">
         <button class="page-back-button" type="button" data-go-back aria-label="Go back">← Back</button>
-        <a class="foresee-brand" href="/" aria-label="PAM SI home">
-          <span>PAM</span>
+        <a class="foresee-brand" href="/">
+          <span aria-hidden="true">PAM</span>
           <div>
             <strong>PAM SI</strong>
             <small>Personal Asset Manager</small>
@@ -6724,7 +6725,7 @@ function renderPublicLaunchGate(mode = "public") {
     {
       id: "tax",
       tab: "Tax analytics",
-      tabShort: "Taxes",
+      tabShort: "Tax",
       title: "Keep more of it after tax.",
       body: "The same dollars land very differently in a Roth, a 401(k), an HSA, or a regular brokerage account. PAM runs them through identical markets, so the only difference is tax.",
       bullets: ["Taxes paid now, during growth, and when you withdraw", "Roth vs Traditional based on your bracket", "Only the strategies that fit your income and goals"],
@@ -6753,8 +6754,8 @@ function renderPublicLaunchGate(mode = "public") {
     <div class="foresee-shell marketing-shell">
       ${renderDisclaimerBanner()}
       <header class="marketing-nav">
-        <a class="foresee-brand" href="/" aria-label="PAM SI home">
-          <span>PAM</span>
+        <a class="foresee-brand" href="/">
+          <span aria-hidden="true">PAM</span>
           <div><strong>PAM SI</strong><small>Personal Asset Manager</small></div>
         </a>
         <div class="marketing-nav-actions">
@@ -6918,8 +6919,23 @@ function renderSessionRestoreError() {
   `;
 }
 
+// WCAG 2.4.2: each route gets a title that says what the page is.
+const ROUTE_TITLES = {
+  terms: "Terms of Service | PAM SI",
+  privacy: "Privacy Policy | PAM SI",
+  "content-policy": "Content Policy | PAM SI",
+  "privacy-plain": "What PAM Stores | PAM SI",
+  faq: "FAQ | PAM SI"
+};
+
+function updateDocumentTitle() {
+  const title = ROUTE_TITLES[getLegalRoute()] || (isWaitlistRoute() ? "Join the Waitlist | PAM SI" : "PAM SI | Personal Asset Manager");
+  if (document.title !== title) document.title = title;
+}
+
 function render() {
   if (!app) return;
+  updateDocumentTitle();
   applyDisplayTheme();
   if (state.sessionRestoring) {
     app.innerHTML = renderSessionRestoreScreen();
@@ -6964,7 +6980,7 @@ function render() {
       ${renderDisclaimerBanner()}
       <header class="foresee-header">
         <a class="foresee-brand" href="/">
-          <span>PAM</span>
+          <span aria-hidden="true">PAM</span>
           <div>
             <strong>PAM SI</strong>
             <small>Personal Asset Manager</small>

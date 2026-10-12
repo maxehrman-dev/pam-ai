@@ -6,11 +6,11 @@
   --mint-1: #d8f3e5;
   --mint-2: #6fe0be;
   --mint-3: #79c9a4;
-  --mint-4: #1e8a66;
+  --mint-4: #157556;
   --mint-5: #0d6549;
   --forest: #143729;
   --forest-2: #0d261c;
-  --ink-2: #809687;
+  --ink-2: #57695e;
   --ink-3: #45584c;
   --ink-4: #1e2a24;
   --ink-5: #0c1512;
@@ -58,6 +58,13 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* WCAG 2.4.7: a visible keyboard focus ring everywhere. :where() keeps it at
+   zero specificity so components can restyle it, but never remove it. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--mint-4);
+  outline-offset: 2px;
 }
 
 html {
@@ -2727,7 +2734,6 @@ input:disabled {
 .daily-range-tabs button:focus-visible {
   color: var(--mint-5);
   background: var(--pam-surface-tint);
-  outline: none;
 }
 
 .daily-range-tabs button.active {
@@ -7495,3 +7501,37 @@ textarea::placeholder {
 }
 .playbook-item strong { display: block; color: var(--forest); font-size: 0.95rem; margin-bottom: 4px; }
 .playbook-item p { margin: 0; color: var(--ink-3); font-size: 0.9rem; line-height: 1.5; }
+
+/* Touch targets: at least 44px tall for standalone links and nav actions
+   (WCAG 2.5.8 needs 24px; 44px is the comfortable thumb size). */
+.pam-legal-footer nav a,
+.trust-privacy-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.marketing-signin-link {
+  white-space: nowrap;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 10px;
+}
+.pam-legal-footer nav a { min-width: 44px; justify-content: center; }
+
+/* Phone header: one clean row (logo, name, Sign in, Start free). */
+@media (max-width: 480px) {
+  .marketing-nav { padding-top: 14px; }
+  .marketing-nav .foresee-brand small { display: none; }
+  .marketing-nav-actions { gap: 6px; }
+  .marketing-nav-actions .button {
+    white-space: nowrap;
+    padding: 10px 16px;
+    min-height: 44px;
+    font-size: 0.92rem;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .marketing-ask-chips .marketing-ask-chip:nth-child(n + 5) { display: none; }
+}
