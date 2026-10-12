@@ -1395,6 +1395,7 @@ function toLegacyDecisionFromSession(session) {
         goalOdds: result.marketRange.goalOdds
       }
     } : {}),
+    ...(Array.isArray(result.playbook) && result.playbook.length ? { playbook: result.playbook.map((play) => play.text) } : {}),
     ...(result.taxStrategies ? {
       taxStrategies: {
         monthlyBudget: result.taxStrategies.monthlyBudget,
@@ -5399,6 +5400,7 @@ function renderScenarioEngineDetails(result) {
   const marketRange = scenario.marketRange;
   const taxStrategies = scenario.taxStrategies;
   const taxNotes = taxStrategies?.strategyNotes || [];
+  const playbook = Array.isArray(scenario.playbook) ? scenario.playbook : [];
 
   return `
     <div class="result-section scenario-engine-output">
@@ -5456,6 +5458,13 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
         <p class="section-compact-note">Typical after-tax value in ${formatMonths(taxStrategies.months)}. ${escapeHtml(taxStrategies.bestLabel)} keeps ${formatCurrency(taxStrategies.bestVsTaxableTypical)} more than a taxable account. Tax bracket now ~${taxStrategies.rates.currentPct}%, assumed in retirement ~${taxStrategies.rates.retirementPct}%.</p>
+      ` : ""}
+      ${playbook.length ? `
+        <h3>Moves that fit this</h3>
+        <div class="playbook-list">
+          ${playbook.map((play) => `<div class="playbook-item"><strong>${escapeHtml(play.title)}</strong><p>${escapeHtml(play.text)}</p></div>`).join("")}
+        </div>
+        <p class="section-compact-note">Educational, not tax or legal advice. Rules shown are current law; confirm details for your situation.</p>
       ` : ""}
       ${goalFunding ? `
         <h3>Goal funding pace</h3>

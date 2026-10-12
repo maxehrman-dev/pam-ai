@@ -2,7 +2,17 @@ export const BASELINE_STORAGE_KEY = "pam:baseline:v2";
 export const WAITLIST_STORAGE_KEY = "pam:waitlist:v1";
 
 const LEGACY_BASELINE_KEYS = ["pam-ai-young-adult-baseline-v2"];
-const STANDARD_DEDUCTION_SINGLE = 14600;
+// 2026 single filer (IRS Rev. Proc. 2025-32). Update annually.
+const STANDARD_DEDUCTION_SINGLE = 16100;
+const FEDERAL_BRACKETS_SINGLE = [
+  { limit: 12400, rate: 0.1 },
+  { limit: 50400, rate: 0.12 },
+  { limit: 105700, rate: 0.22 },
+  { limit: 201775, rate: 0.24 },
+  { limit: 256225, rate: 0.32 },
+  { limit: 640600, rate: 0.35 },
+  { limit: Number.POSITIVE_INFINITY, rate: 0.37 }
+];
 
 const STATE_TAX_RATES = {
   CA: 0.06,
@@ -156,13 +166,7 @@ export function getGoalLabel(baseline) {
 }
 
 function estimateFederalAnnualTax(taxableIncome) {
-  const brackets = [
-    { limit: 11600, rate: 0.1 },
-    { limit: 47150, rate: 0.12 },
-    { limit: 100525, rate: 0.22 },
-    { limit: 191950, rate: 0.24 },
-    { limit: Number.POSITIVE_INFINITY, rate: 0.32 }
-  ];
+  const brackets = FEDERAL_BRACKETS_SINGLE;
 
   let remaining = Math.max(taxableIncome, 0);
   let previousLimit = 0;
@@ -222,11 +226,7 @@ export function estimateTaxProfile(baseline) {
 export function getMarginalTaxRates(baseline) {
   const profile = estimateTaxProfile(baseline);
   if (!(profile.grossAnnual > 0)) return null;
-  const federalMarginal = profile.taxableIncome > 191950 ? 0.32
-    : profile.taxableIncome > 100525 ? 0.24
-      : profile.taxableIncome > 47150 ? 0.22
-        : profile.taxableIncome > 11600 ? 0.12
-          : 0.1;
+  const federalMarginal = FEDERAL_BRACKETS_SINGLE.find((bracket) => profile.taxableIncome <= bracket.limit).rate;
   return {
     federalMarginal,
     stateRate: STATE_TAX_RATES[baseline?.profile?.state] ?? STATE_TAX_RATES.OTHER,

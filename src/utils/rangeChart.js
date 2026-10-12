@@ -1,7 +1,7 @@
 // Fan chart for a Monte Carlo series: shaded band between the rough (p10) and
 // strong (p90) paths, typical (p50) line on top. Plain SVG string, colored via
 // CSS classes so it follows light/dark tokens. Only ever drawn from engine
-// output — never from made-up history.
+// output, never from made-up history.
 
 import { escapeHtml, formatCompactCurrency } from "./formatters.js";
 

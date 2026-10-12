@@ -7484,3 +7484,14 @@ textarea::placeholder {
     padding: 0;
   }
 }
+
+/* Smart-money playbook in results */
+.playbook-list { display: grid; gap: 10px; margin: 8px 0; }
+.playbook-item {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--pam-border);
+  background: var(--pam-surface-tint);
+}
+.playbook-item strong { display: block; color: var(--forest); font-size: 0.95rem; margin-bottom: 4px; }
+.playbook-item p { margin: 0; color: var(--ink-3); font-size: 0.9rem; line-height: 1.5; }

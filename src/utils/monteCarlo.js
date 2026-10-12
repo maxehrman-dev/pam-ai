@@ -1,5 +1,5 @@
 // Seeded Monte Carlo for market-exposed money. The seed is derived from the
-// inputs, so the same question always produces the same range — results stay
+// inputs, so the same question always produces the same range. Results stay
 // testable, cacheable, and safe for the AI integrity check. Educational
 // estimate only: historical-style volatility, not a forecast.
 

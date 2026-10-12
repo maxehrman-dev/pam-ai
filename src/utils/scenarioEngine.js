@@ -2,6 +2,7 @@ import { clamp, formatCurrency, formatMonths, formatPercent, formatSignedCurrenc
 import { buildDebtPayoffPlan, computeAffordabilityCeilings, computeRetirementBridge, getMoneyFacts } from "./financeKnowledge.js";
 import { simulateMarketRange } from "./monteCarlo.js";
 import { compareTaxStrategies } from "./taxStrategies.js";
+import { getPlaybook } from "./playbook.js";
 
 const DEFAULT_HORIZON_MONTHS = 60;
 const CASH_RETURN = 0.024;
@@ -2022,7 +2023,7 @@ function buildMarketRange(profile, metrics, draft, prompt, goalsSummary) {
     goalOdds,
     assumptions: [
       `${scenario.runs.toLocaleString("en-US")} simulated market paths at ${scenario.annualReturnPct}% average yearly return with ${scenario.annualVolatilityPct}% volatility. Same inputs always give the same range.`,
-      "Low = 1 in 10 paths ended below it; high = 1 in 10 ended above it. Not a forecast or a guarantee — markets can do worse than any simulated path."
+      "Low = 1 in 10 paths ended below it; high = 1 in 10 ended above it. Not a forecast or a guarantee; markets can do worse than any simulated path."
     ]
   };
 }
@@ -2189,6 +2190,15 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
 
   const marketRange = buildMarketRange(profile, metrics, normalizedDraft, prompt, goalsSummary);
   const taxStrategies = buildTaxStrategies(profile, metrics, normalizedDraft, prompt);
+  const playbook = getPlaybook({
+    prompt,
+    type: normalizedDraft.type,
+    persona,
+    age: profile?.user?.age,
+    liabilities: profile.liabilities,
+    liquidAssets: metrics.liquidAssets,
+    bufferTarget: metrics.essentialBurn * (Number(persona.bufferTargetMonths) || 3)
+  });
   if (marketRange) {
     const range = marketRange.scenario;
     baseResult.impactCards.push({
@@ -2203,6 +2213,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     ...(milestones ? { milestones } : {}),
     ...(marketRange ? { marketRange } : {}),
     ...(taxStrategies ? { taxStrategies } : {}),
+    ...(playbook.length ? { playbook } : {}),
     offsetPlan: buildSpendingOffsetPlan(profile, normalizedDraft, baseResult)
   };
 }

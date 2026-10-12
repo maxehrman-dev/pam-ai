@@ -1,6 +1,6 @@
 // Tax-aware account comparison + tax analytics. Runs the same seeded Monte
 // Carlo paths through each account's tax rules so every account sees identical
-// markets — the only difference is tax treatment. Educational estimates of
+// markets, so the only difference is tax treatment. Educational estimates of
 // legal, mainstream strategies only; never tax advice, never evasion.
 
 import { clamp } from "./formatters.js";
@@ -82,7 +82,7 @@ const STRATEGY_LIBRARY = [
   {
     id: "employer-match",
     when: (ctx) => !ctx.selfEmployed,
-    text: "If your employer matches 401(k) contributions, contribute at least enough to get the full match first — it's an instant 50–100% return before any tax math."
+    text: "If your employer matches 401(k) contributions, contribute at least enough to get the full match first. It's an instant 50–100% return before any tax math."
   },
   {
     id: "hsa",
@@ -99,12 +99,12 @@ const STRATEGY_LIBRARY = [
   {
     id: "backdoor-roth",
     when: (ctx) => ctx.rothShare < 1,
-    text: `Your income is in or above the Roth IRA phase-out (~$${TAX_FACTS.rothIraPhaseOutStart.toLocaleString("en-US")}–$${TAX_FACTS.rothIraPhaseOutEnd.toLocaleString("en-US")} single). A "backdoor" Roth (nondeductible Traditional IRA, then convert) is a legal route — watch the pro-rata rule if you hold other pre-tax IRA money.`
+    text: `Your income is in or above the Roth IRA phase-out (~$${TAX_FACTS.rothIraPhaseOutStart.toLocaleString("en-US")}–$${TAX_FACTS.rothIraPhaseOutEnd.toLocaleString("en-US")} single). A "backdoor" Roth (nondeductible Traditional IRA, then convert) is a legal route. Watch the pro-rata rule if you hold other pre-tax IRA money.`
   },
   {
     id: "mega-backdoor",
     when: (ctx) => ctx.grossAnnual >= 120000 && !ctx.selfEmployed,
-    text: "Some 401(k) plans allow after-tax contributions with in-plan Roth conversion (\"mega backdoor Roth\"). Check your plan document — it's plan-dependent."
+    text: "Some 401(k) plans allow after-tax contributions with in-plan Roth conversion (\"mega backdoor Roth\"). Check your plan document; it's plan-dependent."
   },
   {
     id: "solo-401k",
@@ -129,7 +129,7 @@ const STRATEGY_LIBRARY = [
   {
     id: "hold-a-year",
     when: () => true,
-    text: "Hold taxable investments 1+ year before selling — short-term gains are taxed as ordinary income; long-term gains get the lower 0/15/20% rates."
+    text: "Hold taxable investments 1+ year before selling. Short-term gains are taxed as ordinary income; long-term gains get the lower 0/15/20% rates."
   },
   {
     id: "savers-credit",
@@ -139,7 +139,7 @@ const STRATEGY_LIBRARY = [
   {
     id: "roth-conversion-low-year",
     when: (ctx) => ctx.federalMarginal <= 0.12,
-    text: "Low-bracket years (school, between jobs, early career) are the cheapest time to do Roth conversions — you pay 10–12% now on money that grows tax-free forever."
+    text: "Low-bracket years (school, between jobs, early career) are the cheapest time to do Roth conversions: you pay 10–12% now on money that grows tax-free forever."
   },
   {
     id: "early-access",
@@ -217,7 +217,7 @@ export function compareTaxStrategies({ monthlyBudget, months, tax = {}, age = nu
       taxes: { upfront: upfrontTaxOn(budget), duringGrowth: spill.dragTax, atWithdrawal: spill.exitTax },
       eligible: rothShare > 0,
       note: rothShare <= 0
-        ? "Income is above the direct Roth IRA limit — see the backdoor Roth note."
+        ? "Income is above the direct Roth IRA limit. See the backdoor Roth note."
         : `Taxed now, tax-free later. Limit ~$${Math.round(cap).toLocaleString("en-US")}/mo${rothShare < 1 ? " (reduced by the income phase-out)" : ""}; the rest goes to taxable.`
     });
   }
@@ -233,7 +233,7 @@ export function compareTaxStrategies({ monthlyBudget, months, tax = {}, age = nu
       overflowToTaxable: Math.round(budget - intoRoth401k),
       afterTax: addRanges(scale(sheltered, intoRoth401k), spill.range),
       taxes: { upfront: upfrontTaxOn(budget), duringGrowth: spill.dragTax, atWithdrawal: spill.exitTax },
-      note: "Same tax treatment as a Roth IRA with a much higher limit and no income cap — only if your plan offers a Roth option."
+      note: "Same tax treatment as a Roth IRA with a much higher limit and no income cap, if your plan offers a Roth option."
     });
   }
 
@@ -320,7 +320,7 @@ export function compareTaxStrategies({ monthlyBudget, months, tax = {}, age = nu
     assumptions: [
       ...inputs.notes,
       `Every account runs through the same ${sheltered.runs.toLocaleString("en-US")} simulated markets, so the only difference is tax treatment.`,
-      `${TAX_FACTS.year} single-filer limits and brackets. Retirement withdrawals assumed at ~${ctx.retirementRatePct}% (12% federal bracket plus your state). Educational estimate, not tax advice — verify with a tax professional.`
+      `${TAX_FACTS.year} single-filer limits and brackets. Retirement withdrawals assumed at ~${ctx.retirementRatePct}% (12% federal bracket plus your state). Educational estimate, not tax advice. Verify with a tax professional.`
     ]
   };
 }
