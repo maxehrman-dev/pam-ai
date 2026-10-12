@@ -1988,9 +1988,9 @@ function buildMarketRange(profile, metrics, draft, prompt, goalsSummary) {
   const scenarioContribution = Math.max(currentContribution + investingDelta, 0);
   if (startBalance <= 0 && scenarioContribution <= 0) return null;
 
-  const current = simulateMarketRange({ startBalance, monthlyContribution: currentContribution, months });
+  const current = simulateMarketRange({ startBalance, monthlyContribution: currentContribution, months, includeSeries: investingDelta === 0 });
   const scenario = investingDelta !== 0
-    ? simulateMarketRange({ startBalance, monthlyContribution: scenarioContribution, months })
+    ? simulateMarketRange({ startBalance, monthlyContribution: scenarioContribution, months, includeSeries: true })
     : current;
 
   const goalOdds = (goalsSummary?.goals || [])
@@ -2015,6 +2015,7 @@ function buildMarketRange(profile, metrics, draft, prompt, goalsSummary) {
   return {
     months,
     years: Math.round((months / 12) * 10) / 10,
+    startAge: Number(profile?.user?.age) > 0 ? Number(profile.user.age) : null,
     current,
     scenario,
     changed: investingDelta !== 0,

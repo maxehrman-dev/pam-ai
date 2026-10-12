@@ -24,6 +24,21 @@ test("monte carlo range is ordered and collapses to the fixed-rate line with zer
   assert.equal(flat.low, flat.high);
 });
 
+test("yearly series feeds the chart: one point per year, ordered, ending on the final range", () => {
+  const range = simulateMarketRange({ startBalance: 2000, monthlyContribution: 400, months: 252, includeSeries: true });
+  assert.equal(range.series.length, 22);
+  assert.equal(range.series[0].month, 0);
+  assert.equal(range.series.at(-1).month, 252);
+  for (const point of range.series) assert.ok(point.low <= point.typical && point.typical <= point.high);
+  assert.deepEqual(
+    { low: range.series.at(-1).low, typical: range.series.at(-1).typical, high: range.series.at(-1).high },
+    { low: range.low, typical: range.typical, high: range.high }
+  );
+  const withoutSeries = simulateMarketRange({ startBalance: 2000, monthlyContribution: 400, months: 252 });
+  assert.equal(withoutSeries.series, undefined);
+  assert.equal(withoutSeries.typical, range.typical, "asking for the series must not change the numbers");
+});
+
 test("goal odds rise with contributions and stay within 0-100", () => {
   const low = simulateMarketRange({ monthlyContribution: 200, months: 120, goalAmount: 40000 });
   const high = simulateMarketRange({ monthlyContribution: 400, months: 120, goalAmount: 40000 });

@@ -67,7 +67,8 @@ export function simulateMarketRange({
   annualReturn = MARKET_ASSUMPTIONS.annualReturn,
   annualVolatility = MARKET_ASSUMPTIONS.annualVolatility,
   runs = MARKET_ASSUMPTIONS.runs,
-  seedKey = null
+  seedKey = null,
+  includeSeries = false
 } = {}) {
   const start = Math.max(safeNumber(startBalance), 0);
   const contribution = Math.max(safeNumber(monthlyContribution), 0);
@@ -84,17 +85,44 @@ export function simulateMarketRange({
     : hashSeed([start, contribution, horizon, goal, annualReturn, annualVolatility, runCount]);
   const normal = createNormal(mulberry32(seed));
 
+  // Yearly checkpoints (plus the final month) feed the range chart.
+  const checkpoints = [];
+  if (includeSeries) {
+    for (let month = 12; month < horizon; month += 12) checkpoints.push(month);
+    checkpoints.push(horizon);
+  }
+  const checkpointValues = checkpoints.map(() => new Float64Array(runCount));
+
   const finals = new Array(runCount);
   let goalHits = 0;
   for (let run = 0; run < runCount; run += 1) {
     let balance = start;
+    let checkpointIndex = 0;
     for (let month = 0; month < horizon; month += 1) {
       balance = balance * Math.exp(monthlyMu + monthlySigma * normal()) + contribution;
+      if (checkpointIndex < checkpoints.length && month + 1 === checkpoints[checkpointIndex]) {
+        checkpointValues[checkpointIndex][run] = balance;
+        checkpointIndex += 1;
+      }
     }
     finals[run] = balance;
     if (goal !== null && balance >= goal) goalHits += 1;
   }
   finals.sort((left, right) => left - right);
+
+  const series = includeSeries
+    ? [{ month: 0, low: Math.round(start), typical: Math.round(start), high: Math.round(start) }].concat(
+        checkpoints.map((month, index) => {
+          const sorted = Array.from(checkpointValues[index]).sort((left, right) => left - right);
+          return {
+            month,
+            low: Math.round(percentile(sorted, 0.1)),
+            typical: Math.round(percentile(sorted, 0.5)),
+            high: Math.round(percentile(sorted, 0.9))
+          };
+        })
+      )
+    : null;
 
   const monthlyFixedRate = Math.pow(1 + annualReturn, 1 / 12) - 1;
   let fixedRateBalance = start;
@@ -119,6 +147,7 @@ export function simulateMarketRange({
     goalProbabilityPct: goal === null ? null : Math.round((goalHits / runCount) * 100),
     belowContributedPct: Math.round((belowContributed / runCount) * 100),
     annualReturnPct: Math.round(annualReturn * 1000) / 10,
-    annualVolatilityPct: Math.round(annualVolatility * 1000) / 10
+    annualVolatilityPct: Math.round(annualVolatility * 1000) / 10,
+    ...(series ? { series } : {})
   };
 }

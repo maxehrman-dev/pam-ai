@@ -1,4 +1,4 @@
-import { escapeHtml, formatCurrency, formatPercent, formatSignedCurrency } from "./utils/formatters.js";
+import { escapeHtml, formatCompactCurrency, formatCurrency, formatPercent, formatSignedCurrency } from "./utils/formatters.js";
 import {
   estimateGoalDefaults,
   estimateTaxProfile,
@@ -33,6 +33,9 @@ import {
   simulateLocationArbitrage
 } from "./utils/scenarioEngine.js";
 import { getPersonaCoefficients } from "./utils/personaEngine.js";
+import { simulateMarketRange } from "./utils/monteCarlo.js";
+import { compareTaxStrategies } from "./utils/taxStrategies.js";
+import { renderRangeChartSvg } from "./utils/rangeChart.js";
 import {
   CREATE_ACCOUNT_STEPS,
   INDUSTRY_CITY_MAP,
@@ -5431,6 +5434,7 @@ function renderScenarioEngineDetails(result) {
       ` : ""}
       ${marketRange ? `
         <h3>Range of outcomes · ${marketRange.years} years</h3>
+        ${renderRangeChartSvg({ series: marketRange.scenario.series, startAge: marketRange.startAge })}
         <div class="goal-impact-stack">
           <div class="goal-impact-row"><span class="gi-name">Rough markets<small class="split-bucket-detail">1 in 10 paths ended lower</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.low)}</span></div>
           <div class="goal-impact-row"><span class="gi-name">Typical<small class="split-bucket-detail">${marketRange.changed ? `today's plan: ${formatCurrency(marketRange.current.typical)}` : `${formatCurrency(marketRange.scenario.monthlyContribution)}/mo invested`}</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.typical)}</span></div>
@@ -6151,6 +6155,29 @@ function renderHowItWorksSteps() {
 
 function renderWaitlistModal() {
   if (!state.waitlistOpen) return "";
+  if (state.waitlistPartnerMode) {
+    const sent = state.waitlistPartnerSent;
+    return `
+      <div class="modal-backdrop" data-close-waitlist>
+        <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="PAM partnerships">
+          <div class="panel-kicker">Schools and employers</div>
+          <h2>${sent ? "Thanks, we'll be in touch." : "Talk to us about a partnership."}</h2>
+          <p>${sent ? "We read every request and will reach out about early access for your group." : "Tell us about your school, program, or company and roughly how many people you'd want to bring."}</p>
+          ${!sent && state.waitlistMessage ? `<p class="auth-status-message waitlist-modal-status">${escapeHtml(state.waitlistMessage)}</p>` : ""}
+          ${sent ? "" : `
+            <form class="profile-form" data-waitlist-form>
+              <label><span>Work email</span><input type="email" name="waitlistEmail" placeholder="you@school.edu" value="${escapeHtml(state.waitlistDraft?.emailAddress || "")}" required /></label>
+              <label><span>Your name <small>optional</small></span><input type="text" name="waitlistFullName" placeholder="Maya Chen" maxlength="120" value="${escapeHtml(state.waitlistDraft?.fullName || "")}" /></label>
+              <input type="hidden" name="waitlistStage" value="School or employer partner" />
+              <label><span>School, program, or company</span><input type="text" name="waitlistGoal" placeholder="e.g. State U career center, 40-person intern class" maxlength="220" value="${escapeHtml(state.waitlistDraft?.goal || "")}" required /></label>
+              <button class="button button-primary" type="submit" ${state.waitlistBusy ? "disabled" : ""}>${state.waitlistBusy ? "Sending..." : "Send"}</button>
+            </form>
+          `}
+          <button class="button button-secondary" type="button" data-close-waitlist-button>Close</button>
+        </div>
+      </div>
+    `;
+  }
   return `
     <div class="modal-backdrop" data-close-waitlist>
       <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="Join PAM waitlist">
@@ -6186,6 +6213,7 @@ function renderWaitlistFields() {
           <option value="Working full-time" ${draft.stage === "Working full-time" ? "selected" : ""}>Working full-time</option>
           <option value="Freelance / self-employed" ${draft.stage === "Freelance / self-employed" ? "selected" : ""}>Freelance / self-employed</option>
           <option value="Planning to move out" ${draft.stage === "Planning to move out" ? "selected" : ""}>Planning to move out</option>
+          <option value="School or employer partner" ${draft.stage === "School or employer partner" ? "selected" : ""}>School or employer (partnership)</option>
           <option value="Other" ${draft.stage === "Other" ? "selected" : ""}>Other</option>
         </select>
       </label>
@@ -6441,20 +6469,10 @@ const MARKETING_EXAMPLES = {
       { label: "Verdict", value: "Doable" }
     ]
   },
-  debt: {
-    q: "Should I throw $18k at my student loans or invest it?",
-    verdict: "Invest most of it — your loan's only 4.5%.",
-    body: "Paying off a 4.5% loan is a guaranteed 4.5% return. Against your retire-at-60 goal, investing the bulk likely beats that and keeps the cash reachable. Keep paying the minimum, invest the rest.",
-    stats: [
-      { label: "Loan rate", value: "4.5%" },
-      { label: "Better use", value: "Invest" },
-      { label: "Stays liquid", value: "Yes" }
-    ]
-  },
   nyc: {
     q: "Same-salary job offer in a bigger city, but I'd have to move. Worth it?",
-    verdict: "On your numbers — make the move.",
-    body: "Same salary isn't a lateral move in your field. The bigger market nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one buffer dips to $760 — here's how to cover it.",
+    verdict: "On your numbers, make the move.",
+    body: "Same salary isn't a lateral move in your field. The bigger market nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one buffer dips to $760. Here's how to cover it.",
     stats: [
       { label: "Retire age", value: "61 → 55" },
       { label: "After cost of living", value: "+$22k/yr" },
@@ -6462,6 +6480,118 @@ const MARKETING_EXAMPLES = {
     ]
   }
 };
+
+// Homepage examples come from the real engines (fixed example inputs), so the
+// marketing page shows exactly what the product computes. Memoized: render()
+// runs on every state change.
+const MARKETING_RANGE_INPUTS = { startAge: 24, startBalance: 2000, monthlyContribution: 400, months: 252, goalAmount: 250000 };
+let marketingRangeCache = null;
+function getMarketingRangeExample() {
+  if (!marketingRangeCache) {
+    const { startAge, ...inputs } = MARKETING_RANGE_INPUTS;
+    marketingRangeCache = { startAge, ...simulateMarketRange({ ...inputs, includeSeries: true }) };
+  }
+  return marketingRangeCache;
+}
+
+let marketingTaxCache = null;
+function getMarketingTaxExample() {
+  if (!marketingTaxCache) {
+    marketingTaxCache = compareTaxStrategies({
+      monthlyBudget: 400,
+      months: 252,
+      age: 24,
+      tax: { federalMarginal: 0.22, stateRate: 0.05, taxableIncome: 62000, grossAnnual: 77000, employmentStatus: "w2" }
+    });
+  }
+  return marketingTaxCache;
+}
+
+function renderMarketingRangeCard() {
+  const range = getMarketingRangeExample();
+  const endAge = range.startAge + Math.round(range.months / 12);
+  return `
+    <div class="marketing-sample-card marketing-range-card" aria-label="Example PAM range of outcomes">
+      <div class="marketing-sample-head">
+        <span class="marketing-sample-dots"><i></i><i></i><i></i></span>
+        <strong>Ask PAM</strong>
+        <span class="data-source-badge">EXAMPLE</span>
+      </div>
+      <div class="marketing-sample-q">"If I invest ${formatCurrency(range.monthlyContribution)} a month starting at ${range.startAge}, where could I be at ${endAge}?"</div>
+      <div class="marketing-sample-verdict">Typically ${escapeHtml(formatCompactCurrency(range.typical))}. Rough markets: ${escapeHtml(formatCompactCurrency(range.low))}.</div>
+      ${renderRangeChartSvg({ series: range.series, startAge: range.startAge, goalAmount: range.goalAmount })}
+      <div class="marketing-sample-stats">
+        <div><span>You put in</span><strong>${escapeHtml(formatCompactCurrency(range.totalContributed))}</strong></div>
+        <div><span>Typical at ${endAge}</span><strong>${escapeHtml(formatCompactCurrency(range.typical))}</strong></div>
+        <div><span>Odds of ${escapeHtml(formatCompactCurrency(range.goalAmount))}</span><strong>${range.goalProbabilityPct}%</strong></div>
+      </div>
+    </div>
+  `;
+}
+
+let marketingOddsCache = null;
+function renderMarketingOddsCard() {
+  const { startAge, startBalance, months, goalAmount } = MARKETING_RANGE_INPUTS;
+  if (!marketingOddsCache) {
+    marketingOddsCache = [200, 400, 600].map((monthly) => ({
+      monthly,
+      ...simulateMarketRange({ startBalance, monthlyContribution: monthly, months, goalAmount })
+    }));
+  }
+  const endAge = startAge + Math.round(months / 12);
+  const rowHeight = 46;
+  const width = 360;
+  return `
+    <div class="marketing-sample-card marketing-tax-card" aria-label="Example PAM goal odds">
+      <div class="marketing-sample-head">
+        <strong>Odds of ${escapeHtml(formatCompactCurrency(goalAmount))} by ${endAge}</strong>
+        <span class="data-source-badge">EXAMPLE</span>
+      </div>
+      <svg class="tax-bars" viewBox="0 0 ${width} ${rowHeight * marketingOddsCache.length}" role="img" aria-label="${escapeHtml(marketingOddsCache.map((row) => `${formatCurrency(row.monthly)} a month: ${row.goalProbabilityPct}% chance`).join(", "))}">
+        ${marketingOddsCache.map((row, index) => {
+          const top = index * rowHeight;
+          return `
+            <text class="tax-bars-label" x="0" y="${top + 13}">${escapeHtml(formatCurrency(row.monthly))}/mo · typical ${escapeHtml(formatCompactCurrency(row.typical))}</text>
+            <text class="tax-bars-value" x="${width}" y="${top + 13}" text-anchor="end">${row.goalProbabilityPct}%</text>
+            <rect class="tax-bars-track" x="0" y="${top + 20}" width="${width}" height="12" rx="6" />
+            <rect class="tax-bars-fill ${index === marketingOddsCache.length - 1 ? "is-best" : ""}" x="0" y="${top + 20}" width="${Math.max((row.goalProbabilityPct / 100) * width, 8).toFixed(1)}" height="12" rx="6" />
+          `;
+        }).join("")}
+      </svg>
+      <p class="marketing-tax-note">Starting at ${startAge} with ${escapeHtml(formatCurrency(startBalance))} saved. Share of 1,000 simulated markets that reach the goal.</p>
+    </div>
+  `;
+}
+
+function renderMarketingTaxCard() {
+  const example = getMarketingTaxExample();
+  const shown = example.strategies.filter((strategy) => ["taxable", "roth-ira", "traditional-401k"].includes(strategy.id));
+  const max = Math.max(...shown.map((strategy) => strategy.afterTax.typical));
+  const rowHeight = 46;
+  const width = 360;
+  const labelWidth = 0;
+  return `
+    <div class="marketing-sample-card marketing-tax-card" aria-label="Example PAM tax comparison">
+      <div class="marketing-sample-head">
+        <strong>Same ${formatCurrency(example.monthlyBudget)}/mo, after tax</strong>
+        <span class="data-source-badge">EXAMPLE</span>
+      </div>
+      <svg class="tax-bars" viewBox="0 0 ${width} ${rowHeight * shown.length}" role="img" aria-label="${escapeHtml(shown.map((strategy) => `${strategy.label}: ${formatCompactCurrency(strategy.afterTax.typical)} after tax`).join(", "))}">
+        ${shown.map((strategy, index) => {
+          const barWidth = Math.max(((strategy.afterTax.typical / max) * (width - labelWidth)), 8);
+          const top = index * rowHeight;
+          return `
+            <text class="tax-bars-label" x="0" y="${top + 13}">${escapeHtml(strategy.label)}</text>
+            <text class="tax-bars-value" x="${width}" y="${top + 13}" text-anchor="end">${escapeHtml(formatCompactCurrency(strategy.afterTax.typical))}</text>
+            <rect class="tax-bars-track" x="0" y="${top + 20}" width="${width}" height="12" rx="6" />
+            <rect class="tax-bars-fill ${strategy.id === example.bestId ? "is-best" : ""}" x="0" y="${top + 20}" width="${barWidth.toFixed(1)}" height="12" rx="6" />
+          `;
+        }).join("")}
+      </svg>
+      <p class="marketing-tax-note">Typical after-tax value at 45, starting at 24. 22% federal bracket, 5% state. Educational estimate, not tax advice.</p>
+    </div>
+  `;
+}
 
 function renderMarketingSampleCard(ex) {
   return `
@@ -6496,7 +6626,7 @@ function renderTrustSection(variant = "marketing") {
     <section class="trust-section ${isConnect ? "trust-connect" : "trust-marketing"} reveal-on-scroll reveal-up" aria-labelledby="trust-heading">
       <div class="trust-head">
         <h2 id="trust-heading">Connecting your accounts, minus the creepy part</h2>
-        <p class="trust-sub">PAM links through Plaid — the same connection your banking app uses. We read your numbers so we can give you a straight answer instead of a hedge. We can't move a dollar, can't see your password, and we'll never sell or train on your data.</p>
+        <p class="trust-sub">PAM links through Plaid, the same connection your banking app uses. We read your numbers so we can give you a straight answer instead of a hedge. We can't move a dollar, can't see your password, and we'll never sell or train on your data.</p>
       </div>
       ${isConnect ? "" : `
         <div class="trust-compare">
@@ -6533,13 +6663,44 @@ function renderPublicLaunchGate(mode = "public") {
   // create-account page that "Start free" opens.
   const signinAttr = isApp ? `data-signin` : `data-reveal-beta`;
   const heroNote = isApp
-    ? "Set up your profile free — you only pay when you start modeling. $7.99/mo founding price ($9.99 after), cancel anytime."
+    ? "Set up your profile free. You only pay when you start modeling: $7.99/mo founding price ($9.99 after), cancel anytime."
     : "Founding members lock in $7.99/mo for life ($9.99 after launch). Free to join the list.";
-  const features = [
-    { title: "Test decisions before you make them", body: "See the real impact on your monthly buffer, taxes, savings, and goals — before you commit, not after." },
-    { title: "It knows your whole game", body: "Your retirement target, your career path, what you'd move for, your safety net. Advice judged against your life, not just this month's balance." },
-    { title: "Bold, grounded calls", body: "Do it, don't, or not yet — anchored to your actual numbers. No mushy \"it depends\" non-answers." },
-    { title: "Remembers your arc", body: "Every answer builds on your last. PAM doesn't forget you the moment you close the tab." }
+  const steps = [
+    { title: "Tell PAM what you want", body: "Move out, pay off loans, retire early, travel. Your goals set the bar every answer is judged against." },
+    { title: "Add your numbers", body: "Connect accounts through Plaid or type a few numbers in. Linking is optional, and PAM can never move money." },
+    { title: "Ask anything", body: "Get a clear call with the math behind it: what changes, what it risks, and a safer version if the answer is not yet." }
+  ];
+  const featureRows = [
+    {
+      kicker: "Decisions",
+      title: "Test any decision before you make it.",
+      body: "Rent, a car, a trip, a job offer in a new city. PAM runs it against your real buffer and goals and tells you plainly whether it works.",
+      bullets: ["Monthly buffer, savings runway, and goal impact", "A one-word call: worth it, not yet, or don't", "A safer version when the answer is no"],
+      visual: () => renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)
+    },
+    {
+      kicker: "Range of outcomes",
+      title: "See the range, not a single guess.",
+      body: "Markets don't move in a straight line, so PAM runs 1,000 of them. You see a rough, typical, and strong outcome, plus your odds of hitting a goal on time.",
+      bullets: ["1,000 simulated markets on every investing question", "The chance each goal lands by its deadline", "Same question, same answer: results are reproducible"],
+      visual: () => renderMarketingOddsCard()
+    },
+    {
+      kicker: "Tax analytics",
+      title: "Keep more of it after tax.",
+      body: "The same dollars land very differently in a Roth, a 401(k), an HSA, or a regular brokerage account. PAM runs them through identical markets, so the only difference is tax.",
+      bullets: ["Taxes paid now, during growth, and when you withdraw", "Roth vs Traditional based on your bracket", "Only the strategies that fit your income and goals"],
+      visual: () => renderMarketingTaxCard()
+    }
+  ];
+  const capabilities = [
+    "Paycheck split", "Debt payoff plan", "Affordability ceilings", "Move-out budget", "Job offer and relocation", "Rent vs buy",
+    "Roth vs Traditional", "HSA", "Early retirement bridge", "Goal timelines", "Monte Carlo odds", "Tax analytics"
+  ];
+  const whyPoints = [
+    { title: "Nothing to sell you", body: "No commissions, no products, no kickbacks. That's why PAM can say don't and not yet." },
+    { title: "Judged against your life", body: "Your goals, your safety net, your career plans. Not a one-size-fits-all rule." },
+    { title: "Shows its math", body: "Every number comes from a calculation you can see. The AI explains the math; it doesn't invent the numbers." }
   ];
   return `
     <div class="foresee-shell marketing-shell">
@@ -6557,83 +6718,55 @@ function renderPublicLaunchGate(mode = "public") {
 
       <section class="marketing-hero">
         <div class="marketing-hero-copy reveal-on-scroll reveal-up">
-          <div class="marketing-eyebrow">Your personal financial advisor</div>
+          <div class="marketing-eyebrow">Decision simulator for your money</div>
           <h1>Know what happens <em>before</em> you decide.</h1>
-          <p class="marketing-sub">It's like having a sharp financial advisor who's actually seen your bank account and your goals — before you can afford a real one. Ask PAM any money move and get a straight, numbers-backed call. Not generic advice. Yours.</p>
+          <p class="marketing-sub">Ask PAM about any money move, from a new lease to a job offer to investing, and see what it does to your monthly buffer, your goals, and your next 20 years. Built on your real numbers, so you get a straight call instead of generic advice.</p>
           <div class="marketing-hero-actions">
             <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
-            <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See it in action</button>
+            <button class="button button-secondary" type="button" data-scroll-target="#marketing-example">See how it works</button>
           </div>
           <p class="marketing-hero-note">${escapeHtml(heroNote)}</p>
         </div>
         <div class="marketing-hero-visual reveal-on-scroll reveal-fade">
-          <div class="marketing-parallax" data-parallax="0.06">
-            ${renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)}
-          </div>
+          ${renderMarketingRangeCard()}
         </div>
       </section>
 
-      <section class="marketing-section marketing-features">
-        <div class="marketing-section-head reveal-on-scroll">
-          <div class="panel-kicker">What PAM does</div>
-          <h2>A sharp friend who's seen your bank account <em>and</em> your ambitions.</h2>
+      <section class="marketing-section marketing-steps-section" id="marketing-example">
+        <div class="marketing-section-head reveal-on-scroll reveal-up">
+          <div class="panel-kicker">How it works</div>
+          <h2>Two minutes to your first answer.</h2>
         </div>
-        <div class="marketing-feature-grid">
-          ${features.map((f, i) => `
-            <article class="marketing-feature-card reveal-on-scroll ${i % 2 === 0 ? "reveal-left" : "reveal-right"}">
-              <span class="marketing-card-accent" aria-hidden="true"></span>
-              <h3>${escapeHtml(f.title)}</h3>
-              <p>${escapeHtml(f.body)}</p>
-            </article>
+        <ol class="marketing-steps">
+          ${steps.map((step, index) => `
+            <li class="marketing-step reveal-on-scroll reveal-up">
+              <span class="marketing-step-number" aria-hidden="true">${index + 1}</span>
+              <h3>${escapeHtml(step.title)}</h3>
+              <p>${escapeHtml(step.body)}</p>
+            </li>
           `).join("")}
-        </div>
+        </ol>
       </section>
 
-      <section class="marketing-section marketing-example" id="marketing-example">
-        <div class="marketing-section-head reveal-on-scroll reveal-up">
-          <div class="panel-kicker">Grounded, not generic</div>
-          <h2>Ask a real question. Get a real call.</h2>
-          <p class="marketing-section-sub">From "can I afford this?" to the life-shaping forks — a generic chatbot hedges because it doesn't know you. PAM knows your money and your goals, so it has an opinion.</p>
-        </div>
-        <div class="marketing-example-grid">
-          <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
-          <div class="reveal-on-scroll reveal-scale">${renderMarketingSampleCard(MARKETING_EXAMPLES.debt)}</div>
-        </div>
-      </section>
-
-      <section class="marketing-section marketing-advisor">
-        <div class="marketing-section-head reveal-on-scroll reveal-up">
-          <div class="panel-kicker">Why it's different</div>
-          <h2>The advisor you can't afford yet — <em>until now</em>.</h2>
-          <p class="marketing-section-sub">A real financial advisor charges ~1% of everything you own and won't take your call until you're already rich. PAM gives you that same judgment — built on your actual numbers — from day one.</p>
-        </div>
-        <div class="marketing-advisor-grid">
-          <div class="marketing-advisor-point reveal-on-scroll reveal-left">
-            <span class="marketing-card-accent" aria-hidden="true"></span>
-            <h3>Sees your whole picture</h3>
-            <p>Income, spending, debt, what's locked in retirement, your goals — a real advisor's view, not a budgeting app's.</p>
+      <section class="marketing-section marketing-rows">
+        ${featureRows.map((row, index) => `
+          <div class="marketing-row ${index % 2 ? "is-reversed" : ""}">
+            <div class="marketing-row-copy reveal-on-scroll reveal-up">
+              <div class="panel-kicker">${escapeHtml(row.kicker)}</div>
+              <h2>${escapeHtml(row.title)}</h2>
+              <p>${escapeHtml(row.body)}</p>
+              <ul class="marketing-checklist">
+                ${row.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
+              </ul>
+            </div>
+            <div class="marketing-row-visual reveal-on-scroll reveal-fade">${row.visual()}</div>
           </div>
-          <div class="marketing-advisor-point reveal-on-scroll reveal-right">
-            <span class="marketing-card-accent" aria-hidden="true"></span>
-            <h3>There the moment you're deciding</h3>
-            <p>2am, mid-offer, standing in the dealership — ask and get a real call instantly. No appointment, no minimum.</p>
-          </div>
-          <div class="marketing-advisor-point reveal-on-scroll reveal-left">
-            <span class="marketing-card-accent" aria-hidden="true"></span>
-            <h3>Brutally honest, never on commission</h3>
-            <p>No products to sell you, no kickbacks. Just the straight call — including "don't" and "not yet."</p>
-          </div>
-          <div class="marketing-advisor-point reveal-on-scroll reveal-right">
-            <span class="marketing-card-accent" aria-hidden="true"></span>
-            <h3>Remembers every conversation</h3>
-            <p>It builds on your last decision the way a human advisor who's known you for years would.</p>
-          </div>
-        </div>
+        `).join("")}
       </section>
 
       <section class="marketing-section marketing-asks reveal-on-scroll reveal-up">
         <div class="marketing-section-head">
-          <div class="panel-kicker">People ask PAM…</div>
+          <div class="panel-kicker">What you can ask</div>
           <h2>Big calls and everyday ones.</h2>
         </div>
         <div class="marketing-ask-chips">
@@ -6648,14 +6781,51 @@ function renderPublicLaunchGate(mode = "public") {
             "Can I take this trip without wrecking my goal?"
           ].map((q) => `<button type="button" class="marketing-ask-chip" ${primaryAttr}>"${escapeHtml(q)}"</button>`).join("")}
         </div>
+        <p class="marketing-capabilities-label">Built in</p>
+        <ul class="marketing-capabilities">
+          ${capabilities.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </section>
+
+      <section class="marketing-section marketing-why">
+        <div class="marketing-section-head reveal-on-scroll reveal-up">
+          <div class="panel-kicker">Why PAM</div>
+          <h2>Straight answers, <em>on your side.</em></h2>
+        </div>
+        <div class="marketing-why-grid">
+          ${whyPoints.map((point) => `
+            <div class="marketing-why-point reveal-on-scroll reveal-up">
+              <span class="marketing-card-accent" aria-hidden="true"></span>
+              <h3>${escapeHtml(point.title)}</h3>
+              <p>${escapeHtml(point.body)}</p>
+            </div>
+          `).join("")}
+        </div>
       </section>
 
       ${renderTrustSection("marketing")}
 
-      <section class="marketing-section marketing-testimonials reveal-on-scroll">
-        <div class="panel-kicker">Coming soon</div>
-        <h2>Built for people making their first big money calls.</h2>
-        <p class="marketing-soon">Real stories land here as the beta opens. Want to be one of them?</p>
+      <section class="marketing-section marketing-partners reveal-on-scroll reveal-up" aria-labelledby="partners-heading">
+        <div class="marketing-partners-card">
+          <div>
+            <div class="panel-kicker">For schools and employers</div>
+            <h2 id="partners-heading">Give your students or new hires a head start.</h2>
+            <p>The money decisions that shape the next decade happen early: the first lease, the first 401(k), the first real paycheck. Career centers, financial literacy programs, and intern and new-grad cohorts can offer PAM as a benefit. We're opening a small number of early partnerships.</p>
+          </div>
+          <div>
+            <ul class="marketing-checklist">
+              <li>Group access for a class, cohort, or intern program</li>
+              <li>Covers first-job calls: paycheck split, first lease, student loans, 401(k) match</li>
+              <li>Each member's money stays private to them</li>
+            </ul>
+            <button class="button button-secondary marketing-btn-lg" type="button" data-open-waitlist data-waitlist-stage="School or employer partner">Talk to us about a partnership</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="marketing-section marketing-final-cta reveal-on-scroll reveal-up">
+        <h2>Know what happens <em>before</em> you decide.</h2>
+        <p>${isApp ? "Free to set up. Linking accounts is optional." : "Free to join. Founding members lock in $7.99/mo for life."}</p>
         <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
       </section>
 
@@ -6950,26 +7120,6 @@ function wireInteractions() {
       });
     }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
     revealEls.forEach((el) => io.observe(el));
-
-    // Lightweight parallax: drift [data-parallax] elements as you scroll. rAF
-    // throttled, transform-only. Skipped entirely under reduced-motion.
-    const parallaxEls = document.querySelectorAll("[data-parallax]");
-    if (parallaxEls.length) {
-      let ticking = false;
-      const apply = () => {
-        const vh = window.innerHeight || 1;
-        parallaxEls.forEach((el) => {
-          const factor = parseFloat(el.getAttribute("data-parallax")) || 0.06;
-          const rect = el.getBoundingClientRect();
-          const fromCenter = (rect.top + rect.height / 2) - vh / 2;
-          el.style.setProperty("--parallax", `${(-fromCenter * factor).toFixed(1)}px`);
-        });
-        ticking = false;
-      };
-      const onScroll = () => { if (!ticking) { ticking = true; window.requestAnimationFrame(apply); } };
-      window.addEventListener("scroll", onScroll, { passive: true });
-      apply();
-    }
   })();
   document.querySelectorAll("[data-go-back]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -7005,7 +7155,7 @@ function wireInteractions() {
       return;
     }
     state.waitlistBusy = true;
-    state.waitlistMessage = "Joining waitlist...";
+    state.waitlistMessage = state.waitlistPartnerMode ? "" : "Joining waitlist...";
     render();
 
     const { payload, error } = await requestJson("/api/waitlist", {
@@ -7023,9 +7173,18 @@ function wireInteractions() {
     });
 
     if (error || !payload?.ok) {
-      state.waitlistJoined = false;
+      if (!state.waitlistPartnerMode) state.waitlistJoined = false;
       state.waitlistBusy = false;
-      state.waitlistMessage = payload?.error || error || "Could not join the waitlist.";
+      state.waitlistMessage = payload?.error || error || (state.waitlistPartnerMode ? "Could not send that. Try again in a moment." : "Could not join the waitlist.");
+      render();
+      return;
+    }
+
+    if (state.waitlistPartnerMode) {
+      state.waitlistBusy = false;
+      state.waitlistPartnerSent = true;
+      state.waitlistMessage = "";
+      trackEvent("partner_interest_submitted", { stored: payload.stored || "" });
       render();
       return;
     }
@@ -7225,10 +7384,13 @@ function wireInteractions() {
     });
   });
   document.querySelectorAll("[data-open-waitlist]").forEach((button) => button.addEventListener("click", () => {
+    const presetStage = button.dataset.waitlistStage || "";
     state.waitlistOpen = true;
-    state.waitlistMessage = state.waitlistJoined ? WAITLIST_FOUNDING_NOTE : "";
+    state.waitlistPartnerMode = Boolean(presetStage);
+    state.waitlistPartnerSent = false;
+    state.waitlistMessage = state.waitlistJoined && !presetStage ? WAITLIST_FOUNDING_NOTE : "";
     state.waitlistBusy = false;
-    trackEvent("waitlist_opened");
+    trackEvent("waitlist_opened", presetStage ? { stage: presetStage } : undefined);
     render();
   }));
   document.querySelectorAll("[data-close-waitlist-button]").forEach((button) => button.addEventListener("click", () => {
