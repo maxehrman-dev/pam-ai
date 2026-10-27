@@ -38,7 +38,7 @@ Any model (or you) must do these after changing code, in order:
 
 ```bash
 node --check src/main.js        # syntax
-npm test                        # must show 29 passing (update this number if tests are added)
+npm test                        # must show 106 passing (update this number if tests are added)
 # bump the cache-buster IN BOTH FILES (same string!):
 #   index.html  +  src/bootstrap.js  →  ?v=pam-ai-YYYYMMDD-<slug>
 git add -A && git commit -m "what changed" && git push origin main
@@ -86,16 +86,16 @@ After changing env vars: **redeploy** (`npx vercel --prod --yes`) to apply.
 
 ## 6. The blueprints vault
 
-`./blueprints/` holds build-ready specs a cheap model can execute alone.
+Put build-ready specs a cheap model can execute alone in `./blueprints/`.
 To run one: switch to Sonnet/Haiku and paste:
 > "Read blueprints/<file>.md in this repo and implement it exactly. Do not
 > redesign anything. When done, run the checks in DEFINITION OF DONE and
 > report each checkbox. Then follow the ship ritual in OPERATIONS.md."
 
 Scan the builder's report for `ASSUMPTION:` tags before trusting it.
-Blueprint 1 (paywall) is already built. To mint new blueprints for future
-features, use an Opus/high-end session and copy the format of
-`blueprints/01-stripe-paywall-enforcement.md`.
+Blueprint 1 (paywall) is already built and its blueprint retired; it's in
+git history if you want a format to copy. Mint new blueprints with an
+Opus/high-end session.
 
 ## 7. Emergencies & common fixes
 
@@ -124,7 +124,6 @@ git revert HEAD --no-edit && git push && npx vercel --prod --yes
 | Auth/session/decision memory API | `api/account/session.js` |
 | DB schema | `supabase/schema.sql` |
 | Contributor guide (for your friend) | `COLLABORATION.md` |
-| Full audit + launch readiness | `AUDIT.md` |
 | Marketing email template (Clerk) | `email-templates/clerk-verification-code.html` |
 | Dashboards | Vercel (deploys/env) · Supabase (data) · Clerk (auth) · Stripe (money) · PostHog (funnel) · Sentry (errors) · Plaid (bank) · Anthropic (AI usage) · Resend (email) |
 

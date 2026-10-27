@@ -204,7 +204,7 @@ async function boot() {
     window.__pamFoundingClaimed = Number(config.foundingClaimed || 0);
     await initClerk(config.clerkPublishableKey);
 
-    const module = await import("./main.js?v=pam-ai-20261012-controls");
+    const module = await import("./main.js?v=pam-ai-20261027-calmer");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }

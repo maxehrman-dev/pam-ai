@@ -632,7 +632,7 @@ function routeSignedInUser(statusMessage = "Signed in.") {
       saveWorkspaceView("dashboard");
       saveMobileView("home");
     }
-    setStatus(`${statusMessage} Dashboard restored.`, "decision");
+    setStatus("", "decision");
     return;
   }
   saveWorkspaceView("account");
@@ -1134,7 +1134,8 @@ function getProfileCompleteness() {
     { label: "Spending", complete: getMonthlyExpenses(state.baseline) > 0 },
     { label: "Savings", complete: getCurrentSavings(state.baseline) > 0 },
     { label: "Goal", complete: Boolean(hasUserGoal) },
-    { label: "Credit", complete: hasValue(state.baseline?.profile?.creditScore || ui.creditScore) }
+    { label: "Credit", complete: hasValue(state.baseline?.profile?.creditScore || ui.creditScore) },
+    { label: "Profile questions", complete: Boolean(state.userValues?.completed) && !getMissingValuesSteps().length }
   ];
   const completed = checks.filter((check) => check.complete).length;
   const score = Math.round((completed / checks.length) * 100);
@@ -2220,6 +2221,8 @@ async function requestDecisionGuidance(question, result) {
   }
 }
 
+const AI_UNAVAILABLE_STATUS = "PAM's written explanation isn't available right now. The numbers below come from PAM's own math.";
+
 async function runDecisionAnalysis(question, statusMessage = "Decision analyzed locally using your current baseline.", options = {}) {
   // Paywall: free users get FREE_DECISION_LIMIT sample decisions, then the
   // unlock pitch. No-op while enforcement is off or the user is paying.
@@ -2227,6 +2230,10 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
     saveWorkspaceView("unlock");
     setStatus("You've used your 3 free decisions. Unlock PAM to keep going.", "decision");
     render();
+    return;
+  }
+  if (!String(question || "").trim() && !options.session) {
+    state.result = null;
     return;
   }
   saveQuestion(question);
@@ -2247,7 +2254,7 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
     hasQuestion: Boolean(question),
     risk: state.result?.risk?.label || ""
   });
-  setStatus(`${statusMessage} PAM advisor is refining the explanation...`, "decision");
+  setStatus("", "decision");
   render();
   requestAnimationFrame(() => {
     document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2257,15 +2264,15 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
     const guidance = await requestDecisionGuidance(question, state.result);
     if (guidance?.guidance) {
       state.aiGuidance = guidance;
-      setStatus("Decision analyzed with your baseline and server-side AI guidance.", "decision");
+      setStatus("", "decision");
       showSuccessToast("Answer ready.");
       trackEvent("ai_guidance_received", { integrityFlagged: Boolean(guidance.integrityFlagged) });
     } else {
-      setStatus(statusMessage, "decision");
+      setStatus(AI_UNAVAILABLE_STATUS, "decision");
       trackEvent("ai_guidance_unavailable");
     }
   } catch (_error) {
-    setStatus(statusMessage, "decision");
+    setStatus(AI_UNAVAILABLE_STATUS, "decision");
   }
 
   state.decisionBusy = false;
@@ -3823,6 +3830,8 @@ function getActiveValuesSteps() {
 }
 
 // Dashboard entry to the deep-dive session (once, after values onboarding).
+// Shown only after the profile questions are done, so the dashboard never
+// asks for two things at once.
 function renderDeepDiveCard() {
   if (!state.userValues?.completed || state.userValues?.deepdive_done) return "";
   return `
@@ -3847,9 +3856,8 @@ function renderFinishProfileCard() {
   `;
 }
 
-// One insight up front, the rest folded. Five stacked cards was the main
-// source of dashboard clutter — show the single most urgent one and tuck
-// the others behind a disclosure.
+// One insight, the most urgent. Stacked insight cards were the main source
+// of dashboard clutter.
 function renderInsightCards() {
   const cards = [
     renderGoalConflictCard(),
@@ -3859,15 +3867,7 @@ function renderInsightCards() {
     renderAccountabilityCard()
   ].filter(Boolean);
   if (!cards.length) return "";
-  const [primary, ...rest] = cards;
-  if (!rest.length) return primary;
-  return `
-    ${primary}
-    <details class="more-insights-fold">
-      <summary>More insights for you (${rest.length})</summary>
-      ${rest.join("")}
-    </details>
-  `;
+  return cards[0];
 }
 
 // Example chips should fit the person. Derive up to 3 ask suggestions from
@@ -4210,7 +4210,6 @@ function renderDashboardWorkspace() {
       ${renderMobileAppChrome()}
       ${renderSampleDataBar()}
       ${renderDailyDashboardHome()}
-      ${renderFeedbackPanel()}
       ${renderMobileBottomNav()}
     </div>
   `;
@@ -4246,6 +4245,10 @@ function renderMobileActiveScreen() {
 // Persistent, unmistakable label whenever the numbers on screen are not the
 // user's real connected bank data. Sample/mock and Plaid Sandbox must never
 // pass for real money.
+function isSampleData() {
+  return String(state.baseline?.source || "") === "plaid_mock";
+}
+
 function renderDataSourceBadge() {
   const source = String(state.baseline?.source || "");
   if (source === "plaid_mock") return `<span class="data-source-badge" title="These numbers are demonstration data, not your real accounts.">SAMPLE DATA</span>`;
@@ -4316,33 +4319,13 @@ function renderOnboardingWalkthrough() {
   `;
 }
 
-function renderFeedbackPanel() {
+function renderFeedbackForm() {
   return `
-    <section class="foresee-panel feedback-panel mobile-screen mobile-screen-profile" id="feedback">
-      <div>
-        <div class="panel-kicker">Feedback</div>
-        <h2>Send a note.</h2>
-        <p>Quick product feedback goes straight to the team.</p>
-      </div>
-      <form class="feedback-form" data-feedback-form>
-        <label>
-          <span>Your feedback</span>
-          <textarea name="feedbackMessage" rows="3" placeholder="What should feel clearer, faster, or more useful?"></textarea>
-        </label>
-        <div class="feedback-inline-actions">
-          <select name="feedbackRating" aria-label="Feedback rating">
-            <option value="">Rating</option>
-            <option value="5">5 - Great</option>
-            <option value="4">4 - Good</option>
-            <option value="3">3 - Okay</option>
-            <option value="2">2 - Needs work</option>
-            <option value="1">1 - Broken</option>
-          </select>
-          <button class="button button-primary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send"}</button>
-        </div>
-        ${state.feedbackMessage ? `<p class="auth-status-message">${escapeHtml(state.feedbackMessage)}</p>` : ""}
-      </form>
-    </section>
+    <form class="feedback-form compact-feedback-form" data-feedback-form>
+      <textarea name="feedbackMessage" rows="3" maxlength="600" aria-label="Your feedback" placeholder="What felt confusing or useful?"></textarea>
+      <button class="button button-secondary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send feedback"}</button>
+    </form>
+    ${state.feedbackMessage ? `<p class="auth-status-message">${escapeHtml(state.feedbackMessage)}</p>` : ""}
   `;
 }
 
@@ -4452,7 +4435,7 @@ function renderMobileHomeScreen() {
       ` : ""}
 
       ${state.userValues?.completed
-        ? `${renderFinishProfileCard()}${renderDeepDiveCard()}${renderInsightCards()}`
+        ? `${renderFinishProfileCard() || renderDeepDiveCard()}${renderInsightCards()}`
         : `<div class="insight-card values-cta-card mobile-values-cta"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can give you specific, goal-based guidance.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
 
       <details class="mobile-home-more">
@@ -4526,11 +4509,10 @@ function renderMobileProfileScreen() {
         </article>
         <article>
           <span>Financial data</span>
-          <strong>${connectedAccounts.length ? `${connectedAccounts.length} accounts connected` : "No accounts connected"}</strong>
-          <small>Last sync: ${escapeHtml(updatedLabel)}</small>
+          <strong>${isSampleData() ? "Using sample numbers" : connectedAccounts.length ? `${connectedAccounts.length} accounts connected` : "No accounts connected"}</strong>
+          <small>${isSampleData() ? "Connect your accounts to see your real picture." : `Last sync: ${escapeHtml(updatedLabel)}`}</small>
           <div class="settings-action-row">
-            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Syncing..." : connectedAccounts.length ? "Sync accounts" : "Connect accounts"}</button>
-            ${connectedAccounts.length ? "" : `<button class="button button-secondary" type="button" data-load-sandbox ${state.plaidBusy ? "disabled" : ""}>Use sample baseline</button>`}
+            <button class="button button-primary" type="button" data-connect-sandbox ${state.plaidBusy ? "disabled" : ""}>${state.plaidBusy ? "Syncing..." : connectedAccounts.length && !isSampleData() ? "Sync accounts" : "Connect accounts"}</button>
           </div>
         </article>
         <article>
@@ -4554,11 +4536,7 @@ function renderMobileProfileScreen() {
         </details>
         <details class="profile-fold" ${state.feedbackMessage ? "open" : ""}>
           <summary><span>Feedback</span><strong>Help shape PAM</strong></summary>
-          <form class="feedback-form compact-feedback-form" data-feedback-form>
-            <textarea name="feedbackMessage" rows="3" maxlength="600" placeholder="What felt confusing or useful?"></textarea>
-            <button class="button button-secondary" type="submit" ${state.feedbackBusy ? "disabled" : ""}>${state.feedbackBusy ? "Sending..." : "Send feedback"}</button>
-          </form>
-          ${state.feedbackMessage ? `<p class="auth-status-message">${escapeHtml(state.feedbackMessage)}</p>` : ""}
+          ${renderFeedbackForm()}
         </details>
         <details class="profile-fold">
           <summary><span>Saved scenarios</span><strong>${state.savedScenarios.length} saved · export</strong></summary>
@@ -4595,7 +4573,7 @@ function renderDailyDashboardHome() {
     .reduce((sum, account) => sum + Number(account.available ?? account.current ?? 0), 0);
   const netWorth = connectedAccounts.length ? connectedBalanceTotal - totalLiabilityBalance : 0;
   const goalLabel = getGoalLabel(state.baseline) || "Move-out fund";
-  const goalTarget = Math.max(toNumber(state.baseline.goals.goalTargetAmount), currentSavings + 1);
+  const goalTarget = toNumber(state.baseline.goals.goalTargetAmount, 0);
   const dashboardGoals = getGoalsFromBaseline(state.baseline).slice(0, 3);
   const spendingPlan = Math.max(monthlyExpenses + Math.max(Math.round(Math.abs(monthlyBuffer) * 0.1), 1), 1);
   const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
@@ -4656,7 +4634,7 @@ function renderDailyDashboardHome() {
           </div>
           <div class="daily-update">
             <span class="daily-icon blue">⌂</span>
-            <div><strong>${escapeHtml(goalLabel)} ${currentSavings >= goalTarget ? "funded" : "in progress"}</strong><p>${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}</p></div>
+            <div><strong>${escapeHtml(goalLabel)}${goalTarget > 0 ? (currentSavings >= goalTarget ? " funded" : " in progress") : ""}</strong><p>${goalTarget > 0 ? `${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}` : "Set a target in Goals."}</p></div>
           </div>
           <div class="daily-update">
             <span class="daily-icon amber">▤</span>
@@ -4706,13 +4684,13 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
-        ${state.userValues?.completed ? `${renderFinishProfileCard()}${renderDeepDiveCard()}` : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals, not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
+        ${state.userValues?.completed ? `${renderFinishProfileCard() || renderDeepDiveCard()}` : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals, not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
         ${renderInsightCards()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
           <div class="panel-kicker">Net worth ${renderDataSourceBadge()}</div>
           <h2>${state.plaidBusy && !hasConnectedData ? "…" : hasConnectedData ? formatCurrency(netWorth) : "No data yet"}</h2>
-          <p>${state.plaidBusy ? "Pulling your latest balances from Plaid…" : hasConnectedData ? `Assets minus liabilities across ${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"}.` : "Connect your accounts to see your real net worth."}</p>
+          <p>${state.plaidBusy ? "Pulling your latest balances from Plaid…" : hasConnectedData ? `Assets minus liabilities across ${connectedAccounts.length} ${isSampleData() ? "sample" : "connected"} account${connectedAccounts.length === 1 ? "" : "s"}.` : "Connect your accounts to see your real net worth."}</p>
         </div>
         <div class="daily-metric-strip">
           <div><span>Savings</span><strong>${formatCurrency(currentSavings)}</strong><small>${hasConnectedData && netWorth > 0 ? `${getProgressPercent(currentSavings, netWorth)}% of net worth` : hasConnectedData ? "Connected data" : "Manual baseline"}</small></div>
@@ -4748,7 +4726,7 @@ function renderDailyDashboardHome() {
 
         <div class="daily-spending-card accounts-strip${dashboardFreshClass}">
           <div class="spending-header">
-            <div><h3>Connected accounts</h3><p>${connectedAccounts.length ? `${connectedAccounts.length} accounts feeding PAM` : "Connect accounts to populate this view."}</p></div>
+            <div><h3>${isSampleData() ? "Sample accounts" : "Connected accounts"}</h3><p>${connectedAccounts.length ? `${connectedAccounts.length} accounts feeding PAM` : "Connect accounts to populate this view."}</p></div>
           </div>
           <div class="spending-list">
             ${connectedAccounts.length ? connectedAccounts.slice(0, 5).map((account, index) => `
@@ -4778,10 +4756,12 @@ function renderMobileGoalsScreen() {
   const tones = ["mint", "blue", "amber"];
   const goals = getGoalsFromBaseline(state.baseline).slice(0, 3).map((goal, index) => ({
     title: goal.title,
-    amount: `${formatCurrency(goal.currentAmount)} of ${formatCurrency(goal.targetAmount)}`,
+    amount: `${formatCurrency(goal.currentAmount)} of ${formatCurrency(goal.targetAmount)}${toNumber(goal.currentAmount, 0) >= toNumber(goal.targetAmount, 0) && toNumber(goal.targetAmount, 0) > 0 ? " · funded" : ""}`,
     progress: getProgressPercent(goal.currentAmount, goal.targetAmount),
     tone: tones[index % tones.length]
   }));
+  const existingTitles = new Set(goals.map((goal) => String(goal.title).toLowerCase()));
+  const templates = goalTemplates.filter((template) => !existingTitles.has(String(template.title).toLowerCase())).slice(0, 4);
 
   return `
     <section class="foresee-panel mobile-only-screen mobile-screen mobile-screen-goals" id="mobile-goals-page">
@@ -4798,18 +4778,24 @@ function renderMobileGoalsScreen() {
           </article>
         `).join("")}
       </div>
-      <div class="goal-template-row">
-        ${goalTemplates.slice(0, 5).map((template) => `
-          <button type="button" data-goal-template="${escapeHtml(template.id)}">${escapeHtml(template.title)}</button>
-        `).join("")}
-      </div>
-      <form class="feedback-form goal-save-form" data-goal-form>
-        <label><span>Add goal</span><input name="goalTitle" placeholder="Move out safely" maxlength="80" /></label>
-        <div class="feedback-inline-actions">
-          <input name="goalTargetAmount" type="number" min="1" placeholder="Target $" />
-          <button class="button button-primary" type="submit">Save goal</button>
-        </div>
-      </form>
+      ${goals.length ? "" : `<p class="goal-empty-note">No goals yet. Add one and PAM weighs every answer against it.</p>`}
+      <details class="goal-add-fold"${goals.length ? "" : " open"}>
+        <summary>Add a goal</summary>
+        ${templates.length ? `
+          <div class="goal-template-row">
+            ${templates.map((template) => `
+              <button type="button" data-goal-template="${escapeHtml(template.id)}">${escapeHtml(template.title)}</button>
+            `).join("")}
+          </div>
+        ` : ""}
+        <form class="feedback-form goal-save-form" data-goal-form>
+          <label><span>Or name your own</span><input name="goalTitle" placeholder="e.g. Japan trip" maxlength="80" /></label>
+          <div class="feedback-inline-actions">
+            <input name="goalTargetAmount" type="number" min="1" placeholder="Target $" aria-label="Target amount" />
+            <button class="button button-primary" type="submit">Save goal</button>
+          </div>
+        </form>
+      </details>
     </section>
   `;
 }
@@ -5549,14 +5535,13 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
         <article class="settings-card settings-card-wide">
           <div>
             <span>Financial data</span>
-            <strong>${isComplete ? "Connected baseline ready" : "Connect your baseline"}</strong>
+            <strong>${isSampleData() ? "Using sample numbers" : isComplete ? "Accounts connected" : "Connect your accounts"}</strong>
           </div>
-          <p>Last updated: ${escapeHtml(updatedLabel)}. PAM connects read-only through Plaid and never stores your bank login.</p>
-          ${state.plaidBusy ? renderPlaidConnecting(isComplete ? "Refreshing your connected data…" : "Connecting securely through Plaid…") : `
+          <p>${isSampleData() ? "" : `Last updated: ${escapeHtml(updatedLabel)}. `}PAM connects read-only through Plaid and never stores your bank login.</p>
+          ${state.plaidBusy ? renderPlaidConnecting(isComplete && !isSampleData() ? "Refreshing your connected data…" : "Connecting securely through Plaid…") : `
             <div class="settings-action-row">
-              <button class="button button-primary" type="button" data-connect-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>${isComplete ? "Sync accounts" : "Connect securely with Plaid"}</button>
-              <button class="button button-secondary" type="button" data-load-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>Use sample baseline</button>
-              ${isComplete ? `<button class="button button-secondary" type="button" data-open-view="dashboard">Open dashboard</button>` : ""}
+              <button class="button button-primary" type="button" data-connect-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>${isComplete && !isSampleData() ? "Sync accounts" : "Connect securely with Plaid"}</button>
+              ${isComplete ? "" : `<button class="button button-secondary" type="button" data-load-sandbox ${!hasAcceptedLegalTerms() ? "disabled" : ""}>Try sample numbers</button>`}
             </div>
           `}
         </article>
@@ -5571,7 +5556,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             `).join("")}
           </div>
         </article>
-        ${!state.subscription || state.subscription.status === "inactive" ? `
+        ${!state.subscription || state.subscription.status === "inactive" ? (!subscriptionRequired() ? "" : `
         <article class="settings-card settings-card-wide upgrade-card">
           <div>
             <span>PAM SI</span>
@@ -5583,7 +5568,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             <button class="button button-secondary" type="button" data-checkout="monthly" ${state.checkoutBusy ? "disabled" : ""}>${state.checkoutBusy ? "Loading..." : "Monthly · $9.99/mo"}</button>
           </div>
         </article>
-        ` : `
+        `) : `
         <article class="settings-card">
           <div>
             <span>Subscription</span>
@@ -5592,6 +5577,13 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
           <p>Status: ${escapeHtml(state.subscription.status)}${isFoundingMember() ? " · Founding pricing locked in." : ""}</p>
         </article>
         `}
+        <article class="settings-card">
+          <div>
+            <span>Feedback</span>
+            <strong>Help shape PAM</strong>
+          </div>
+          ${renderFeedbackForm()}
+        </article>
         <article class="settings-card">
           <div>
             <span>Account actions</span>
@@ -5773,14 +5765,6 @@ function renderBaselinePanel() {
 }
 
 function renderDecisionPanel() {
-  const currentSavings = getCurrentSavings(state.baseline);
-  const monthlyBuffer = getMonthlyBuffer(state.baseline);
-  const monthlyExpenses = getMonthlyExpenses(state.baseline);
-  const goalLabel = getGoalLabel(state.baseline) || "Move out safely";
-  const goalTarget = Math.max(toNumber(state.baseline.goals.goalTargetAmount), currentSavings + 1);
-  const spendingPlan = Math.max(monthlyExpenses + 120, 1);
-  const spendingPercent = Math.min(100, Math.round((monthlyExpenses / spendingPlan) * 100));
-  const underPlan = Math.max(spendingPlan - monthlyExpenses, 0);
   // Keep this tight — 3 high-signal suggestions, not a wall of chips.
   const prompts = getSmartSuggestions();
 
@@ -5790,28 +5774,10 @@ function renderDecisionPanel() {
         <div>
           <div class="panel-kicker">Decision simulator</div>
           <h2>Ask a financial question</h2>
-          <p>Run one decision at a time. PAM estimates the outcome from your baseline.</p>
+          <p>One decision at a time, run against your numbers.</p>
         </div>
       </div>
-      <details class="decision-brief-fold" aria-label="Current money context">
-        <summary>What changed in your money</summary>
-        <div class="daily-update-list">
-          <div class="daily-update">
-            <span class="daily-icon mint">↗</span>
-            <div><strong>Monthly buffer ${monthlyBuffer >= 0 ? "up" : "down"} to ${formatCurrency(monthlyBuffer)}</strong><p>${monthlyBuffer >= 500 ? "You have room to test decisions." : "Keep decisions conservative until buffer improves."}</p></div>
-          </div>
-          <div class="daily-update">
-            <span class="daily-icon blue">⌂</span>
-            <div><strong>${escapeHtml(goalLabel)} ${currentSavings >= goalTarget ? "funded" : "in progress"}</strong><p>${formatCurrency(currentSavings)} of ${formatCurrency(goalTarget)}</p></div>
-          </div>
-          <div class="daily-update">
-            <span class="daily-icon amber">▤</span>
-            <div><strong>Spending ${formatCurrency(underPlan)} under plan</strong><p>${spendingPercent}% of ${formatCurrency(spendingPlan)} plan used.</p></div>
-          </div>
-        </div>
-      </details>
       <div class="ask-pam-card decision-ask-card">
-        <h3>Ask PAM</h3>
         <form class="foresee-question-form ask-pam-mini-form decision-question-form" data-question-form>
           <textarea id="pam-question" name="question" rows="2" aria-label="Ask a financial question" placeholder="Ask anything about a money decision…">${escapeHtml(state.question)}</textarea>
           <button class="button button-primary" type="submit" ${state.decisionBusy ? "disabled" : ""}>${state.decisionBusy ? "Analyzing..." : "Analyze"}</button>
@@ -5825,15 +5791,6 @@ function renderDecisionPanel() {
           ${renderStructuredDecisionBuilder()}
         </details>
       </div>
-      ${state.decisionBusy ? `
-        <div class="ai-loading-state" role="status" aria-live="polite">
-          <span></span>
-          <div>
-            <strong>PAM is modeling the decision.</strong>
-            <p>Running deterministic math first, then asking the server-side AI to refine the explanation.</p>
-          </div>
-        </div>
-      ` : ""}
       ${getStatus("decision") ? `<p class="foresee-status">${escapeHtml(getStatus("decision"))}</p>` : ""}
     </section>
   `;
@@ -5873,6 +5830,15 @@ function renderResult() {
       ${canAccessDashboard() ? renderLegalGate() : "<p>PAM models decisions against your real numbers. Connect your accounts and your results will appear here instantly, no manual entry needed.</p>"}
     </section>
   `;
+  }
+  if (!String(state.question || "").trim()) {
+    return `
+      <section class="foresee-panel result-panel result-empty mobile-screen mobile-screen-result" id="decision-result">
+        <div class="panel-kicker">Result</div>
+        <h2>Your answer shows up here.</h2>
+        <p>Ask about rent, a car, a job offer, debt, or investing. PAM runs it against your numbers and gives you a straight call.</p>
+      </section>
+    `;
   }
   const result = state.result || toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question }));
   state.result = result;
@@ -7689,7 +7655,7 @@ export async function startApp() {
   if (!state.userValues && state.baseline?.userValues) {
     state.userValues = state.baseline.userValues;
   }
-  state.result = canAccessDashboard() ? toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question })) : null;
+  state.result = canAccessDashboard() && String(state.question || "").trim() ? toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question })) : null;
   trackEvent("app_loaded", {
     view: state.workspaceView,
     hasAccount: hasPrototypeAccount(),

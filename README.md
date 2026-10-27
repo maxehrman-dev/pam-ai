@@ -1,175 +1,31 @@
-# PAM AI
+# PAM SI
 
-PAM AI is a premium financial decision simulator built around one core promise: test your financial future before you live it.
+**Know what happens before you decide.** PAM (Personal Asset Manager) helps young adults test money decisions before they make them: a lease, a car, a job offer, paying off loans, investing. It shows what each one does to their monthly buffer, goals, and long-term savings, using their real numbers.
 
-## Product focus
+Live at https://pamadvisor.com.
 
-PAM AI is not a budgeting tracker or an expense categorizer. It is a scenario engine that helps users structure money decisions, model tradeoffs, and see how each choice affects cash flow, runway, and life goals.
+## Run it
 
-## What is included
-
-- Landing page with premium fintech positioning and product mockups
-- Guided Scenario Engine with starter chips, follow-up prompts, and comparison cards
-- Life Goals layer showing how decisions delay or accelerate major milestones
-- Financial dashboard with realistic snapshot, net worth, and cash flow context
-- Insights and Trust Center surfaces, including privacy guidance and Plaid readiness
-- Server-side decision endpoint ready for Anthropic Claude-powered guidance on Vercel
-- Normalized baseline model shared by manual entry and Sandbox-style sample data
-
-## Run locally
-
-1. `cd /Users/iwillfixthis/Documents/New\ project/pam-ai`
-2. Create `.env.local` from `.env.example` and add `ANTHROPIC_API_KEY`
-3. `node server.js`
-4. Open `http://localhost:3000`
-
-Do not open `index.html` directly with `file://`. PAM uses JavaScript modules and local browser storage, so it should always run over HTTP.
-
-## Private preview gate
-
-- The public root app is gated while PAM is still a work in progress
-- Unknown devices see a branded "Oops, not time yet" screen with waitlist access
-- Demo testers can unlock the working app by entering the demo access code
-- Set `DEMO_ACCESS_CODE` in Vercel to control the code without changing frontend code
-- If `DEMO_ACCESS_CODE` is missing, the prototype fallback accepts `PAMDEVTEAM`, `pam dev team`, or `pam demo`
-- The unlock is stored locally on that browser for 30 days; clearing browser storage makes the device unknown again
-- Public pages remain available: `/waitlist`, `/newsletter`, `/terms`, `/privacy`, `/content-policy`, and `/faq`
-
-## AI configuration
-
-- The live decision guidance route is `/api/decision`
-- `ANTHROPIC_API_KEY` is read server-side only
-- Frontend code should never contain a raw Anthropic key
-- For local development, use `.env.local`
-- For Vercel production, set `ANTHROPIC_API_KEY` in the project environment settings
-- If any provider key was ever pasted into code, chat, or a client bundle, rotate it in the provider dashboard before reuse
-
-## Verification email configuration
-
-- Account verification codes can send through Resend when configured
-- Set `RESEND_API_KEY` and `PAM_FROM_EMAIL` in `.env.local` or Vercel project settings
-- Production uses `PAM AI <hello@pamadvisor.com>` from the verified `pamadvisor.com` Resend domain
-- `PAM_FROM_EMAIL` must be an address on a verified Resend domain before Resend will send to arbitrary user emails
-- `onboarding@resend.dev` is Resend's testing sender and can only send to the verified owner email on the Resend account
-- Optional: set `WAITLIST_NOTIFY_EMAIL` to the inbox that should receive new waitlist signup notifications
-- Optional: set `RESEND_AUDIENCE_ID` to sync waitlist signups into a Resend Audience for waitlist updates
-- The waitlist endpoint stores the signup, syncs the Resend audience when configured, then sends a notification email plus a confirmation email
-- Public signup links are `https://pamadvisor.com/waitlist` and legacy alias `https://pamadvisor.com/newsletter`
-- Waitlist signups collect email plus optional full name, age, current stage, and what the user wants PAM to help with
-- Supabase is the source-of-truth waitlist database. `public.pam_waitlist` stores `email_address`, `full_name`, `age`, `stage`, `goal`, `source`, `created_at`, and `updated_at`
-- Optional: set `GOOGLE_SHEETS_WAITLIST_WEBHOOK_URL` to mirror every waitlist signup into a Google Sheet
-- Optional: set `GOOGLE_SHEETS_WAITLIST_SECRET` and check it in the Apps Script before accepting rows
-- Deliverability note: inbox placement depends heavily on Resend domain verification, SPF/DKIM/DMARC alignment, domain age, and recipient engagement. Ask early testers to mark PAM emails as "Not Junk" if they land in spam while the domain reputation warms up
-- If those variables are missing, PAM falls back to prototype preview mode and shows the code in the UI instead of emailing it
-- Keep email provider credentials server-side only and rotate them immediately if they were ever exposed
-
-### Google Sheets waitlist mirror
-
-Use Supabase as the reliable database, then mirror rows into Google Sheets for easy demographic review.
-
-1. Create a Google Sheet with this header row:
-
-   `Signed up at | Email | Full name | Age | Stage | Purpose / intention | Source | Page | User agent | IP hint`
-
-2. In the Sheet, open Extensions -> Apps Script and deploy this as a Web App:
-
-```javascript
-const PAM_WAITLIST_SECRET = 'replace-with-a-long-random-secret';
-
-function doPost(e) {
-  const body = JSON.parse(e.postData.contents || '{}');
-  if (PAM_WAITLIST_SECRET && body.secret !== PAM_WAITLIST_SECRET) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-
-  sheet.appendRow([
-    body.signedUpAt || new Date().toISOString(),
-    body.emailAddress || '',
-    body.fullName || '',
-    body.age || '',
-    body.stage || '',
-    body.purposeIntention || '',
-    body.source || '',
-    body.page || '',
-    body.userAgent || '',
-    body.ipHint || ''
-  ]);
-
-  return ContentService
-    .createTextOutput(JSON.stringify({ ok: true }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+```bash
+npm install
+cp .env.example .env.local   # add keys you have; everything else degrades gracefully
+node server.js               # http://127.0.0.1:3000
+npm test
 ```
 
-3. Add the deployed Web App URL to Vercel as `GOOGLE_SHEETS_WAITLIST_WEBHOOK_URL`.
-4. Add the same long random secret in Vercel as `GOOGLE_SHEETS_WAITLIST_SECRET`.
+Open it over HTTP, never with `file://`.
 
-The app posts these fields to the Sheet mirror: email, full name, age, stage, purpose/intention, source, signup time, page, user agent, and IP hint. If the Sheet webhook fails, the signup still succeeds because Supabase remains the source of truth.
+## Where things are
 
-### Domain setup
+| | |
+|---|---|
+| What PAM is and isn't | `PRODUCT.md` |
+| Build rules for contributors and AI sessions | `CLAUDE.md` |
+| Decision-engine strategy | `BRAIN.md` |
+| Running, deploying, and un-breaking it | `OPERATIONS.md` |
+| Getting started as a collaborator | `COLLABORATION.md` |
+| Cost and abuse protection | `security/cost-protection.md` |
 
-- `pamadvisor.com` is the production brand domain
-- Vercel project `pam-ai1` has `pamadvisor.com` and `www.pamadvisor.com` attached
-- In the domain DNS provider, use the exact Vercel records shown in the Vercel Domains screen
-- The current production setup uses Vercel DNS for `pamadvisor.com` and `www.pamadvisor.com`
-- Resend sending is verified for `pamadvisor.com` with DKIM, SPF/MX, and DMARC records in Vercel DNS
-- Do not use `onboarding@resend.dev` for production email
-- Set `PAM_SITE_URL=https://pamadvisor.com` anywhere the app needs its public URL
+Client: `src/main.js`, `src/styles.css`, engines in `src/utils/`. Server: `api/` (Vercel functions), shared helpers in `api/_lib/`. Database schema: `supabase/schema.sql`.
 
-## Supabase setup
-
-- Run `supabase/schema.sql` in the Supabase SQL Editor to create PAM's account, session, waitlist, baseline, scenario, and future Plaid item tables
-- Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel project environment variables
-- If Supabase is connected through Vercel Marketplace, PAM also supports the prefixed `PAM_SUPABASE_*` environment variables Vercel creates automatically
-- To apply the schema locally from pulled Vercel env vars, run `npx -p pg node scripts/apply-supabase-schema.mjs`
-- `SUPABASE_SERVICE_ROLE_KEY` must stay server-side only; never expose it in frontend code
-- If Supabase env vars are missing, PAM falls back to prototype storage so local demos still work
-
-## Security notes
-
-- Public API routes use strict payload validation, reject unexpected fields, and apply rate limiting by IP and user identifier
-- Cost-sensitive routes have stricter daily caps and emergency kill switches. See `security/cost-protection.md`
-- Set `PAM_DISABLE_AI=true`, `PAM_DISABLE_PLAID=true`, or `PAM_DISABLE_EMAIL=true` in Vercel to pause expensive services during suspicious traffic
-- Passwords are hashed server-side and are never stored in plaintext
-- Plaid and Anthropic credentials stay in environment variables only; never commit them and never expose them in frontend code
-- Plaid access tokens must remain server-side only and must never be written to `localStorage`
-- Run an OWASP ZAP baseline scan before public launch, then fix any medium/high findings before accepting real financial users
-- Do not log raw prompts, bank data, access tokens, passwords, provider secrets, or full financial payloads to the browser console
-
-## Startup stack status
-
-- Live now: GitHub, Vercel deployment, Supabase storage, Resend API wiring, Plaid Sandbox wiring, and server-side Claude route
-- Needs external verification only if missing in provider dashboards: Resend domain sending from `hello@pamadvisor.com`
-- Optional free-tier next: PostHog analytics, Sentry error monitoring, and Cloudflare DNS after DNS is moved or configured
-- Production launch blockers: replace or harden prototype auth with Clerk/Auth0 before real financial data, set up Stripe before charging, add Sentry, add uptime monitoring, and run OWASP ZAP
-- PAM currently has account creation, email verification, and password hashing, but this is still prototype auth and should not be treated as a managed auth provider
-- Stripe has no monthly platform fee for basic setup, but payments have transaction fees; leave live billing disabled until pricing, refund policy, cancellation, and receipt flows are ready
-
-## Stack
-
-- Native ES modules
-- Responsive HTML, CSS, and JavaScript
-- Small Node server for local hosting and API passthrough
-
-## Future Plaid setup
-
-1. Create a Plaid developer account
-2. Use Sandbox first
-3. Add `PLAID_CLIENT_ID` and `PLAID_SECRET` to the environment
-4. Implement the create-link-token backend route against Plaid
-5. Implement the public-token exchange backend route against Plaid
-6. Store `access_token` server-side only
-7. Pull Transactions, Balances, and Liabilities
-8. Normalize Plaid data into PAM's shared baseline object
-
-### Planned environment variables
-
-- `PLAID_CLIENT_ID`
-- `PLAID_SECRET`
-- `PLAID_ENV=sandbox`
-- `PLAID_PRODUCTS=transactions,balance,liabilities`
-- `PLAID_COUNTRY_CODES=US`
+PAM SI is a financial modeling tool, not a licensed financial advisor, investment adviser, tax professional, attorney, or RIA. Nothing in PAM is financial, tax, legal, or investment advice.
