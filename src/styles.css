@@ -3100,41 +3100,65 @@ input:disabled {
   margin: 0;
 }
 
-/* Prominent "PAM is working" card shown while a decision answer streams in. */
-.decision-working-card {
+/* Thinking sequence shown in the result area while PAM works. Each step
+   fades in, spins, then checks off; the finished answer replaces it once. */
+.result-thinking { display: grid; gap: 14px; }
+.thinking-question {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--forest);
+  line-height: 1.35;
+}
+.thinking-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.thinking-step {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  margin: 12px 0 0;
-  padding: 16px 18px;
-  border-radius: 16px;
-  background: rgba(20, 55, 41, 0.06);
-  border: 1px solid rgba(20, 55, 41, 0.14);
+  opacity: 0;
+  animation: pam-step-in 0.45s ease forwards;
 }
-
-.decision-working-spinner {
-  width: 22px;
-  height: 22px;
-  margin-top: 2px;
-  flex: none;
+.thinking-step strong { display: block; color: var(--ink-4); font-size: 1rem; }
+.thinking-step small { display: block; color: var(--ink-2); font-size: 0.88rem; margin-top: 2px; }
+.thinking-mark { position: relative; flex: none; width: 26px; height: 26px; margin-top: 1px; }
+.thinking-spinner {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
-  border: 3px solid rgba(20, 55, 41, 0.18);
-  border-top-color: var(--forest);
-  animation: pam-spin 0.9s linear infinite;
+  border: 3px solid var(--pam-track);
+  border-top-color: var(--mint-4);
+  animation: pam-spin 0.8s linear infinite, thinking-hide 0.2s ease forwards;
+}
+.thinking-check {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--mint-4);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 900;
+  opacity: 0;
+  transform: scale(0.4);
+  animation: thinking-check-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.thinking-slow {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+  opacity: 0;
+  animation: pam-step-in 0.5s ease forwards;
+}
+@keyframes thinking-hide { to { opacity: 0; } }
+@keyframes thinking-check-in { to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .thinking-step, .thinking-slow { animation: none; opacity: 1; }
+  .thinking-spinner { animation: thinking-hide 0.01s forwards; animation-delay: inherit; }
 }
 
 @keyframes pam-spin {
   to { transform: rotate(360deg); }
-}
-
-.decision-working-steps {
-  display: grid;
-  gap: 4px;
-}
-
-.decision-working-steps strong {
-  color: var(--forest);
-  font-size: 0.98rem;
 }
 
 .working-step {

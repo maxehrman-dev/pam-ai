@@ -140,6 +140,12 @@ function openPlaidLink(plaid, linkToken) {
   });
 }
 
+// Background refresh: re-read balances through the connection the server
+// already holds. Never opens Plaid Link.
+export async function refreshConnectedBaseline(profile, authHeaders = {}) {
+  return fetchBaseline(profile, authHeaders);
+}
+
 export async function connectSandboxAccount(profile, authHeaders = {}) {
   const plaid = await loadPlaidScript();
   const linkToken = await createLinkToken(profile, authHeaders);

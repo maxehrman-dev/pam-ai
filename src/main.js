@@ -23,7 +23,7 @@ import {
   toNumber,
   validateBaseline
 } from "./utils/baseline.mjs";
-import { connectSandboxAccount, loadSandboxFallback } from "./services/plaidClient.js";
+import { connectSandboxAccount, loadSandboxFallback, refreshConnectedBaseline } from "./services/plaidClient.js";
 import { defaultGoals, goalTemplates, starterScenarios } from "./data/mockData.js";
 import {
   buildDecisionSession,
@@ -2247,9 +2247,8 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   state.result = toLegacyDecisionFromSession(session);
   recordDecisionHistory(state.result);
   if (subscriptionRequired()) bumpFreeDecisionCount();
-  // New answer landing: stagger the result sections in, then settle.
-  state.resultFresh = true;
-  window.setTimeout(() => { state.resultFresh = false; }, 3000);
+  state.resultFresh = false;
+  state.thinkingStartedAt = Date.now();
   state.aiGuidance = null;
   state.saveScenarioMessage = "";
   state.decisionBusy = true;
@@ -2265,11 +2264,15 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   });
 
   try {
-    const guidance = await requestDecisionGuidance(question, state.result);
+    // Hold the reveal until the explanation is in (or has failed), and long
+    // enough that the steps read as progress rather than a flash.
+    const [guidance] = await Promise.all([
+      requestDecisionGuidance(question, state.result),
+      new Promise((resolve) => window.setTimeout(resolve, MIN_THINKING_MS))
+    ]);
     if (guidance?.guidance) {
       state.aiGuidance = guidance;
       setStatus("", "decision");
-      showSuccessToast("Answer ready.");
       trackEvent("ai_guidance_received", { integrityFlagged: Boolean(guidance.integrityFlagged) });
     } else {
       setStatus(AI_UNAVAILABLE_STATUS, "decision");
@@ -2280,6 +2283,9 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   }
 
   state.decisionBusy = false;
+  // The finished answer lands once: sections stagger in, then settle.
+  state.resultFresh = true;
+  window.setTimeout(() => { state.resultFresh = false; }, 3000);
   render();
   requestAnimationFrame(() => {
     document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2747,8 +2753,7 @@ async function handleSandboxSampleData() {
   render();
 }
 
-async function handleConnectSandboxAccount(options = {}) {
-  const { silent = false } = options;
+async function handleConnectSandboxAccount() {
   if (!hasPrototypeAccount()) {
     setStatus("Create your account first, then connect Sandbox data.", "account");
     render();
@@ -2767,10 +2772,8 @@ async function handleConnectSandboxAccount(options = {}) {
     return;
   }
   state.plaidBusy = true;
-  if (!silent) {
-    clearStatus("account");
-    render();
-  }
+  clearStatus("account");
+  render();
 
   try {
     const authHeaders = await buildAuthHeaders();
@@ -2782,65 +2785,55 @@ async function handleConnectSandboxAccount(options = {}) {
     state.dataFresh = true;
     saveWorkspaceView("dashboard");
     saveMobileView("home");
-    if (!silent) {
-      setStatus(payload.status, "account");
-      showSuccessToast("Accounts connected.");
-    }
-    trackEvent("sandbox_connected", { silent });
+    setStatus(payload.status, "account");
+    showSuccessToast("Accounts connected.");
+    trackEvent("sandbox_connected");
     state.inlineGoalError = "";
-    if (!silent) {
+    render();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await runDecisionAnalysis(state.question, payload.status);
+    saveMobileView("home");
+    render();
+    requestAnimationFrame(() => document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setTimeout(() => {
+      state.dataFresh = false;
       render();
-      await new Promise((resolve) => setTimeout(resolve, 300));
-    }
-    if (silent) {
-      state.result = toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question }));
-    } else {
-      await runDecisionAnalysis(state.question, payload.status);
-      saveMobileView("home");
-      render();
-      requestAnimationFrame(() => document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-      setTimeout(() => {
-        state.dataFresh = false;
-        render();
-      }, 2000);
-    }
+    }, 2000);
   } catch (error) {
+    // Someone with real connected data keeps it; sample numbers are only the
+    // fallback for a first connection that didn't complete.
+    if (hasConnectedFinancialData() && !isSampleData()) {
+      setStatus(error instanceof Error && error.message ? error.message : "Couldn't refresh your accounts. Your data is unchanged.", "account");
+      return;
+    }
     const fallbackPayload = loadSandboxFallback(state.baseline);
     saveBaseline(state.account ? syncAccountIntoBaseline(state.account, fallbackPayload.baseline) : fallbackPayload.baseline);
     state.dataFresh = true;
     saveWorkspaceView("dashboard");
     saveMobileView("home");
-    if (!silent) {
-      setStatus(error instanceof Error && error.message
-        ? `${error.message} ${fallbackPayload.status}`
-        : fallbackPayload.status, "account");
-    }
+    setStatus(error instanceof Error && error.message
+      ? `${error.message} ${fallbackPayload.status}`
+      : fallbackPayload.status, "account");
     state.inlineGoalError = "";
-    if (!silent) {
+    render();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await runDecisionAnalysis(state.question, fallbackPayload.status);
+    saveMobileView("home");
+    render();
+    requestAnimationFrame(() => document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setTimeout(() => {
+      state.dataFresh = false;
       render();
-      await new Promise((resolve) => setTimeout(resolve, 300));
-    }
-    if (silent) {
-      state.result = toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question }));
-    } else {
-      await runDecisionAnalysis(state.question, fallbackPayload.status);
-      saveMobileView("home");
-      render();
-      requestAnimationFrame(() => document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-      setTimeout(() => {
-        state.dataFresh = false;
-        render();
-      }, 2000);
-    }
+    }, 2000);
   } finally {
     state.plaidBusy = false;
-    if (!silent) render();
+    render();
   }
 }
 
 function shouldAutoRefreshFinancialData() {
   if (!canUseFinancialFeatures()) return false;
-  if (!state.baseline.source?.startsWith("plaid")) return false;
+  if (!state.baseline.source?.startsWith("plaid") || isSampleData()) return false;
   try {
     const lastSync = Number(window.localStorage.getItem(LAST_AUTO_SYNC_KEY) || 0);
     return Date.now() - lastSync > 24 * 60 * 60 * 1000;
@@ -2849,6 +2842,9 @@ function shouldAutoRefreshFinancialData() {
   }
 }
 
+// Daily background refresh of connected balances. It reads through the
+// connection the server already holds: no Plaid Link popup, no change to the
+// screen or the answer on it, and on failure the user's data stays as it was.
 async function maybeAutoRefreshFinancialData() {
   if (!shouldAutoRefreshFinancialData()) return;
   try {
@@ -2856,8 +2852,16 @@ async function maybeAutoRefreshFinancialData() {
   } catch (_error) {
     // Auto refresh is best-effort.
   }
-  await handleConnectSandboxAccount({ silent: true });
-  render();
+  try {
+    const baseline = await refreshConnectedBaseline({
+      ...state.baseline.profile,
+      accountId: state.account?.id || ""
+    }, await buildAuthHeaders());
+    saveBaseline(baseline);
+    if (!state.decisionBusy) render();
+  } catch (_error) {
+    // Keep the data the user already has.
+  }
 }
 
 async function handleQuestionSubmit(event) {
@@ -5132,7 +5136,7 @@ function getAdvisorSummary(result, goalLabel) {
     // labels, so surface it directly when it exists.
     const sessionFollowUp = result.scenarioSession?.followUp;
     return {
-      source: state.decisionBusy ? "AI refining..." : "From PAM's model",
+      source: "From PAM's model",
       headline: `Every ${split.payFrequency} gets a job before it hits checking.`,
       body: result.explanation,
       interpretationSummary: `PAM computed this split deterministically from your baseline: essentials and minimums first, then buffer, high-interest debt, investing, and a guilt-free floor. It saves ${split.savingsRatePct}% of income automatically.`,
@@ -5162,7 +5166,7 @@ function getAdvisorSummary(result, goalLabel) {
   const body = `${bufferText} PAM sees ${impactText} of impact, with ${result.risk.label.toLowerCase()} risk based on your current baseline. ${goalText}`;
 
   return {
-    source: state.decisionBusy ? "AI refining..." : "From PAM's model",
+    source: "From PAM's model",
     headline,
     body,
     interpretationSummary: `PAM treated this as a ${result.decision.type.toLowerCase()} and compared it against your cash flow, savings, tax estimate, and main goal.`,
@@ -5809,17 +5813,16 @@ function renderDecisionPanel() {
 }
 
 // The one-word call, everywhere the same: Worth it / Not yet / Don't.
-// Prefers the AI's structured verdict; falls back to a deterministic
-// risk-based mapping when AI guidance is unavailable.
+// Verdict badge labels; the verdict itself comes from getCurrentVerdict.
 const VERDICT_META = {
   worth_it: { label: "Worth it", className: "verdict-worth" },
   not_yet: { label: "Not yet", className: "verdict-notyet" },
   dont: { label: "Don't", className: "verdict-dont" }
 };
 
+// PAM's engine owns the verdict (its persona-aware risk call); the AI only
+// explains it, and the server drops explanations that argue otherwise.
 function getCurrentVerdict(result) {
-  const ai = state.aiGuidance?.guidance?.verdict;
-  if (ai && VERDICT_META[ai]) return ai;
   const risk = result?.risk?.label || "Medium";
   return risk === "Low" ? "worth_it" : risk === "High" ? "dont" : "not_yet";
 }
@@ -5827,6 +5830,47 @@ function getCurrentVerdict(result) {
 function renderVerdictBadge(result) {
   const v = VERDICT_META[getCurrentVerdict(result)];
   return `<span class="verdict-badge ${v.className}">${v.label}</span>`;
+}
+
+// While PAM works, the result area walks through what it's actually doing, then
+// the finished answer appears once. Step timing is anchored to when the ask
+// started, so a re-render mid-sequence resumes instead of restarting.
+const THINKING_STEP_SECONDS = [0.75, 1.55, 2.3];
+const MIN_THINKING_MS = 2500;
+
+function renderThinkingPanel(result) {
+  const elapsed = Math.max(0, (Date.now() - (state.thinkingStartedAt || Date.now())) / 1000);
+  const at = (seconds) => `${(seconds - elapsed).toFixed(2)}s`;
+  const reading = String(result?.decision?.type || "").trim();
+  const goalLabel = getGoalLabel(state.baseline);
+  const steps = [
+    { title: "Reading your question", detail: reading ? `Reading it as: ${reading.charAt(0).toUpperCase()}${reading.slice(1)}` : "Working out what you're deciding" },
+    { title: "Running it against your numbers", detail: "Monthly buffer, savings, runway" },
+    { title: "Checking your goals", detail: goalLabel ? `Including ${goalLabel.toLowerCase()}` : "And what it would delay" },
+    { title: "Writing your answer", detail: "A straight call, and a safer way if you need one" }
+  ];
+  return `
+    <section class="foresee-panel result-panel result-thinking mobile-screen mobile-screen-result" id="decision-result" role="status" aria-live="polite">
+      <div class="panel-kicker">Result</div>
+      <p class="thinking-question">“${escapeHtml(state.question)}”</p>
+      <ol class="thinking-steps">
+        ${steps.map((step, index) => {
+          const appearAt = index ? THINKING_STEP_SECONDS[index - 1] : 0;
+          const doneAt = THINKING_STEP_SECONDS[index];
+          return `
+            <li class="thinking-step" style="animation-delay: ${at(appearAt)}">
+              <span class="thinking-mark" aria-hidden="true">
+                <i class="thinking-spinner" style="animation-delay: 0s, ${doneAt === undefined ? "9999s" : at(doneAt)}"></i>
+                ${doneAt === undefined ? "" : `<b class="thinking-check" style="animation-delay: ${at(doneAt)}">✓</b>`}
+              </span>
+              <div><strong>${escapeHtml(step.title)}</strong><small>${escapeHtml(step.detail)}</small></div>
+            </li>
+          `;
+        }).join("")}
+      </ol>
+      <p class="thinking-slow" style="animation-delay: ${at(7)}">Still working. This one is taking a few extra seconds.</p>
+    </section>
+  `;
 }
 
 function renderResult() {
@@ -5854,6 +5898,7 @@ function renderResult() {
   }
   const result = state.result || toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question }));
   state.result = result;
+  if (state.decisionBusy) return renderThinkingPanel(result);
   const goalLabel = getGoalLabel(state.baseline);
   const advisorSummary = getAdvisorSummary(result, goalLabel);
   const followUpLabels = advisorSummary.followUpChoiceLabels.length ? advisorSummary.followUpChoiceLabels : getDecisionNextSteps(result);
@@ -5887,17 +5932,6 @@ function renderResult() {
           ${advisorSummary.interpretationSummary ? `<p>${escapeHtml(advisorSummary.interpretationSummary)}</p>` : ""}
         </div>
         <p class="advisor-disclosure">${escapeHtml(state.aiGuidance?.disclosure || "Educational estimate from PAM's financial model, not financial, tax, legal, or investment advice.")}</p>
-        ${state.decisionBusy && !state.aiGuidance?.guidance ? `
-          <div class="decision-working-card" aria-live="polite" role="status">
-            <div class="decision-working-spinner"></div>
-            <div class="decision-working-steps">
-              <strong>PAM is working on your answer…</strong>
-              <span class="working-step step-1">Reading your question and profile</span>
-              <span class="working-step step-2">Running the numbers against your baseline</span>
-              <span class="working-step step-3">Weighing tradeoffs and writing it straight</span>
-            </div>
-          </div>
-        ` : ""}
         <div class="advisor-next-row">
           <p><strong>Best next move:</strong> ${escapeHtml(advisorSummary.followUpPrompt)}</p>
           ${advisorFollowUps ? `<div class="quick-question-row">${advisorFollowUps}</div>` : ""}

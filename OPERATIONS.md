@@ -38,7 +38,7 @@ Any model (or you) must do these after changing code, in order:
 
 ```bash
 node --check src/main.js        # syntax
-npm test                        # must show 108 passing (update this number if tests are added)
+npm test                        # must show 110 passing (update this number if tests are added)
 # bump the cache-buster IN BOTH FILES (same string!):
 #   index.html  +  src/bootstrap.js  →  ?v=pam-ai-YYYYMMDD-<slug>
 git add -A && git commit -m "what changed" && git push origin main

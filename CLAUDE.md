@@ -378,7 +378,7 @@ git diff --check
 Current expected test count:
 
 ```text
-108 passing tests
+110 passing tests
 ```
 
 Known harmless warning:
