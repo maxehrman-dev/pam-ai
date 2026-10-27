@@ -49,12 +49,12 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "no-store, max-age=0"
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     },
     {
-      "source": "/api/(.*)",
+      "source": "/api/((?!integrations/status).*)",
       "headers": [
         {
           "key": "Cache-Control",

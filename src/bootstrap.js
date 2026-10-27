@@ -40,14 +40,20 @@ function renderBootError(error) {
   `;
 }
 
+// Boot waits on this, so it must never hang: after 6s the app starts with
+// defaults instead of sitting on a blank screen.
 async function loadConfig() {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
   try {
-    const res = await fetch("/api/integrations/status");
+    const res = await fetch("/api/integrations/status", { signal: controller.signal });
     if (!res.ok) return {};
     const data = await res.json();
     return data.clientConfig || {};
   } catch (_error) {
     return {};
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

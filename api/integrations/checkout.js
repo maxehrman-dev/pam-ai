@@ -1,7 +1,11 @@
 const { hasClerkConfig, verifyClerkToken } = require("../_lib/clerk.js");
-const { withErrorReporting } = require("../_lib/observability.js");
+const { reportServerError, withErrorReporting } = require("../_lib/observability.js");
 const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { assertServiceEnabled, checkRateLimit, validatePayload } = require("../_lib/security.js");
+const { findSubscriptionByClerkUserId, hasSupabaseConfig } = require("../_lib/supabase.js");
+
+// Stripe statuses where the user is (or is about to be) billed.
+const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_PRICE_ID_MONTHLY = process.env.STRIPE_PRICE_ID_MONTHLY || "";
@@ -12,12 +16,14 @@ function hasStripeConfig() {
   return Boolean(STRIPE_SECRET_KEY && (STRIPE_PRICE_ID_MONTHLY || STRIPE_PRICE_ID_FOUNDING));
 }
 
-async function stripePost(path, body) {
+async function stripePost(path, body, idempotencyKey = "") {
   const res = await fetch("https://api.stripe.com/v1" + path, {
     method: "POST",
+    signal: AbortSignal.timeout(10000),
     headers: {
       Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-      "Content-Type": "application/x-www-form-urlencoded"
+      "Content-Type": "application/x-www-form-urlencoded",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {})
     },
     body: new URLSearchParams(body).toString()
   });
@@ -69,7 +75,18 @@ const __pamRouteHandler = async (req, res) => {
     return sendJson(res, 503, { ok: false, error: "That plan is not available yet." });
   }
 
+  // No second subscription for someone who already pays.
+  if (hasSupabaseConfig()) {
+    const existing = await findSubscriptionByClerkUserId(clerkUserId).catch(() => null);
+    if (existing && ACTIVE_STATUSES.has(String(existing.status || ""))) {
+      return sendJson(res, 409, { ok: false, error: "You already have PAM. Manage your plan from Profile." });
+    }
+  }
+
   try {
+    // Same user + plan within 10 minutes reuses one Stripe session, so a
+    // double-click or retried request can't open two checkouts.
+    const idempotencyKey = `checkout:${clerkUserId}:${body.plan}:${Math.floor(Date.now() / (10 * 60 * 1000))}`;
     const session = await stripePost("/checkout/sessions", {
       mode: "subscription",
       "line_items[0][price]": priceId,
@@ -84,10 +101,11 @@ const __pamRouteHandler = async (req, res) => {
       success_url: `${PAM_SITE_URL}/?checkout=success`,
       cancel_url: `${PAM_SITE_URL}/?checkout=cancelled`,
       allow_promotion_codes: "true"
-    });
+    }, idempotencyKey);
 
     return sendJson(res, 200, { ok: true, url: session.url });
   } catch (error) {
+    await reportServerError(error, { route: "integrations/checkout", method: "POST", statusCode: 500 });
     return sendJson(res, 500, { ok: false, error: error.message || "Could not create checkout session." });
   }
 };

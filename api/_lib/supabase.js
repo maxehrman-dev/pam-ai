@@ -61,6 +61,7 @@ async function supabaseRequest(path, options = {}) {
   }
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    signal: AbortSignal.timeout(8000),
     ...options,
     headers: getHeaders(options.headers || {})
   });

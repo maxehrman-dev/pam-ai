@@ -24,6 +24,9 @@ const __pamRouteHandler = async (req, res) => {
 
   const supabase = await checkSupabaseConnection();
 
+  // Every page load asks for this and nothing in it is per-user, so let the
+  // CDN answer repeats for 30s. Admin setting changes still land within ~1 min.
+  res.setHeader("Cache-Control", "public, max-age=0, s-maxage=30, stale-while-revalidate=30");
   return sendJson(res, 200, {
     ok: true,
     domain: process.env.PAM_SITE_URL || "https://pamadvisor.com",

@@ -110,7 +110,7 @@ function renderControls(settings, environment, history) {
     };
     message.textContent = "Saving...";
     const { response, payload } = await api(ENDPOINT, { method: "POST", body: JSON.stringify({ action: "update_settings", settings: settingsPatch }) });
-    message.textContent = response.ok && payload.ok ? "Saved. Changes reach the site within about 30 seconds." : payload.error || "Could not save.";
+    message.textContent = response.ok && payload.ok ? "Saved. Changes reach the site within about a minute." : payload.error || "Could not save.";
     if (response.ok && payload.ok) load();
   });
 

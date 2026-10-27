@@ -1,3 +1,4 @@
+const { checkSharedLimits } = require("../_lib/sharedLimits.js");
 const { loadRuntimeSettings } = require("../_lib/runtimeSettings.js");
 const { createLinkToken, hasPlaidConfig } = require("../_lib/plaid.js");
 const { withErrorReporting } = require("../_lib/observability.js");
@@ -66,6 +67,9 @@ const __pamRouteHandler = async (req, res) => {
         envLimitKey: "PAM_PLAID"
       })
     ) {
+      return;
+    }
+    if (!(await checkSharedLimits(req, res, { routeKey: "plaid:create-link-token", userKey: clientUserId, envPrefix: "PAM_PLAID", limits: { ipDaily: 40, userDaily: 12, globalDaily: 300 } }))) {
       return;
     }
 

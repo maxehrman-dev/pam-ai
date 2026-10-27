@@ -55,6 +55,7 @@ async function callPlaid(path, payload) {
 
   const response = await fetch(`${getBaseUrl()}${path}`, {
     method: "POST",
+    signal: AbortSignal.timeout(15000),
     headers: getHeaders(),
     body: JSON.stringify({
       client_id: PLAID_CLIENT_ID,

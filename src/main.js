@@ -1596,17 +1596,23 @@ function isVerificationConfirmed() {
   return state.verificationCheckStatus === "valid";
 }
 
-async function requestJson(url, options = {}) {
+async function requestJson(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, options);
+    const response = await fetch(url, { ...options, signal: controller.signal });
     const payload = await response.json().catch(() => null);
     return { response, payload, error: null };
   } catch (error) {
     return {
       response: null,
       payload: null,
-      error: error instanceof Error ? error.message : "Network request failed."
+      error: error?.name === "AbortError"
+        ? "This is taking too long. Check your connection and try again."
+        : error instanceof Error ? error.message : "Network request failed."
     };
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 
@@ -2197,9 +2203,7 @@ async function requestDecisionGuidance(question, result) {
   try {
     const response = await fetch("/api/decision", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: await buildAuthHeaders(),
       body: JSON.stringify({
         prompt: question,
         baseline: getConnectedSnapshot(state.baseline),
@@ -2858,6 +2862,7 @@ async function maybeAutoRefreshFinancialData() {
 
 async function handleQuestionSubmit(event) {
   event.preventDefault();
+  if (state.decisionBusy) return;
   const formData = new FormData(event.currentTarget);
   const question = String(formData.get("question") || "").trim();
   if (!question) return;
@@ -2912,6 +2917,7 @@ function handleStructuredPresetClick(event) {
 
 async function handleStructuredDecisionSubmit(event) {
   event.preventDefault();
+  if (state.decisionBusy) return;
   const formData = new FormData(event.currentTarget);
   const mode = String(formData.get("mode") || state.decisionMode || "expense");
   const draft = {};
@@ -3020,6 +3026,7 @@ async function handleLegalAcceptance(event) {
 
 async function handleFeedbackSubmit(event) {
   event.preventDefault();
+  if (state.feedbackBusy) return;
   const formData = new FormData(event.currentTarget);
   const message = String(formData.get("feedbackMessage") || "").trim();
   const ratingValue = Number(formData.get("feedbackRating") || 0);
@@ -3725,10 +3732,13 @@ async function sendDeepDiveTurn(userText = "") {
   dd.busy = true;
   dd.error = "";
   render();
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 25000);
   try {
     const response = await fetch("/api/decision", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      headers: await buildAuthHeaders(),
       body: JSON.stringify({
         mode: "deepdive",
         baseline: getConnectedSnapshot(state.baseline),
@@ -3754,6 +3764,8 @@ async function sendDeepDiveTurn(userText = "") {
     }
   } catch (_error) {
     dd.error = "Connection hiccup, your answers are safe. Try again.";
+  } finally {
+    window.clearTimeout(timeoutId);
   }
   dd.busy = false;
   render();
@@ -7076,6 +7088,7 @@ function wireInteractions() {
   });
   document.querySelectorAll("[data-waitlist-form]").forEach((form) => form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (state.waitlistBusy) return;
     const formData = new FormData(event.currentTarget);
     const emailAddress = String(formData.get("waitlistEmail") || "").trim();
     const fullName = String(formData.get("waitlistFullName") || "").trim();

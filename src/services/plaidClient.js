@@ -54,8 +54,19 @@ async function loadPlaidScript() {
   });
 }
 
+// Plaid calls can be slow; past 20s the user gets a clear error, not a spinner.
+function fetchWithTimeout(url, options = {}, ms = 20000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...options, signal: controller.signal })
+    .catch((error) => {
+      throw error?.name === "AbortError" ? new Error("Plaid is taking too long to respond. Please try again.") : error;
+    })
+    .finally(() => clearTimeout(timeoutId));
+}
+
 async function createLinkToken(profile, authHeaders) {
-  const response = await fetch("/api/plaid/create_link_token", {
+  const response = await fetchWithTimeout("/api/plaid/create_link_token", {
     method: "POST",
     headers: getJsonHeaders(authHeaders),
     body: JSON.stringify({
@@ -82,7 +93,7 @@ async function exchangePublicToken(publicToken, metadata, profile, authHeaders) 
     profile: safeProfile
   };
   if (profile?.accountId) body.accountId = profile.accountId;
-  const response = await fetch("/api/plaid/exchange_public_token", {
+  const response = await fetchWithTimeout("/api/plaid/exchange_public_token", {
     method: "POST",
     headers: getJsonHeaders(authHeaders),
     body: JSON.stringify(body)
@@ -101,7 +112,7 @@ async function fetchBaseline(profile, authHeaders) {
     clientUserId: getPlaidClientUserId()
   });
   if (profile?.accountId) params.set("accountId", profile.accountId);
-  const response = await fetch(`/api/plaid/baseline?${params.toString()}`, {
+  const response = await fetchWithTimeout(`/api/plaid/baseline?${params.toString()}`, {
     headers: getJsonHeaders(authHeaders)
   });
   const payload = await readJsonSafe(response);

@@ -146,3 +146,49 @@ create table if not exists public.pam_subscriptions (
 alter table public.pam_subscriptions enable row level security;
 create index if not exists pam_subscriptions_status_idx on public.pam_subscriptions(status);
 create index if not exists pam_subscriptions_customer_id_idx on public.pam_subscriptions(stripe_customer_id);
+
+-- Indexes for the reads the app makes on every page load and in /admin.
+create index if not exists pam_events_name_created_idx on public.pam_events(event_name, created_at desc);
+create index if not exists pam_scenario_runs_created_at_idx on public.pam_scenario_runs(created_at desc);
+
+-- Shared rate limits. Serverless instances each keep their own memory, so
+-- in-memory counters multiply under load. This table is one counter per key
+-- for every instance; pam_hit_limit increments it atomically and says whether
+-- the caller is still under the limit. Server-only: RLS on, no policies, and
+-- only the service role may call the function.
+create table if not exists public.pam_rate_limits (
+  key text primary key,
+  window_start timestamptz not null default now(),
+  count integer not null default 0
+);
+
+alter table public.pam_rate_limits enable row level security;
+create index if not exists pam_rate_limits_window_start_idx on public.pam_rate_limits(window_start);
+
+create or replace function public.pam_hit_limit(p_key text, p_window_seconds integer, p_limit integer)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_count integer;
+begin
+  insert into public.pam_rate_limits as r (key, window_start, count)
+  values (p_key, now(), 1)
+  on conflict (key) do update set
+    count = case when r.window_start < now() - make_interval(secs => p_window_seconds) then 1 else r.count + 1 end,
+    window_start = case when r.window_start < now() - make_interval(secs => p_window_seconds) then now() else r.window_start end
+  returning count into current_count;
+
+  -- Occasional cleanup so the table stays small.
+  if random() < 0.01 then
+    delete from public.pam_rate_limits where window_start < now() - interval '2 days';
+  end if;
+
+  return current_count <= p_limit;
+end;
+$$;
+
+revoke all on function public.pam_hit_limit(text, integer, integer) from public, anon, authenticated;
+grant execute on function public.pam_hit_limit(text, integer, integer) to service_role;

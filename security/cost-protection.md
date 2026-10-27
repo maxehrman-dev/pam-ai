@@ -40,6 +40,29 @@ Daily caps can be overridden with:
 - `PAM_TELEMETRY_IP_DAILY_LIMIT`
 - `PAM_TELEMETRY_USER_DAILY_LIMIT`
 
+## Shared Limits And Global Daily Caps
+
+The limits above live in each serverless instance's memory, so under load (many
+instances) they multiply and reset. `api/_lib/sharedLimits.js` adds counters in
+Supabase (`public.pam_rate_limits` + `public.pam_hit_limit`) that every instance
+shares. The global caps are the hard ceiling on what one day can cost.
+
+| Route | Shared daily caps | Over the global cap |
+| --- | --- | --- |
+| `/api/decision` (AI) | 80/IP, 30/account, **500 total** | 503, users keep PAM's own math |
+| `/api/plaid/create_link_token`, `exchange_public_token` | 40/IP, 12/account, **300 total** each | 503 |
+| `/api/plaid/baseline` | 80/IP, 30/account, **1,000 total** | 503 |
+| `/api/waitlist` emails | 1 email batch per address, **100 signups emailed total** | signup still saved, no email |
+
+Override with `PAM_AI_GLOBAL_DAILY_LIMIT`, `PAM_AI_SHARED_IP_DAILY_LIMIT`,
+`PAM_AI_SHARED_USER_DAILY_LIMIT`, the same `PAM_PLAID_*` names, and
+`PAM_EMAIL_GLOBAL_DAILY_LIMIT`. Until `node scripts/apply-supabase-schema.mjs`
+has run against production, the shared layer steps aside and the in-memory
+limits keep working.
+
+`/api/decision` also requires a signed-in Clerk session, so the AI can't be
+called by anyone who just finds the URL.
+
 ## Vercel Firewall Settings To Enable
 
 Currently published on Vercel:
@@ -64,3 +87,30 @@ Vercel's project-level firewall stops abuse before a Function invocation. The in
 - Plaid Sandbox access tokens are stored server-side only. Production Plaid tokens must be encrypted before storage.
 - Watch Vercel Usage, Plaid Dashboard, Anthropic usage, Resend usage, and Supabase usage during ads or public posts.
 - If traffic spikes unexpectedly, set `PAM_DISABLE_AI=true` first because AI has the highest variable cost.
+
+## Pre-Launch Checklist (20 Items)
+
+Status as of 2026-10-27. "You" = something only the account owner can do.
+
+| # | Item | Status |
+| --- | --- | --- |
+| 1 | Rate limiting | Per-IP/per-account limits on every route, Vercel Firewall at the edge, shared Supabase counters across instances. |
+| 2 | API limits | Daily per-IP, per-account and global caps on AI, Plaid and waitlist email. |
+| 3 | Spending caps | Global daily caps in code. **You:** set a monthly spend limit in the Anthropic console and turn on Vercel Spend Management. |
+| 4 | Error handling | Every route has an error boundary with safe messages; AI failures fall back to deterministic results. |
+| 5 | Loading states | One loader per question; Plaid sync and sign-in have staged loading screens. |
+| 6 | Empty states | Result, goals, net worth and accounts show empty states instead of fake data. |
+| 7 | Failed requests | Browser requests time out with a clear "try again" message instead of a stuck spinner. |
+| 8 | API timeouts | Anthropic 12s (20s deep-dive), Plaid 15s, Stripe 10s, Supabase 8s, analytics 5s; browser 6-25s. |
+| 9 | Duplicate submissions | Submit handlers ignore repeats while busy; repeat waitlist signups don't re-send email. |
+| 10 | Duplicate payments | Checkout refuses users with an active subscription and uses a Stripe idempotency key; the webhook is signature-checked and idempotent. |
+| 11 | DB queries | Admin reads are bounded; status check is CDN-cached. |
+| 12 | DB indexes | Indexes on every lookup column, including events by name + time. |
+| 13 | Pagination | Only the admin stats read in bulk (30 days of events, capped). Revisit past ~20k events/month. |
+| 14 | Compression | Vercel gzip/brotli on all responses. |
+| 15 | Upload size | No file uploads; request bodies capped and schema-validated. |
+| 16 | Caching | Status check cached 30s at the CDN; app files revalidate with ETags instead of re-downloading. |
+| 17 | Uptime monitoring | `GET /api/health` (no DB). **You:** point a free monitor (UptimeRobot or Better Stack, 5-minute checks, email alerts) at `https://pamadvisor.com/api/health`. |
+| 18 | Error logging | Sentry on client and server, flushed before functions freeze; swallowed AI/waitlist/checkout errors are reported. |
+| 19 | Simultaneous users | Load-tested locally: 300 concurrent page loads, 200 status checks, 300 telemetry events, 150 AI asks from 150 IPs; no errors, global cap held exactly. |
+| 20 | Backup + restore | Free Supabase has no automatic backups. `npm run backup` exports every table (secrets left out); `RESTORE_DATABASE_URL=... npm run restore-test backups/<stamp>` restores into a separate database and checks row counts (tested end to end). **You:** run a backup weekly, or move to Supabase Pro for daily backups. |

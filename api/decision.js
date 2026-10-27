@@ -5,6 +5,8 @@ const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { assertServiceEnabled, checkDailyUsageBudget, checkRateLimit, validatePayload } = require("./_lib/security.js");
 const { loadRuntimeSettings } = require("./_lib/runtimeSettings.js");
+const { hasClerkConfig, verifyClerkUserId } = require("./_lib/clerk.js");
+const { checkSharedLimits } = require("./_lib/sharedLimits.js");
 
 const decisionSchema = {
   properties: {
@@ -550,9 +552,15 @@ const FEW_SHOT_MESSAGES = [
   }
 ];
 
+// Upstream timeouts sit under the browser's 15s limit, so a slow model call
+// ends in a clean fallback instead of a hung request.
+const AI_TIMEOUT_MS = 12000;
+const DEEPDIVE_TIMEOUT_MS = 20000;
+
 async function callClaude({ apiKey, model, system, userText }) {
   return fetch(ANTHROPIC_URL, {
     method: "POST",
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     headers: {
       "x-api-key": apiKey,
       "anthropic-version": ANTHROPIC_VERSION,
@@ -618,7 +626,7 @@ async function requestGuidance(payload) {
   let integrityFlagged = false;
   if (untraceable.length) {
     integrityFlagged = true;
-    reportServerError(new Error(`AI guidance stated untraceable dollar amounts: ${untraceable.join(", ")}`), {
+    await reportServerError(new Error(`AI guidance stated untraceable dollar amounts: ${untraceable.join(", ")}`), {
       route: "decision",
       method: "POST",
       statusCode: 200
@@ -686,6 +694,7 @@ async function requestDeepDive(payload) {
   try {
     response = await fetch(ANTHROPIC_URL, {
       method: "POST",
+      signal: AbortSignal.timeout(DEEPDIVE_TIMEOUT_MS),
       headers: { "x-api-key": apiKey, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json" },
       body: JSON.stringify({
         model: DEFAULT_MODEL,
@@ -731,6 +740,12 @@ const __pamRouteHandler = async (req, res) => {
     if (payload.mode !== "deepdive" && !sanitizeString(payload.prompt)) {
       return sendJson(res, 400, { ok: false, error: "request body.prompt is required." });
     }
+    // AI calls cost money, so only signed-in accounts can make them. The
+    // deterministic answer is already on screen; the client falls back to it.
+    const accountId = await verifyClerkUserId(req.headers?.authorization);
+    if (hasClerkConfig() && !accountId) {
+      return sendJson(res, 401, { ok: false, error: "Sign in to get PAM's written explanation." });
+    }
     await loadRuntimeSettings();
     if (
       !assertServiceEnabled(res, {
@@ -746,6 +761,7 @@ const __pamRouteHandler = async (req, res) => {
       !checkRateLimit(req, res, {
         routeKey: "decision",
         userKey:
+          accountId ||
           payload.baseline?.profile?.emailAddress ||
           payload.baseline?.profile?.firstName ||
           payload.prompt,
@@ -760,6 +776,7 @@ const __pamRouteHandler = async (req, res) => {
       !checkDailyUsageBudget(req, res, {
         routeKey: "decision",
         userKey:
+          accountId ||
           payload.baseline?.profile?.emailAddress ||
           payload.baseline?.profile?.firstName ||
           payload.prompt,
@@ -768,6 +785,10 @@ const __pamRouteHandler = async (req, res) => {
         envLimitKey: "PAM_AI"
       })
     ) {
+      return;
+    }
+
+    if (!(await checkSharedLimits(req, res, { routeKey: "ai", userKey: accountId, envPrefix: "PAM_AI", limits: { ipDaily: 80, userDaily: 30, globalDaily: 500 } }))) {
       return;
     }
 
@@ -781,6 +802,9 @@ const __pamRouteHandler = async (req, res) => {
 
     const result = await requestGuidance(payload);
     if (!result.ok) {
+      // Users still get PAM's own math; this makes an outage (quota, key,
+      // timeout) visible instead of silent.
+      await reportServerError(new Error(`AI guidance unavailable: ${result.error || "unknown"}`), { route: "decision", method: "POST", statusCode: 502 });
       return sendJson(res, 200, {
         ok: false,
         error: "AI guidance unavailable",
@@ -790,6 +814,9 @@ const __pamRouteHandler = async (req, res) => {
 
     return sendJson(res, 200, result);
   } catch (error) {
+    if (!error?.statusCode || error.statusCode >= 500) {
+      await reportServerError(error, { route: "decision", method: "POST", statusCode: 500 });
+    }
     return sendJson(res, 200, {
       ok: false,
       error: "AI guidance unavailable",

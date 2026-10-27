@@ -71,6 +71,7 @@ async function forwardToPostHog({ eventName, sessionId, page, properties }) {
   try {
     const response = await fetch(`${POSTHOG_HOST}/capture/`, {
       method: "POST",
+      signal: AbortSignal.timeout(5000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: POSTHOG_PROJECT_API_KEY,

@@ -1,3 +1,4 @@
+const { checkSharedLimits } = require("../_lib/sharedLimits.js");
 const { loadRuntimeSettings } = require("../_lib/runtimeSettings.js");
 const { buildNormalizedBaseline, getStoredSession, hasPlaidConfig } = require("../_lib/plaid.js");
 const { withErrorReporting } = require("../_lib/observability.js");
@@ -72,6 +73,9 @@ const __pamRouteHandler = async (req, res) => {
         envLimitKey: "PAM_PLAID"
       })
     ) {
+      return;
+    }
+    if (!(await checkSharedLimits(req, res, { routeKey: "plaid:baseline", userKey: clientUserId, envPrefix: "PAM_PLAID", limits: { ipDaily: 80, userDaily: 30, globalDaily: 1000 } }))) {
       return;
     }
 

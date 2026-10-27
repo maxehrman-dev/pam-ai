@@ -394,6 +394,7 @@ module.exports = {
   assertServiceEnabled,
   checkDailyUsageBudget,
   checkRateLimit,
+  getClientIp,
   getOptionalString,
   sanitizeString,
   sanitizeText,

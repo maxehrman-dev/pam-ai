@@ -1,5 +1,6 @@
+const { hitSharedLimit } = require("./_lib/sharedLimits.js");
 const { hasEmailProvider, isResendTestingRestriction, sendWaitlistConfirmation, sendWaitlistNotification, syncWaitlistContact } = require("./_lib/email.js");
-const { withErrorReporting } = require("./_lib/observability.js");
+const { reportServerError, withErrorReporting } = require("./_lib/observability.js");
 const { getCachedRuntimeSettings, loadRuntimeSettings } = require("./_lib/runtimeSettings.js");
 const { sendJson, sendMethodNotAllowed } = require("./_lib/http.js");
 const { checkDailyUsageBudget, checkRateLimit, validatePayload } = require("./_lib/security.js");
@@ -48,6 +49,7 @@ async function syncWaitlistToSheet(entry, req) {
 
   const response = await fetch(webhookUrl, {
     method: "POST",
+    signal: AbortSignal.timeout(5000),
     headers: {
       "Content-Type": "application/json",
       ...(webhookSecret ? { "x-pam-sheets-secret": webhookSecret } : {})
@@ -59,6 +61,11 @@ async function syncWaitlistToSheet(entry, req) {
     throw new Error("Google Sheets waitlist sync failed.");
   }
   return "synced";
+}
+
+function readEmailDailyLimit() {
+  const parsed = Number.parseInt(String(process.env.PAM_EMAIL_GLOBAL_DAILY_LIMIT || ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
 }
 
 const __pamRouteHandler = async (req, res) => {
@@ -122,7 +129,13 @@ const __pamRouteHandler = async (req, res) => {
       }
     }
 
-    if (hasEmailProvider() && !isEmailPaused()) {
+    // One email batch per address per day (repeat signups don't re-send) and a
+    // daily ceiling on waitlist emails overall. The signup is saved either way.
+    const emailBudgetOk = !hasEmailProvider() || isEmailPaused()
+      ? false
+      : (await hitSharedLimit(`waitlist-email:user:${String(body.emailAddress).toLowerCase()}`, 24 * 60 * 60, 1)) &&
+        (await hitSharedLimit("waitlist-email:global", 24 * 60 * 60, readEmailDailyLimit()));
+    if (emailBudgetOk) {
       try {
         newsletter = await syncWaitlistContact({
           emailAddress: body.emailAddress,
@@ -149,7 +162,7 @@ const __pamRouteHandler = async (req, res) => {
         }
         warning = warning || "Email confirmation needs a verified sending domain.";
       }
-    } else {
+    } else if (!hasEmailProvider() || isEmailPaused()) {
       warning = warning || (isEmailPaused() ? "Email delivery is temporarily paused." : "Email delivery is not configured.");
     }
 
@@ -174,6 +187,9 @@ const __pamRouteHandler = async (req, res) => {
       warning
     });
   } catch (error) {
+    if (!error?.statusCode || error.statusCode >= 500) {
+      await reportServerError(error, { route: "waitlist", method: "POST", statusCode: 500 });
+    }
     return sendJson(res, error.statusCode || 500, {
       ok: false,
       error: "Unable to join the waitlist right now. Please try again."

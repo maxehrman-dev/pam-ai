@@ -45,6 +45,23 @@ async function verifyClerkToken(authHeader) {
   }
 }
 
+// Session check only (no user lookup): enough to gate an endpoint and key its
+// limits on a real account id. One fewer Clerk API call per request.
+async function verifyClerkUserId(authHeader) {
+  if (!hasClerkConfig()) return "";
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return "";
+  const token = authHeader.slice(7).trim();
+  if (!token) return "";
+  try {
+    const { createClerkClient } = require("@clerk/backend");
+    const clerk = createClerkClient({ secretKey: CLERK_SECRET_KEY });
+    const payload = await clerk.verifyToken(token);
+    return payload?.sub ? String(payload.sub) : "";
+  } catch (_error) {
+    return "";
+  }
+}
+
 async function updateClerkUserMetadata(clerkUserId, metadata = {}) {
   if (!hasClerkConfig() || !clerkUserId) return false;
   try {
@@ -63,5 +80,6 @@ module.exports = {
   getClerkPublishableKey,
   hasClerkConfig,
   updateClerkUserMetadata,
-  verifyClerkToken
+  verifyClerkToken,
+  verifyClerkUserId
 };

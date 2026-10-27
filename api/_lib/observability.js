@@ -47,8 +47,9 @@ function getSentry() {
 }
 
 // Report a server-side error. Always logs a structured line (captured by Vercel
-// runtime logs); also sends to Sentry when configured. Never throws.
-function reportServerError(error, context = {}) {
+// runtime logs); also sends to Sentry when configured. Never throws. Await it:
+// a serverless function can freeze before Sentry's send finishes otherwise.
+async function reportServerError(error, context = {}) {
   const safeContext = {
     route: context.route || "unknown",
     method: context.method || "",
@@ -72,6 +73,7 @@ function reportServerError(error, context = {}) {
   if (Sentry && error instanceof Error) {
     try {
       Sentry.captureException(error, { tags: safeContext });
+      await Sentry.flush(1500);
     } catch (_captureError) {
       // Capture is best-effort.
     }
@@ -87,7 +89,7 @@ function withErrorReporting(routeName, handler) {
       return await handler(req, res);
     } catch (error) {
       const statusCode = Number(error?.statusCode) || 500;
-      reportServerError(error, {
+      await reportServerError(error, {
         route: routeName,
         method: req?.method || "",
         statusCode

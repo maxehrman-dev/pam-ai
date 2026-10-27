@@ -128,6 +128,7 @@ async function getWaitlistRows() {
     const response = await fetch(
       `${supabaseUrl}/rest/v1/pam_waitlist?select=${select}&order=created_at.asc`,
       {
+        signal: AbortSignal.timeout(10000),
         headers: {
           apikey: serviceRoleKey,
           Authorization: `Bearer ${serviceRoleKey}`,
@@ -199,6 +200,7 @@ async function readAdminTable(path, { count = false } = {}) {
   if (!supabaseUrl || !serviceRoleKey) throw new Error("Supabase is not configured.");
   const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
     method: count ? "HEAD" : "GET",
+    signal: AbortSignal.timeout(10000),
     headers: {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`,
