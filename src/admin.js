@@ -290,7 +290,7 @@ async function render(payload) {
       el("div", { className: "admin-layout" }, [
         card("What waitlist members want help with", "Most recent first.", quoteList(stats.recentGoals, (item) => ({ text: item.goal, meta: [item.stage, formatDate(item.when)].filter(Boolean).join(" · ") }), "Nothing yet.")),
         card("Recent feedback", "", quoteList(stats.recentFeedback, (item) => ({ text: item.message, meta: [item.rating ? `${item.rating}/5` : "", item.page, formatDate(item.when)].filter(Boolean).join(" · ") }), "No feedback yet.")),
-        card("School and employer requests", "Reply from your inbox; emails stay in Supabase.", quoteList(stats.partnerRequests, (item) => ({ text: item.organization || "(no organization given)", meta: formatDate(item.when) }), "None yet."))
+        card("Partner requests", "Schools & employers, creators, and advisors. Reply from your inbox; emails stay in Supabase.", quoteList(stats.partnerRequests, (item) => ({ text: item.organization || "(nothing given)", meta: [item.program, formatDate(item.when)].filter(Boolean).join(" · ") }), "None yet."))
       ])
     ]),
     el("p", { className: "admin-note admin-updated", text: `Updated ${new Date(stats.generatedAt).toLocaleString("en-US")}` })

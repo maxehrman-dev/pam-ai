@@ -26,6 +26,7 @@ import {
 import { connectSandboxAccount, loadSandboxFallback, refreshConnectedBaseline } from "./services/plaidClient.js";
 import { defaultGoals, financialProfile as sampleProfile, goalTemplates, starterScenarios } from "./data/mockData.js";
 import { buildLiveDemoScenes, mountLiveDemo, renderLiveDemo } from "./liveDemo.js";
+import { PARTNER_KINDS, getPartnerKindByStage, renderGlossaryPage, renderHelpPage, renderPartnerPage, wireInfoPages } from "./infoPages.js";
 import {
   buildDecisionSession,
   isStandaloneQuestion,
@@ -3195,8 +3196,28 @@ function getLegalRoute() {
   if (pathname === "/privacy") return "privacy";
   if (pathname === "/content-policy") return "content-policy";
   if (pathname === "/privacy-plain") return "privacy-plain";
-  if (pathname === "/faq") return "faq";
   return "";
+}
+
+// Public info pages. /faq is folded into the help center.
+function getInfoRoute() {
+  const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+  if (pathname === "/help" || pathname === "/faq") return "help";
+  if (pathname === "/glossary") return "glossary";
+  const partner = Object.entries(PARTNER_KINDS).find(([, kind]) => kind.path === pathname);
+  return partner ? partner[0] : "";
+}
+
+function renderInfoRoute(route) {
+  const chrome = {
+    disclaimer: renderDisclaimerBanner(),
+    footer: renderLegalFooter(),
+    cookie: renderCookieConsentBanner(),
+    modal: renderWaitlistModal()
+  };
+  if (route === "help") return renderHelpPage(chrome);
+  if (route === "glossary") return renderGlossaryPage(chrome);
+  return renderPartnerPage(route, chrome);
 }
 
 function getInputContentWarning(value) {
@@ -6198,19 +6219,21 @@ function renderWaitlistModal() {
   if (!state.waitlistOpen) return "";
   if (state.waitlistPartnerMode) {
     const sent = state.waitlistPartnerSent;
+    const kind = getPartnerKindByStage(state.waitlistPartnerStage);
+    const form = kind.form;
     return `
       <div class="modal-backdrop" data-close-waitlist>
-        <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="PAM partnerships">
-          <div class="panel-kicker">Schools and employers</div>
-          <h2>${sent ? "Thanks, we'll be in touch." : "Talk to us about a partnership."}</h2>
-          <p>${sent ? "We read every request and will reach out about early access for your group." : "Tell us about your school, program, or company and roughly how many people you'd want to bring."}</p>
+        <div class="waitlist-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(kind.kicker)}">
+          <div class="panel-kicker">${escapeHtml(kind.kicker)}</div>
+          <h2>${sent ? "Thanks, we'll be in touch." : escapeHtml(form.title)}</h2>
+          <p>${escapeHtml(sent ? form.sent : form.body)}</p>
           ${!sent && state.waitlistMessage ? `<p class="auth-status-message waitlist-modal-status">${escapeHtml(state.waitlistMessage)}</p>` : ""}
           ${sent ? "" : `
             <form class="profile-form" data-waitlist-form>
-              <label><span>Work email</span><input type="email" name="waitlistEmail" placeholder="you@school.edu" value="${escapeHtml(state.waitlistDraft?.emailAddress || "")}" required /></label>
+              <label><span>${escapeHtml(form.emailLabel)}</span><input type="email" name="waitlistEmail" placeholder="${escapeHtml(form.emailPlaceholder)}" value="${escapeHtml(state.waitlistDraft?.emailAddress || "")}" required /></label>
               <label><span>Your name <small>optional</small></span><input type="text" name="waitlistFullName" placeholder="Maya Chen" maxlength="120" value="${escapeHtml(state.waitlistDraft?.fullName || "")}" /></label>
-              <input type="hidden" name="waitlistStage" value="School or employer partner" />
-              <label><span>School, program, or company</span><input type="text" name="waitlistGoal" placeholder="e.g. State U career center, 40-person intern class" maxlength="220" value="${escapeHtml(state.waitlistDraft?.goal || "")}" required /></label>
+              <input type="hidden" name="waitlistStage" value="${escapeHtml(kind.stage)}" />
+              <label><span>${escapeHtml(form.fieldLabel)}</span><input type="text" name="waitlistGoal" placeholder="${escapeHtml(form.fieldPlaceholder)}" maxlength="220" value="${escapeHtml(state.waitlistDraft?.goal || "")}" required /></label>
               <button class="button button-primary" type="submit" ${state.waitlistBusy ? "disabled" : ""}>${state.waitlistBusy ? "Sending..." : "Send"}</button>
             </form>
           `}
@@ -6326,9 +6349,9 @@ function renderLegalFooter({ compact = false } = {}) {
       <footer class="pam-legal-footer is-compact">
         <p>Modeling tool, not financial, tax, legal, or investment advice.</p>
         <nav aria-label="Legal links">
+          <a href="/help">Help</a>
           <a href="/terms">Terms</a>
           <a href="/privacy">Privacy</a>
-          <a href="/faq">FAQ</a>
         </nav>
       </footer>
     `;
@@ -6336,12 +6359,13 @@ function renderLegalFooter({ compact = false } = {}) {
   return `
     <footer class="pam-legal-footer">
       <p>${escapeHtml(LEGAL_DISCLAIMER)}</p>
-      <nav aria-label="Legal links">
+      <nav aria-label="Site links">
+        <a href="/help">Help</a>
+        <a href="/glossary">Money terms</a>
+        ${Object.values(PARTNER_KINDS).map((kind) => `<a href="${kind.path}">${escapeHtml(kind.navLabel)}</a>`).join("")}
         <a href="/terms">Terms</a>
         <a href="/privacy">Privacy</a>
         <a href="/content-policy">Content Policy</a>
-        <a href="/faq">FAQ</a>
-        <a href="/waitlist">Waitlist</a>
       </nav>
     </footer>
   `;
@@ -6452,22 +6476,6 @@ function renderLegalPage(route) {
         ["Input filtering", "PAM may warn or block unusually large pasted text to reduce copyright and privacy risk. Summarize the financial decision in your own words instead of pasting third-party content."],
         ["Enforcement", "Violations may result in account suspension or termination. Report misuse to hello@pamadvisor.com."]
       ]
-    },
-    faq: {
-      title: "FAQ",
-      eyebrow: "Help",
-      intro: "Fast answers for people trying PAM for the first time.",
-      sections: [
-        ["What is PAM SI?", "PAM SI is a financial decision modeling tool for young adults. It helps you test choices like rent, cars, trips, saving, investing, job changes, and taxes before you commit, so you know what happens before you decide."],
-        ["Is PAM a financial advisor?", "No. PAM is not a licensed financial advisor, RIA, tax professional, attorney, bank, or broker. It provides educational modeling only. Always consult a qualified professional before making major financial decisions."],
-        ["Does PAM connect to my bank?", "Yes. PAM uses Plaid Sandbox to securely connect financial accounts. PAM never sees your bank login credentials. Plaid handles authentication. Connected account data is used only to build your financial baseline inside PAM."],
-        ["Is my financial data safe?", "Yes. PAM uses HTTPS for all data in transit, stores Plaid access tokens encrypted server-side, and never exposes API secrets to the browser. We do not sell or share your financial data."],
-        ["Are payments live?", "No. Stripe subscriptions are not live yet. Founding pricing is communicated on the waitlist, but no charges are made until a payment flow is set up and you confirm checkout."],
-        ["Are the results guaranteed?", "No. PAM's results are hypothetical estimates based on the data and assumptions available. Real-life outcomes can differ materially. Treat PAM as a planning aid, not a source of truth."],
-        ["What should I do if a result looks wrong?", "Update your baseline with more accurate numbers, then run the decision again. For important financial decisions, verify numbers with a qualified professional."],
-        ["How do I delete my account or data?", "Email hello@pamadvisor.com with your request. We will process it within a reasonable time subject to legal retention requirements."],
-        ["Can I give feedback?", "Yes. Signed-in users can send feedback from the dashboard profile screen. You can also email hello@pamadvisor.com."]
-      ]
     }
   };
   const page = pages[route] || pages.terms;
@@ -6488,7 +6496,7 @@ function renderLegalPage(route) {
           <a href="/terms">Terms</a>
           <a href="/privacy">Privacy</a>
           <a href="/content-policy">Content Policy</a>
-          <a href="/faq">FAQ</a>
+          <a href="/help">Help</a>
         </nav>
       </header>
       <main class="legal-page-card">
@@ -6705,17 +6713,14 @@ function renderPublicLaunchGate(mode = "public") {
       <section class="marketing-section marketing-partners reveal-on-scroll reveal-up" aria-labelledby="partners-heading">
         <div class="marketing-partners-card">
           <div>
-            <div class="panel-kicker">For schools and employers</div>
-            <h2 id="partners-heading">Give your students or new hires a head start.</h2>
-            <p>The money decisions that shape the next decade happen early: the first lease, the first 401(k), the first real paycheck. Career centers, financial literacy programs, and intern and new-grad cohorts can offer PAM as a benefit. We're opening a small number of early partnerships.</p>
+            <div class="panel-kicker">Partner with PAM</div>
+            <h2 id="partners-heading">Bring PAM to the people you work with.</h2>
+            <p>The money calls that shape the next decade happen early. If you teach, hire, create, or advise people at that stage, there's a program for you.</p>
           </div>
-          <div>
-            <ul class="marketing-checklist">
-              <li>Group access for a class, cohort, or intern program</li>
-              <li>Covers first-job calls: paycheck split, first lease, student loans, 401(k) match</li>
-              <li>Each member's money stays private to them</li>
-            </ul>
-            <button class="button button-secondary marketing-btn-lg" type="button" data-open-waitlist data-waitlist-stage="School or employer partner">Talk to us about a partnership</button>
+          <div class="partner-links">
+            ${Object.values(PARTNER_KINDS).map((kind) => `
+              <a class="partner-link" href="${kind.path}"><strong>${escapeHtml(kind.navLabel)}</strong><span>${escapeHtml(kind.cta)} →</span></a>
+            `).join("")}
           </div>
         </div>
       </section>
@@ -6775,11 +6780,15 @@ const ROUTE_TITLES = {
   privacy: "Privacy Policy | PAM SI",
   "content-policy": "Content Policy | PAM SI",
   "privacy-plain": "What PAM Stores | PAM SI",
-  faq: "FAQ | PAM SI"
+  help: "Help Center | PAM SI",
+  glossary: "Money Terms | PAM SI",
+  schools: "For Schools and Employers | PAM SI",
+  creators: "Creator Program | PAM SI",
+  advisors: "For Financial Professionals | PAM SI"
 };
 
 function updateDocumentTitle() {
-  const title = ROUTE_TITLES[getLegalRoute()] || (isWaitlistRoute() ? "Join the Waitlist | PAM SI" : "PAM SI | Personal Asset Manager");
+  const title = ROUTE_TITLES[getLegalRoute() || getInfoRoute()] || (isWaitlistRoute() ? "Join the Waitlist | PAM SI" : "PAM SI | Personal Asset Manager");
   if (document.title !== title) document.title = title;
 }
 
@@ -6810,6 +6819,13 @@ function render() {
   if (isWaitlistRoute()) {
     app.innerHTML = renderWaitlistPage();
     wireInteractions();
+    return;
+  }
+  const infoRoute = getInfoRoute();
+  if (infoRoute) {
+    app.innerHTML = renderInfoRoute(infoRoute);
+    wireInteractions();
+    wireInfoPages();
     return;
   }
   if (shouldShowPublicLaunchGate()) {
@@ -7111,7 +7127,7 @@ function wireInteractions() {
       state.waitlistBusy = false;
       state.waitlistPartnerSent = true;
       state.waitlistMessage = "";
-      trackEvent("partner_interest_submitted", { stored: payload.stored || "" });
+      trackEvent("partner_interest_submitted", { stored: payload.stored || "", program: stage });
       render();
       return;
     }
@@ -7315,6 +7331,7 @@ function wireInteractions() {
     state.inviteOpen = false;
     state.waitlistOpen = true;
     state.waitlistPartnerMode = Boolean(presetStage);
+    state.waitlistPartnerStage = presetStage;
     state.waitlistPartnerSent = false;
     state.waitlistMessage = state.waitlistJoined && !presetStage ? WAITLIST_FOUNDING_NOTE : "";
     state.waitlistBusy = false;

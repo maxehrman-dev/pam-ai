@@ -294,7 +294,9 @@ Legal pages:
 - `/terms`
 - `/privacy`
 - `/content-policy`
-- `/faq`
+- `/help` (the old `/faq` link opens it)
+- `/glossary`
+- Partner programs: `/schools`, `/creators`, `/advisors`
 
 Important legal principles:
 
@@ -378,7 +380,7 @@ git diff --check
 Current expected test count:
 
 ```text
-127 passing tests
+131 passing tests
 ```
 
 Known harmless warning:

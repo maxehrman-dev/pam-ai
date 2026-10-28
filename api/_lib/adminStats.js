@@ -1,6 +1,13 @@
+
 // Aggregates for the private admin page. Pure functions over rows already
 // read from Supabase, so they're easy to test. Returns counts and short text
 // only: no emails, no financial data.
+
+const PARTNER_PROGRAMS = {
+  "School or employer partner": "Schools & employers",
+  "Creator affiliate": "Creators",
+  "Advisor referral partner": "Advisors"
+};
 
 const FUNNEL_STEPS = [
   ["signup_started", "Started signup"],
@@ -100,8 +107,9 @@ function buildAdminStats({ waitlist = [], events = [], runs = [], feedback = [],
     { label: "Client errors", count: count("client_error") + count("client_unhandled_rejection") }
   ];
 
-  const partners = waitlist.filter((row) => row.stage === "School or employer partner");
-  const people = waitlist.filter((row) => row.stage !== "School or employer partner");
+  // Partner programs share the waitlist table, one stage per program.
+  const partners = waitlist.filter((row) => PARTNER_PROGRAMS[row.stage]);
+  const people = waitlist.filter((row) => !PARTNER_PROGRAMS[row.stage]);
 
   return {
     generatedAt: new Date(now).toISOString(),
@@ -116,7 +124,7 @@ function buildAdminStats({ waitlist = [], events = [], runs = [], feedback = [],
     waitlistByAge: countBy(people, (row) => ageBand(row.age)),
     waitlistByWeek: countBy(waitlist, (row) => weekStart(row.created_at)).sort((left, right) => left.label.localeCompare(right.label)).slice(-12),
     recentGoals: people.filter((row) => row.goal).slice(-12).reverse().map((row) => ({ goal: String(row.goal).slice(0, 220), stage: row.stage || "", when: row.created_at })),
-    partnerRequests: partners.slice(-10).reverse().map((row) => ({ organization: String(row.goal || "").slice(0, 220), when: row.created_at })),
+    partnerRequests: partners.slice(-10).reverse().map((row) => ({ organization: String(row.goal || "").slice(0, 220), program: PARTNER_PROGRAMS[row.stage], when: row.created_at })),
     funnel,
     dailySessions,
     aiHealth,

@@ -35,6 +35,26 @@
       "destination": "/"
     },
     {
+      "source": "/help",
+      "destination": "/"
+    },
+    {
+      "source": "/glossary",
+      "destination": "/"
+    },
+    {
+      "source": "/schools",
+      "destination": "/"
+    },
+    {
+      "source": "/creators",
+      "destination": "/"
+    },
+    {
+      "source": "/advisors",
+      "destination": "/"
+    },
+    {
       "source": "/admin",
       "destination": "/admin.html"
     }
