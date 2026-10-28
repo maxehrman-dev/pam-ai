@@ -26,3 +26,15 @@ test("the stored admin secret is read without stray whitespace", async () => {
   assert.notEqual(res.statusCode, 401);
   delete process.env.PAM_ADMIN_SECRET;
 });
+
+test("a missing admin secret says so instead of 'wrong secret'", async () => {
+  delete process.env.PAM_ADMIN_SECRET;
+  const handler = require("../api/admin/send_waitlist_update.js");
+  const res = { statusCode: 200, setHeader() {}, hasHeader: () => false, end(body) { this.body = body; } };
+  const warn = console.warn;
+  console.warn = () => {};
+  await handler({ method: "GET", url: "/api/admin/send_waitlist_update", query: {}, headers: { "x-forwarded-for": "203.0.113.99", "x-pam-admin-secret": "anything" } }, res);
+  console.warn = warn;
+  assert.equal(res.statusCode, 503);
+  assert.match(JSON.parse(res.body).error, /PAM_ADMIN_SECRET/);
+});

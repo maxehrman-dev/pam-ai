@@ -35,7 +35,16 @@ function assertAdmin(req) {
   // shouldn't lock the owner out; the sign-in form trims what's typed too.
   const configuredSecret = String(process.env.PAM_ADMIN_SECRET || "").trim();
   const providedSecret = String(req.headers["x-pam-admin-secret"] || "").trim();
-  if (!configuredSecret || !timingSafeEqualText(providedSecret, configuredSecret)) {
+  if (!configuredSecret) {
+    // Say so plainly: "wrong secret" would send the owner chasing typos when
+    // the real problem is the setting never reached this deployment.
+    console.warn("Admin sign-in attempted but PAM_ADMIN_SECRET is not set for this deployment.");
+    const error = new Error("Admin secret isn't set up on the server.");
+    error.statusCode = 503;
+    error.publicMessage = "The admin secret isn't set on the server. Add PAM_ADMIN_SECRET for Production in Vercel, then redeploy.";
+    throw error;
+  }
+  if (!timingSafeEqualText(providedSecret, configuredSecret)) {
     const error = new Error("Unauthorized.");
     error.statusCode = 401;
     throw error;
@@ -311,7 +320,7 @@ const __pamRouteHandler = async (req, res) => {
       }
       return await handleAdminStats(req, res);
     } catch (error) {
-      return sendJson(res, error.statusCode || 500, { ok: false, error: error.statusCode === 401 ? "Unauthorized." : "Could not load stats." });
+      return sendJson(res, error.statusCode || 500, { ok: false, error: error.publicMessage || (error.statusCode === 401 ? "Unauthorized." : "Could not load stats.") });
     }
   }
   if (req.method !== "POST") {
