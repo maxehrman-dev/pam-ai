@@ -18,6 +18,7 @@ const FILES = [
   "src/infoPages.js",
   "src/liveDemo.js",
   "src/utils/askGuard.js",
+  "src/knownDevice.js",
   "admin.html",
   "api/_lib/adminStats.js",
   "src/utils/monteCarlo.js",

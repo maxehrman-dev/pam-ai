@@ -26,6 +26,7 @@ import {
 import { connectSandboxAccount, loadSandboxFallback, refreshConnectedBaseline } from "./services/plaidClient.js";
 import { defaultGoals, financialProfile as sampleProfile, goalTemplates, starterScenarios } from "./data/mockData.js";
 import { buildLiveDemoScenes, mountLiveDemo, renderLiveDemo } from "./liveDemo.js";
+import { dismissWelcomeBack, forgetKnownDevice, isWelcomeBackDismissed, maskEmail, readKnownDevice, rememberKnownDevice, supportsPasskeys } from "./knownDevice.js";
 import { PARTNER_KINDS, getPartnerKindByStage, renderGlossaryPage, renderHelpPage, renderPartnerPage, wireInfoPages } from "./infoPages.js";
 import {
   buildDecisionSession,
@@ -1745,6 +1746,9 @@ async function logoutAccount() {
   try {
     window.posthog?.reset?.();
   } catch (_error) {}
+  // Right after signing out, show the homepage, not "Welcome back". The
+  // device is still remembered for the next visit.
+  dismissWelcomeBack();
   if (isClerkMode()) {
     try { await window.Clerk.signOut(); } catch (_error) {}
   }
@@ -4600,6 +4604,7 @@ function renderMobileProfileScreen() {
             `).join("")}
           </div>
         </article>
+        ${renderPasskeySetting()}
         <details class="profile-fold">
           <summary><span>Security</span><strong>Change password</strong></summary>
           <form class="compact-password-form" data-password-form>
@@ -4749,7 +4754,7 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
-        ${state.userValues?.completed ? `${renderFinishProfileCard() || renderDeepDiveCard()}` : `<button class="nudge-row" type="button" data-open-view="values"><span><strong>Two minutes</strong> of setup so answers fit your goals, not generic advice.</span><span class="nudge-go" aria-hidden="true">Set up →</span></button>`}
+        ${state.userValues?.completed ? `${renderFinishProfileCard() || renderDeepDiveCard() || renderPasskeyNudge()}` : `<button class="nudge-row" type="button" data-open-view="values"><span><strong>Two minutes</strong> of setup so answers fit your goals, not generic advice.</span><span class="nudge-go" aria-hidden="true">Set up →</span></button>`}
         ${renderInsightCards()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
@@ -5643,6 +5648,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
             <span>Security</span>
             <strong>Password</strong>
           </div>
+          ${renderPasskeySetting()}
           <form class="compact-password-form" data-password-form>
             <input type="password" name="currentPassword" placeholder="Current password" autocomplete="current-password" />
             <input type="password" name="newPassword" placeholder="New password" autocomplete="new-password" />
@@ -6741,6 +6747,128 @@ function renderPublicLaunchGate(mode = "public") {
   `;
 }
 
+// Returning device, signed out: skip the marketing page and offer the
+// fastest way back in (a passkey if they've set one up), like a bank app.
+// Passkey buttons only appear once passkeys are switched on in the Clerk
+// dashboard (User & authentication > Passkeys); until then they'd just fail.
+function passkeysEnabled() {
+  try {
+    return supportsPasskeys() && Boolean(window.Clerk?.__unstable__environment?.userSettings?.attributes?.passkey?.enabled);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function shouldShowWelcomeBack() {
+  if (hasPrototypeAccount() || !isClerkConfigured()) return false;
+  if ((window.location.pathname.replace(/\/+$/, "") || "/") !== "/") return false;
+  if (state.workspaceView === "account" || isWelcomeBackDismissed()) return false;
+  return Boolean(readKnownDevice());
+}
+
+function renderWelcomeBack(device) {
+  const usePasskey = device.hasPasskey && passkeysEnabled();
+  return `
+    <div class="foresee-shell pam-transition-shell welcome-back">
+      <div class="pam-transition-card welcome-back-card">
+        <div class="pam-transition-brand"><span>PAM</span></div>
+        <h1>Welcome back${device.firstName ? `, ${escapeHtml(device.firstName)}` : ""}.</h1>
+        <p class="pam-transition-copy">${escapeHtml(maskEmail(device.email))}</p>
+        ${state.welcomeBackMessage ? `<p class="auth-status-message" role="alert">${escapeHtml(state.welcomeBackMessage)}</p>` : ""}
+        ${usePasskey
+          ? `<button class="button button-primary marketing-btn-lg welcome-back-primary" type="button" data-passkey-signin ${state.passkeyBusy ? "disabled" : ""}>${state.passkeyBusy ? "Waiting for your device..." : "Sign in with Face ID or Touch ID"}</button>
+             <button class="text-button" type="button" data-welcome-password>Use password instead</button>`
+          : `<button class="button button-primary marketing-btn-lg welcome-back-primary" type="button" data-welcome-password>Sign in</button>`}
+        <p class="welcome-back-links">
+          <button class="text-button" type="button" data-welcome-forget>Not you?</button>
+          <span aria-hidden="true">·</span>
+          <button class="text-button" type="button" data-welcome-home>Go to homepage</button>
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+async function handlePasskeySignIn() {
+  if (state.passkeyBusy || !isClerkMode()) return;
+  state.passkeyBusy = true;
+  state.welcomeBackMessage = "";
+  render();
+  try {
+    const signIn = await window.Clerk.client.signIn.authenticateWithPasskey({ flow: "discoverable" });
+    if (signIn?.status === "complete") {
+      trackEvent("passkey_signin_completed");
+      await window.Clerk.setActive({ session: signIn.createdSessionId });
+      return;
+    }
+    state.welcomeBackMessage = "That didn't finish. Try again, or use your password.";
+  } catch (error) {
+    const cancelled = error?.name === "NotAllowedError" || /cancel|abort/i.test(String(error?.message || ""));
+    state.welcomeBackMessage = cancelled ? "Cancelled. Try again whenever you're ready." : "Your device couldn't sign you in. Use your password instead.";
+  } finally {
+    state.passkeyBusy = false;
+  }
+  render();
+}
+
+// Profile setting: add a passkey so next time is one tap.
+function renderPasskeySetting() {
+  if (!isClerkMode() || !window.Clerk?.user || !passkeysEnabled()) return "";
+  const count = Array.isArray(window.Clerk.user.passkeys) ? window.Clerk.user.passkeys.length : 0;
+  return `
+    <div class="passkey-setting">
+      <div>
+        <strong>${count ? "Passkey on" : "Sign in with Face ID or Touch ID"}</strong>
+        <small>${count ? `This account has ${count} passkey${count === 1 ? "" : "s"}. Signing back in is one tap on a device you've used.` : "Add a passkey and signing back in on this device is one tap. No password to type."}</small>
+      </div>
+      <button class="button button-secondary" type="button" data-add-passkey ${state.passkeyBusy ? "disabled" : ""}>${state.passkeyBusy ? "Waiting..." : count ? "Add another device" : "Add a passkey"}</button>
+      ${state.passkeyMessage ? `<p class="auth-status-message" role="status">${escapeHtml(state.passkeyMessage)}</p>` : ""}
+    </div>
+  `;
+}
+
+// One quiet nudge after sign-in, only when nothing else is asking for attention.
+function renderPasskeyNudge() {
+  if (!isClerkMode() || !window.Clerk?.user || !passkeysEnabled() || state.passkeyNudgeDismissed) return "";
+  if (Array.isArray(window.Clerk.user.passkeys) && window.Clerk.user.passkeys.length) return "";
+  return `
+    <button class="nudge-row" type="button" data-add-passkey>
+      <span><strong>Sign in faster next time</strong> with Face ID or Touch ID instead of a password.</span>
+      <span class="nudge-go" aria-hidden="true">Set up →</span>
+    </button>
+  `;
+}
+
+async function handleAddPasskey() {
+  if (state.passkeyBusy || !window.Clerk?.user) return;
+  state.passkeyBusy = true;
+  state.passkeyMessage = "";
+  render();
+  try {
+    await window.Clerk.user.createPasskey();
+    trackEvent("passkey_added");
+    state.passkeyMessage = "Passkey added. Next time, sign in with one tap.";
+    state.passkeyNudgeDismissed = true;
+    rememberSignedInDevice();
+  } catch (error) {
+    const cancelled = error?.name === "NotAllowedError" || /cancel|abort/i.test(String(error?.message || ""));
+    state.passkeyMessage = cancelled ? "Cancelled. You can add one any time in Profile." : "Couldn't add a passkey on this device. Your password still works.";
+  } finally {
+    state.passkeyBusy = false;
+  }
+  render();
+}
+
+function rememberSignedInDevice() {
+  const account = getClerkAccount();
+  if (!account?.emailAddress) return;
+  rememberKnownDevice({
+    firstName: account.firstName,
+    email: account.emailAddress,
+    hasPasskey: Array.isArray(window.Clerk?.user?.passkeys) && window.Clerk.user.passkeys.length > 0
+  });
+}
+
 // Full-screen branded transition while account data loads after sign-in.
 // Staged messages animate in so it's obvious PAM is populating real data.
 function renderSessionRestoreScreen() {
@@ -6794,6 +6922,7 @@ function updateDocumentTitle() {
 
 function render() {
   if (!app) return;
+  if (isClerkMode() && window.__pamClerkUser) rememberSignedInDevice();
   updateDocumentTitle();
   applyDisplayTheme();
   if (state.sessionRestoring) {
@@ -6826,6 +6955,11 @@ function render() {
     app.innerHTML = renderInfoRoute(infoRoute);
     wireInteractions();
     wireInfoPages();
+    return;
+  }
+  if (shouldShowWelcomeBack()) {
+    app.innerHTML = renderWelcomeBack(readKnownDevice());
+    wireInteractions();
     return;
   }
   if (shouldShowPublicLaunchGate()) {
@@ -6903,6 +7037,26 @@ function wireInteractions() {
     });
   });
   runAnswerCountUps();
+  document.querySelectorAll("[data-passkey-signin]").forEach((button) => button.addEventListener("click", handlePasskeySignIn));
+  document.querySelectorAll("[data-add-passkey]").forEach((button) => button.addEventListener("click", handleAddPasskey));
+  document.querySelectorAll("[data-welcome-password]").forEach((button) => button.addEventListener("click", () => {
+    const device = readKnownDevice();
+    if (isClerkMode() && window.Clerk?.openSignIn) {
+      window.Clerk.openSignIn(device?.email ? { initialValues: { emailAddress: device.email } } : {});
+      return;
+    }
+    saveAuthView("signin");
+    openWorkspaceView("account");
+  }));
+  document.querySelectorAll("[data-welcome-forget]").forEach((button) => button.addEventListener("click", () => {
+    forgetKnownDevice();
+    trackEvent("known_device_forgotten");
+    render();
+  }));
+  document.querySelectorAll("[data-welcome-home]").forEach((button) => button.addEventListener("click", () => {
+    dismissWelcomeBack();
+    render();
+  }));
   if (document.querySelector("[data-live-demo]")) mountLiveDemo(getLiveDemoScenes());
   document.querySelectorAll("[data-structured-decision-form]").forEach((form) => {
     form.addEventListener("submit", handleStructuredDecisionSubmit);
