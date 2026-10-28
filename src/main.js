@@ -27,12 +27,14 @@ import { connectSandboxAccount, loadSandboxFallback, refreshConnectedBaseline } 
 import { defaultGoals, goalTemplates, starterScenarios } from "./data/mockData.js";
 import {
   buildDecisionSession,
+  isStandaloneQuestion,
   detectGoalConflicts,
   simulateCareerVelocity,
   simulateBuyVsRent,
   simulateLocationArbitrage
 } from "./utils/scenarioEngine.js";
 import { getPersonaCoefficients } from "./utils/personaEngine.js";
+import { PAM_IDENTITY_REPLY, classifyAsk } from "./utils/askGuard.js";
 import { simulateMarketRange } from "./utils/monteCarlo.js";
 import { compareTaxStrategies } from "./utils/taxStrategies.js";
 import { renderRangeChartSvg, renderStartEarlyChartSvg } from "./utils/rangeChart.js";
@@ -137,7 +139,11 @@ const state = {
   demoAccessMessage: "",
   plaidBusy: false,
   deepdive: { messages: [], busy: false, error: "" },
-  resultFresh: false,
+  // Answer reveal clock and the current thread of follow-ups.
+  revealStartedAt: 0,
+  answerThread: [],
+  threadContext: "",
+  pamReply: null,
   sessionRestoring: false,
   sessionRestoreError: false,
   subscription: null,
@@ -1291,7 +1297,8 @@ function getScenarioProfileFromBaseline(baseline) {
     liabilities: liabilities.map((item) => ({
       label: item.name || item.type || "Liability",
       balance: toNumber(item.balance, 0),
-      rate: toNumber(item.rate, 0),
+      rate: item.rate === null || item.rate === undefined || item.rate === "" ? null : toNumber(item.rate, 0),
+      type: item.type || "",
       monthlyPayment: toNumber(item.minimumPayment ?? item.monthlyPayment, 0),
       principalShare: Math.max(Math.round(toNumber(item.minimumPayment ?? item.monthlyPayment, 0) * 0.68), 0)
     })),
@@ -1346,12 +1353,13 @@ function getGoalsFromBaseline(baseline) {
   }));
 }
 
-function buildScenarioSession({ prompt = state.question, draft = null } = {}) {
+function buildScenarioSession({ prompt = state.question, draft = null, context = "" } = {}) {
   const profile = getScenarioProfileFromBaseline(state.baseline);
   const goals = getGoalsFromBaseline(state.baseline);
   return buildDecisionSession({
     prompt,
     draft,
+    context,
     profile,
     goals,
     catalog: starterScenarios
@@ -1389,6 +1397,7 @@ function toLegacyDecisionFromSession(session) {
     ...(Array.isArray(result.moneyFacts) && result.moneyFacts.length ? { moneyFacts: result.moneyFacts } : {}),
     ...(result.affordability ? { affordability: result.affordability } : {}),
     ...(result.debtPlan ? { debtPlan: result.debtPlan } : {}),
+    ...(result.comparison ? { comparison: result.comparison } : {}),
     ...(result.goalFunding ? { goalFunding: result.goalFunding } : {}),
     ...(result.milestones ? { milestones: result.milestones } : {}),
     ...(result.retirementBridge ? { retirementBridge: result.retirementBridge } : {}),
@@ -2193,7 +2202,7 @@ function getConnectedSnapshot(baseline) {
   };
 }
 
-async function requestDecisionGuidance(question, result) {
+async function requestDecisionGuidance(question, result, thread = []) {
   // The deterministic result is already on screen; AI guidance only refines it.
   // A hard timeout means a slow upstream call can never leave the result stuck
   // in the "refining" state.
@@ -2207,7 +2216,8 @@ async function requestDecisionGuidance(question, result) {
       body: JSON.stringify({
         prompt: question,
         baseline: getConnectedSnapshot(state.baseline),
-        result
+        result,
+        ...(thread.length ? { thread } : {})
       }),
       signal: controller.signal
     });
@@ -2240,17 +2250,52 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
     state.result = null;
     return;
   }
-  saveQuestion(question);
+  const previous = state.result;
+  const previousSession = previous?.scenarioSession;
+  const inThread = Boolean(options.followUp && (previous || state.pamReply));
+  // A follow-up that doesn't name its own decision reuses the last one.
+  const reusesDraft = Boolean(inThread && previousSession && !state.pamReply && !isStandaloneQuestion(question));
+  const threadQuestions = inThread ? [...(state.answerThread || []).map((turn) => turn.question), previous?.question || ""].filter(Boolean) : [];
+  const kind = classifyAsk(question) === "identity" ? "identity" : classifyAsk(reusesDraft ? `${threadQuestions.join(" ")} ${question}` : question);
+
+  // Keep the thread: the answer on screen becomes the turn above the new one.
+  if (inThread) {
+    const turn = state.pamReply
+      ? { question: state.pamReply.question, call: "PAM", headline: (PAM_IDENTITY_REPLY[state.pamReply.kind] || PAM_IDENTITY_REPLY.offtopic).headline }
+      : { question: previous.question, call: getVerdictLabel(previous), headline: getAdvisorSummary(previous, getGoalLabel(state.baseline)).headline };
+    state.answerThread = [...(state.answerThread || []), turn].slice(-4);
+  } else {
+    state.answerThread = [];
+    state.threadContext = "";
+  }
+  if (!options.followUp) saveQuestion(question);
   saveWorkspaceView("dashboard");
   saveMobileView("ask");
-  const session = options.session || buildScenarioSession({ prompt: question, draft: options.draft || null });
+  state.saveScenarioMessage = "";
+
+  if (kind !== "money") {
+    state.pamReply = { kind, question };
+    state.result = null;
+    state.aiGuidance = null;
+    state.revealStartedAt = Date.now();
+    trackEvent("decision_off_topic", { kind });
+    render();
+    return;
+  }
+  state.pamReply = null;
+  const context = reusesDraft ? `${state.threadContext || ""} ${previous.question || ""}`.trim() : "";
+  state.threadContext = context;
+  const session = options.session || buildScenarioSession({
+    prompt: question,
+    draft: options.draft || (reusesDraft ? previousSession.draft : null),
+    context
+  });
   state.result = toLegacyDecisionFromSession(session);
   recordDecisionHistory(state.result);
   if (subscriptionRequired()) bumpFreeDecisionCount();
-  state.resultFresh = false;
+  state.revealStartedAt = 0;
   state.thinkingStartedAt = Date.now();
   state.aiGuidance = null;
-  state.saveScenarioMessage = "";
   state.decisionBusy = true;
   trackEvent("decision_analyzed", {
     source: state.baseline.source || "unknown",
@@ -2267,7 +2312,10 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
     // Hold the reveal until the explanation is in (or has failed), and long
     // enough that the steps read as progress rather than a flash.
     const [guidance] = await Promise.all([
-      requestDecisionGuidance(question, state.result),
+      requestDecisionGuidance(question, state.result, state.answerThread.flatMap((turn) => [
+        { role: "user", text: String(turn.question).slice(0, 400) },
+        { role: "pam", text: String(turn.headline).slice(0, 400) }
+      ]).slice(-6)),
       new Promise((resolve) => window.setTimeout(resolve, MIN_THINKING_MS))
     ]);
     if (guidance?.guidance) {
@@ -2283,9 +2331,8 @@ async function runDecisionAnalysis(question, statusMessage = "Decision analyzed 
   }
 
   state.decisionBusy = false;
-  // The finished answer lands once: sections stagger in, then settle.
-  state.resultFresh = true;
-  window.setTimeout(() => { state.resultFresh = false; }, 3000);
+  // The finished answer builds in on its own clock (see getRevealTiming).
+  state.revealStartedAt = Date.now();
   render();
   requestAnimationFrame(() => {
     document.querySelector("#decision-result")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -5102,19 +5149,24 @@ function getDecisionNextSteps(result) {
     ];
   }
 
+  // One follow-up that actually changes the answer: the same decision at a
+  // gentler number, worded so the engine reads it against this draft.
+  const draft = result?.scenarioSession?.draft || {};
+  const round = (value, step = 50) => Math.max(Math.round(value / step) * step, step);
   const monthlyImpact = Math.abs(toNumber(result?.decision?.monthlyImpact));
   const oneTimeImpact = Math.abs(toNumber(result?.decision?.oneTimeImpact));
-  const smallerMonthly = monthlyImpact ? Math.max(Math.round(monthlyImpact * 0.7), 25) : 0;
-  const smallerOneTime = oneTimeImpact ? Math.max(Math.round(oneTimeImpact * 0.75), 100) : 0;
-
-  // Self-contained prompts — never embed the raw question (it compounds into garbled text).
-  return [
-    monthlyImpact
-      ? `Compare this with a ${formatCurrency(smallerMonthly)}/month version.`
-      : `Compare this with a ${formatCurrency(smallerOneTime || 1000)} version.`,
-    "What would I need to cut to make this safer?",
-    "What's the safest time to do this?"
-  ];
+  if (draft.type === "move" && toNumber(draft.targetRent) > 0) {
+    return [`What if the rent was ${formatCurrency(round(toNumber(draft.targetRent) - 250))}?`];
+  }
+  if (draft.type === "invest" && toNumber(draft.monthlyInvestingDelta) > 0) {
+    return [`What if I invested ${formatCurrency(round(toNumber(draft.monthlyInvestingDelta) * 0.6, 25))} a month instead?`];
+  }
+  if (draft.type === "car" && toNumber(draft.purchaseAmount) > 0) {
+    return [`What if the car cost ${formatCurrency(round(toNumber(draft.purchaseAmount) * 0.75, 500))}?`];
+  }
+  if (monthlyImpact) return [`What if it was ${formatCurrency(round(monthlyImpact * 0.7, 25))} a month instead?`];
+  if (oneTimeImpact) return [`What if it cost ${formatCurrency(round(oneTimeImpact * 0.75, 100))} instead?`];
+  return [];
 }
 
 function getAdvisorSummary(result, goalLabel) {
@@ -5147,31 +5199,71 @@ function getAdvisorSummary(result, goalLabel) {
     };
   }
 
-  const monthlyImpact = Math.abs(toNumber(result?.decision?.monthlyImpact));
+  // "Pay off debt or invest?" is answered by the engine's side-by-side call.
+  if (result?.comparison) {
+    const comparison = result.comparison;
+    const edge = Math.abs(toNumber(comparison.edge));
+    const edgeText = comparison.options?.length
+      ? edge >= 100 && comparison.edge > 0
+        ? ` Over ${comparison.years} years that ends about ${formatCurrency(edge)} ahead of "${comparison.edgeVersus.toLowerCase()}".`
+        : ` The paths end within ${formatCurrency(edge)} of each other over ${comparison.years} years, so the lower-risk path wins the tie.`
+      : "";
+    return {
+      source: "From PAM's model",
+      headline: comparison.headline,
+      body: `${comparison.reason}${edgeText}`,
+      interpretationSummary: comparison.options?.length ? comparison.note : "",
+      followUpPrompt: "Change the amount and PAM will rerun both paths.",
+      followUpChoiceLabels: [
+        `What if I put ${formatCurrency(Math.round(comparison.extraMonthly * 2 / 50) * 50)} a month toward it?`,
+        `What if I only had ${formatCurrency(Math.max(Math.round(comparison.extraMonthly / 2 / 50) * 50, 50))} a month?`,
+        "How much should I keep as an emergency fund first?"
+      ]
+    };
+  }
+
+  // Direction matters: a cheaper option frees money each month, a pricier
+  // one costs it. Say which, and name an up-front cost separately.
+  const monthlyChange = Math.round(toNumber(result.newBuffer) - toNumber(result.currentBuffer));
   const oneTimeImpact = Math.abs(toNumber(result?.decision?.oneTimeImpact));
-  const impactText = monthlyImpact
-    ? `${formatCurrency(monthlyImpact)}/month`
-    : oneTimeImpact
-      ? formatCurrency(oneTimeImpact)
-      : "no major cash change";
+  const investing = /invest/i.test(String(result?.scenarioSession?.draft?.type || ""));
+  const bufferText = investing && monthlyChange < 0
+    ? `Investing ${formatCurrency(Math.abs(monthlyChange))} a month takes your buffer from ${formatCurrency(result.currentBuffer)} to ${formatCurrency(result.newBuffer)}.`
+    : monthlyChange > 0
+    ? `This frees up ${formatCurrency(monthlyChange)} a month: your buffer goes from ${formatCurrency(result.currentBuffer)} to ${formatCurrency(result.newBuffer)}.`
+    : monthlyChange < 0
+      ? `This costs ${formatCurrency(Math.abs(monthlyChange))} a month: your buffer goes from ${formatCurrency(result.currentBuffer)} to ${formatCurrency(result.newBuffer)}.`
+      : `Your monthly buffer stays at ${formatCurrency(result.currentBuffer)}.`;
+  const upfrontText = oneTimeImpact ? ` It also takes about ${formatCurrency(oneTimeImpact)} up front.` : "";
   const goalText = result.goalDelay
-    ? `It may delay ${goalLabel.toLowerCase()} by about ${formatMonths(result.goalDelay)}.`
-    : `It does not materially delay ${goalLabel.toLowerCase()} in this estimate.`;
-  const bufferText = `Your monthly buffer moves from ${formatCurrency(result.currentBuffer)} to ${formatCurrency(result.newBuffer)}.`;
-  const headline = result.risk.label === "Low"
-    ? "This looks workable, but PAM would still compare timing before you commit."
-    : result.risk.label === "Medium"
-      ? "This is possible, but it narrows your margin."
-      : "This is the version to avoid until the cost, timing, or income picture changes.";
-  const body = `${bufferText} PAM sees ${impactText} of impact, with ${result.risk.label.toLowerCase()} risk based on your current baseline. ${goalText}`;
+    ? monthlyChange > 0 && oneTimeImpact
+      ? ` That up-front cost comes out of savings first, so ${goalLabel.toLowerCase()} lands about ${formatMonths(result.goalDelay)} later.`
+      : ` ${goalLabel} lands about ${formatMonths(result.goalDelay)} later.`
+    : ` ${goalLabel} stays on schedule.`;
+  const headline = monthlyChange > 0
+    ? result.risk.label === "Low"
+      ? "This makes each month easier."
+      : "Cheaper each month, but the move itself needs a plan."
+    : investing
+      ? result.risk.label === "Low"
+        ? "You can afford to invest this."
+        : result.risk.label === "Medium"
+          ? "You can invest this, but it thins your cushion."
+          : "Build your cushion before investing this much."
+    : result.risk.label === "Low"
+      ? "This looks workable on your numbers."
+      : result.risk.label === "Medium"
+        ? "This is possible, but it narrows your margin."
+        : "This is the version to avoid until the cost, timing, or income picture changes.";
+  const body = `${bufferText}${upfrontText}${goalText} Risk: ${result.risk.label.toLowerCase()} on your current numbers.`;
 
   return {
     source: "From PAM's model",
     headline,
     body,
-    interpretationSummary: `PAM treated this as a ${result.decision.type.toLowerCase()} and compared it against your cash flow, savings, tax estimate, and main goal.`,
-    followUpPrompt: "Next, compare one safer version before you decide.",
-    followUpChoiceLabels: getDecisionNextSteps(result).slice(0, 3)
+    interpretationSummary: "",
+    followUpPrompt: result.risk.label === "Low" ? "Try another number, or ask what you'd do next." : "Try a gentler version before you decide.",
+    followUpChoiceLabels: getDecisionNextSteps(result)
   };
 }
 
@@ -5195,6 +5287,34 @@ function renderPaycheckSplitPlan(plan) {
       </ol>
       <p class="section-compact-note">PAM recommends the split, it never moves, holds, or routes money. You stay in control through your employer and bank.</p>
     </details>
+  `;
+}
+
+// The one visual that IS the answer for some questions: the range of outcomes
+// for investing, the per-paycheck split for a split. Everything else lives in
+// the full breakdown.
+function renderAnswerHighlight(result) {
+  const scenario = result?.scenarioSession?.result;
+  if (!scenario) return "";
+  const marketRange = scenario.marketRange;
+  if (scenario.splitPlan) return `<div class="result-section scenario-engine-output answer-highlight r" style="--d: 1.9s">${renderPaycheckSplitPlan(scenario.splitPlan)}</div>`;
+  if (!marketRange || result.comparison) return "";
+  return `
+    <div class="result-section scenario-engine-output answer-highlight r" style="--d: 1.9s">
+      ${marketRange ? `
+        <h3>Range of outcomes · ${marketRange.startAge && marketRange.endAge ? `age ${marketRange.startAge} to ${marketRange.endAge}` : `${marketRange.years} years`}</h3>
+        ${renderRangeChartSvg({ series: marketRange.scenario.series, startAge: marketRange.startAge })}
+        <div class="goal-impact-stack">
+          <div class="goal-impact-row"><span class="gi-name">Rough markets<small class="split-bucket-detail">1 in 10 paths ended lower</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.low)}</span></div>
+          <div class="goal-impact-row"><span class="gi-name">Typical<small class="split-bucket-detail">${marketRange.changed ? `today's plan: ${formatCurrency(marketRange.current.typical)}` : `${formatCurrency(marketRange.scenario.monthlyContribution)}/mo invested`}</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.typical)}</span></div>
+          <div class="goal-impact-row"><span class="gi-name">Strong markets<small class="split-bucket-detail">1 in 10 paths ended higher</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.high)}</span></div>
+          ${marketRange.goalOdds.map((goal) => `
+            <div class="goal-impact-row"><span class="gi-name">${escapeHtml(goal.title)}<small class="split-bucket-detail">${formatCurrency(goal.targetAmount)} within ${formatMonths(goal.months)}</small></span><span class="gi-change ${goal.probabilityPct >= 70 ? "neutral" : "bad"}">${goal.probabilityPct}% of paths</span></div>
+          `).join("")}
+        </div>
+        <p class="section-compact-note">${escapeHtml(marketRange.assumptions.join(" "))}</p>
+      ` : ""}
+    </div>
   `;
 }
 
@@ -5224,7 +5344,6 @@ function renderScenarioEngineDetails(result) {
   return `
     <div class="result-section scenario-engine-output">
       <p class="aha-callout"><span>Aha</span>${escapeHtml(scenario.ahaMoment || result.explanation)}</p>
-      ${renderPaycheckSplitPlan(scenario.splitPlan)}
       ${delayedGoals.length ? `
         <h3>Goal impact</h3>
         <div class="goal-impact-stack">
@@ -5247,19 +5366,6 @@ function renderScenarioEngineDetails(result) {
           `).join("")}
         </div>
       ` : ""}
-      ${marketRange ? `
-        <h3>Range of outcomes · ${marketRange.years} years</h3>
-        ${renderRangeChartSvg({ series: marketRange.scenario.series, startAge: marketRange.startAge })}
-        <div class="goal-impact-stack">
-          <div class="goal-impact-row"><span class="gi-name">Rough markets<small class="split-bucket-detail">1 in 10 paths ended lower</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.low)}</span></div>
-          <div class="goal-impact-row"><span class="gi-name">Typical<small class="split-bucket-detail">${marketRange.changed ? `today's plan: ${formatCurrency(marketRange.current.typical)}` : `${formatCurrency(marketRange.scenario.monthlyContribution)}/mo invested`}</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.typical)}</span></div>
-          <div class="goal-impact-row"><span class="gi-name">Strong markets<small class="split-bucket-detail">1 in 10 paths ended higher</small></span><span class="gi-change neutral">${formatCurrency(marketRange.scenario.high)}</span></div>
-          ${marketRange.goalOdds.map((goal) => `
-            <div class="goal-impact-row"><span class="gi-name">${escapeHtml(goal.title)}<small class="split-bucket-detail">${formatCurrency(goal.targetAmount)} within ${formatMonths(goal.months)}</small></span><span class="gi-change ${goal.probabilityPct >= 70 ? "neutral" : "bad"}">${goal.probabilityPct}% of paths</span></div>
-          `).join("")}
-        </div>
-        <p class="section-compact-note">${escapeHtml(marketRange.assumptions.join(" "))}</p>
-      ` : ""}
       ${taxStrategies ? `
         <h3>Same ${formatCurrency(taxStrategies.monthlyBudget)}/mo, after tax</h3>
         <div class="goal-impact-stack">
@@ -5270,7 +5376,7 @@ function renderScenarioEngineDetails(result) {
             </div>
           `).join("")}
         </div>
-        <p class="section-compact-note">Typical after-tax value in ${formatMonths(taxStrategies.months)}. ${escapeHtml(taxStrategies.bestLabel)} keeps ${formatCurrency(taxStrategies.bestVsTaxableTypical)} more than a taxable account. Tax bracket now ~${taxStrategies.rates.currentPct}%, assumed in retirement ~${taxStrategies.rates.retirementPct}%.</p>
+        <p class="section-compact-note">Typical after-tax value ${taxStrategies.months >= 24 ? `over ${Math.round(taxStrategies.months / 12)} years` : `in ${formatMonths(taxStrategies.months)}`}. ${escapeHtml(taxStrategies.bestLabel)} keeps ${formatCurrency(taxStrategies.bestVsTaxableTypical)} more than a taxable account. Tax bracket now ~${taxStrategies.rates.currentPct}%, assumed in retirement ~${taxStrategies.rates.retirementPct}%.</p>
       ` : ""}
       ${compounding ? `
         <h3>How compounding plays out for you</h3>
@@ -5286,9 +5392,6 @@ function renderScenarioEngineDetails(result) {
         </div>
         <p class="section-compact-note">Educational, not tax or legal advice. Rules shown are current law; confirm details for your situation.</p>
       ` : ""}
-      ${impactCards.length || goalFunding || credit || offsetActions.length || trace.length || affordability || debtPlan || moneyFacts.length || retirementBridge || taxNotes.length ? `
-        <details class="result-fold">
-          <summary>The full breakdown${taxNotes.length ? " · tax strategies" : ""}${goalFunding ? " · goal pace" : ""}${credit ? " · credit fit" : ""}${affordability ? " · your ceilings" : ""}${debtPlan ? " · debt payoff" : ""}${retirementBridge ? " · early-retirement bridge" : ""}${offsetActions.length ? " · offset plan" : ""}${trace.length ? " · reasoning" : ""}</summary>
           ${impactCards.length ? `
             <h3>All the numbers</h3>
             <div class="outcome-grid">
@@ -5389,8 +5492,6 @@ function renderScenarioEngineDetails(result) {
               ${trace.map((step) => `<p><strong>${escapeHtml(step.label)}</strong> ${escapeHtml(step.detail)}</p>`).join("")}
             </div>
           ` : ""}
-        </details>
-      ` : ""}
     </div>
   `;
 }
@@ -5827,7 +5928,18 @@ function getCurrentVerdict(result) {
   return risk === "Low" ? "worth_it" : risk === "High" ? "dont" : "not_yet";
 }
 
+// A "this or that" question gets the engine's pick instead of a yes/no.
+const COMPARISON_CALL_LABELS = { debt: "Debt first", invest: "Invest", split: "Split it" };
+
+function getVerdictLabel(result) {
+  if (result?.comparison) return COMPARISON_CALL_LABELS[result.comparison.call] || "PAM's pick";
+  return VERDICT_META[getCurrentVerdict(result)].label;
+}
+
 function renderVerdictBadge(result) {
+  if (result?.comparison) {
+    return `<span class="verdict-badge verdict-worth">${COMPARISON_CALL_LABELS[result.comparison.call] || "PAM's pick"}</span>`;
+  }
   const v = VERDICT_META[getCurrentVerdict(result)];
   return `<span class="verdict-badge ${v.className}">${v.label}</span>`;
 }
@@ -5851,7 +5963,7 @@ function renderThinkingPanel(result) {
   ];
   return `
     <section class="foresee-panel result-panel result-thinking mobile-screen mobile-screen-result" id="decision-result" role="status" aria-live="polite">
-      <div class="panel-kicker">Result</div>
+      ${renderAnswerThread()}
       <p class="thinking-question">“${escapeHtml(state.question)}”</p>
       <ol class="thinking-steps">
         ${steps.map((step, index) => {
@@ -5887,6 +5999,7 @@ function renderResult() {
     </section>
   `;
   }
+  if (state.pamReply) return renderPamReplyPanel(state.pamReply);
   if (!String(state.question || "").trim()) {
     return `
       <section class="foresee-panel result-panel result-empty mobile-screen mobile-screen-result" id="decision-result">
@@ -5901,80 +6014,182 @@ function renderResult() {
   if (state.decisionBusy) return renderThinkingPanel(result);
   const goalLabel = getGoalLabel(state.baseline);
   const advisorSummary = getAdvisorSummary(result, goalLabel);
-  const followUpLabels = advisorSummary.followUpChoiceLabels.length ? advisorSummary.followUpChoiceLabels : getDecisionNextSteps(result);
-  const advisorFollowUps = followUpLabels
-    .slice(0, 3)
-    .map((label) => `<button type="button" data-question-example="${escapeHtml(label)}">${escapeHtml(label)}</button>`)
-    .join("");
+  const followUpLabels = (advisorSummary.followUpChoiceLabels.length ? advisorSummary.followUpChoiceLabels : getDecisionNextSteps(result)).slice(0, 2);
+  const reveal = getRevealTiming();
+  // The answer builds in reading order: verdict, headline phrase by phrase,
+  // then each sentence, then the numbers and what to do next.
+  const headline = renderRevealPhrases(advisorSummary.headline, 0.35, 0.11);
+  const bodyStart = headline.endsAt + 0.15;
+  const body = renderRevealSentences(advisorSummary.body, bodyStart, 0.32);
+  const statsAt = Math.max(body.endsAt + 0.1, 1.6);
+  const monthlyChange = Math.round(toNumber(result.newBuffer) - toNumber(result.currentBuffer));
   return `
-    <section class="foresee-panel result-panel mobile-screen mobile-screen-result${state.resultFresh ? " result-entering" : ""}" id="decision-result">
-      <div class="result-header">
-        <div>
-          <div class="panel-kicker">Result</div>
-          <h2>Decision outcome</h2>
-        </div>
-        <div class="result-header-actions">
-          ${renderDataSourceBadge()}
-          <button class="button button-secondary" type="button" data-save-scenario>Save scenario</button>
-          ${renderVerdictBadge(result)}
-          <span class="risk-badge ${result.risk.className}">${result.risk.label} risk</span>
-        </div>
+    <section class="foresee-panel result-panel answer-panel mobile-screen mobile-screen-result${reveal.active ? " answer-reveal" : ""}" id="decision-result" style="--reveal-offset: ${reveal.offset}s" aria-live="polite">
+      ${renderAnswerThread()}
+      <p class="answer-trail r" style="--d: 0s"><span aria-hidden="true">✓</span> Checked against your cash flow, savings${goalLabel ? `, and ${escapeHtml(goalLabel.toLowerCase())}` : ", and goals"}</p>
+      <p class="answer-question r" style="--d: 0.05s">“${escapeHtml(result.question || state.question)}”</p>
+      <div class="answer-call">
+        <span class="r r-pop" style="--d: 0.15s">${renderVerdictBadge(result)}</span>
+        <h2 class="answer-headline">${headline.html}</h2>
       </div>
-      ${state.saveScenarioMessage ? `<p class="save-scenario-message">${escapeHtml(state.saveScenarioMessage)}</p>` : ""}
-      <div class="result-section advisor-box advisor-summary-box">
-        <div class="advisor-summary-topline">
-          <h3>PAM summary</h3>
-          <span>${escapeHtml(advisorSummary.source)}</span>
-        </div>
-        <div class="advisor-chat-bubble">
-          <p><strong>${escapeHtml(advisorSummary.headline)}</strong></p>
-          <p>${escapeHtml(advisorSummary.body)}</p>
-          ${advisorSummary.interpretationSummary ? `<p>${escapeHtml(advisorSummary.interpretationSummary)}</p>` : ""}
-        </div>
-        <p class="advisor-disclosure">${escapeHtml(state.aiGuidance?.disclosure || "Educational estimate from PAM's financial model, not financial, tax, legal, or investment advice.")}</p>
-        <div class="advisor-next-row">
-          <p><strong>Best next move:</strong> ${escapeHtml(advisorSummary.followUpPrompt)}</p>
-          ${advisorFollowUps ? `<div class="quick-question-row">${advisorFollowUps}</div>` : ""}
-        </div>
+      <div class="answer-body">
+        <p>${body.html}</p>
+        ${advisorSummary.interpretationSummary ? `<p class="answer-aside r" style="--d: ${body.endsAt.toFixed(2)}s">${escapeHtml(advisorSummary.interpretationSummary)}</p>` : ""}
       </div>
-      <details class="result-fold result-section">
-        <summary>How PAM read your question · edit assumptions</summary>
+      <div class="answer-stats r" style="--d: ${statsAt.toFixed(2)}s">
+        <div><span>Monthly buffer</span><strong data-count-to="${Math.round(toNumber(result.newBuffer))}" data-count-at="${statsAt.toFixed(2)}">${formatCurrency(result.newBuffer)}</strong><small>${monthlyChange === 0 ? "No change" : `${monthlyChange > 0 ? "+" : "−"}${formatCurrency(Math.abs(monthlyChange))} from ${formatCurrency(result.currentBuffer)}`}</small></div>
+        <div><span>Savings in 12 months</span><strong data-count-to="${Math.round(toNumber(result.projectedSavings12))}" data-count-at="${(statsAt + 0.1).toFixed(2)}">${formatCurrency(result.projectedSavings12)}</strong><small>If nothing else changes</small></div>
+        <div><span>${escapeHtml(goalLabel || "Main goal")}</span><strong>${result.goalDelay ? `${formatMonths(result.goalDelay)} later` : "On schedule"}</strong><small>${result.goalDelay ? "Pushed back by this decision" : "Not delayed by this"}</small></div>
+      </div>
+      ${renderComparisonBlock(result.comparison, statsAt + 0.3)}
+      ${renderAnswerHighlight(result)}
+      <div class="answer-next r" style="--d: ${(statsAt + 0.5).toFixed(2)}s">
+        <p><strong>Next:</strong> ${escapeHtml(advisorSummary.followUpPrompt)}</p>
+        ${followUpLabels.length ? `<div class="quick-question-row">${followUpLabels.map((label) => `<button type="button" data-followup-example="${escapeHtml(label)}">${escapeHtml(label)}</button>`).join("")}</div>` : ""}
+      </div>
+      <form class="followup-form r" style="--d: ${(statsAt + 0.65).toFixed(2)}s" data-followup-form>
+        <input name="followup" type="text" maxlength="400" autocomplete="off" aria-label="Ask PAM a follow-up" placeholder="Ask a follow-up, like “what if it was $200 less?”" />
+        <button class="button button-primary" type="submit">Ask</button>
+      </form>
+      <details class="result-fold result-section answer-breakdown">
+        <summary>The full breakdown</summary>
         <div class="assumption-grid-foresee">
-          <div><span>Decision type</span><strong>${escapeHtml(result.decision.type)}</strong></div>
+          <div><span>PAM read this as</span><strong>${escapeHtml(result.decision.type)}</strong></div>
           <div><span>Monthly impact</span><strong>${formatSignedCurrency(result.decision.monthlyImpact)}</strong></div>
           <div><span>One-time impact</span><strong>${formatSignedCurrency(result.decision.oneTimeImpact)}</strong></div>
+          <div><span>Risk</span><strong>${escapeHtml(result.risk.label)}</strong></div>
+          <div><span>Cash runway</span><strong>${typeof result.runwayMonths === "number" ? formatMonths(result.runwayMonths) : "Stable"}</strong></div>
           ${(result.decision.taxSavingsMonthly || result.decision.taxSavingsOneTime) ? `<div><span>Estimated tax offset</span><strong>${result.decision.taxSavingsMonthly ? `${formatCurrency(result.decision.taxSavingsMonthly)}/month` : formatCurrency(result.decision.taxSavingsOneTime)}</strong></div>` : ""}
-          ${(result.decision.taxSavingsMonthly || result.decision.taxSavingsOneTime) ? `<div><span>Tax-adjusted impact</span><strong>${result.decision.taxSavingsMonthly ? `${formatSignedCurrency(result.taxAdjustedMonthlyImpact)}/month` : formatSignedCurrency(result.taxAdjustedOneTimeImpact)}</strong></div>` : ""}
           ${result.decision.assumptions.map((item) => `<div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`).join("")}
         </div>
-      </details>
-      <div class="result-section">
-        <h3>Your outcome</h3>
-        <div class="outcome-grid">
-          <div><span>New monthly buffer</span><strong>${formatCurrency(result.newBuffer)}</strong><small>Before: ${formatCurrency(result.currentBuffer)}</small></div>
-          <div><span>Projected savings, 12 months</span><strong>${formatCurrency(result.projectedSavings12)}</strong></div>
-          <div><span>Risk</span><strong>${result.risk.label}</strong></div>
-          <div><span>Goal timeline</span><strong>${formatMonths(result.newGoalMonths)}</strong></div>
-          <div><span>Cash runway</span><strong>${typeof result.runwayMonths === "number" ? formatMonths(result.runwayMonths) : "Stable"}</strong></div>
-          <div><span>Most impacted goal</span><strong>${escapeHtml(result.mostImpactedGoal)}</strong></div>
-        </div>
-      </div>
-      ${renderScenarioEngineDetails(result)}
-      <details class="result-fold result-section explanation-box">
-        <summary>Tax, compound growth &amp; long-term detail</summary>
-        <h3>Tax impact</h3>
+        ${renderScenarioEngineDetails(result)}
+        ${result.compoundOpportunity ? `<h3>Compound growth</h3><p>If you redirected ${formatCurrency(result.decision.compoundMonthlyDelta)}/month into long-term investing at a 6.8% average annual return (PAM's planning assumption), it could grow to about ${formatCurrency(result.compoundOpportunity.futureValue)} by age ${result.compoundOpportunity.retirementAge}. Not guaranteed.</p>` : ""}
+        <h3>Tax</h3>
         <p>${escapeHtml(result.decision.taxImpact)}</p>
-        <h3>Long-term goal impact</h3>
-        <p>${result.goalDelay ? `This delays ${escapeHtml(goalLabel.toLowerCase())} by about ${formatMonths(result.goalDelay)}.` : `This does not delay ${escapeHtml(goalLabel.toLowerCase())} in this estimate.`}</p>
-        <h3>Connected baseline insight</h3>
-        <p>${escapeHtml(result.sandboxInsight)}</p>
-        <h3>Compound growth impact</h3>
-        <p>${result.compoundOpportunity ? `If you redirected ${formatCurrency(result.decision.compoundMonthlyDelta)}/month into a long-term investment earning a 6.8% average annual return (PAM's planning assumption), it could grow to about ${formatCurrency(result.compoundOpportunity.futureValue)} by age ${result.compoundOpportunity.retirementAge}. If this were held in a Roth-style account and eligibility rules were met, qualified withdrawals may be tax-free. Educational estimate only, not guaranteed.` : result.compoundGrowth ? `If invested monthly, this could hypothetically grow to about ${formatCurrency(result.compoundGrowth)} over 10 years at a 6.8% average annual return. Not guaranteed.` : "No direct compound-growth impact detected for this decision."}</p>
-        <h3>Explanation</h3>
-        <p>${escapeHtml(result.explanation)}</p>
-        <p class="disclaimer">Educational estimate, AI-assisted. Not financial advice, verify before acting.</p>
       </details>
+      <footer class="answer-foot">
+        ${renderDataSourceBadge()}
+        <span>${escapeHtml(state.aiGuidance?.disclosure || "Educational estimate from PAM's model, not financial advice.")}</span>
+        <button class="text-button" type="button" data-save-scenario>${state.saveScenarioMessage === "Scenario saved." ? "Saved" : "Save"}</button>
+      </footer>
     </section>
+  `;
+}
+
+// Reveal clock: anchored to when the answer arrived, so a re-render partway
+// through resumes where it was instead of replaying.
+const REVEAL_TOTAL_MS = 5200;
+
+function getRevealTiming() {
+  const elapsed = state.revealStartedAt ? (Date.now() - state.revealStartedAt) / 1000 : Infinity;
+  const active = elapsed * 1000 < REVEAL_TOTAL_MS;
+  return { active, offset: active ? -elapsed.toFixed(2) : 0 };
+}
+
+function renderRevealPhrases(text, startAt, step) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const phrases = [];
+  let current = [];
+  words.forEach((word) => {
+    current.push(word);
+    if (current.length >= 3 || /[,.;:!?]$/.test(word)) {
+      phrases.push(current.join(" "));
+      current = [];
+    }
+  });
+  if (current.length) phrases.push(current.join(" "));
+  return {
+    html: phrases.map((phrase, index) => `<span class="r r-phrase" style="--d: ${(startAt + index * step).toFixed(2)}s">${escapeHtml(phrase)}</span>`).join(" "),
+    endsAt: startAt + phrases.length * step
+  };
+}
+
+function renderRevealSentences(text, startAt, step) {
+  // Split after . ! ? followed by a space, so "22.9%" and "$1,234.50" stay whole.
+  const sentences = String(text || "").split(/(?<=[.!?])\s+/).map((sentence) => sentence.trim()).filter(Boolean);
+  return {
+    html: sentences.map((sentence, index) => `<span class="r r-sentence" style="--d: ${(startAt + index * step).toFixed(2)}s">${escapeHtml(sentence)}</span>`).join(" "),
+    endsAt: startAt + sentences.length * step
+  };
+}
+
+// Numbers settle into place instead of appearing: each counts up to its value
+// on the same clock as the rest of the reveal.
+function runAnswerCountUps() {
+  const panel = document.querySelector(".answer-reveal");
+  if (!panel || !state.revealStartedAt) return;
+  // Once built, the answer is plain static content: nothing can replay it
+  // (a resize or a display toggle would otherwise restart the animations).
+  window.setTimeout(() => panel.classList.remove("answer-reveal"), Math.max(REVEAL_TOTAL_MS - (Date.now() - state.revealStartedAt), 0));
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  panel.querySelectorAll("[data-count-to]").forEach((element) => {
+    const target = Number(element.dataset.countTo) || 0;
+    const startAt = state.revealStartedAt + Number(element.dataset.countAt || 0) * 1000;
+    const duration = 750;
+    const tick = () => {
+      if (!element.isConnected) return;
+      const progress = Math.min(Math.max((Date.now() - startAt) / duration, 0), 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      element.textContent = formatCurrency(Math.round(target * eased));
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    tick();
+  });
+}
+
+// Earlier turns of this thread, compact, so a follow-up reads as a conversation.
+function renderAnswerThread() {
+  const turns = state.answerThread || [];
+  if (!turns.length) return "";
+  return `
+    <ol class="answer-thread">
+      ${turns.map((turn) => `
+        <li><span class="answer-thread-q">“${escapeHtml(turn.question)}”</span><span class="answer-thread-a"><b>${escapeHtml(turn.call)}</b> ${escapeHtml(turn.headline)}</span></li>
+      `).join("")}
+    </ol>
+  `;
+}
+
+// Greetings, "who are you", and anything that isn't a money question get PAM's
+// own short reply, never a verdict or numbers, and never an AI call.
+function renderPamReplyPanel(reply) {
+  const copy = PAM_IDENTITY_REPLY[reply.kind] || PAM_IDENTITY_REPLY.offtopic;
+  const reveal = getRevealTiming();
+  const headline = renderRevealPhrases(copy.headline, 0.1, 0.11);
+  const body = renderRevealSentences(copy.body, headline.endsAt + 0.1, 0.3);
+  const suggestions = getSmartSuggestions().slice(0, 3);
+  return `
+    <section class="foresee-panel result-panel answer-panel pam-reply-panel mobile-screen mobile-screen-result${reveal.active ? " answer-reveal" : ""}" id="decision-result" style="--reveal-offset: ${reveal.offset}s" aria-live="polite">
+      ${renderAnswerThread()}
+      <p class="answer-question r" style="--d: 0s">“${escapeHtml(reply.question)}”</p>
+      <div class="answer-call">
+        <span class="pam-reply-mark r r-pop" style="--d: 0.05s" aria-hidden="true">P</span>
+        <h2 class="answer-headline">${headline.html}</h2>
+      </div>
+      <div class="answer-body"><p>${body.html}</p></div>
+      <div class="answer-next r" style="--d: ${(body.endsAt + 0.1).toFixed(2)}s">
+        <div class="quick-question-row">${suggestions.map((prompt) => `<button type="button" data-question-example="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`).join("")}</div>
+      </div>
+    </section>
+  `;
+}
+
+// Both paths of a "this or that" question, side by side, same money each month.
+function renderComparisonBlock(comparison, revealAt = 0) {
+  if (!comparison?.options?.length) return "";
+  return `
+    <div class="result-section comparison-block r" style="--d: ${revealAt.toFixed(2)}s">
+      <h3>Net worth after ${comparison.years} years</h3>
+      <p class="comparison-sub">Same ${formatCurrency(comparison.extraMonthly)} a month on every path, plus your current minimums.</p>
+      <div class="comparison-rows">
+        ${comparison.options.map((option) => `
+          <div class="comparison-row${option.recommended ? " is-pick" : ""}">
+            <div><strong>${escapeHtml(option.label)}</strong>${option.recommended ? `<span class="comparison-pick">PAM's pick</span>` : ""}<small>${escapeHtml(option.detail)}</small></div>
+            <span class="comparison-net">${formatCurrency(option.net)}</span>
+          </div>
+        `).join("")}
+      </div>
+    </div>
   `;
 }
 
@@ -6948,6 +7163,21 @@ function wireInteractions() {
   document.querySelectorAll("[data-question-form]").forEach((form) => {
     form.addEventListener("submit", handleQuestionSubmit);
   });
+  document.querySelectorAll("[data-followup-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (state.decisionBusy) return;
+      const question = String(new FormData(form).get("followup") || "").trim();
+      if (question) runDecisionAnalysis(question, "", { followUp: true });
+    });
+  });
+  document.querySelectorAll("[data-followup-example]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (state.decisionBusy) return;
+      runDecisionAnalysis(button.dataset.followupExample || "", "", { followUp: true });
+    });
+  });
+  runAnswerCountUps();
   document.querySelectorAll("[data-structured-decision-form]").forEach((form) => {
     form.addEventListener("submit", handleStructuredDecisionSubmit);
   });

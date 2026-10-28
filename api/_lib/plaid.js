@@ -91,17 +91,38 @@ function normalizeAccounts(accounts = []) {
   }));
 }
 
-function normalizeLiabilities(liabilities = {}) {
+// Plaid reports rates differently per kind: student loans as
+// interest_rate_percentage, mortgages as interest_rate.percentage, credit cards
+// as a list of APRs (purchase APR is the one that applies to a carried
+// balance). Balances live on the accounts returned alongside. A rate Plaid
+// doesn't give stays null so PAM can say it's unknown instead of using 0%.
+function getLiabilityRate(liability) {
+  if (Number.isFinite(Number(liability.interest_rate_percentage)) && liability.interest_rate_percentage !== null) {
+    return Number(liability.interest_rate_percentage);
+  }
+  if (Number.isFinite(Number(liability.interest_rate?.percentage)) && liability.interest_rate?.percentage != null) {
+    return Number(liability.interest_rate.percentage);
+  }
+  if (Array.isArray(liability.aprs) && liability.aprs.length) {
+    const purchase = liability.aprs.find((apr) => apr.apr_type === "purchase_apr") || liability.aprs[0];
+    if (Number.isFinite(Number(purchase?.apr_percentage))) return Number(purchase.apr_percentage);
+  }
+  return null;
+}
+
+function normalizeLiabilities(liabilities = {}, accounts = []) {
+  const accountsById = new Map((accounts || []).map((account) => [account.account_id, account]));
   const rows = [];
-  for (const bucket of Object.values(liabilities || {})) {
+  for (const [kind, bucket] of Object.entries(liabilities || {})) {
     if (!Array.isArray(bucket)) continue;
     for (const liability of bucket) {
+      const account = accountsById.get(liability.account_id);
       rows.push({
-        name: liability.account_name || liability.name || liability.type || "Liability",
-        type: liability.type || liability.subtype || "liability",
-        balance: liability.current_balance ?? liability.last_payment_amount ?? 0,
-        rate: liability.interest_rate_percentage ?? 0,
-        monthlyPayment: liability.minimum_payment_amount ?? liability.last_payment_amount ?? 0
+        name: liability.account_name || account?.name || liability.name || liability.type || "Liability",
+        type: kind === "credit" ? "credit_card" : kind === "student" ? "student_loan" : kind,
+        balance: account?.balances?.current ?? liability.current_balance ?? liability.last_statement_balance ?? 0,
+        rate: getLiabilityRate(liability),
+        monthlyPayment: liability.minimum_payment_amount ?? liability.next_monthly_payment ?? liability.last_payment_amount ?? 0
       });
     }
   }
@@ -187,7 +208,7 @@ async function getLiabilities(accessToken) {
     const response = await callPlaid("/liabilities/get", {
       access_token: accessToken
     });
-    return normalizeLiabilities(response.liabilities);
+    return normalizeLiabilities(response.liabilities, response.accounts);
   } catch (_error) {
     return [];
   }
@@ -364,6 +385,7 @@ function toNormalizedBaseline({ accounts = [], transactions = [], liabilities = 
         type: item.type,
         name: item.name,
         balance: Number(item.balance || 0),
+        rate: Number.isFinite(Number(item.rate)) && item.rate !== null ? Number(item.rate) : null,
         minimumPayment: Number(item.monthlyPayment || 0)
       }))
     },

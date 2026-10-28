@@ -274,3 +274,177 @@ export function buildDebtPayoffPlan(liabilities = [], extraMonthly = 0) {
         : `Avalanche: paying the highest APR first (${byRate[0].label} at ${byRate[0].apr}%) minimizes total interest${interestGap ? `, about ${formatCurrency(interestGap)} less than smallest-balance-first` : ""}.`
   };
 }
+
+// "Pay off debt or invest?" Both paths spend the same money every month: the
+// extra amount plus every minimum payment. Path "debt" sends the extra to the
+// highest-APR balance first and invests once debts clear; path "invest" pays
+// minimums and invests the extra. Net worth at the horizon is invested balance
+// minus what's still owed. The call follows the usual rule of thumb, which the
+// simulation backs up: an APR of 8%+ is a guaranteed return markets rarely beat,
+// under 5% is cheaper to carry, and 5-8% is close enough to split.
+const DEBT_FIRST_APR = 8;
+// When a lender doesn't report a rate, PAM uses a typical one for that kind of
+// debt and says so in the answer.
+function typicalApr(type = "", label = "") {
+  const text = `${type} ${label}`.toLowerCase();
+  if (/credit|card/.test(text)) return 22;
+  if (/student/.test(text)) return 6;
+  if (/auto|car|vehicle/.test(text)) return 7;
+  if (/mortgage|home/.test(text)) return 6.5;
+  return 10;
+}
+const INVEST_FIRST_APR = 5;
+
+function simulateDebtVsInvest(debts, extra, months, monthlyReturn, isTarget) {
+  const state = debts.map((debt) => ({ ...debt, remaining: debt.balance }));
+  const targets = state.filter(isTarget).sort((a, b) => b.apr - a.apr);
+  let invested = 0;
+  let interestPaid = 0;
+  let targetsClearedMonth = targets.length ? null : 0;
+
+  for (let month = 1; month <= months; month += 1) {
+    invested *= 1 + monthlyReturn;
+    let pool = extra;
+    for (const debt of state) {
+      if (debt.remaining <= 0) {
+        pool += debt.minimum;
+        continue;
+      }
+      const interest = debt.remaining * (debt.apr / 1200);
+      interestPaid += interest;
+      debt.remaining += interest;
+      const payment = Math.min(debt.minimum, debt.remaining);
+      debt.remaining -= payment;
+      pool += debt.minimum - payment;
+    }
+    for (const debt of targets) {
+      if (pool <= 0) break;
+      if (debt.remaining <= 0) continue;
+      const payment = Math.min(pool, debt.remaining);
+      debt.remaining -= payment;
+      pool -= payment;
+    }
+    for (const debt of state) {
+      if (debt.remaining < 0.005) debt.remaining = 0;
+    }
+    if (targetsClearedMonth === null && targets.every((debt) => debt.remaining <= 0)) {
+      targetsClearedMonth = month;
+    }
+    invested += pool;
+  }
+
+  const debtLeft = state.reduce((total, debt) => total + debt.remaining, 0);
+  return {
+    net: Math.round(invested - debtLeft),
+    invested: Math.round(invested),
+    debtLeft: Math.round(debtLeft),
+    interestPaid: Math.round(interestPaid),
+    targetsClearedMonth
+  };
+}
+
+export function compareDebtVsInvest({ liabilities = [], extraMonthly = 0, months = 60, investReturn = 0.068 } = {}) {
+  const extra = Math.max(Math.round(Number(extraMonthly) || 0), 0);
+  if (!extra) return null;
+  const debts = (liabilities || [])
+    .map((item) => {
+      const known = item.rate !== null && item.rate !== undefined && item.rate !== "" && Number(item.rate) > 0;
+      const label = item.label || item.name || "Debt";
+      return {
+        label,
+        balance: Math.max(Number(item.balance) || 0, 0),
+        apr: known ? Number(item.rate) : typicalApr(item.type, label),
+        rateKnown: known,
+        minimum: Math.max(Number(item.monthlyPayment ?? item.minimumPayment) || 0, 0)
+      };
+    })
+    .filter((debt) => debt.balance > 0);
+  const assumed = debts.filter((debt) => !debt.rateKnown);
+  const monthlyReturn = investReturn / 12;
+  const years = Math.round(months / 12);
+
+  if (!debts.length) {
+    return {
+      call: "invest",
+      extraMonthly: extra,
+      months,
+      topApr: null,
+      headline: "Invest. There's no debt on your numbers to pay down.",
+      reason: `PAM doesn't see any balances, so the extra ${formatCurrency(extra)} a month can go straight to investing. If you have debt PAM can't see, add it in your profile and ask again.`,
+      options: []
+    };
+  }
+
+  const byRate = [...debts].sort((a, b) => b.apr - a.apr);
+  const top = byRate[0];
+  const highRate = byRate.filter((debt) => debt.apr >= DEBT_FIRST_APR);
+  const call = top.apr >= DEBT_FIRST_APR ? "debt" : top.apr >= INVEST_FIRST_APR ? "split" : "invest";
+
+  const payDebt = simulateDebtVsInvest(debts, extra, months, monthlyReturn, () => true);
+  const investNow = simulateDebtVsInvest(debts, extra, months, monthlyReturn, () => false);
+  const highRateFirst = highRate.length && highRate.length < debts.length
+    ? simulateDebtVsInvest(debts, extra, months, monthlyReturn, (debt) => debt.apr >= DEBT_FIRST_APR)
+    : null;
+  const split = call === "split"
+    ? simulateDebtVsInvest(debts, Math.round(extra / 2), months, monthlyReturn, () => true)
+    : null;
+  if (split) {
+    // Half the extra pays debt (above); the other half is invested on top.
+    const fv = Math.round(Math.round(extra / 2) * ((Math.pow(1 + monthlyReturn, months) - 1) / monthlyReturn));
+    split.invested += fv;
+    split.net += fv;
+  }
+
+  const options = [
+    { key: "debt", label: "Pay debt first", net: payDebt.net, detail: `Debt-free by month ${payDebt.targetsClearedMonth ?? `${months}+`}, then invest everything.` },
+    { key: "invest", label: "Invest now", net: investNow.net, detail: investNow.debtLeft > 0 ? `Minimums only. ${formatCurrency(investNow.debtLeft)} still owed after ${years} years.` : "Minimums only, the debt still clears on schedule." }
+  ];
+  if (highRateFirst) {
+    options.push({
+      key: "plan",
+      label: `${highRate.length === 1 ? highRate[0].label : "High-rate debt"} first, then invest`,
+      net: highRateFirst.net,
+      detail: `Cleared by month ${highRateFirst.targetsClearedMonth ?? `${months}+`}, the lower-rate loans stay on minimums.`
+    });
+  }
+  if (split) {
+    options.push({ key: "split", label: "Split it 50/50", net: split.net, detail: `${formatCurrency(Math.round(extra / 2))} to debt, ${formatCurrency(Math.round(extra / 2))} invested each month.` });
+  }
+  const recommendedKey = call === "debt" ? (highRateFirst ? "plan" : "debt") : call;
+  options.forEach((option) => { option.recommended = option.key === recommendedKey; });
+  const recommended = options.find((option) => option.recommended);
+  const others = options.filter((option) => !option.recommended);
+  const bestOther = others.reduce((best, option) => (option.net > best.net ? option : best), others[0]);
+  const edge = recommended.net - bestOther.net;
+
+  const nameDebt = (label) => (/^(credit card|student loans?|auto loan|car loan|personal loan|mortgage)$/i.test(label) ? `your ${label.toLowerCase()}` : `the ${label}`);
+  const highLabel = highRate.length === 1 ? nameDebt(highRate[0].label) : "your high-rate debt";
+  const headline = call === "debt"
+    ? highRateFirst ? `Pay off ${highLabel} first, then invest.` : "Pay off your debt first, then invest."
+    : call === "split"
+      ? "Split it: some to debt, some invested."
+      : "Invest. Your debt is cheap enough to carry.";
+  const reason = call === "debt"
+    ? `${top.label} charges ${top.apr}%, a guaranteed return the market rarely beats. Put the extra ${formatCurrency(extra)} a month there${highRateFirst ? `, keep the lower-rate loans on minimums,` : ""} and invest once it's gone.`
+    : call === "split"
+      ? `${top.label} at ${top.apr}% is close to what investing typically earns, so neither path clearly wins. Splitting the ${formatCurrency(extra)} cuts the debt and still gets money compounding.`
+      : `${top.label} at ${top.apr}% costs less than investing typically earns over time, so paying it off early mostly gives up growth. Keep paying the minimum and invest the ${formatCurrency(extra)}.`;
+
+  return {
+    call,
+    extraMonthly: extra,
+    months,
+    years,
+    topApr: top.apr,
+    topLabel: top.label,
+    headline,
+    reason,
+    edge: Math.round(edge),
+    edgeVersus: bestOther.label,
+    options,
+    assumedRates: assumed.map((debt) => ({ label: debt.label, apr: debt.apr })),
+    note: assumed.length
+      ? `PAM doesn't have the rate on ${assumed.map((debt) => debt.label).join(" or ")}, so it used a typical ${assumed.map((debt) => `${debt.apr}%`).join(" / ")}. Add the real rate in your profile for an exact answer.`
+      : "If your employer matches 401(k) contributions, get the full match first. It beats any of these rates."
+  };
+}

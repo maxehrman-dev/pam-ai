@@ -402,8 +402,8 @@ export function getMockPlaidLikeData() {
       { id: "tx_utilities", name: "Utilities", amount: 160, direction: "outflow", category: "utilities", recurring: true, monthlyOccurrences: 1 }
     ],
     liabilities: [
-      { id: "liab_student_1", type: "student_loan", name: "Student Loan", balance: 12000, monthlyPayment: 280 },
-      { id: "liab_card_1", type: "credit_card", name: "Travel Rewards Card", balance: 600, monthlyPayment: 50 }
+      { id: "liab_student_1", type: "student_loan", name: "Student Loan", balance: 12000, rate: 5.5, monthlyPayment: 280 },
+      { id: "liab_card_1", type: "credit_card", name: "Travel Rewards Card", balance: 600, rate: 22.9, monthlyPayment: 50 }
     ]
   };
 }
@@ -477,6 +477,7 @@ export function deriveBaselineFromTransactions(transactions = [], accounts = [],
         type: item.type,
         name: item.name,
         balance: toNumber(item.balance, 0),
+        rate: item.rate === null || item.rate === undefined ? null : toNumber(item.rate, 0),
         minimumPayment: toNumber(item.monthlyPayment, 0)
       }))
     },

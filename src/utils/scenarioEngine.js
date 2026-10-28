@@ -1,5 +1,5 @@
 import { clamp, formatCurrency, formatMonths, formatPercent, formatSignedCurrency } from "./formatters.js";
-import { buildDebtPayoffPlan, computeAffordabilityCeilings, computeRetirementBridge, getMoneyFacts } from "./financeKnowledge.js";
+import { buildDebtPayoffPlan, compareDebtVsInvest, computeAffordabilityCeilings, computeRetirementBridge, getMoneyFacts } from "./financeKnowledge.js";
 import { simulateMarketRange } from "./monteCarlo.js";
 import { compareTaxStrategies } from "./taxStrategies.js";
 import { getPlaybook } from "./playbook.js";
@@ -145,6 +145,40 @@ function parseMonths(prompt) {
   return null;
 }
 
+// Ages stated in the question: "starting at 24 ... at 45", "from 24 to 45",
+// "I'm 24 ... by 45", "retire at 55". Two-digit ages only (14-99), never a
+// dollar amount, percent, or duration.
+const AGE = "(1[4-9]|[2-9]\\d)(?!\\s*(?:%|k\\b|years?\\b|yrs?\\b|months?\\b|mo\\b|[.,]\\d|\\/))\\b";
+
+export function parseAgeSpan(prompt) {
+  const text = String(prompt || "").toLowerCase().replace(/[’']/g, "'");
+  const span = { startAge: null, endAge: null };
+  const range = text.match(new RegExp(`\\b(?:from|between)\\s+(?:age\\s+)?${AGE}\\s+(?:to|and|until|till|through)\\s+(?:age\\s+)?${AGE}`));
+  if (range) {
+    span.startAge = Number(range[1]);
+    span.endAge = Number(range[2]);
+  } else {
+    const start =
+      text.match(new RegExp(`\\b(?:start(?:ing|ed)?|begin(?:ning)?)\\b[^.?!]{0,30}?\\b(?:at|from)\\s+(?:age\\s+)?${AGE}`)) ||
+      text.match(new RegExp(`\\b(?:i'm|i am|im)\\s+(?:only\\s+)?${AGE}`));
+    if (start) span.startAge = Number(start[1]);
+    const endPattern = new RegExp(`\\b(?:by|until|till|at|when i'm|when i am|when i turn|turn|retire at|retiring at)\\s+(?:age\\s+)?${AGE}`, "g");
+    const ends = [...text.matchAll(endPattern)].map((match) => ({ age: Number(match[1]), index: match.index }));
+    const after = ends.filter((item) => !start || item.index > start.index + start[0].length - 1);
+    const end = after.length ? after[after.length - 1].age : null;
+    if (end && end !== span.startAge) span.endAge = end;
+  }
+  if (span.startAge && span.endAge && (span.endAge <= span.startAge || span.endAge - span.startAge > 70)) span.endAge = null;
+  return span;
+}
+
+// "in 20 years", "over the next 15 years": an explicit horizon without ages.
+function parseYearsHorizon(prompt) {
+  const match = String(prompt || "").toLowerCase().match(/\b(?:in|for|over|after)\s+(?:the\s+next\s+)?(\d{1,2})\s*(?:years|yrs|year)\b/);
+  const years = match ? Number(match[1]) : 0;
+  return years >= 1 && years <= 50 ? years : null;
+}
+
 function hasAny(text, keywords) {
   return keywords.some((keyword) => {
     const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -219,6 +253,21 @@ function getCurrentRent(profile) {
   return profile?.monthly?.fixed?.find((entry) => /rent|housing|mortgage/i.test(entry.label))?.amount || 2450;
 }
 
+// What they pay for housing today. Living with family means $0, not a
+// placeholder rent, so moving out costs the whole new rent.
+function getHousingCostToday(profile) {
+  const entry = profile?.monthly?.fixed?.find((item) => /rent|housing|mortgage/i.test(item.label));
+  return entry ? Number(entry.amount) || 0 : 0;
+}
+
+// "a $1,800 apartment", "rent of $1,500", "a place for 1,400/mo": the amount is
+// the new total rent. "$200 more", "an extra $150", "rent goes up" are increases.
+function readsAsTotalRent(prompt) {
+  const text = String(prompt || "").toLowerCase();
+  if (/\b(more|extra|additional|increase[sd]?|raise[sd]?|goes up|go up|bump)\b/.test(text)) return false;
+  return /\b(apartment|apt|place|studio|condo|house|unit|room|rent)\b/.test(text);
+}
+
 export function getProfileMetrics(profile) {
   const monthlyIncome = sumAmounts(profile.monthly.income, "amount");
   const fixedCosts = sumAmounts(profile.monthly.fixed, "amount");
@@ -288,6 +337,7 @@ function detectScenarioId(prompt, catalog) {
   const intents = listDetectedIntents(flags);
 
   if (flags.hasPaycheckSplit) return "paycheck-split";
+  if (isDebtVsInvestAsk(prompt)) return "start-investing";
   if (flags.hasJobLoss && flags.hasLegal) return "compound-shock";
   if (flags.hasRentIncrease) return "increase-rent";
   if (flags.hasJobLoss) return "job-loss";
@@ -794,10 +844,9 @@ function deriveCarValues(draft) {
 }
 
 function deriveMoveValues(draft, profile) {
-  const currentRent = getCurrentRent(profile);
   const delta = Number(draft.monthlyExpenseDelta || 0);
   draft.monthlyExpenseDelta = delta;
-  draft.targetRent = currentRent + delta;
+  draft.targetRent = Number(draft.targetRent) > 0 ? Number(draft.targetRent) : getHousingCostToday(profile) + delta;
   draft.moveCost = Math.max(Number(draft.moveCost || Math.round(Math.abs(delta) * 4.1)), 1800);
   draft.oneTimeCost = draft.moveCost;
 }
@@ -909,16 +958,18 @@ function hydrateDraftFromPrompt(draft, prompt, profile) {
       if (firstAmount) draft.purchaseAmount = firstAmount;
       if (recurringAmount) draft.monthlyExpenseDelta = recurringAmount;
       break;
-    case "move":
-      if (recurringAmount) {
-        draft.monthlyExpenseDelta = recurringAmount;
-      } else if (firstAmount && firstAmount > getCurrentRent(profile) * 0.75) {
-        draft.targetRent = firstAmount;
-        draft.monthlyExpenseDelta = firstAmount - getCurrentRent(profile);
-      } else if (firstAmount) {
-        draft.monthlyExpenseDelta = firstAmount;
+    case "move": {
+      const amount = recurringAmount || firstAmount;
+      const today = getHousingCostToday(profile);
+      if (amount && (draft.priceIsTotalRent || readsAsTotalRent(prompt) || (!recurringAmount && today > 0 && amount > today * 0.75))) {
+        draft.priceIsTotalRent = true;
+        draft.targetRent = amount;
+        draft.monthlyExpenseDelta = amount - today;
+      } else if (amount) {
+        draft.monthlyExpenseDelta = amount;
       }
       break;
+    }
     case "rentIncrease":
       if (recurringAmount || firstAmount) draft.monthlyExpenseDelta = recurringAmount || firstAmount;
       break;
@@ -1869,9 +1920,17 @@ function getConfidence(draft, followUp, prompt) {
   };
 }
 
-function buildAhaMoment(goalsSummary, scenarioRunoutMonths, scenario, currentPath) {
+function buildAhaMoment(goalsSummary, scenarioRunoutMonths, scenario, currentPath, upfrontCost = 0) {
   if (Number.isFinite(scenarioRunoutMonths) && scenarioRunoutMonths < 18) {
     return `You would run out of buffer in about ${formatMonthDelta(scenarioRunoutMonths)} if this path stayed unchanged.`;
+  }
+
+  const monthlyGain = Math.round(scenario.monthlyFreeCash) - Math.round(currentPath.monthlyFreeCash);
+  const goal = goalsSummary?.mostImpactedGoal;
+  // Cheaper every month but costs something up front: say both, so a delay
+  // next to a better buffer doesn't read as a contradiction.
+  if (goal && Number.isFinite(goal.deltaMonths) && goal.deltaMonths > 0 && monthlyGain > 0 && upfrontCost > 0) {
+    return `It saves ${formatCurrency(monthlyGain)}/mo, but about ${formatCurrency(upfrontCost)} up front comes out of savings first, so ${goal.title.toLowerCase()} lands about ${formatMonthDelta(goal.deltaMonths)} later.`;
   }
 
   if (goalsSummary?.mostImpactedGoal && Number.isFinite(goalsSummary.mostImpactedGoal.deltaMonths) && goalsSummary.mostImpactedGoal.deltaMonths > 0) {
@@ -1988,6 +2047,35 @@ function buildDecisionKnowledge(profile, metrics, draft, prompt) {
   };
 }
 
+// "Pay off debt or invest?" (either order, any phrasing that weighs the two)
+// gets a side-by-side answer instead of being modeled as plain investing.
+const DEBT_WORDS = "(?:pay(?:ing)?\\s+(?:off|down)|payoff|debts?|loans?|credit cards?|balances?)";
+const INVEST_WORDS = "(?:invest(?:ing|ment)?|index funds?|stocks?|401k|401\\(k\\)|roth|ira|brokerage)";
+const DEBT_VS_INVEST_PATTERN = new RegExp(
+  `\\b${DEBT_WORDS}\\b.*\\b(?:or|vs\\.?|versus|instead|before|first|than|over)\\b.*\\b${INVEST_WORDS}|\\b${INVEST_WORDS}\\b.*\\b(?:or|vs\\.?|versus|instead|before|first|than|over)\\b.*\\b${DEBT_WORDS}`,
+  "i"
+);
+
+// "my student loans or invest?" weighs just that debt; a generic "debt" weighs all.
+const DEBT_KINDS = [
+  { ask: /\bstudent\b/i, label: /student/i },
+  { ask: /\b(car|auto)\b/i, label: /\bcar\b|auto|vehicle/i },
+  { ask: /\bcredit cards?\b|\bcards?\b/i, label: /card/i },
+  { ask: /\bmortgage\b/i, label: /mortgage|home/i },
+  { ask: /\bpersonal loan\b/i, label: /personal/i }
+];
+
+function getNamedDebts(liabilities = [], prompt = "") {
+  const kinds = DEBT_KINDS.filter((kind) => kind.ask.test(prompt));
+  if (!kinds.length) return liabilities;
+  const named = (liabilities || []).filter((item) => kinds.some((kind) => kind.label.test(item.label || item.name || "")));
+  return named.length ? named : liabilities;
+}
+
+export function isDebtVsInvestAsk(prompt) {
+  return DEBT_VS_INVEST_PATTERN.test(String(prompt || ""));
+}
+
 const MARKET_PROMPT_PATTERN = /\b(retire|retirement|financial independence|fire|401k|401\(k\)|roth|ira|hsa|invest|investing|index fund|stocks?|brokerage|portfolio|market)\b/i;
 
 function getMarketHorizonMonths(profile, prompt) {
@@ -1999,6 +2087,28 @@ function getMarketHorizonMonths(profile, prompt) {
   return 120;
 }
 
+// One answer to "over what span?" for every investing number: ages or years
+// the user stated win over profile defaults.
+function resolveMarketHorizon(profile, prompt) {
+  const span = parseAgeSpan(prompt);
+  const profileAge = Number(profile?.user?.age) > 0 ? Number(profile.user.age) : null;
+  const startAge = span.startAge || profileAge;
+  const statedYears = parseYearsHorizon(prompt);
+  const months = span.endAge && startAge && span.endAge > startAge
+    ? Math.round(clamp((span.endAge - startAge) * 12, 12, 600))
+    : statedYears
+      ? statedYears * 12
+      : getMarketHorizonMonths(profile, prompt);
+  return {
+    span,
+    profileAge,
+    startAge,
+    endAge: startAge ? Math.round(startAge + months / 12) : null,
+    months,
+    stated: Boolean(span.startAge || span.endAge || statedYears)
+  };
+}
+
 // Seeded Monte Carlo range for anything market-exposed: the user's invested
 // balance under today's contributions vs the scenario's, plus the chance each
 // invested goal lands on time. Cash goals stay on the deterministic timeline.
@@ -2006,13 +2116,20 @@ function buildMarketRange(profile, metrics, draft, prompt, goalsSummary) {
   const investingDelta = Number(draft.monthlyInvestingDelta || 0);
   if (!MARKET_PROMPT_PATTERN.test(prompt || "") && investingDelta === 0) return null;
 
-  const months = getMarketHorizonMonths(profile, prompt);
-  const startBalance = Math.max(metrics.investableAssets, 0);
+  const { span, profileAge, startAge, endAge, months, stated } = resolveMarketHorizon(profile, prompt);
+  // A different starting age than today's is a what-if from scratch: $0 to
+  // start and exactly the amount they named.
+  const fromScratch = Boolean(span.startAge && profileAge && span.startAge !== profileAge && investingDelta > 0);
+
+  const startBalance = fromScratch ? 0 : Math.max(metrics.investableAssets, 0);
   const currentContribution = Math.max(metrics.investContribution, 0);
-  const scenarioContribution = Math.max(currentContribution + investingDelta, 0);
+  const scenarioContribution = fromScratch ? investingDelta : Math.max(currentContribution + investingDelta, 0);
   if (startBalance <= 0 && scenarioContribution <= 0) return null;
 
-  const current = simulateMarketRange({ startBalance, monthlyContribution: currentContribution, months, includeSeries: investingDelta === 0 });
+  const changed = investingDelta !== 0 && !fromScratch;
+  const current = fromScratch
+    ? null
+    : simulateMarketRange({ startBalance, monthlyContribution: currentContribution, months, includeSeries: investingDelta === 0 });
   const scenario = investingDelta !== 0
     ? simulateMarketRange({ startBalance, monthlyContribution: scenarioContribution, months, includeSeries: true })
     : current;
@@ -2039,12 +2156,16 @@ function buildMarketRange(profile, metrics, draft, prompt, goalsSummary) {
   return {
     months,
     years: Math.round((months / 12) * 10) / 10,
-    startAge: Number(profile?.user?.age) > 0 ? Number(profile.user.age) : null,
-    current,
+    startAge,
+    endAge,
+    current: current || scenario,
     scenario,
-    changed: investingDelta !== 0,
+    changed,
     goalOdds,
     assumptions: [
+      ...(stated
+        ? [`Modeled ${startAge && endAge ? `from age ${startAge} to ${endAge}` : `over ${Math.round(months / 12)} years`}, as you asked, ${fromScratch ? "starting from $0" : "starting from what you have invested today"}.`]
+        : []),
       `${scenario.runs.toLocaleString("en-US")} simulated market paths at ${scenario.annualReturnPct}% average yearly return with ${scenario.annualVolatilityPct}% volatility. Same inputs always give the same range.`,
       "Low = 1 in 10 paths ended below it; high = 1 in 10 ended above it. Not a forecast or a guarantee; markets can do worse than any simulated path."
     ]
@@ -2058,11 +2179,12 @@ function buildTaxStrategies(profile, metrics, draft, prompt) {
   const investingDelta = Number(draft.monthlyInvestingDelta || 0);
   if (!TAX_PROMPT_PATTERN.test(prompt || "") && !MARKET_PROMPT_PATTERN.test(prompt || "") && investingDelta <= 0) return null;
   const monthlyBudget = investingDelta > 0 ? investingDelta : Math.max(metrics.investContribution, 0);
+  const horizon = resolveMarketHorizon(profile, prompt);
   return compareTaxStrategies({
     monthlyBudget,
-    months: getMarketHorizonMonths(profile, prompt),
+    months: horizon.months,
     tax: profile?.tax || {},
-    age: profile?.user?.age
+    age: horizon.startAge || profile?.user?.age
   });
 }
 
@@ -2155,7 +2277,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     creditReadiness,
     confidence,
     goalsSummary,
-    ahaMoment: buildAhaMoment(goalsSummary, runoutMonths, scenarioPath, currentPath),
+    ahaMoment: buildAhaMoment(goalsSummary, runoutMonths, scenarioPath, currentPath, Number(normalizedDraft.oneTimeCost || 0)),
     nextStep: buildRecommendedNextStep(risk, goalsSummary.mostImpactedGoal, scenarioMonthlyFreeCash, scenarioRunwayMonths, bufferFloor),
     goalFunding: buildGoalFundingCheck(goals),
     ...buildDecisionKnowledge(profile, metrics, normalizedDraft, prompt),
@@ -2213,10 +2335,11 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
 
   const marketRange = buildMarketRange(profile, metrics, normalizedDraft, prompt, goalsSummary);
   const taxStrategies = buildTaxStrategies(profile, metrics, normalizedDraft, prompt);
+  const horizon = resolveMarketHorizon(profile, prompt);
   const compounding = buildCompoundingInsights({
     prompt,
-    age: profile?.user?.age,
-    retirementAge: profile?.user?.retirementTargetAge,
+    age: horizon.span.startAge || profile?.user?.age,
+    retirementAge: horizon.span.endAge || profile?.user?.retirementTargetAge,
     monthlyInvesting: Number(normalizedDraft.monthlyInvestingDelta || 0) > 0 ? Number(normalizedDraft.monthlyInvestingDelta) : metrics.investContribution,
     liabilities: profile.liabilities
   });
@@ -2229,6 +2352,16 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     liquidAssets: metrics.liquidAssets,
     bufferTarget: metrics.essentialBurn * (Number(persona.bufferTargetMonths) || 3)
   });
+  const comparison = isDebtVsInvestAsk(prompt)
+    ? compareDebtVsInvest({
+        liabilities: getNamedDebts(profile.liabilities, prompt),
+        extraMonthly: monthlyInvestingDelta > 0 ? monthlyInvestingDelta : Math.max(Math.round(Math.max(metrics.monthlyFreeCash, 0) * 0.5), 50)
+      })
+    : null;
+  if (comparison) {
+    baseResult.ahaMoment = comparison.reason;
+    if (comparison.call === "debt") baseResult.nextStep = `Set the extra ${formatCurrency(comparison.extraMonthly)} as an automatic payment to ${comparison.topLabel}, then point it at investing the month it's paid off.`;
+  }
   if (marketRange) {
     const range = marketRange.scenario;
     baseResult.impactCards.push({
@@ -2245,6 +2378,7 @@ export function evaluateScenario(profile, goals, draft, prompt = draft.prompt ||
     ...(taxStrategies ? { taxStrategies } : {}),
     ...(playbook.length ? { playbook } : {}),
     ...(compounding ? { compounding } : {}),
+    ...(comparison ? { comparison } : {}),
     offsetPlan: buildSpendingOffsetPlan(profile, normalizedDraft, baseResult)
   };
 }
@@ -2289,7 +2423,14 @@ function buildAssistantMessage(draft, result, followUp) {
   };
 }
 
-export function buildDecisionSession({ prompt, starterId, draft, profile, goals, catalog }) {
+// A follow-up ("what if it was $1,500?") reuses the previous draft and is read
+// with the earlier question as context. A question that names its own decision
+// starts fresh.
+export function isStandaloneQuestion(prompt) {
+  return isDebtVsInvestAsk(prompt) || listDetectedIntents(getIntentFlags(prompt)).length > 0;
+}
+
+export function buildDecisionSession({ prompt, starterId, draft, context = "", profile, goals, catalog }) {
   const metrics = getProfileMetrics(profile);
   const starter =
     starterId === "compound-shock"
@@ -2324,7 +2465,8 @@ export function buildDecisionSession({ prompt, starterId, draft, profile, goals,
 
   sessionDraft = reconcileDraft(sessionDraft, profile);
   const followUp = buildFollowUp(sessionDraft, starter, prompt, profile);
-  const result = evaluateScenario(profile, goals, sessionDraft, prompt);
+  const readingPrompt = context ? `${context} ${prompt}` : prompt;
+  const result = evaluateScenario(profile, goals, sessionDraft, readingPrompt);
   const reasoningTrace = buildReasoningTrace(prompt, sessionDraft, result, metrics, followUp);
   const confidence = getConfidence(sessionDraft, followUp, prompt);
   const detectedIntents = listDetectedIntents(getIntentFlags(prompt));
