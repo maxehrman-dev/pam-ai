@@ -33,7 +33,7 @@ function timingSafeEqualText(left, right) {
 function assertAdmin(req) {
   // Stray spaces or a trailing newline pasted into the Vercel setting
   // shouldn't lock the owner out; the sign-in form trims what's typed too.
-  const configuredSecret = String(process.env.PAM_ADMIN_SECRET || process.env.RESEND_ADMIN_SECRET || "").trim();
+  const configuredSecret = String(process.env.PAM_ADMIN_SECRET || "").trim();
   const providedSecret = String(req.headers["x-pam-admin-secret"] || "").trim();
   if (!configuredSecret || !timingSafeEqualText(providedSecret, configuredSecret)) {
     const error = new Error("Unauthorized.");
