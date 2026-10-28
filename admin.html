@@ -6,39 +6,39 @@
     <meta name="robots" content="noindex, nofollow" />
     <title>Admin | PAM SI</title>
     <link rel="icon" href="/favicon.svg" />
-    <link rel="stylesheet" href="/src/styles.css?v=pam-ai-20261028-answers" />
-    <link rel="stylesheet" href="/src/admin.css?v=pam-ai-20261028-answers" />
+    <link rel="stylesheet" href="/src/styles.css?v=pam-ai-20261028-admin2" />
+    <link rel="stylesheet" href="/src/admin.css?v=pam-ai-20261028-admin2" />
   </head>
   <body class="admin-glass">
-    <div class="admin-glow admin-glow-a" aria-hidden="true"></div>
-    <div class="admin-glow admin-glow-b" aria-hidden="true"></div>
-    <div class="admin-glow admin-glow-c" aria-hidden="true"></div>
-    <main class="admin-shell">
-      <header class="admin-header">
-        <div class="admin-brand">
-          <span class="admin-brand-mark" aria-hidden="true">PAM</span>
+    <div class="admin-scene" aria-hidden="true"></div>
+
+    <form class="admin-login glass" id="admin-login">
+      <span class="admin-brand-mark" aria-hidden="true">PAM</span>
+      <h1>Admin</h1>
+      <label for="admin-secret"><span>Admin secret</span>
+        <input id="admin-secret" name="secret" type="password" autocomplete="current-password" required />
+      </label>
+      <button class="admin-btn admin-btn-primary" type="submit">Open</button>
+      <p class="admin-status" id="admin-status" role="status"></p>
+    </form>
+
+    <div class="admin-app" id="admin-app" hidden>
+      <nav class="admin-rail glass" id="admin-rail" aria-label="Admin sections"></nav>
+      <main class="admin-window glass" id="admin-window">
+        <header class="admin-window-bar">
           <div>
-            <h1>Admin</h1>
-            <p>Private</p>
+            <h1 id="admin-view-title">Overview</h1>
+            <p id="admin-view-sub"></p>
           </div>
-        </div>
-        <nav class="admin-nav" id="admin-nav" aria-label="Admin sections" hidden>
-          <a href="#overview">Overview</a>
-          <a href="#controls">Controls</a>
-          <a href="#growth">Growth</a>
-          <a href="#voices">Voices</a>
-        </nav>
-        <button class="admin-pill-button" type="button" id="admin-refresh" hidden>Refresh</button>
-      </header>
-      <form class="admin-login profile-form" id="admin-login">
-        <label for="admin-secret"><span>Admin secret</span>
-          <input id="admin-secret" name="secret" type="password" autocomplete="current-password" required />
-        </label>
-        <button class="button button-primary" type="submit">Open dashboard</button>
-        <p class="admin-status" id="admin-status" role="status"></p>
-      </form>
-      <div id="admin-content"></div>
-    </main>
-    <script type="module" src="/src/admin.js?v=pam-ai-20261028-answers"></script>
+          <div class="admin-window-actions">
+            <span class="admin-updated" id="admin-updated"></span>
+            <button class="admin-btn" type="button" id="admin-refresh">Refresh</button>
+          </div>
+        </header>
+        <div class="admin-view" id="admin-content" tabindex="-1"></div>
+      </main>
+    </div>
+    <div class="admin-toast glass" id="admin-toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="/src/admin.js?v=pam-ai-20261028-admin2"></script>
   </body>
 </html>

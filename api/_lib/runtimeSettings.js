@@ -10,8 +10,30 @@ const DEFAULTS = Object.freeze({
   disableAi: false,
   disablePlaid: false,
   disableEmail: false,
-  announcement: ""
+  announcement: "",
+  inviteCodes: []
 });
+
+// Invite codes the founder creates from /admin, on top of DEMO_ACCESS_CODE.
+// Same normalization as the invite check: lowercase, single spaces.
+const MAX_INVITE_CODES = 25;
+function normalizeInviteCode(value) {
+  return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function sanitizeInviteCodes(list) {
+  if (!Array.isArray(list)) return null;
+  const seen = new Set();
+  const codes = [];
+  for (const raw of list) {
+    const code = normalizeInviteCode(raw);
+    if (!/^[a-z0-9][a-z0-9 -]{2,38}[a-z0-9]$/.test(code) || seen.has(code)) continue;
+    seen.add(code);
+    codes.push(code);
+    if (codes.length >= MAX_INVITE_CODES) break;
+  }
+  return codes;
+}
 const CACHE_MS = 30 * 1000;
 let cache = { value: null, loadedAt: 0 };
 
@@ -22,6 +44,8 @@ function sanitizeSettings(raw = {}) {
     if (typeof raw[key] === "boolean") next[key] = raw[key];
   }
   if (typeof raw.announcement === "string") next.announcement = raw.announcement.replace(/\s+/g, " ").trim().slice(0, 160);
+  const inviteCodes = sanitizeInviteCodes(raw.inviteCodes);
+  if (inviteCodes) next.inviteCodes = inviteCodes;
   return next;
 }
 
@@ -61,4 +85,4 @@ async function listSettingsHistory(limit = 10) {
   }
 }
 
-module.exports = { DEFAULTS, getCachedRuntimeSettings, listSettingsHistory, loadRuntimeSettings, sanitizeSettings, saveRuntimeSettings };
+module.exports = { DEFAULTS, MAX_INVITE_CODES, getCachedRuntimeSettings, listSettingsHistory, loadRuntimeSettings, normalizeInviteCode, sanitizeSettings, saveRuntimeSettings };

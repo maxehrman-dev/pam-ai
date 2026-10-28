@@ -6,6 +6,7 @@ const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, sanitizeText, validatePayload } = require("../_lib/security.js");
 const { findBaselineByAccountId, findLatestLegalAcceptanceByAccountId, findPlaidItemsByAccountId, findScenarioRunsByAccountId, findSubscriptionByClerkUserId, hasSupabaseConfig, insertLegalAcceptance, insertScenarioRun, insertTelemetryEvent, purgeFinancialDataByAccountId, upsertBaseline } = require("../_lib/supabase.js");
 const { removePlaidItem } = require("../_lib/plaid.js");
+const { loadRuntimeSettings } = require("../_lib/runtimeSettings.js");
 
 async function resolveAccount(req) {
   if (hasClerkConfig()) {
@@ -99,14 +100,18 @@ function timingSafeEqualText(left, right) {
   return equal && Buffer.byteLength(left) === Buffer.byteLength(right);
 }
 
-function getAllowedDemoCodes() {
+async function getAllowedDemoCodes() {
   const configured = String(process.env.DEMO_ACCESS_CODE || "")
     .split(",")
     .map(normalizeDemoCode)
     .filter(Boolean);
+  // Codes created from /admin work alongside the Vercel setting.
+  const runtime = await loadRuntimeSettings();
+  const created = (runtime.inviteCodes || []).map(normalizeDemoCode).filter(Boolean);
+  const all = [...configured, ...created];
 
-  // Prototype fallback so the founder can still demo if the env var is not set yet.
-  return configured.length ? configured : ["pamdevteam", "pam dev team", "pam demo"];
+  // Prototype fallback so the founder can still demo if no code is set yet.
+  return all.length ? all : ["pamdevteam", "pam dev team", "pam demo"];
 }
 
 const __pamRouteHandler = async (req, res) => {
@@ -187,7 +192,7 @@ const __pamRouteHandler = async (req, res) => {
       }
 
       const providedCode = normalizeDemoCode(body.code);
-      const ok = getAllowedDemoCodes().some((code) => timingSafeEqualText(providedCode, code));
+      const ok = (await getAllowedDemoCodes()).some((code) => timingSafeEqualText(providedCode, code));
 
       if (!ok) {
         return sendJson(res, 401, {

@@ -5,6 +5,7 @@ const { sendJson, sendMethodNotAllowed } = require("../_lib/http.js");
 const { checkRateLimit, validatePayload } = require("../_lib/security.js");
 const { buildAdminStats } = require("../_lib/adminStats.js");
 const { listSettingsHistory, loadRuntimeSettings, saveRuntimeSettings } = require("../_lib/runtimeSettings.js");
+const { insertTelemetryEvent } = require("../_lib/supabase.js");
 const { envFlagEnabled } = require("../_lib/security.js");
 
 const broadcastSchema = {
@@ -227,6 +228,85 @@ async function readAdminTable(path, { count = false } = {}) {
   return text ? JSON.parse(text) : [];
 }
 
+// Writes for the admin "People" and "Partners" views.
+async function adminTableWrite(path, method) {
+  const supabaseUrl = String(process.env.PAM_SUPABASE_SUPABASE_URL || process.env.SUPABASE_URL || "").trim().replace(/\/$/, "");
+  const serviceRoleKey = String(process.env.PAM_SUPABASE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  if (!supabaseUrl || !serviceRoleKey) throw new Error("Supabase is not configured.");
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    method,
+    signal: AbortSignal.timeout(10000),
+    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, Prefer: "return=representation" }
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error("Supabase write failed.");
+  return text ? JSON.parse(text) : [];
+}
+
+const PARTNER_STATUSES = ["new", "contacted", "accepted", "declined"];
+
+// Partner follow-up status lives in append-only admin events (no schema
+// change); the latest event per email wins.
+async function readPartnerStatuses() {
+  const rows = await readAdminTable("pam_events?select=properties,created_at&event_type=eq.admin&event_name=eq.partner_status_set&order=created_at.desc&limit=2000");
+  const statuses = {};
+  for (const row of rows || []) {
+    const email = String(row.properties?.email || "").toLowerCase();
+    if (email && !statuses[email] && PARTNER_STATUSES.includes(row.properties?.status)) {
+      statuses[email] = { status: row.properties.status, when: row.created_at };
+    }
+  }
+  return statuses;
+}
+
+async function handleAdminPeople(res) {
+  const [people, partnerStatuses] = await Promise.all([
+    readAdminTable("pam_waitlist?select=email_address,full_name,age,stage,goal,source,created_at&order=created_at.desc&limit=5000"),
+    readPartnerStatuses()
+  ]);
+  return sendJson(res, 200, {
+    ok: true,
+    people: (people || []).map((row) => ({
+      email: row.email_address,
+      name: row.full_name || "",
+      age: row.age ?? null,
+      stage: row.stage || "",
+      goal: row.goal || "",
+      source: row.source || "",
+      joined: row.created_at
+    })),
+    partnerStatuses
+  });
+}
+
+function hashEmail(email) {
+  return crypto.createHash("sha256").update(String(email)).digest("hex").slice(0, 16);
+}
+
+const personSchema = {
+  properties: {
+    action: { type: "string", enum: ["delete_person", "set_partner_status"] },
+    email: { type: "string", format: "email", maxLength: 254 },
+    status: { type: "string", enum: PARTNER_STATUSES }
+  },
+  required: ["action", "email"]
+};
+
+async function handlePersonAction(req, res) {
+  const body = validatePayload(req.body, personSchema, "request body");
+  const email = body.email.trim().toLowerCase();
+  if (!checkRateLimit(req, res, { routeKey: "admin:people", userKey: "admin", ipLimit: { windowMs: 60 * 1000, max: 30 } })) return;
+  if (body.action === "delete_person") {
+    const deleted = await adminTableWrite(`pam_waitlist?email_address=eq.${encodeURIComponent(email)}`, "DELETE");
+    // Audit without keeping the address that was just deleted.
+    await insertTelemetryEvent({ eventType: "admin", eventName: "person_deleted", page: "/admin", properties: { emailHash: hashEmail(email), rows: deleted.length } });
+    return sendJson(res, 200, { ok: true, deleted: deleted.length });
+  }
+  if (!body.status) return sendJson(res, 400, { ok: false, error: "Pick a status." });
+  await insertTelemetryEvent({ eventType: "admin", eventName: "partner_status_set", page: "/admin", properties: { email, status: body.status } });
+  return sendJson(res, 200, { ok: true, status: body.status });
+}
+
 const settingsSchema = {
   properties: {
     action: { type: "string", enum: ["update_settings"] },
@@ -313,7 +393,12 @@ const __pamRouteHandler = async (req, res) => {
   if (!checkRateLimit(req, res, { routeKey: "admin:attempts", ipLimit: ADMIN_ATTEMPT_LIMIT })) return;
   if (req.method === "GET") {
     try {
-      if (String(req.query?.export || new URL(req.url || "/", "http://x").searchParams.get("export") || "") === "waitlist") {
+      const params = new URL(req.url || "/", "http://x").searchParams;
+      if (String(req.query?.view || params.get("view") || "") === "people") {
+        assertAdmin(req);
+        return await handleAdminPeople(res);
+      }
+      if (String(req.query?.export || params.get("export") || "") === "waitlist") {
         assertAdmin(req);
         if (!checkRateLimit(req, res, { routeKey: "admin:export", userKey: "admin", ipLimit: { windowMs: 60 * 1000, max: 5 }, userLimit: { windowMs: 60 * 1000, max: 5 } })) return;
         return await handleWaitlistExport(res);
@@ -329,6 +414,9 @@ const __pamRouteHandler = async (req, res) => {
 
   try {
     assertAdmin(req);
+    if (req.body?.action === "delete_person" || req.body?.action === "set_partner_status") {
+      return await handlePersonAction(req, res);
+    }
     if (req.body?.action === "update_settings") {
       const update = validatePayload(req.body, settingsSchema, "request body");
       if (!checkRateLimit(req, res, { routeKey: "admin:settings", userKey: "admin", ipLimit: { windowMs: 60 * 1000, max: 20 }, userLimit: { windowMs: 60 * 1000, max: 20 } })) return;
