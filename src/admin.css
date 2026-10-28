@@ -1,0 +1,284 @@
+/* Private admin page: dark frosted glass. Translucent cards over soft color
+   glows, thin light borders, pill navigation, big KPI numbers, rounded pill
+   bars and ring gauges. Scoped to body.admin-glass so the app is untouched. */
+
+.admin-glass {
+  --glass-bg: #070b0a;
+  --glass-card: rgba(255, 255, 255, 0.055);
+  --glass-card-strong: rgba(255, 255, 255, 0.085);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-strong: rgba(255, 255, 255, 0.22);
+  --glass-text: #f2f7f4;
+  --glass-muted: rgba(226, 239, 231, 0.62);
+  --glass-faint: rgba(226, 239, 231, 0.4);
+  --glass-lime: #c8f560;
+  --glass-cyan: #5fe3e0;
+  --glass-mint: #4be3ae;
+  --glass-amber: #ffc861;
+  --glass-red: #ff8c7a;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--glass-bg);
+  color: var(--glass-text);
+  overflow-x: hidden;
+}
+
+.admin-glow {
+  position: fixed;
+  z-index: 0;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.admin-glow-a { width: 520px; height: 520px; top: -160px; left: -120px; background: radial-gradient(circle, #1f8f6a, transparent 70%); }
+.admin-glow-b { width: 460px; height: 460px; top: 30%; right: -160px; background: radial-gradient(circle, #1b7f8f, transparent 70%); }
+.admin-glow-c { width: 420px; height: 420px; bottom: -180px; left: 30%; background: radial-gradient(circle, #6f8f1f, transparent 70%); opacity: 0.3; }
+
+.admin-glass .admin-shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  padding: 22px 20px 72px;
+}
+
+/* Header: brand, pill nav, refresh */
+.admin-glass .admin-header {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 26px;
+  padding: 10px 12px 10px 14px;
+  border-radius: 999px;
+  background: rgba(14, 20, 18, 0.62);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.admin-brand { display: flex; align-items: center; gap: 10px; }
+.admin-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #06120d;
+  background: linear-gradient(135deg, var(--glass-lime), var(--glass-mint));
+  box-shadow: 0 0 22px rgba(200, 245, 96, 0.35);
+}
+.admin-glass .admin-header h1 { margin: 0; font-size: 1.02rem; color: var(--glass-text); letter-spacing: -0.01em; }
+.admin-brand p { margin: 0; font-size: 0.72rem; color: var(--glass-faint); text-transform: uppercase; letter-spacing: 0.12em; }
+.admin-nav {
+  display: flex;
+  gap: 4px;
+  margin: 0 auto;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+}
+.admin-nav a {
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--glass-muted);
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.admin-nav a:hover,
+.admin-nav a:focus-visible { color: #06120d; background: var(--glass-lime); outline: none; }
+.admin-pill-button {
+  margin-left: auto;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border-strong);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--glass-text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.admin-pill-button:hover { background: rgba(255, 255, 255, 0.12); }
+.admin-nav:not([hidden]) + .admin-pill-button { margin-left: 0; }
+
+/* Login */
+.admin-glass .admin-login {
+  max-width: 400px;
+  margin: 12vh auto 0;
+  padding: 28px;
+  border-radius: 28px;
+  background: var(--glass-card);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+.admin-glass .admin-login label span { color: var(--glass-muted); }
+.admin-glass input[type="password"],
+.admin-glass input[type="text"] {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--glass-border-strong);
+  color: var(--glass-text);
+  border-radius: 14px;
+}
+.admin-glass input::placeholder { color: var(--glass-faint); }
+.admin-glass .admin-status { color: var(--glass-muted); }
+
+/* Sections and layout */
+.admin-section { margin-bottom: 34px; scroll-margin-top: 96px; }
+.admin-section-title {
+  margin: 0 0 14px 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--glass-faint);
+}
+.admin-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* Glass cards */
+.admin-glass .admin-card,
+.admin-glass .admin-total {
+  position: relative;
+  margin: 0;
+  padding: 20px 22px;
+  border-radius: 26px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.admin-glass .admin-card h2 { margin: 0 0 4px; font-size: 1rem; color: var(--glass-text); }
+.admin-glass .admin-note { color: var(--glass-muted); font-size: 0.82rem; }
+.admin-glass .admin-empty { color: var(--glass-faint); }
+.admin-glass .admin-card-controls { border-color: var(--glass-border-strong); }
+
+/* KPI tiles */
+.admin-glass .admin-totals {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.admin-glass .admin-total span { display: block; font-size: 0.78rem; font-weight: 700; color: var(--glass-muted); }
+.admin-glass .admin-total strong {
+  display: block;
+  margin-top: 6px;
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--glass-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-total-lime { box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(200, 245, 96, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.07) !important; }
+.admin-total-lime strong { color: var(--glass-lime) !important; }
+.admin-total-cyan strong { color: var(--glass-cyan) !important; }
+.admin-total-ring { display: flex; align-items: center; gap: 14px; }
+.admin-ring { flex: none; width: 58px; height: 58px; transform: rotate(-90deg); }
+.admin-ring circle { fill: none; stroke-width: 7; stroke-linecap: round; }
+.admin-ring-track { stroke: rgba(255, 255, 255, 0.1); }
+.admin-ring-value {
+  stroke: var(--glass-lime);
+  filter: drop-shadow(0 0 6px rgba(200, 245, 96, 0.55));
+  transition: stroke-dasharray 1s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.admin-glass #admin-content:not(.is-ready) .admin-ring-value { stroke-dasharray: 0 100; }
+
+/* Pill bars */
+.admin-glass .admin-bars { gap: 10px; }
+.admin-glass .admin-bars li { grid-template-columns: minmax(110px, 1fr) 2fr auto; gap: 12px; }
+.admin-glass .admin-bar-label { color: var(--glass-muted); font-size: 0.86rem; }
+.admin-bar-track {
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.admin-bar-track i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--glass-mint), var(--glass-lime));
+  box-shadow: 0 0 14px rgba(200, 245, 96, 0.35);
+  transition: width 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--delay, 0ms);
+}
+.admin-glass #admin-content.is-ready .admin-bar-track i { width: var(--w); }
+.admin-glass .admin-bars li:nth-child(even) .admin-bar-track i { background: linear-gradient(90deg, #2fbd8a, var(--glass-cyan)); box-shadow: 0 0 14px rgba(95, 227, 224, 0.3); }
+.admin-glass .admin-bars strong { color: var(--glass-text); }
+
+/* Quotes */
+.admin-glass .admin-quotes li {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+}
+.admin-glass .admin-quotes p { color: var(--glass-text); }
+.admin-glass .admin-quotes small { color: var(--glass-faint); }
+
+/* Controls */
+.admin-glass .admin-fieldset { border-color: var(--glass-border); border-radius: 18px; }
+.admin-glass .admin-fieldset legend { color: var(--glass-text); }
+.admin-glass .admin-option,
+.admin-glass .admin-field { color: var(--glass-muted); }
+.admin-glass .admin-option input { accent-color: var(--glass-lime); }
+
+/* Integrations list */
+.admin-glass .admin-integrations li { border-color: rgba(255, 255, 255, 0.07); }
+.admin-glass .admin-integration-name { color: var(--glass-text); }
+.admin-glass .admin-integrations small { color: var(--glass-faint); }
+.admin-glass .admin-chip { border: 1px solid transparent; }
+.admin-glass .admin-chip-ok { color: #0a1a06; background: var(--glass-lime); }
+.admin-glass .admin-chip-warn { color: #241500; background: var(--glass-amber); }
+.admin-glass .admin-chip-off { color: var(--glass-muted); background: rgba(255, 255, 255, 0.08); border-color: var(--glass-border); }
+
+/* Buttons inside the glass */
+.admin-glass .button-primary {
+  color: #06120d;
+  background: linear-gradient(135deg, var(--glass-lime), var(--glass-mint));
+  border: 0;
+  box-shadow: 0 10px 30px rgba(200, 245, 96, 0.25);
+}
+.admin-glass .button-secondary {
+  color: var(--glass-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border-strong);
+}
+.admin-glass .button:disabled { opacity: 0.45; }
+.admin-glass .panel-kicker { color: var(--glass-lime); }
+.admin-updated { text-align: center; }
+
+@media (max-width: 980px) {
+  .admin-glass .admin-totals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .admin-layout { grid-template-columns: 1fr; }
+  .admin-glass .admin-header { border-radius: 24px; flex-wrap: wrap; }
+  .admin-nav { order: 3; width: 100%; justify-content: space-between; margin: 0; overflow-x: auto; }
+  .admin-nav a { padding: 8px 12px; }
+  .admin-glass .admin-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-total-ring { grid-column: 1 / -1; }
+  .admin-glass .admin-bars li { grid-template-columns: 1fr auto; }
+  .admin-glass .admin-bars li .admin-bar-track { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-bar-track i,
+  .admin-ring-value { transition: none; }
+}
+.admin-stack { display: grid; gap: 16px; align-content: start; }

@@ -192,7 +192,7 @@ async function boot() {
     window.__pamFoundingClaimed = Number(config.foundingClaimed || 0);
     await initClerk(config.clerkPublishableKey);
 
-    const module = await import("./main.js?v=pam-ai-20261027-thinking");
+    const module = await import("./main.js?v=pam-ai-20261028-answers");
     if (typeof module.startApp !== "function") {
       throw new Error("Missing startApp export in src/main.js.");
     }

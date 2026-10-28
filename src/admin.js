@@ -7,6 +7,7 @@ const form = document.getElementById("admin-login");
 const statusLine = document.getElementById("admin-status");
 const content = document.getElementById("admin-content");
 const refreshButton = document.getElementById("admin-refresh");
+const nav = document.getElementById("admin-nav");
 
 function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
@@ -41,15 +42,47 @@ function card(title, note, body, extraClass = "") {
   ]);
 }
 
+// Rounded pill bars. Widths go through the CSSOM (allowed under the page's
+// style-src 'self' CSP, unlike style attributes) and grow in after render.
 function barList(rows, { valueKey = "count", labelKey = "label" } = {}) {
   if (!rows.length) return el("p", { className: "admin-empty", text: "Nothing yet." });
   const max = Math.max(...rows.map((row) => row[valueKey]), 1);
   const list = el("ul", { className: "admin-bars" });
-  for (const row of rows) {
-    const meter = el("meter", { attrs: { min: "0", max: String(max), value: String(row[valueKey]), "aria-label": `${row[labelKey]}: ${row[valueKey]}` } });
-    list.appendChild(el("li", {}, [el("span", { className: "admin-bar-label", text: row[labelKey] }), meter, el("strong", { text: row[valueKey] })]));
-  }
+  rows.forEach((row, index) => {
+    const fill = el("i");
+    fill.style.setProperty("--w", `${Math.max((row[valueKey] / max) * 100, 2).toFixed(1)}%`);
+    fill.style.setProperty("--delay", `${Math.min(index * 40, 400)}ms`);
+    const track = el("span", { className: "admin-bar-track", attrs: { role: "img", "aria-label": `${row[labelKey]}: ${row[valueKey]}` } }, [fill]);
+    list.appendChild(el("li", {}, [el("span", { className: "admin-bar-label", text: row[labelKey] }), track, el("strong", { text: row[valueKey] })]));
+  });
   return list;
+}
+
+// Ring gauge for a percentage (visionOS-style).
+function ring(percent, label) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 64 64");
+  svg.setAttribute("class", "admin-ring");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `${label}: ${percent === null ? "n/a" : `${percent}%`}`);
+  const track = document.createElementNS(ns, "circle");
+  const value = document.createElementNS(ns, "circle");
+  for (const circle of [track, value]) {
+    circle.setAttribute("cx", "32");
+    circle.setAttribute("cy", "32");
+    circle.setAttribute("r", "26");
+    circle.setAttribute("pathLength", "100");
+  }
+  track.setAttribute("class", "admin-ring-track");
+  value.setAttribute("class", "admin-ring-value");
+  value.setAttribute("stroke-dasharray", `${Math.max(Math.min(Number(percent) || 0, 100), 0)} 100`);
+  svg.append(track, value);
+  return svg;
+}
+
+function section(id, title, children) {
+  return el("section", { className: "admin-section", attrs: { id } }, [el("h2", { className: "admin-section-title", text: title }), ...children]);
 }
 
 function quoteList(items, map, empty) {
@@ -119,10 +152,10 @@ function renderControls(settings, environment, history) {
     meta: formatDate(item.when, true)
   }), "No changes yet.");
 
-  return el("div", {}, [
+  return [
     card("Controls", "Changes apply without a deploy. Vercel kill switches still win if they're on.", wrap, "admin-card-controls"),
     card("Change history", "Most recent first.", historyList)
-  ]);
+  ];
 }
 
 function describeSettings(settings) {
@@ -210,39 +243,60 @@ function renderWaitlistTools(environment) {
 async function render(payload) {
   const { stats, settings, settingsHistory, environment } = payload;
   content.replaceChildren();
-  const totals = el("div", { className: "admin-totals" });
-  for (const [label, value] of [
-    ["Waitlist", stats.totals.waitlist],
-    ["Partner requests", stats.totals.partnerRequests],
-    ["Saved profiles", stats.totals.accounts ?? "n/a"],
-    ["Decisions run", stats.totals.decisionsRun],
-    ["AI answer success", stats.aiHealth?.successPct === null || stats.aiHealth?.successPct === undefined ? "n/a" : `${stats.aiHealth.successPct}%`]
-  ]) {
-    totals.appendChild(el("div", { className: "admin-total" }, [el("span", { text: label }), el("strong", { text: value })]));
-  }
-  content.appendChild(totals);
 
-  content.appendChild(renderControls(settings, environment, settingsHistory || []));
-  content.appendChild(await renderIntegrations(environment, settings));
-  content.appendChild(renderWaitlistTools(environment));
+  const aiPct = stats.aiHealth?.successPct === null || stats.aiHealth?.successPct === undefined ? null : stats.aiHealth.successPct;
+  const totals = el("div", { className: "admin-totals" });
+  for (const [label, value, accent] of [
+    ["Waitlist", stats.totals.waitlist, "lime"],
+    ["Decisions run", stats.totals.decisionsRun, "cyan"],
+    ["Saved profiles", stats.totals.accounts ?? "n/a", ""],
+    ["Partner requests", stats.totals.partnerRequests, ""]
+  ]) {
+    totals.appendChild(el("div", { className: `admin-total ${accent ? `admin-total-${accent}` : ""}`.trim() }, [el("span", { text: label }), el("strong", { text: value })]));
+  }
+  totals.appendChild(el("div", { className: "admin-total admin-total-ring" }, [
+    ring(aiPct, "AI answer success"),
+    el("div", {}, [el("span", { text: "AI answer success" }), el("strong", { text: aiPct === null ? "n/a" : `${aiPct}%` })])
+  ]));
 
   const funnelRows = stats.funnel.map((step) => ({ label: step.conversionPct === null ? step.label : `${step.label} (${step.conversionPct}%)`, count: step.sessions }));
-  content.appendChild(card("Signup funnel, last 30 days", "Unique sessions per step, with the share that made it from the step before. Only visitors who allowed analytics are counted.", barList(funnelRows)));
-  content.appendChild(card("Daily active sessions", "Last 14 days with activity.", barList(stats.dailySessions || [])));
-  content.appendChild(card("Feature usage, last 30 days", `AI answers: ${stats.aiHealth?.received ?? 0} delivered, ${stats.aiHealth?.unavailable ?? 0} fell back to PAM's own math.`, barList(stats.highlights || [])));
-  content.appendChild(card("What people ask about", "Decision questions grouped by topic.", barList(stats.questionTopics)));
+  const integrations = await renderIntegrations(environment, settings);
 
-  const grid = el("div", { className: "admin-grid" });
-  grid.appendChild(card("Waitlist by stage", "", barList(stats.waitlistByStage)));
-  grid.appendChild(card("Waitlist by age", "", barList(stats.waitlistByAge)));
-  content.appendChild(grid);
-  content.appendChild(card("Signups per week", "Waitlist and partner requests, week starting Monday.", barList(stats.waitlistByWeek)));
-
-  content.appendChild(card("What waitlist members want help with", "Most recent first.", quoteList(stats.recentGoals, (item) => ({ text: item.goal, meta: [item.stage, formatDate(item.when)].filter(Boolean).join(" · ") }), "Nothing yet.")));
-  content.appendChild(card("School and employer requests", "Reply from your inbox; emails stay in Supabase.", quoteList(stats.partnerRequests, (item) => ({ text: item.organization || "(no organization given)", meta: formatDate(item.when) }), "None yet.")));
-  content.appendChild(card("Recent feedback", "", quoteList(stats.recentFeedback, (item) => ({ text: item.message, meta: [item.rating ? `${item.rating}/5` : "", item.page, formatDate(item.when)].filter(Boolean).join(" · ") }), "No feedback yet.")));
-  content.appendChild(card("Most common events", "Last 30 days.", barList(stats.topEvents)));
-  content.appendChild(el("p", { className: "admin-note", text: `Updated ${new Date(stats.generatedAt).toLocaleString("en-US")}` }));
+  content.append(
+    section("overview", "Overview", [
+      totals,
+      el("div", { className: "admin-layout" }, [
+        card("Signup funnel, last 30 days", "Unique sessions per step, with the share that made it from the step before. Only visitors who allowed analytics are counted.", barList(funnelRows)),
+        card("Daily active sessions", "Last 14 days with activity.", barList(stats.dailySessions || []))
+      ])
+    ]),
+    section("controls", "Controls", [
+      el("div", { className: "admin-layout" }, [
+        el("div", { className: "admin-stack" }, renderControls(settings, environment, settingsHistory || [])),
+        el("div", { className: "admin-stack" }, [integrations, renderWaitlistTools(environment)])
+      ])
+    ]),
+    section("growth", "Growth", [
+      el("div", { className: "admin-layout" }, [
+        card("Feature usage, last 30 days", `AI answers: ${stats.aiHealth?.received ?? 0} delivered, ${stats.aiHealth?.unavailable ?? 0} fell back to PAM's own math.`, barList(stats.highlights || [])),
+        card("What people ask about", "Decision questions grouped by topic.", barList(stats.questionTopics)),
+        card("Waitlist by stage", "", barList(stats.waitlistByStage)),
+        card("Waitlist by age", "", barList(stats.waitlistByAge)),
+        card("Signups per week", "Waitlist and partner requests, week starting Monday.", barList(stats.waitlistByWeek)),
+        card("Most common events", "Last 30 days.", barList(stats.topEvents))
+      ])
+    ]),
+    section("voices", "Voices", [
+      el("div", { className: "admin-layout" }, [
+        card("What waitlist members want help with", "Most recent first.", quoteList(stats.recentGoals, (item) => ({ text: item.goal, meta: [item.stage, formatDate(item.when)].filter(Boolean).join(" · ") }), "Nothing yet.")),
+        card("Recent feedback", "", quoteList(stats.recentFeedback, (item) => ({ text: item.message, meta: [item.rating ? `${item.rating}/5` : "", item.page, formatDate(item.when)].filter(Boolean).join(" · ") }), "No feedback yet.")),
+        card("School and employer requests", "Reply from your inbox; emails stay in Supabase.", quoteList(stats.partnerRequests, (item) => ({ text: item.organization || "(no organization given)", meta: formatDate(item.when) }), "None yet."))
+      ])
+    ]),
+    el("p", { className: "admin-note admin-updated", text: `Updated ${new Date(stats.generatedAt).toLocaleString("en-US")}` })
+  );
+  // Let bars and rings grow in from zero.
+  requestAnimationFrame(() => requestAnimationFrame(() => content.classList.add("is-ready")));
 }
 
 async function load(newSecret) {
@@ -254,6 +308,7 @@ async function load(newSecret) {
       sessionStorage.removeItem(SECRET_KEY);
       form.hidden = false;
       refreshButton.hidden = true;
+      nav.hidden = true;
       statusLine.textContent = "That secret didn't work.";
       return;
     }
@@ -264,6 +319,8 @@ async function load(newSecret) {
     }
     form.hidden = true;
     refreshButton.hidden = false;
+    nav.hidden = false;
+    content.classList.remove("is-ready");
     statusLine.textContent = "";
     await render(payload);
   } catch (_error) {

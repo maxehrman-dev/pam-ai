@@ -6,16 +6,29 @@
     <meta name="robots" content="noindex, nofollow" />
     <title>Admin | PAM SI</title>
     <link rel="icon" href="/favicon.svg" />
-    <link rel="stylesheet" href="/src/styles.css?v=pam-ai-20261027-thinking" />
+    <link rel="stylesheet" href="/src/styles.css?v=pam-ai-20261028-answers" />
+    <link rel="stylesheet" href="/src/admin.css?v=pam-ai-20261028-answers" />
   </head>
-  <body>
+  <body class="admin-glass">
+    <div class="admin-glow admin-glow-a" aria-hidden="true"></div>
+    <div class="admin-glow admin-glow-b" aria-hidden="true"></div>
+    <div class="admin-glow admin-glow-c" aria-hidden="true"></div>
     <main class="admin-shell">
       <header class="admin-header">
-        <div>
-          <p class="panel-kicker">Private</p>
-          <h1>PAM admin</h1>
+        <div class="admin-brand">
+          <span class="admin-brand-mark" aria-hidden="true">PAM</span>
+          <div>
+            <h1>Admin</h1>
+            <p>Private</p>
+          </div>
         </div>
-        <button class="button button-secondary" type="button" id="admin-refresh" hidden>Refresh</button>
+        <nav class="admin-nav" id="admin-nav" aria-label="Admin sections" hidden>
+          <a href="#overview">Overview</a>
+          <a href="#controls">Controls</a>
+          <a href="#growth">Growth</a>
+          <a href="#voices">Voices</a>
+        </nav>
+        <button class="admin-pill-button" type="button" id="admin-refresh" hidden>Refresh</button>
       </header>
       <form class="admin-login profile-form" id="admin-login">
         <label for="admin-secret"><span>Admin secret</span>
@@ -26,6 +39,6 @@
       </form>
       <div id="admin-content"></div>
     </main>
-    <script type="module" src="/src/admin.js?v=pam-ai-20261027-thinking"></script>
+    <script type="module" src="/src/admin.js?v=pam-ai-20261028-answers"></script>
   </body>
 </html>
