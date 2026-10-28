@@ -24,7 +24,8 @@ import {
   validateBaseline
 } from "./utils/baseline.mjs";
 import { connectSandboxAccount, loadSandboxFallback, refreshConnectedBaseline } from "./services/plaidClient.js";
-import { defaultGoals, goalTemplates, starterScenarios } from "./data/mockData.js";
+import { defaultGoals, financialProfile as sampleProfile, goalTemplates, starterScenarios } from "./data/mockData.js";
+import { buildLiveDemoScenes, mountLiveDemo, renderLiveDemo } from "./liveDemo.js";
 import {
   buildDecisionSession,
   isStandaloneQuestion,
@@ -36,7 +37,6 @@ import {
 import { getPersonaCoefficients } from "./utils/personaEngine.js";
 import { PAM_IDENTITY_REPLY, classifyAsk } from "./utils/askGuard.js";
 import { simulateMarketRange } from "./utils/monteCarlo.js";
-import { compareTaxStrategies } from "./utils/taxStrategies.js";
 import { renderRangeChartSvg, renderStartEarlyChartSvg } from "./utils/rangeChart.js";
 import { START_EARLY_LIMITS, computeStartEarly } from "./utils/startEarly.js";
 import {
@@ -6538,16 +6538,6 @@ const MARKETING_EXAMPLES = {
       { label: "Safer rent", value: "$1,650" },
       { label: "Verdict", value: "Doable" }
     ]
-  },
-  nyc: {
-    q: "Same-salary job offer in a bigger city, but I'd have to move. Worth it?",
-    verdict: "On your numbers, make the move.",
-    body: "Same salary isn't a lateral move in your field. The bigger market nets ~$22k/yr more after cost of living and pulls your retire-at-55 goal forward 6 years. Year-one buffer dips to $760. Here's how to cover it.",
-    stats: [
-      { label: "Retire age", value: "61 → 55" },
-      { label: "After cost of living", value: "+$22k/yr" },
-      { label: "Verdict", value: "Move" }
-    ]
   }
 };
 
@@ -6564,73 +6554,22 @@ function getMarketingRangeExample() {
   return marketingRangeCache;
 }
 
-let marketingTaxCache = null;
-function getMarketingTaxExample() {
-  if (!marketingTaxCache) {
-    marketingTaxCache = compareTaxStrategies({
-      monthlyBudget: 400,
-      months: 252,
-      age: 24,
-      tax: { federalMarginal: 0.22, stateRate: 0.05, taxableIncome: 62000, grossAnnual: 77000, employmentStatus: "w2" }
+// Homepage demo scenes, run once through the real engines on the sample profile.
+let liveDemoScenes = null;
+function getLiveDemoScenes() {
+  if (!liveDemoScenes) {
+    liveDemoScenes = buildLiveDemoScenes({
+      askEngine: (prompt) => {
+        try {
+          return buildDecisionSession({ prompt, profile: sampleProfile, goals: defaultGoals, catalog: starterScenarios }).result;
+        } catch (_error) {
+          return null;
+        }
+      },
+      rangeExample: getMarketingRangeExample()
     });
   }
-  return marketingTaxCache;
-}
-
-function renderMarketingRangeCard() {
-  const range = getMarketingRangeExample();
-  const endAge = range.startAge + Math.round(range.months / 12);
-  return `
-    <div class="marketing-sample-card marketing-range-card" aria-label="Example PAM range of outcomes">
-      <div class="marketing-sample-head">
-        <span class="marketing-sample-dots"><i></i><i></i><i></i></span>
-        <strong>Ask PAM</strong>
-        <span class="data-source-badge">EXAMPLE</span>
-      </div>
-      <div class="marketing-sample-q">"If I invest ${formatCurrency(range.monthlyContribution)} a month starting at ${range.startAge}, where could I be at ${endAge}?"</div>
-      <div class="marketing-sample-verdict">Typically ${escapeHtml(formatCompactCurrency(range.typical))}. Rough markets: ${escapeHtml(formatCompactCurrency(range.low))}.</div>
-      ${renderRangeChartSvg({ series: range.series, startAge: range.startAge, goalAmount: range.goalAmount })}
-      <div class="marketing-sample-stats">
-        <div><span>You put in</span><strong>${escapeHtml(formatCompactCurrency(range.totalContributed))}</strong></div>
-        <div><span>Typical at ${endAge}</span><strong>${escapeHtml(formatCompactCurrency(range.typical))}</strong></div>
-        <div><span>Odds of ${escapeHtml(formatCompactCurrency(range.goalAmount))}</span><strong>${range.goalProbabilityPct}%</strong></div>
-      </div>
-    </div>
-  `;
-}
-
-let marketingOddsCache = null;
-function renderMarketingOddsCard() {
-  const { startAge, startBalance, months, goalAmount } = MARKETING_RANGE_INPUTS;
-  if (!marketingOddsCache) {
-    marketingOddsCache = [200, 400, 600].map((monthly) => ({
-      monthly,
-      ...simulateMarketRange({ startBalance, monthlyContribution: monthly, months, goalAmount })
-    }));
-  }
-  const endAge = startAge + Math.round(months / 12);
-  const rowHeight = 46;
-  const width = 360;
-  return `
-    <div class="marketing-sample-card marketing-tax-card" aria-label="Example PAM goal odds">
-      <div class="marketing-sample-head">
-        <strong>Odds of ${escapeHtml(formatCompactCurrency(goalAmount))} by ${endAge}</strong>
-        <span class="data-source-badge">EXAMPLE</span>
-      </div>
-      <svg class="tax-bars" viewBox="0 0 ${width} ${rowHeight * marketingOddsCache.length}" role="img" aria-label="${escapeHtml(marketingOddsCache.map((row) => `${formatCurrency(row.monthly)} a month: ${row.goalProbabilityPct}% chance`).join(", "))}">
-        ${marketingOddsCache.map((row, index) => {
-          const top = index * rowHeight;
-          return `
-            <text class="tax-bars-label" x="0" y="${top + 13}">${escapeHtml(formatCurrency(row.monthly))}/mo · typical ${escapeHtml(formatCompactCurrency(row.typical))}</text>
-            <text class="tax-bars-value" x="${width}" y="${top + 13}" text-anchor="end">${row.goalProbabilityPct}%</text>
-            <rect class="tax-bars-track" x="0" y="${top + 20}" width="${width}" height="12" rx="6" />
-            <rect class="tax-bars-fill ${index === marketingOddsCache.length - 1 ? "is-best" : ""}" x="0" y="${top + 20}" width="${Math.max((row.goalProbabilityPct / 100) * width, 8).toFixed(1)}" height="12" rx="6" />
-          `;
-        }).join("")}
-      </svg>
-      <p class="marketing-tax-note">Starting at ${startAge} with ${escapeHtml(formatCurrency(startBalance))} saved. Share of 1,000 simulated markets that reach the goal.</p>
-    </div>
-  `;
+  return liveDemoScenes;
 }
 
 // ─── Start early simulator ─────────────────────────────────────────────────
@@ -6712,35 +6651,6 @@ function renderStartEarlyPage() {
   `;
 }
 
-function renderMarketingTaxCard() {
-  const example = getMarketingTaxExample();
-  const shown = example.strategies.filter((strategy) => ["taxable", "roth-ira", "traditional-401k"].includes(strategy.id));
-  const max = Math.max(...shown.map((strategy) => strategy.afterTax.typical));
-  const rowHeight = 46;
-  const width = 360;
-  const labelWidth = 0;
-  return `
-    <div class="marketing-sample-card marketing-tax-card" aria-label="Example PAM tax comparison">
-      <div class="marketing-sample-head">
-        <strong>Same ${formatCurrency(example.monthlyBudget)}/mo, after tax</strong>
-        <span class="data-source-badge">EXAMPLE</span>
-      </div>
-      <svg class="tax-bars" viewBox="0 0 ${width} ${rowHeight * shown.length}" role="img" aria-label="${escapeHtml(shown.map((strategy) => `${strategy.label}: ${formatCompactCurrency(strategy.afterTax.typical)} after tax`).join(", "))}">
-        ${shown.map((strategy, index) => {
-          const barWidth = Math.max(((strategy.afterTax.typical / max) * (width - labelWidth)), 8);
-          const top = index * rowHeight;
-          return `
-            <text class="tax-bars-label" x="0" y="${top + 13}">${escapeHtml(strategy.label)}</text>
-            <text class="tax-bars-value" x="${width}" y="${top + 13}" text-anchor="end">${escapeHtml(formatCompactCurrency(strategy.afterTax.typical))}</text>
-            <rect class="tax-bars-track" x="0" y="${top + 20}" width="${width}" height="12" rx="6" />
-            <rect class="tax-bars-fill ${strategy.id === example.bestId ? "is-best" : ""}" x="0" y="${top + 20}" width="${barWidth.toFixed(1)}" height="12" rx="6" />
-          `;
-        }).join("")}
-      </svg>
-      <p class="marketing-tax-note">Typical after-tax value at 45, starting at 24. 22% federal bracket, 5% state. Educational estimate, not tax advice.</p>
-    </div>
-  `;
-}
 
 function renderMarketingSampleCard(ex) {
   return `
@@ -6842,45 +6752,6 @@ function renderPublicLaunchGate(mode = "public") {
     { title: "Add your numbers", body: "Connect through Plaid or type a few in. Linking is optional." },
     { title: "Ask anything", body: "Get a clear call with the math behind it." }
   ];
-  const showcase = [
-    {
-      id: "decisions",
-      tab: "Decisions",
-      tabShort: "Decisions",
-      title: "Test any decision before you make it.",
-      body: "Rent, a car, a trip, a job offer in a new city. PAM runs it against your real buffer and goals and tells you plainly whether it works.",
-      bullets: ["Monthly buffer, savings runway, and goal impact", "A one-word call: worth it, not yet, or don't", "A safer version when the answer is no"],
-      visual: () => renderMarketingSampleCard(MARKETING_EXAMPLES.nyc)
-    },
-    {
-      id: "range",
-      tab: "Range of outcomes",
-      tabShort: "Range",
-      title: "See the range, not a single guess.",
-      body: "Markets don't move in a straight line, so PAM runs 1,000 of them. You see a rough, typical, and strong outcome, plus your odds of hitting a goal on time.",
-      bullets: ["1,000 simulated markets on every investing question", "The chance each goal lands by its deadline", "Same question, same answer: results are reproducible"],
-      visual: () => renderMarketingOddsCard()
-    },
-    {
-      id: "start",
-      tab: "Start early",
-      tabShort: "Start",
-      title: "See what starting now is worth.",
-      body: "Slide your monthly amount and age. PAM shows the same money started now, in 5 years, and in 10, and what waiting really costs.",
-      bullets: ["Three start dates on one chart", "The monthly amount a late start needs to catch up", "How much of the total is growth, not deposits"],
-      visual: () => renderStartEarlySimulator({ compact: true })
-    },
-    {
-      id: "tax",
-      tab: "Tax analytics",
-      tabShort: "Tax",
-      title: "Keep more of it after tax.",
-      body: "The same dollars land very differently in a Roth, a 401(k), an HSA, or a regular brokerage account. PAM runs them through identical markets, so the only difference is tax.",
-      bullets: ["Taxes paid now, during growth, and when you withdraw", "Roth vs Traditional based on your bracket", "Only the strategies that fit your income and goals"],
-      visual: () => renderMarketingTaxCard()
-    }
-  ];
-  const activeShowcase = Math.min(Math.max(Number(state.marketingShowcaseTab) || 0, 0), showcase.length - 1);
   const asks = [
     "Can I afford to move out this year?",
     "Should I take the higher-paying job in a new city?",
@@ -6888,10 +6759,6 @@ function renderPublicLaunchGate(mode = "public") {
     "Is grad school actually worth it?",
     "Can I afford this $400/mo car?",
     "Am I saving enough to retire at 50?"
-  ];
-  const capabilities = [
-    "Paycheck split", "Debt payoff plan", "Affordability ceilings", "Move-out budget", "Job offer and relocation", "Rent vs buy",
-    "Roth vs Traditional", "HSA", "Early retirement bridge", "Goal timelines", "Monte Carlo odds", "Tax analytics"
   ];
   const whyPoints = [
     { title: "Nothing to sell you", body: "No commissions, no products, no kickbacks. That's why PAM can say don't and not yet." },
@@ -6919,13 +6786,12 @@ function renderPublicLaunchGate(mode = "public") {
           <p class="marketing-sub">Ask PAM about any money move, from a new lease to a job offer to investing, and see what it does to your monthly buffer, your goals, and your next 20 years. Built on your real numbers, so you get a straight call instead of generic advice.</p>
           <div class="marketing-hero-actions">
             <button class="button button-primary marketing-btn-lg" type="button" ${primaryAttr}>${heroPrimaryLabel}</button>
-            <button class="button button-secondary" type="button" data-scroll-target="#marketing-features">See it in action</button>
           </div>
           <p class="marketing-hero-note">${escapeHtml(heroNote)}</p>
           ${isApp ? "" : `<button class="invite-code-link" type="button" data-open-invite>Have an invite code?</button>`}
         </div>
         <div class="marketing-hero-visual reveal-on-scroll reveal-fade">
-          ${renderMarketingRangeCard()}
+          ${renderLiveDemo(getLiveDemoScenes())}
         </div>
         <ol class="marketing-steps" aria-label="How PAM works">
           ${steps.map((step, index) => `
@@ -6937,39 +6803,13 @@ function renderPublicLaunchGate(mode = "public") {
         </ol>
       </section>
 
-      <section class="marketing-section marketing-showcase" id="marketing-features" aria-labelledby="showcase-heading">
-        <div class="marketing-showcase-head">
-          <h2 id="showcase-heading">One question. <em>The whole picture.</em></h2>
-          <div class="showcase-tabs" role="tablist" aria-label="What PAM does">
-            ${showcase.map((item, index) => `
-              <button type="button" role="tab" class="showcase-tab" id="showcase-tab-${item.id}" aria-controls="showcase-panel-${item.id}" aria-selected="${index === activeShowcase}" tabindex="${index === activeShowcase ? 0 : -1}" data-showcase-tab="${index}" aria-label="${escapeHtml(item.tab)}"><span class="showcase-tab-long" aria-hidden="true">${escapeHtml(item.tab)}</span><span class="showcase-tab-short" aria-hidden="true">${escapeHtml(item.tabShort)}</span></button>
-            `).join("")}
-          </div>
-        </div>
-        <div class="showcase-panels">
-        ${showcase.map((item, index) => `
-          <div class="showcase-panel marketing-row" role="tabpanel" id="showcase-panel-${item.id}" aria-labelledby="showcase-tab-${item.id}" ${index === activeShowcase ? "" : "hidden"}>
-            <div class="marketing-row-copy">
-              <h3>${escapeHtml(item.title)}</h3>
-              <p>${escapeHtml(item.body)}</p>
-              <ul class="marketing-checklist">
-                ${item.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
-              </ul>
-            </div>
-            <div class="marketing-row-visual">${item.visual()}</div>
-          </div>
-        `).join("")}
-        </div>
-      </section>
-
       <section class="marketing-section marketing-asks reveal-on-scroll reveal-up" aria-labelledby="asks-heading">
         <h2 id="asks-heading">Big calls and everyday ones.</h2>
-        <div class="marketing-ask-chips">
-          ${asks.map((q) => `<button type="button" class="marketing-ask-chip" ${primaryAttr}>"${escapeHtml(q)}"</button>`).join("")}
+        <div class="ask-marquee" aria-label="Questions people ask PAM">
+          <ul class="ask-marquee-track">
+            ${[...asks, ...asks].map((q, index) => `<li ${index >= asks.length ? `aria-hidden="true"` : ""}>“${escapeHtml(q)}”</li>`).join("")}
+          </ul>
         </div>
-        <ul class="marketing-capabilities" aria-label="Built into PAM">
-          ${capabilities.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
       </section>
 
       <section class="marketing-section marketing-trust-why reveal-on-scroll reveal-up" aria-labelledby="why-heading">
@@ -7178,6 +7018,7 @@ function wireInteractions() {
     });
   });
   runAnswerCountUps();
+  if (document.querySelector("[data-live-demo]")) mountLiveDemo(getLiveDemoScenes());
   document.querySelectorAll("[data-structured-decision-form]").forEach((form) => {
     form.addEventListener("submit", handleStructuredDecisionSubmit);
   });
@@ -7624,29 +7465,6 @@ function wireInteractions() {
       trackEvent("start_early_used", { path: window.location.pathname });
     }
   }));
-  // Homepage showcase tabs: toggle panels in place (no re-render), arrow keys
-  // move between tabs per the WAI-ARIA tabs pattern.
-  const showcaseTabs = [...document.querySelectorAll("[data-showcase-tab]")];
-  const selectShowcaseTab = (index, focus = false) => {
-    state.marketingShowcaseTab = index;
-    showcaseTabs.forEach((tab, tabIndex) => {
-      const selected = tabIndex === index;
-      tab.setAttribute("aria-selected", String(selected));
-      tab.tabIndex = selected ? 0 : -1;
-      const panel = document.getElementById(tab.getAttribute("aria-controls"));
-      if (panel) panel.hidden = !selected;
-    });
-    if (focus) showcaseTabs[index]?.focus();
-  };
-  showcaseTabs.forEach((tab, index) => {
-    tab.addEventListener("click", () => selectShowcaseTab(index));
-    tab.addEventListener("keydown", (event) => {
-      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-      event.preventDefault();
-      const step = event.key === "ArrowRight" ? 1 : -1;
-      selectShowcaseTab((index + step + showcaseTabs.length) % showcaseTabs.length, true);
-    });
-  });
   document.querySelectorAll("[data-open-waitlist]").forEach((button) => button.addEventListener("click", () => {
     const presetStage = button.dataset.waitlistStage || "";
     state.inviteOpen = false;

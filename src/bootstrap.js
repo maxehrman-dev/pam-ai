@@ -8,34 +8,16 @@ function renderBootError(error) {
       ? error.message
       : "The app failed to load because one of its startup modules did not finish booting.";
 
+  // Plain words for the person; the technical detail goes to the console.
+  console.error("PAM failed to start:", detail);
   app.innerHTML = `
-    <div class="page-shell">
-      <main class="workspace-section">
-        <div class="workspace-heading">
-          <div>
-            <p class="eyebrow">PAM SI</p>
-            <h2>The simulator hit a startup issue.</h2>
-          </div>
-          <p>PAM SI could not finish loading the decision engine. Refresh the page or redeploy the latest build.</p>
-        </div>
-
-        <section class="surface-panel" aria-live="polite">
-          <div class="card-heading">
-            <div>
-              <p class="eyebrow">Boot status</p>
-              <h3>Startup diagnostic</h3>
-            </div>
-          </div>
-          <p class="scenario-summary">
-            This usually means a missing module, a production-only runtime error, or a broken data dependency during
-            first render.
-          </p>
-          <p class="scenario-summary subtle">${detail}</p>
-          <div class="button-row">
-            <button class="button button-primary" type="button" data-refresh-app>Refresh page</button>
-          </div>
-        </section>
-      </main>
+    <div class="foresee-shell pam-transition-shell" role="alert">
+      <div class="pam-transition-card">
+        <div class="pam-transition-brand"><span>PAM</span></div>
+        <h1>PAM didn't load.</h1>
+        <p class="pam-transition-copy">Something interrupted it on the way in. A refresh usually fixes it.</p>
+        <button class="button button-primary marketing-btn-lg" type="button" data-refresh-app>Refresh</button>
+      </div>
     </div>
   `;
 }
