@@ -1150,7 +1150,7 @@ function getProfileCompleteness() {
     completed,
     total: checks.length,
     missing: checks.filter((check) => !check.complete).map((check) => check.label),
-    label: score >= 85 ? "Strong model" : score >= 60 ? "Good start" : "Needs data"
+    label: score >= 85 ? "Knows you well" : score >= 60 ? "Good start" : "Needs a few details"
   };
 }
 
@@ -3897,12 +3897,12 @@ function getActiveValuesSteps() {
 // asks for two things at once.
 function renderDeepDiveCard() {
   if (!state.userValues?.completed || state.userValues?.deepdive_done) return "";
+  // A quiet row, not a second primary button competing with Ask.
   return `
-    <div class="insight-card values-cta-card deepdive-cta-card">
-      <strong>PAM's deep-dive: 6 questions, sharper everything</strong>
-      <p>A short conversation about the things checkboxes can't catch. Every answer after it gets more you-specific.</p>
-      <button class="button button-primary" type="button" data-start-deepdive>Start the deep-dive →</button>
-    </div>
+    <button class="nudge-row" type="button" data-start-deepdive>
+      <span><strong>Six questions</strong> about what checkboxes can't catch. Every answer gets more you-specific.</span>
+      <span class="nudge-go" aria-hidden="true">Start →</span>
+    </button>
   `;
 }
 
@@ -3911,11 +3911,10 @@ function renderFinishProfileCard() {
   const missing = getMissingValuesSteps();
   if (!missing.length) return "";
   return `
-    <div class="insight-card values-cta-card finish-profile-card">
-      <strong>PAM has ${missing.length} new question${missing.length === 1 ? "" : "s"} for you</strong>
-      <p>We added more profile questions since you set up. Answering them makes every PAM answer sharper, takes under a minute.</p>
-      <button class="button button-primary" type="button" data-open-view="values">Finish my profile (${missing.length}) →</button>
-    </div>
+    <button class="nudge-row" type="button" data-open-view="values">
+      <span><strong>${missing.length} quick question${missing.length === 1 ? "" : "s"}</strong> make every answer sharper. Under a minute.</span>
+      <span class="nudge-go" aria-hidden="true">Finish →</span>
+    </button>
   `;
 }
 
@@ -4210,7 +4209,6 @@ function renderAuthPage() {
               <li><strong>Your data stays yours.</strong> Encrypted connection; never sold, never used to train models.</li>
             </ul>
           `}
-          <div class="auth-value-card">${renderMarketingSampleCard(MARKETING_EXAMPLES.moveout)}</div>
         </div>
         <div class="auth-form-side">
           ${renderBaselinePanel()}
@@ -4282,7 +4280,7 @@ function renderMobileDashboardWorkspace() {
   return `
     <div class="workspace-guide-grid compact-workspace-view mobile-dashboard-view mobile-app-router mobile-view-${escapeHtml(state.mobileView)}" id="dashboard-section">
       ${renderMobileAppChrome()}
-      ${renderSampleDataBar()}
+      ${state.mobileView === "home" ? renderSampleDataBar() : ""}
       <main class="mobile-active-screen" data-active-mobile-screen="${escapeHtml(state.mobileView)}">
         ${renderMobileActiveScreen()}
       </main>
@@ -4343,7 +4341,6 @@ function renderMobileAppChrome() {
         <div><strong>PAM SI</strong><small>Personal Asset Manager</small></div>
       </div>
       ${String(state.baseline?.source || "") === "plaid_mock" ? "" : renderDataSourceBadge()}
-      <button type="button" data-mobile-view="profile" aria-label="Open profile">Profile</button>
     </div>
   `;
 }
@@ -4565,7 +4562,7 @@ function renderMobileProfileScreen() {
 
       <div class="mobile-profile-stack">
         <article>
-          <span>Model strength</span>
+          <span>How well PAM knows you</span>
           <strong>${escapeHtml(profileCompleteness.label)} · ${profileCompleteness.score}%</strong>
           <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
           <small>${profileCompleteness.missing.length ? `Missing: ${escapeHtml(profileCompleteness.missing.slice(0, 3).join(", "))}` : "Ready for stronger decision modeling."}</small>
@@ -4719,17 +4716,6 @@ function renderDailyDashboardHome() {
           </div>
         </details>
         <details class="daily-context-section">
-          <summary>Model strength</summary>
-          <div class="daily-context-body profile-readiness-card">
-            <div class="side-card-heading">
-              <h3>${profileCompleteness.label}</h3>
-              <span>${profileCompleteness.score}%</span>
-            </div>
-            <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
-            <p>${profileCompleteness.missing.length ? `Next: ${escapeHtml(profileCompleteness.missing.slice(0, 2).join(", "))}` : "PAM has the core context it needs."}</p>
-          </div>
-        </details>
-        <details class="daily-context-section">
           <summary>Readiness</summary>
           <div class="daily-context-body">${renderReadinessList(readinessChecks)}</div>
         </details>
@@ -4747,7 +4733,7 @@ function renderDailyDashboardHome() {
         ${renderDecisionPanel()}
         ${renderResult()}
         ${state.plaidBusy ? `<div class="dashboard-refreshing-banner" role="status" aria-live="polite"><span class="plaid-spinner" aria-hidden="true"></span> Refreshing your connected data…</div>` : ""}
-        ${state.userValues?.completed ? `${renderFinishProfileCard() || renderDeepDiveCard()}` : `<div class="insight-card values-cta-card"><strong>Personalize PAM</strong><p>A 2-minute setup so PAM can tell you what matters for your specific goals, not generic advice.</p><button class="button button-primary" type="button" data-open-view="values">Set up my profile →</button></div>`}
+        ${state.userValues?.completed ? `${renderFinishProfileCard() || renderDeepDiveCard()}` : `<button class="nudge-row" type="button" data-open-view="values"><span><strong>Two minutes</strong> of setup so answers fit your goals, not generic advice.</span><span class="nudge-go" aria-hidden="true">Set up →</span></button>`}
         ${renderInsightCards()}
         <div class="daily-main-card${dashboardFreshClass}${state.plaidBusy ? " dashboard-loading-overlay" : ""}">
         <div class="daily-networth-header">
@@ -5622,7 +5608,7 @@ function renderAccountSettingsPanel(baseline, account, isComplete) {
       <div class="settings-grid">
         <article class="settings-card">
           <div>
-            <span>Model strength</span>
+            <span>How well PAM knows you</span>
             <strong>${escapeHtml(profileCompleteness.label)} · ${profileCompleteness.score}%</strong>
           </div>
           <div class="profile-completeness-meter"><b style="width:${profileCompleteness.score}%"></b></div>
@@ -5788,8 +5774,8 @@ function renderBaselinePanel() {
 
   return `
     <section class="baseline-panel account-setup-panel compact-workspace-view" id="baseline-section">
-      <div class="panel-kicker">${isSignedIn ? "Account" : "Get started"}</div>
-      <h2>${isSignedIn ? "Profile, security, and settings." : "Create your account."}</h2>
+      <div class="panel-kicker">${isSignedIn ? "Account" : state.authView === "signin" ? "Welcome back" : "Get started"}</div>
+      <h2>${isSignedIn ? "Profile, security, and settings." : state.authView === "signin" ? "Sign in" : "Create your account."}</h2>
       <div class="onboarding-layout">
         <div class="baseline-form onboarding-form sandbox-connect-panel">
           ${isSignedIn ? renderAccountSettingsPanel(baseline, account, isComplete) : `
@@ -5852,7 +5838,7 @@ function renderBaselinePanel() {
                       </div>
                     ` : ""}
                     <div class="form-actions">
-                      ${state.createAccountStep > 0 ? `<button class="button button-secondary" type="button" data-create-back>Back</button>` : `<button class="button button-secondary" type="button" data-open-view="landing">Cancel</button>`}
+                      ${state.createAccountStep > 0 ? `<button class="button button-secondary" type="button" data-create-back>Back</button>` : ""}
                       ${isLastStep
                         ? `<button class="button button-primary" type="button" data-create-submit ${!isVerificationConfirmed() ? "disabled" : ""}>Create account</button>`
                         : `<button class="button button-primary" type="button" data-create-next>Continue</button>`}
@@ -6000,15 +5986,8 @@ function renderResult() {
   `;
   }
   if (state.pamReply) return renderPamReplyPanel(state.pamReply);
-  if (!String(state.question || "").trim()) {
-    return `
-      <section class="foresee-panel result-panel result-empty mobile-screen mobile-screen-result" id="decision-result">
-        <div class="panel-kicker">Result</div>
-        <h2>Your answer shows up here.</h2>
-        <p>Ask about rent, a car, a job offer, debt, or investing. PAM runs it against your numbers and gives you a straight call.</p>
-      </section>
-    `;
-  }
+  // No placeholder card before the first question: the Ask box is the screen.
+  if (!String(state.question || "").trim()) return "";
   const result = state.result || toLegacyDecisionFromSession(buildScenarioSession({ prompt: state.question }));
   state.result = result;
   if (state.decisionBusy) return renderThinkingPanel(result);
@@ -6345,7 +6324,20 @@ function renderDisclaimerBanner() {
   `;
 }
 
-function renderLegalFooter() {
+function renderLegalFooter({ compact = false } = {}) {
+  // Inside the app the banner already says it; the footer stays one quiet line.
+  if (compact) {
+    return `
+      <footer class="pam-legal-footer is-compact">
+        <p>Modeling tool, not financial, tax, legal, or investment advice.</p>
+        <nav aria-label="Legal links">
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/faq">FAQ</a>
+        </nav>
+      </footer>
+    `;
+  }
   return `
     <footer class="pam-legal-footer">
       <p>${escapeHtml(LEGAL_DISCLAIMER)}</p>
@@ -6528,19 +6520,6 @@ function renderLegalPage(route) {
 
 // Real PAM answers, shown on the landing so visitors see the goods before
 // they're asked for anything. Static illustrative content (clearly labeled).
-const MARKETING_EXAMPLES = {
-  moveout: {
-    q: "Can I afford to move out? Rent would be $1,800.",
-    verdict: "Yes, but cap it at $1,650.",
-    body: "At $1,800 your monthly buffer drops to $240, too thin if anything breaks. At $1,650 it stays healthy and you still hit your savings goal on time.",
-    stats: [
-      { label: "Buffer at $1,800", value: "$240" },
-      { label: "Safer rent", value: "$1,650" },
-      { label: "Verdict", value: "Doable" }
-    ]
-  }
-};
-
 // Homepage examples come from the real engines (fixed example inputs), so the
 // marketing page shows exactly what the product computes. Memoized: render()
 // runs on every state change.
@@ -6651,26 +6630,6 @@ function renderStartEarlyPage() {
   `;
 }
 
-
-function renderMarketingSampleCard(ex) {
-  return `
-    <div class="marketing-sample-card" aria-label="Example PAM answer">
-      <div class="marketing-sample-head">
-        <span class="marketing-sample-dots"><i></i><i></i><i></i></span>
-        <strong>Ask PAM</strong>
-        <span class="data-source-badge">EXAMPLE</span>
-      </div>
-      <div class="marketing-sample-q">"${escapeHtml(ex.q)}"</div>
-      <div class="marketing-sample-a">
-        <div class="marketing-sample-verdict">${escapeHtml(ex.verdict)}</div>
-        <p>${escapeHtml(ex.body)}</p>
-        <div class="marketing-sample-stats">
-          ${ex.stats.map((s) => `<div><span>${escapeHtml(s.label)}</span><strong>${escapeHtml(s.value)}</strong></div>`).join("")}
-        </div>
-      </div>
-    </div>
-  `;
-}
 
 // "Why it's safe to connect" trust section. variant: "marketing" (full) or
 // "connect-screen" (condensed: headline + commitments + CTA). Commitment lines
@@ -6988,7 +6947,7 @@ function render() {
                 ? renderAccountPage()
                 : renderWorkspaceHub()}
       </main>
-      ${renderLegalFooter()}
+      ${renderLegalFooter({ compact: true })}
       ${renderCookieConsentBanner()}
       ${renderWaitlistModal()}
     </div>
