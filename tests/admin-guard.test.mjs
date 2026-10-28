@@ -17,3 +17,12 @@ test("wrong admin secrets are rate limited per IP before they're checked", async
   assert.ok(codes.slice(40).every((code) => code === 429));
   delete process.env.PAM_ADMIN_SECRET;
 });
+
+test("the stored admin secret is read without stray whitespace", async () => {
+  process.env.PAM_ADMIN_SECRET = "  test-admin-secret\n";
+  const handler = require("../api/admin/send_waitlist_update.js");
+  const res = { statusCode: 200, setHeader() {}, hasHeader: () => false, end(body) { this.body = body; } };
+  await handler({ method: "GET", url: "/api/admin/send_waitlist_update", query: {}, headers: { "x-forwarded-for": "203.0.113.88", "x-pam-admin-secret": "test-admin-secret" } }, res);
+  assert.notEqual(res.statusCode, 401);
+  delete process.env.PAM_ADMIN_SECRET;
+});
