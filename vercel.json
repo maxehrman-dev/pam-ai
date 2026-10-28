@@ -7,10 +7,6 @@
   ],
   "rewrites": [
     {
-      "source": "/start-early",
-      "destination": "/"
-    },
-    {
       "source": "/newsletter",
       "destination": "/"
     },
@@ -92,6 +88,13 @@
           "value": "no-store, max-age=0"
         }
       ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/start-early",
+      "destination": "/",
+      "permanent": true
     }
   ]
 }

@@ -7794,38 +7794,6 @@ textarea::placeholder {
 }
 .admin-shell [hidden] { display: none !important; }
 
-/* Start early simulator */
-.start-early { display: grid; gap: 14px; }
-.start-early-controls { display: grid; gap: 6px; }
-.start-early-control { display: grid; gap: 2px; }
-.start-early-control span { display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 700; color: var(--ink-4); }
-.start-early-control output { color: var(--forest); font-variant-numeric: tabular-nums; }
-.start-early-control input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--mint-4); margin: 0; }
-.start-early-chart { margin: 0; }
-.start-early-line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
-.start-early-line-0 { stroke: var(--mint-4); }
-.start-early-line-1 { stroke: #b06f0f; stroke-dasharray: 6 4; }
-.start-early-line-2 { stroke: var(--ink-2); stroke-dasharray: 2 4; }
-.start-early-dot-0 { fill: var(--mint-4); }
-.start-early-dot-1 { fill: #b06f0f; }
-.start-early-dot-2 { fill: var(--ink-2); }
-:root[data-theme="dark"] .start-early-line-1 { stroke: #e0b046; }
-:root[data-theme="dark"] .start-early-dot-1 { fill: #e0b046; }
-.start-early-legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.start-early-legend li { padding: 8px 10px; border-radius: 12px; background: var(--pam-surface-soft); border-top: 3px solid var(--mint-4); }
-.start-early-legend .start-early-key-1 { border-top: 3px dashed #b06f0f; }
-.start-early-legend .start-early-key-2 { border-top: 3px dotted var(--ink-2); }
-.start-early-legend span { display: block; font-size: 0.74rem; color: var(--ink-2); font-weight: 700; }
-.start-early-legend strong { display: block; color: var(--forest); font-size: 1.05rem; font-variant-numeric: tabular-nums; }
-.start-early-legend small { color: var(--ink-3); font-size: 0.74rem; }
-.start-early-callout { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--pam-surface-tint); color: var(--ink-4); line-height: 1.5; font-size: 0.92rem; }
-.start-early-title { font-size: clamp(1.8rem, 4vw, 2.8rem); line-height: 1.1; letter-spacing: -0.02em; color: var(--forest); margin: 10px 0 0; }
-.start-early-title em { font-style: italic; color: var(--mint-4); }
-.start-early-page-body { max-width: 560px; margin: 0 auto; }
-@media (max-width: 480px) {
-  .start-early-legend { grid-template-columns: 1fr; }
-}
-
 .announcement-bar {
   margin: 8px auto 0;
   max-width: 1080px;

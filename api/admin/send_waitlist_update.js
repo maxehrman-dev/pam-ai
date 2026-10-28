@@ -294,7 +294,12 @@ async function handleAdminStats(req, res) {
   });
 }
 
+// Every admin request counts against a per-IP budget before the secret is
+// checked, so the secret can't be guessed by brute force.
+const ADMIN_ATTEMPT_LIMIT = { windowMs: 15 * 60 * 1000, max: 40 };
+
 const __pamRouteHandler = async (req, res) => {
+  if (!checkRateLimit(req, res, { routeKey: "admin:attempts", ipLimit: ADMIN_ATTEMPT_LIMIT })) return;
   if (req.method === "GET") {
     try {
       if (String(req.query?.export || new URL(req.url || "/", "http://x").searchParams.get("export") || "") === "waitlist") {
