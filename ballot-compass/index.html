@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ballot Compass</title>
+  <meta name="description" content="Compare your own policy views, issue by issue and with sources, against the possible 2028 U.S. presidential candidates in both parties.">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="wordmark" href="#/">Ballot Compass</a>
+      <nav aria-label="Main">
+        <ul class="nav-list">
+          <li><a href="#/results" data-nav="results">Results</a></li>
+          <li><a href="#/compare" data-nav="compare">Compare</a></li>
+          <li><a href="#/methodology" data-nav="methodology">Methodology</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="data-stamp-bar">
+      <div class="wrap"><p class="data-stamp" data-stamp>Loading data&hellip;</p></div>
+    </div>
+  </header>
+
+  <main id="main" class="site-main" tabindex="-1">
+    <div class="wrap"><p>Loading&hellip;</p></div>
+  </main>
+
+  <div class="sr-only" aria-live="polite" aria-atomic="true" data-live></div>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="footer-disclaimer">This tool is independent and not affiliated with any campaign or party. Candidate positions change; verify with primary sources before deciding.</p>
+      <p class="footer-privacy">No accounts and no tracking. Your answers are stored only in this browser and are never sent anywhere.</p>
+      <div class="footer-actions">
+        <button type="button" class="btn btn-quiet" data-clear>Clear my answers</button>
+        <a href="#/methodology">Methodology and limitations</a>
+      </div>
+      <p class="data-stamp" data-stamp></p>
+    </div>
+  </footer>
+
+  <noscript>
+    <div class="wrap"><p>Ballot Compass needs JavaScript to compare your answers. Nothing you enter is sent to a server.</p></div>
+  </noscript>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "ballot-compass",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nonpartisan tool for comparing your policy views with possible 2028 U.S. presidential candidates.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "start": "python3 -m http.server 8080"
+  }
+}

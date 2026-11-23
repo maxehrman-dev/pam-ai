@@ -1,0 +1,3090 @@
+{
+  "meta": {
+    "title": "Ballot Compass candidate data",
+    "schema_version": 1,
+    "seeded": "2026-11-23",
+    "last_reviewed": null,
+    "reviewed_by": null,
+    "coverage_note": "Seed data was compiled from public reporting and records available through mid-2026. It has not been checked by a human editor. Every position and status is labeled 'Needs verification'. Results of the November 2026 elections, and any statements made after mid-2026, are not yet reflected.",
+    "value_scale": "0-4 per issue; see data/issues.json for what each value means. null means no clear position and the issue is left out of that candidate's score.",
+    "provenance_values": [
+      "Stated 2026",
+      "Record"
+    ],
+    "status_values": [
+      "Declared",
+      "Exploring",
+      "Undecided",
+      "Says not running",
+      "Declined"
+    ]
+  },
+  "candidates": [
+    {
+      "id": "vance",
+      "name": "JD Vance",
+      "party": "Republican",
+      "current_role": "Vice President of the United States",
+      "birth_date": "1984-08-02",
+      "status": "Undecided",
+      "status_date": "2025-08",
+      "status_note": "Has said he will discuss a 2028 run with President Trump after the 2026 midterm elections.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Author and former venture capitalist from Ohio, elected to the Senate in 2022 and as vice president in 2024.",
+      "background": {
+        "executive_experience": "Vice President since 2025.",
+        "legislative_experience": "U.S. Senator from Ohio, 2023-2025."
+      },
+      "profile_url": "https://ballotpedia.org/JD_Vance",
+      "positions": {
+        "abortion": {
+          "value": 2,
+          "summary": "As the 2024 vice-presidential nominee backed leaving abortion law to the states and said a national ban would be vetoed; during his 2022 Senate race had expressed support for national minimum standards.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024-10",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 4,
+          "summary": "Campaigned in 2024 for large-scale deportation of people in the country illegally and has argued for lower overall immigration levels.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 3,
+          "summary": "Supports continued military support for Israel; has also argued that U.S. and Israeli interests are not always identical.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 3,
+          "summary": "Defended the June 2025 U.S. strikes on Iranian nuclear sites, saying the U.S. was targeting Iran's nuclear program rather than seeking a wider war.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 1,
+          "summary": "As a senator opposed further Ukraine aid and voted against the 2024 supplemental; as vice president has backed a negotiated settlement.",
+          "source_url": "https://www.congress.gov/bill/118th-congress/house-bill/815",
+          "source_label": "Congress.gov: H.R. 815 (2024), national security supplemental",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 3,
+          "summary": "Supports broad tariffs as a tool to rebuild U.S. manufacturing and to pressure China and other trading partners.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 3,
+          "summary": "Cast the tie-breaking Senate vote in July 2025 to pass the budget law that made the 2017 tax cuts permanent and reduced projected spending.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2025), One Big Beautiful Bill Act",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 3,
+          "summary": "Supported the 2025 budget law's Medicaid changes, including work requirements; has not offered a separate health plan.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2025), One Big Beautiful Bill Act",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 3,
+          "summary": "Opposes new federal gun restrictions; has emphasized school security in response to shootings.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 3,
+          "summary": "Favors expanded U.S. oil and gas production and has criticized electric-vehicle mandates and clean-energy subsidies.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": 4,
+          "summary": "At the February 2025 AI Action Summit in Paris, warned against excessive regulation and said the U.S. intends to lead in AI.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-02",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "education": {
+          "value": null,
+          "summary": "Has criticized universities and backed school choice in general terms; no clear position on the federal role was found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 4,
+          "summary": "Publicly supported the 2025 deployment of National Guard troops to Washington, D.C.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 4,
+          "summary": "Wrote in February 2025 that judges are not allowed to control the executive branch's legitimate power; opposes Supreme Court restructuring.",
+          "source_url": "https://ballotpedia.org/JD_Vance",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-02",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "rubio",
+      "name": "Marco Rubio",
+      "party": "Republican",
+      "current_role": "U.S. Secretary of State",
+      "birth_date": "1971-05-28",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has said he would support JD Vance if Vance runs; has not ruled out a run of his own.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former Florida House speaker and three-term U.S. senator; 2016 presidential candidate.",
+      "background": {
+        "executive_experience": "Secretary of State since 2025.",
+        "legislative_experience": "U.S. Senator from Florida, 2011-2025; Speaker of the Florida House."
+      },
+      "profile_url": "https://ballotpedia.org/Marco_Rubio",
+      "positions": {
+        "abortion": {
+          "value": 4,
+          "summary": "Said during a 2015 presidential debate that he opposed exceptions for rape and incest; has a consistent anti-abortion voting record.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2015-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 4,
+          "summary": "As Secretary of State has carried out the administration's deportation and visa policies. In 2013 he co-wrote a bipartisan bill that included a path to citizenship.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 4,
+          "summary": "Long-time strong supporter of Israel; as Secretary of State opposed moves by allies to recognize a Palestinian state.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 3,
+          "summary": "Long advocated maximum pressure on Iran; supported the June 2025 strikes on nuclear sites.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 2,
+          "summary": "Has called the war a stalemate that must end through negotiation; as Secretary of State has led U.S. talks with both sides.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 3,
+          "summary": "One of the leading China hawks in Congress; supports tariffs and restrictions on Chinese companies.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 3,
+          "summary": "Voted for the 2017 tax cuts after pressing for a larger child tax credit.",
+          "source_url": "https://www.congress.gov/bill/115th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2017), Tax Cuts and Jobs Act",
+          "source_date": "2017-12",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 4,
+          "summary": "Voted for Affordable Care Act repeal efforts in 2017.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2017-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 3,
+          "summary": "Opposes assault-weapons bans; after the 2018 Parkland shooting supported red-flag laws and raising the purchase age for rifles.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2018-03",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 3,
+          "summary": "Supports expanding U.S. oil and gas production while backing some measures on Florida coastal resilience.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 3,
+          "summary": "Supports school choice and tax-credit scholarships.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 3,
+          "summary": "Supports tougher sentencing and increased police funding.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 3,
+          "summary": "Opposes adding seats to the Supreme Court and other structural changes to the Court.",
+          "source_url": "https://ballotpedia.org/Marco_Rubio",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "desantis",
+      "name": "Ron DeSantis",
+      "party": "Republican",
+      "current_role": "Governor of Florida (term ends January 2027)",
+      "birth_date": "1978-09-14",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has not announced plans for 2028; ran for the 2024 Republican nomination.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Navy veteran and former congressman, elected governor of Florida in 2018 and re-elected in 2022.",
+      "background": {
+        "executive_experience": "Governor of Florida since 2019.",
+        "legislative_experience": "U.S. Representative, 2013-2018."
+      },
+      "profile_url": "https://ballotpedia.org/Ron_DeSantis",
+      "positions": {
+        "abortion": {
+          "value": 4,
+          "summary": "Signed Florida's 2023 law banning most abortions after six weeks, with limited exceptions; opposed the 2024 ballot measure to expand access.",
+          "source_url": "https://www.flsenate.gov/Session/Bill/2023/300",
+          "source_label": "Florida Senate: SB 300 (2023)",
+          "source_date": "2023-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 4,
+          "summary": "Signed a 2023 state law expanding immigration enforcement and has had the state assist federal deportation efforts.",
+          "source_url": "https://www.flsenate.gov/Session/Bill/2023/1718",
+          "source_label": "Florida Senate: SB 1718 (2023)",
+          "source_date": "2023-05",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 4,
+          "summary": "Strong supporter of Israel; said in 2023 the U.S. should not accept refugees from Gaza.",
+          "source_url": "https://ballotpedia.org/Ron_DeSantis",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-10",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 1,
+          "summary": "Described the war in 2023 as a 'territorial dispute' that was not a vital U.S. interest, a remark he later qualified.",
+          "source_url": "https://ballotpedia.org/Ron_DeSantis",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-03",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 3,
+          "summary": "Signed a 2023 law restricting land purchases by Chinese nationals and companies; supports tariffs on China.",
+          "source_url": "https://ballotpedia.org/Ron_DeSantis",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-05",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 3,
+          "summary": "Has pushed state tax cuts and spending restraint, and proposed reducing Florida property taxes.",
+          "source_url": "https://ballotpedia.org/Ron_DeSantis",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 3,
+          "summary": "Has opposed Medicaid expansion in Florida.",
+          "source_url": "https://ballotpedia.org/Ron_DeSantis",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 4,
+          "summary": "Signed Florida's 2023 law allowing concealed carry without a permit.",
+          "source_url": "https://www.flsenate.gov/Session/Bill/2023/543",
+          "source_label": "Florida Senate: HB 543 (2023)",
+          "source_date": "2023-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 3,
+          "summary": "Signed a 2024 law removing most references to climate change from Florida statutes and favoring natural gas; has opposed offshore drilling near Florida.",
+          "source_url": "https://www.flsenate.gov/Session/Bill/2024/1645",
+          "source_label": "Florida Senate: HB 1645 (2024)",
+          "source_date": "2024-05",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": 1,
+          "summary": "In late 2025 proposed state protections on AI, including for children and against data centers raising residents' utility bills, and opposed federal preemption of state AI laws.",
+          "source_url": "https://ballotpedia.org/Ron_DeSantis",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-12",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "education": {
+          "value": 4,
+          "summary": "Signed a 2023 law making all Florida students eligible for school vouchers; called for closing the federal Education Department during his 2024 campaign.",
+          "source_url": "https://www.flsenate.gov/Session/Bill/2023/1",
+          "source_label": "Florida Senate: HB 1 (2023)",
+          "source_date": "2023-03",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 4,
+          "summary": "Signed 2023 laws allowing the death penalty for child rape and without a unanimous jury.",
+          "source_url": "https://ballotpedia.org/Ron_DeSantis",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 3,
+          "summary": "Opposes changes to the Supreme Court; created a state office to investigate election crimes.",
+          "source_url": "https://ballotpedia.org/Ron_DeSantis",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2022",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "cruz",
+      "name": "Ted Cruz",
+      "party": "Republican",
+      "current_role": "U.S. Senator from Texas",
+      "birth_date": "1970-12-22",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has not ruled out a 2028 run; finished second in the 2016 Republican primaries.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former Texas solicitor general, elected to the Senate in 2012; chairs the Senate Commerce Committee.",
+      "background": {
+        "executive_experience": "Texas Solicitor General, 2003-2008.",
+        "legislative_experience": "U.S. Senator since 2013."
+      },
+      "profile_url": "https://ballotpedia.org/Ted_Cruz",
+      "positions": {
+        "abortion": {
+          "value": 3,
+          "summary": "Long-time opponent of abortion rights who supported Texas's strict laws; has said since Dobbs that states should lead on the issue.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 4,
+          "summary": "Supports border-wall construction and the administration's deportation program.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 4,
+          "summary": "One of the most outspoken supporters of Israel in Congress; opposes a Palestinian state.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 4,
+          "summary": "Supported the June 2025 strikes and has spoken in favor of regime change in Iran.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 2,
+          "summary": "Has criticized Russia but opposed large aid packages that did not address the U.S. border.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 2,
+          "summary": "Supports pressure on China but warned in April 2025 that broad tariffs act as a tax on consumers and could cause a recession.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 4,
+          "summary": "Has proposed a flat tax and abolishing the IRS; voted for the 2025 budget law.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2025), One Big Beautiful Bill Act",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 4,
+          "summary": "Led the 2013 effort to defund the Affordable Care Act and supports repealing it.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2017",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 4,
+          "summary": "Opposes new gun restrictions and supports nationwide concealed-carry reciprocity.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 4,
+          "summary": "Supports maximizing oil and gas production and opposes federal climate regulation.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": 4,
+          "summary": "As Commerce chair in 2025 pushed a federal moratorium on state AI laws and introduced a bill to create a regulatory 'sandbox' for AI companies.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "education": {
+          "value": 4,
+          "summary": "Has called for abolishing the federal Department of Education.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2016",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 3,
+          "summary": "Supports tougher sentencing for violent crime and opposes bail reform.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 3,
+          "summary": "Proposed a constitutional amendment in 2021 to fix the Supreme Court at nine justices.",
+          "source_url": "https://ballotpedia.org/Ted_Cruz",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2021",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "paul",
+      "name": "Rand Paul",
+      "party": "Republican",
+      "current_role": "U.S. Senator from Kentucky",
+      "birth_date": "1963-01-07",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has said publicly he is considering a 2028 run; ran in 2016.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Ophthalmologist and libertarian-leaning senator, first elected in 2010.",
+      "background": {
+        "executive_experience": null,
+        "legislative_experience": "U.S. Senator since 2011."
+      },
+      "profile_url": "https://ballotpedia.org/Rand_Paul",
+      "positions": {
+        "abortion": {
+          "value": 4,
+          "summary": "Has sponsored the Life at Conception Act, which would define legal personhood from conception.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 3,
+          "summary": "Supports stronger border enforcement; has been less vocal than some colleagues about mass deportation.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": null,
+          "summary": "Supports Israel but has long sought to phase out all U.S. foreign aid, including to Israel. This view does not map cleanly onto this scale, so it is not scored.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 0,
+          "summary": "Voted in June 2025 for a resolution requiring congressional approval for military action against Iran.",
+          "source_url": "https://www.senate.gov/legislative/votes_new.htm",
+          "source_label": "Senate.gov: roll call votes, 119th Congress",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 0,
+          "summary": "Has opposed every major Ukraine aid package and voted against the 2024 supplemental.",
+          "source_url": "https://www.congress.gov/bill/118th-congress/house-bill/815",
+          "source_label": "Congress.gov: H.R. 815 (2024), national security supplemental",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 0,
+          "summary": "Opposes broad tariffs; voted in April 2025 to end the emergency used to impose tariffs on Canada.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 4,
+          "summary": "Favors deep spending cuts and lower taxes; voted against the 2025 budget law because it raised the debt ceiling.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2025), One Big Beautiful Bill Act",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 4,
+          "summary": "Supports repealing the Affordable Care Act in favor of market-based alternatives.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2017",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 4,
+          "summary": "Opposes federal gun restrictions, including red-flag laws.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 4,
+          "summary": "Opposes federal climate regulations and clean-energy subsidies.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 4,
+          "summary": "Supports abolishing the federal Department of Education.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 1,
+          "summary": "A leading Republican voice for criminal-justice reform: introduced a 2020 bill banning federal no-knock warrants and has sought to end civil asset forfeiture.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 3,
+          "summary": "Opposes adding seats to the Supreme Court.",
+          "source_url": "https://ballotpedia.org/Rand_Paul",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2021",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "kemp",
+      "name": "Brian Kemp",
+      "party": "Republican",
+      "current_role": "Governor of Georgia (term ends January 2027)",
+      "birth_date": "1963-11-02",
+      "status": "Undecided",
+      "status_date": "2025-05",
+      "status_note": "Declined to run for the U.S. Senate in 2026; has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Businessman and former Georgia secretary of state, elected governor in 2018 and re-elected in 2022.",
+      "background": {
+        "executive_experience": "Governor of Georgia since 2019; Georgia Secretary of State, 2010-2018.",
+        "legislative_experience": "Georgia State Senate, 2003-2007."
+      },
+      "profile_url": "https://ballotpedia.org/Brian_Kemp",
+      "positions": {
+        "abortion": {
+          "value": 4,
+          "summary": "Signed Georgia's 2019 law banning most abortions after about six weeks.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2019-05",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 3,
+          "summary": "Signed a 2024 law requiring local jails to cooperate with federal immigration authorities.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024-05",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 3,
+          "summary": "Signed laws moving Georgia to a flat income tax and cutting the rate; has not set out a federal tax plan.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 3,
+          "summary": "Chose a limited Medicaid program with work requirements, Georgia Pathways, instead of full Medicaid expansion.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 4,
+          "summary": "Signed Georgia's 2022 law allowing concealed carry without a permit.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2022-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 2,
+          "summary": "Has recruited electric-vehicle, battery and solar manufacturers to Georgia while supporting traditional energy.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 3,
+          "summary": "Signed a 2024 law creating Georgia's first statewide school voucher program.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 3,
+          "summary": "Signed a 2024 law limiting cash-bail releases and expanding the crimes that require bail.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024-05",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 3,
+          "summary": "Certified Georgia's 2020 election results despite pressure to overturn them; signed a 2021 law tightening voter-ID and absentee rules.",
+          "source_url": "https://ballotpedia.org/Brian_Kemp",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2021-03",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "youngkin",
+      "name": "Glenn Youngkin",
+      "party": "Republican",
+      "current_role": "Former Governor of Virginia",
+      "birth_date": "1966-12-09",
+      "status": "Undecided",
+      "status_date": "2026-01",
+      "status_note": "Left office in January 2026; has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former co-CEO of the Carlyle Group, elected governor of Virginia in 2021.",
+      "background": {
+        "executive_experience": "Governor of Virginia, 2022-2026; former co-CEO of the Carlyle Group.",
+        "legislative_experience": null
+      },
+      "profile_url": "https://ballotpedia.org/Glenn_Youngkin",
+      "positions": {
+        "abortion": {
+          "value": 3,
+          "summary": "Proposed limiting abortion at 15 weeks with exceptions for rape, incest and the life of the mother.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 3,
+          "summary": "Ordered Virginia state police and prisons to cooperate with federal immigration enforcement in 2025.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-02",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 3,
+          "summary": "Blocked Virginia from bidding for a Ford battery plant using Chinese technology and supported limits on Chinese land ownership.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-01",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 3,
+          "summary": "Signed state tax cuts and rebates; has not set out a federal tax plan.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": null,
+          "summary": "Kept Virginia's existing Medicaid expansion; no clear position on federal health policy was found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 3,
+          "summary": "Vetoed bills including a proposed assault-weapons ban, without seeking to loosen existing state law.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024-03",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 3,
+          "summary": "Withdrew Virginia from a regional carbon-trading program; also supported an offshore wind project and nuclear power.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": 3,
+          "summary": "Vetoed a 2025 bill regulating high-risk AI systems as too burdensome; supported data-center growth in Northern Virginia.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-03",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "education": {
+          "value": 3,
+          "summary": "Campaigned on parents' rights and expanded charter-style lab schools; proposed state-funded education savings accounts.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 3,
+          "summary": "Supported higher police pay and tougher penalties for violent and repeat offenders.",
+          "source_url": "https://ballotpedia.org/Glenn_Youngkin",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "huckabee-sanders",
+      "name": "Sarah Huckabee Sanders",
+      "party": "Republican",
+      "current_role": "Governor of Arkansas",
+      "birth_date": "1982-08-13",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Seeking re-election as governor in 2026; has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former White House press secretary, elected governor of Arkansas in 2022.",
+      "background": {
+        "executive_experience": "Governor of Arkansas since 2023; White House Press Secretary, 2017-2019.",
+        "legislative_experience": null
+      },
+      "profile_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+      "positions": {
+        "abortion": {
+          "value": 4,
+          "summary": "Supports Arkansas's near-total abortion ban, which allows an exception only to save the mother's life.",
+          "source_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 4,
+          "summary": "Has supported the administration's deportation program and offered state help with enforcement.",
+          "source_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 3,
+          "summary": "Has signed several state income-tax cuts; has not set out a federal tax plan.",
+          "source_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 3,
+          "summary": "Sought federal approval for Medicaid work requirements in Arkansas.",
+          "source_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 4,
+          "summary": "Supports expanding gun rights; Arkansas already allows carry without a permit.",
+          "source_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ai": {
+          "value": 2,
+          "summary": "Joined Republican governors in June 2025 in opposing a federal moratorium on state AI laws; Arkansas has passed targeted laws on deepfakes and AI-generated content.",
+          "source_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "education": {
+          "value": 3,
+          "summary": "Signed the 2023 LEARNS Act, which created education savings accounts available to all Arkansas students.",
+          "source_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-03",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 3,
+          "summary": "Signed a 2023 law requiring longer prison terms for violent offenders.",
+          "source_url": "https://ballotpedia.org/Sarah_Huckabee_Sanders",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "hawley",
+      "name": "Josh Hawley",
+      "party": "Republican",
+      "current_role": "U.S. Senator from Missouri",
+      "birth_date": "1979-12-31",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former Missouri attorney general, elected to the Senate in 2018.",
+      "background": {
+        "executive_experience": "Missouri Attorney General, 2017-2019.",
+        "legislative_experience": "U.S. Senator since 2019."
+      },
+      "profile_url": "https://ballotpedia.org/Josh_Hawley",
+      "positions": {
+        "abortion": {
+          "value": 4,
+          "summary": "Long-time opponent of abortion rights who supports strict limits.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 3,
+          "summary": "Supports stricter enforcement and voted for the 2025 Laken Riley Act.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/senate-bill/5",
+          "source_label": "Congress.gov: S. 5 (2025), Laken Riley Act",
+          "source_date": "2025-01",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 3,
+          "summary": "Supports continued military aid to Israel.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 3,
+          "summary": "Voted in June 2025 against requiring congressional approval for military action against Iran.",
+          "source_url": "https://www.senate.gov/legislative/votes_new.htm",
+          "source_label": "Senate.gov: roll call votes, 119th Congress",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 1,
+          "summary": "Opposed further Ukraine aid and voted against the 2024 supplemental.",
+          "source_url": "https://www.congress.gov/bill/118th-congress/house-bill/815",
+          "source_label": "Congress.gov: H.R. 815 (2024), national security supplemental",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 4,
+          "summary": "Supports high tariffs and has proposed revoking China's normal trade status.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 3,
+          "summary": "Voted for the 2025 budget law while pressing for tax relief aimed at workers.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2025), One Big Beautiful Bill Act",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 3,
+          "summary": "Voted for the 2025 budget law, then introduced a bill to reverse its Medicaid cuts affecting rural hospitals.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 4,
+          "summary": "Opposes new gun restrictions.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 3,
+          "summary": "Supports expanded fossil-fuel production.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": 1,
+          "summary": "Has co-sponsored bipartisan bills to make AI companies liable for harms and to bar AI companions for minors, and opposed a federal moratorium on state AI laws.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-10",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "education": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 3,
+          "summary": "Supports more police funding and tougher penalties for violent crime.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 3,
+          "summary": "Objected to the certification of Pennsylvania's electoral votes in January 2021; opposes changes to the Supreme Court.",
+          "source_url": "https://ballotpedia.org/Josh_Hawley",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2021-01",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "harris",
+      "name": "Kamala Harris",
+      "party": "Democratic",
+      "current_role": "Former Vice President of the United States",
+      "birth_date": "1964-10-20",
+      "status": "Undecided",
+      "status_date": "2025-10",
+      "status_note": "Said in an October 2025 interview she may 'possibly' run again; earlier declined to run for governor of California.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former California attorney general and U.S. senator; vice president 2021-2025 and the 2024 Democratic nominee.",
+      "background": {
+        "executive_experience": "Vice President, 2021-2025; California Attorney General, 2011-2017.",
+        "legislative_experience": "U.S. Senator from California, 2017-2021."
+      },
+      "profile_url": "https://ballotpedia.org/Kamala_Harris",
+      "positions": {
+        "abortion": {
+          "value": 1,
+          "summary": "Campaigned in 2024 on restoring Roe v. Wade protections in federal law.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 1,
+          "summary": "Supported the 2024 bipartisan border bill and a path to citizenship.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 2,
+          "summary": "Supports Israel's right to defend itself and continued aid, while calling for humanitarian access in Gaza and a two-state solution.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 2,
+          "summary": "Called Iran the greatest U.S. adversary in 2024 and supported sanctions and diplomacy.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-10",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Supports continued military aid to Ukraine.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 1,
+          "summary": "Opposed broad across-the-board tariffs while supporting targeted measures against China.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 1,
+          "summary": "Proposed higher taxes on income above $400,000 and on corporations, with expanded credits for families.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 2,
+          "summary": "In 2024 backed strengthening the Affordable Care Act and lowering drug prices; no longer supported Medicare for All.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 1,
+          "summary": "Supports an assault-weapons ban, universal background checks and red-flag laws.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 1,
+          "summary": "Supports clean-energy investment under the Inflation Reduction Act; said in 2024 she would not ban fracking.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": 1,
+          "summary": "As vice president led administration work on AI safety and argued for enforceable protections against AI harms.",
+          "source_url": "https://ballotpedia.org/Kamala_Harris",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-11",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "education": {
+          "value": 1,
+          "summary": "Supports more public-school funding and targeted student-debt relief.",
+          "source_url": "https://ballotpedia.org/Kamala_Harris",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 2,
+          "summary": "Former prosecutor; in 2024 supported funding police alongside accountability measures.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 1,
+          "summary": "Supported Supreme Court term limits and an enforceable ethics code.",
+          "source_url": "https://en.wikipedia.org/wiki/Political_positions_of_Kamala_Harris",
+          "source_label": "Wikipedia: Political positions of Kamala Harris (secondary summary)",
+          "source_date": "2024-07",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "ossoff",
+      "name": "Jon Ossoff",
+      "party": "Democratic",
+      "current_role": "U.S. Senator from Georgia",
+      "birth_date": "1987-02-16",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Sought re-election to the Senate in 2026; has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former documentary-film executive, elected to the Senate in a 2021 runoff.",
+      "background": {
+        "executive_experience": "Former CEO of an investigative documentary company.",
+        "legislative_experience": "U.S. Senator since 2021."
+      },
+      "profile_url": "https://ballotpedia.org/Jon_Ossoff",
+      "positions": {
+        "abortion": {
+          "value": 1,
+          "summary": "Supports restoring Roe v. Wade protections in federal law.",
+          "source_url": "https://ballotpedia.org/Jon_Ossoff",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 1,
+          "summary": "Supports a comprehensive approach; voted for the 2025 Laken Riley Act on detaining migrants charged with theft or violent crimes.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/senate-bill/5",
+          "source_label": "Congress.gov: S. 5 (2025), Laken Riley Act",
+          "source_date": "2025-01",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 1,
+          "summary": "Voted in June 2025 to require congressional approval for military action against Iran.",
+          "source_url": "https://www.senate.gov/legislative/votes_new.htm",
+          "source_label": "Senate.gov: roll call votes, 119th Congress",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Voted for the 2024 supplemental that included Ukraine aid.",
+          "source_url": "https://www.congress.gov/bill/118th-congress/house-bill/815",
+          "source_label": "Congress.gov: H.R. 815 (2024), national security supplemental",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 1,
+          "summary": "Voted against the 2025 budget law; supports higher taxes on the wealthiest to protect programs.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2025), One Big Beautiful Bill Act",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 2,
+          "summary": "Supports extending the enhanced Affordable Care Act subsidies and expanding Medicaid in Georgia.",
+          "source_url": "https://ballotpedia.org/Jon_Ossoff",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 1,
+          "summary": "Voted for the Inflation Reduction Act's clean-energy incentives.",
+          "source_url": "https://www.congress.gov/bill/117th-congress/house-bill/5376",
+          "source_label": "Congress.gov: H.R. 5376 (2022), Inflation Reduction Act",
+          "source_date": "2022-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "crime": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "buttigieg",
+      "name": "Pete Buttigieg",
+      "party": "Democratic",
+      "current_role": "Former U.S. Secretary of Transportation",
+      "birth_date": "1982-01-19",
+      "status": "Undecided",
+      "status_date": "2025-03",
+      "status_note": "Declined to run for an open Michigan Senate seat in 2026; has not ruled out 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Navy reservist and former mayor of South Bend, Indiana; ran for president in 2020.",
+      "background": {
+        "executive_experience": "Secretary of Transportation, 2021-2025; Mayor of South Bend, 2012-2020.",
+        "legislative_experience": null
+      },
+      "profile_url": "https://ballotpedia.org/Pete_Buttigieg",
+      "positions": {
+        "abortion": {
+          "value": 0,
+          "summary": "Said in 2019 that the decision should rest with the woman and that he would not set a legal line on timing.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2019",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 1,
+          "summary": "Supports a path to citizenship combined with border security.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 2,
+          "summary": "Supports Israel's security while calling for humanitarian protections in Gaza and a two-state outcome.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Supports continued military aid to Ukraine.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 1,
+          "summary": "Has criticized broad tariffs as a tax on consumers while supporting targeted measures.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 1,
+          "summary": "Supports higher taxes on the wealthy and corporations.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 1,
+          "summary": "Proposed 'Medicare for All Who Want It', a public option alongside private insurance.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2019",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 1,
+          "summary": "Supports universal background checks, red-flag laws and an assault-weapons ban.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 1,
+          "summary": "Supports aggressive clean-energy investment and emissions cuts.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 1,
+          "summary": "Supports more public-school funding and debt-free public college for most families.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 0,
+          "summary": "Proposed in 2019 restructuring the Supreme Court to 15 justices; supports ending the filibuster.",
+          "source_url": "https://ballotpedia.org/Pete_Buttigieg",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2019",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "ocasio-cortez",
+      "name": "Alexandria Ocasio-Cortez",
+      "party": "Democratic",
+      "current_role": "U.S. Representative from New York",
+      "birth_date": "1989-10-13",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has not said whether she will seek the presidency, a Senate seat or re-election to the House.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former organizer, elected to the House in 2018; a leading progressive voice.",
+      "background": {
+        "executive_experience": null,
+        "legislative_experience": "U.S. Representative since 2019."
+      },
+      "profile_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+      "positions": {
+        "abortion": {
+          "value": 0,
+          "summary": "Supports federal legislation guaranteeing abortion access with few restrictions.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2022",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 0,
+          "summary": "Called for abolishing ICE in 2018 and supports a broad path to citizenship.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2018",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 1,
+          "summary": "Has called for conditioning offensive weapons sales to Israel; in July 2025 voted against cutting funding for the Iron Dome defense system.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 0,
+          "summary": "Opposed the June 2025 strikes on Iran, arguing they required congressional authorization.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Voted for the 2024 Ukraine aid package.",
+          "source_url": "https://www.congress.gov/bill/118th-congress/house-bill/8035",
+          "source_label": "Congress.gov: H.R. 8035 (2024), Ukraine supplemental",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 0,
+          "summary": "Proposed a top income-tax rate of about 70 percent on very high incomes.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2019-01",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 0,
+          "summary": "Supports Medicare for All.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 1,
+          "summary": "Supports universal background checks and an assault-weapons ban.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2022",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 0,
+          "summary": "Co-authored the Green New Deal resolution.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2019-02",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "Has sponsored legislation against sexual deepfakes made with AI (the DEFIANCE Act) but has not set out a broader AI framework.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 0,
+          "summary": "Supports tuition-free public college and broad student-debt cancellation.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 0,
+          "summary": "Supported cutting the New York police budget in 2020 to fund social services.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 0,
+          "summary": "Supports adding Supreme Court seats; filed articles of impeachment against two justices in 2024.",
+          "source_url": "https://ballotpedia.org/Alexandria_Ocasio-Cortez",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024-07",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "newsom",
+      "name": "Gavin Newsom",
+      "party": "Democratic",
+      "current_role": "Governor of California (term ends January 2027)",
+      "birth_date": "1967-10-10",
+      "status": "Undecided",
+      "status_date": "2025-10",
+      "status_note": "Said in an October 2025 interview he would consider a run after the 2026 midterm elections.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former mayor of San Francisco and lieutenant governor, elected governor of California in 2018.",
+      "background": {
+        "executive_experience": "Governor of California since 2019; Mayor of San Francisco, 2004-2011.",
+        "legislative_experience": null
+      },
+      "profile_url": "https://ballotpedia.org/Gavin_Newsom",
+      "positions": {
+        "abortion": {
+          "value": 0,
+          "summary": "Championed the 2022 amendment adding abortion rights to California's constitution.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2022-11",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 1,
+          "summary": "Supports a path to citizenship and has opposed federal immigration raids in California, while calling for border security.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 2,
+          "summary": "Visited Israel after the October 7 attack to show support, while backing humanitarian aid for Gaza.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-10",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Supports continued aid to Ukraine.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 1,
+          "summary": "Sued in April 2025 to block the administration's emergency tariffs.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 1,
+          "summary": "Supports higher federal taxes on top earners; has opposed some California proposals for new wealth taxes.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 1,
+          "summary": "Expanded state Medicaid (Medi-Cal) eligibility, later limiting some of it for budget reasons.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 1,
+          "summary": "Proposed a constitutional amendment in 2023 for universal background checks, a minimum purchase age of 21 and an assault-weapons ban.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 0,
+          "summary": "Ordered an end to sales of new gasoline-only cars in California by 2035 and set a 2045 carbon-neutrality goal.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": 2,
+          "summary": "Vetoed a broad AI-safety bill in 2024, then signed a narrower AI transparency law (SB 53) in 2025.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "education": {
+          "value": 1,
+          "summary": "Supports universal transitional kindergarten and more public-school funding.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 2,
+          "summary": "Opposed the 2024 ballot measure raising penalties for theft and drug crimes, while expanding retail-theft enforcement.",
+          "source_url": "https://ballotpedia.org/Gavin_Newsom",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "Led California's 2025 redistricting measure in response to Texas; no clear position on Supreme Court changes was found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "shapiro",
+      "name": "Josh Shapiro",
+      "party": "Democratic",
+      "current_role": "Governor of Pennsylvania",
+      "birth_date": "1973-06-20",
+      "status": "Undecided",
+      "status_date": "2026",
+      "status_note": "Sought re-election as governor in 2026; has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former Pennsylvania attorney general, elected governor in 2022.",
+      "background": {
+        "executive_experience": "Governor of Pennsylvania since 2023; Pennsylvania Attorney General, 2017-2023.",
+        "legislative_experience": "Pennsylvania House of Representatives, 2005-2012."
+      },
+      "profile_url": "https://ballotpedia.org/Josh_Shapiro",
+      "positions": {
+        "abortion": {
+          "value": 1,
+          "summary": "Supports abortion rights and has vowed to veto restrictions in Pennsylvania.",
+          "source_url": "https://ballotpedia.org/Josh_Shapiro",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 2,
+          "summary": "Strong supporter of Israel who has also criticized the Netanyahu government and supported humanitarian aid.",
+          "source_url": "https://ballotpedia.org/Josh_Shapiro",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 2,
+          "summary": "Signed state budgets with targeted tax cuts, including a corporate-tax phase-down and a working-family credit.",
+          "source_url": "https://ballotpedia.org/Josh_Shapiro",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 2,
+          "summary": "Supports the Affordable Care Act and lowering drug costs.",
+          "source_url": "https://ballotpedia.org/Josh_Shapiro",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 2,
+          "summary": "Supports universal background checks, red-flag laws and a ban on untraceable 'ghost guns'.",
+          "source_url": "https://ballotpedia.org/Josh_Shapiro",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 2,
+          "summary": "Supports natural-gas production alongside clean-energy investment, as in his 2024 'Lightning Plan'.",
+          "source_url": "https://ballotpedia.org/Josh_Shapiro",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024-03",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "Has courted large data-center investments in Pennsylvania; no clear position on AI regulation was found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 2,
+          "summary": "Increased public-school funding; supported then dropped a state voucher program during 2023 budget talks.",
+          "source_url": "https://ballotpedia.org/Josh_Shapiro",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 2,
+          "summary": "Supports funding police and hiring more officers alongside violence-prevention programs.",
+          "source_url": "https://ballotpedia.org/Josh_Shapiro",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "beshear",
+      "name": "Andy Beshear",
+      "party": "Democratic",
+      "current_role": "Governor of Kentucky",
+      "birth_date": "1977-11-29",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has said he would consider a 2028 run.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former Kentucky attorney general, elected governor in 2019 and re-elected in 2023.",
+      "background": {
+        "executive_experience": "Governor of Kentucky since 2019; Kentucky Attorney General, 2016-2019.",
+        "legislative_experience": null
+      },
+      "profile_url": "https://ballotpedia.org/Andy_Beshear",
+      "positions": {
+        "abortion": {
+          "value": 1,
+          "summary": "Vetoed abortion restrictions and campaigned in 2023 for exceptions for rape and incest; supports Roe-style protections.",
+          "source_url": "https://ballotpedia.org/Andy_Beshear",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "israel": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 2,
+          "summary": "Allowed state income-tax cuts to take effect while emphasizing budget balance.",
+          "source_url": "https://ballotpedia.org/Andy_Beshear",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 1,
+          "summary": "Restored Kentucky's state health-insurance marketplace and defended Medicaid expansion.",
+          "source_url": "https://ballotpedia.org/Andy_Beshear",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2021",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 2,
+          "summary": "Called for red-flag laws after the 2023 Louisville bank shooting.",
+          "source_url": "https://ballotpedia.org/Andy_Beshear",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 1,
+          "summary": "Opposed Kentucky's 2024 ballot measure allowing public money for private schools; supports teacher raises.",
+          "source_url": "https://ballotpedia.org/Andy_Beshear",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024-11",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "pritzker",
+      "name": "JB Pritzker",
+      "party": "Democratic",
+      "current_role": "Governor of Illinois",
+      "birth_date": "1965-01-19",
+      "status": "Undecided",
+      "status_date": "2025-06",
+      "status_note": "Sought a third term as governor in 2026; has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Businessman and investor, elected governor of Illinois in 2018 and re-elected in 2022.",
+      "background": {
+        "executive_experience": "Governor of Illinois since 2019; founder of a private investment firm.",
+        "legislative_experience": null
+      },
+      "profile_url": "https://ballotpedia.org/J.B._Pritzker",
+      "positions": {
+        "abortion": {
+          "value": 0,
+          "summary": "Signed Illinois's 2019 Reproductive Health Act, which treats abortion as a fundamental right.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2019-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 1,
+          "summary": "Has opposed federal immigration enforcement operations in Chicago, while supporting border security in principle.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 1,
+          "summary": "Has criticized broad tariffs as harmful to Illinois farmers and manufacturers.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 1,
+          "summary": "Campaigned in 2020 for a graduated state income tax with higher rates on top earners; voters rejected it.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2020-11",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 1,
+          "summary": "Supports expanding coverage and lowering medical-debt burdens.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 0,
+          "summary": "Signed Illinois's 2023 ban on assault-style weapons and high-capacity magazines, which requires registration of existing weapons.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2023-01",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 1,
+          "summary": "Signed a 2021 law setting Illinois on a path to 100 percent clean electricity by 2050.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2021-09",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 1,
+          "summary": "Has increased state school funding and expanded early-childhood programs.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 1,
+          "summary": "Signed the 2021 SAFE-T Act, which ended cash bail in Illinois; opposed the 2025 National Guard deployment to Chicago.",
+          "source_url": "https://ballotpedia.org/J.B._Pritzker",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-10",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "kelly",
+      "name": "Mark Kelly",
+      "party": "Democratic",
+      "current_role": "U.S. Senator from Arizona",
+      "birth_date": "1964-02-21",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Retired Navy captain and NASA astronaut, elected to the Senate in 2020.",
+      "background": {
+        "executive_experience": "Former Navy combat pilot and NASA space shuttle commander.",
+        "legislative_experience": "U.S. Senator since 2020."
+      },
+      "profile_url": "https://ballotpedia.org/Mark_Kelly",
+      "positions": {
+        "abortion": {
+          "value": 1,
+          "summary": "Supports restoring Roe v. Wade protections in federal law.",
+          "source_url": "https://ballotpedia.org/Mark_Kelly",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 2,
+          "summary": "Emphasizes border security; voted for the 2025 Laken Riley Act.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/senate-bill/5",
+          "source_label": "Congress.gov: S. 5 (2025), Laken Riley Act",
+          "source_date": "2025-01",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 2,
+          "summary": "Supports aid to Israel while calling for humanitarian access in Gaza.",
+          "source_url": "https://ballotpedia.org/Mark_Kelly",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 1,
+          "summary": "Voted in June 2025 to require congressional approval for military action against Iran.",
+          "source_url": "https://www.senate.gov/legislative/votes_new.htm",
+          "source_label": "Senate.gov: roll call votes, 119th Congress",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Strong supporter of Ukraine aid; voted for the 2024 supplemental.",
+          "source_url": "https://www.congress.gov/bill/118th-congress/house-bill/815",
+          "source_label": "Congress.gov: H.R. 815 (2024), national security supplemental",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 1,
+          "summary": "Supported the CHIPS Act's investment in U.S. chipmaking; has criticized broad tariffs.",
+          "source_url": "https://ballotpedia.org/Mark_Kelly",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 1,
+          "summary": "Voted against the 2025 budget law.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2025), One Big Beautiful Bill Act",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 2,
+          "summary": "Supports extending enhanced Affordable Care Act subsidies.",
+          "source_url": "https://ballotpedia.org/Mark_Kelly",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 2,
+          "summary": "Co-founded a gun-safety group with his wife, former Rep. Gabby Giffords; voted for the 2022 Bipartisan Safer Communities Act.",
+          "source_url": "https://www.congress.gov/bill/117th-congress/senate-bill/2938",
+          "source_label": "Congress.gov: S. 2938 (2022), Bipartisan Safer Communities Act",
+          "source_date": "2022-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 1,
+          "summary": "Voted for the Inflation Reduction Act's clean-energy incentives.",
+          "source_url": "https://www.congress.gov/bill/117th-congress/house-bill/5376",
+          "source_label": "Congress.gov: H.R. 5376 (2022), Inflation Reduction Act",
+          "source_date": "2022-08",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "crime": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "gallego",
+      "name": "Ruben Gallego",
+      "party": "Democratic",
+      "current_role": "U.S. Senator from Arizona",
+      "birth_date": "1979-11-20",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has visited early primary states; has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Marine Corps veteran of the Iraq War, served five terms in the House before winning a Senate seat in 2024.",
+      "background": {
+        "executive_experience": null,
+        "legislative_experience": "U.S. Senator since 2025; U.S. Representative, 2015-2025."
+      },
+      "profile_url": "https://ballotpedia.org/Ruben_Gallego",
+      "positions": {
+        "abortion": {
+          "value": 1,
+          "summary": "Supports restoring Roe v. Wade protections in federal law.",
+          "source_url": "https://ballotpedia.org/Ruben_Gallego",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 2,
+          "summary": "Emphasizes border security; voted for the 2025 Laken Riley Act.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/senate-bill/5",
+          "source_label": "Congress.gov: S. 5 (2025), Laken Riley Act",
+          "source_date": "2025-01",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 2,
+          "summary": "Supports aid to Israel while calling for humanitarian access in Gaza.",
+          "source_url": "https://ballotpedia.org/Ruben_Gallego",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 1,
+          "summary": "Voted in June 2025 to require congressional approval for military action against Iran.",
+          "source_url": "https://www.senate.gov/legislative/votes_new.htm",
+          "source_label": "Senate.gov: roll call votes, 119th Congress",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Voted for the 2024 Ukraine aid package as a House member.",
+          "source_url": "https://www.congress.gov/bill/118th-congress/house-bill/8035",
+          "source_label": "Congress.gov: H.R. 8035 (2024), Ukraine supplemental",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 1,
+          "summary": "Voted against the 2025 budget law.",
+          "source_url": "https://www.congress.gov/bill/119th-congress/house-bill/1",
+          "source_label": "Congress.gov: H.R. 1 (2025), One Big Beautiful Bill Act",
+          "source_date": "2025-07",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 2,
+          "summary": "Supports extending enhanced Affordable Care Act subsidies.",
+          "source_url": "https://ballotpedia.org/Ruben_Gallego",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 2,
+          "summary": "Supports universal background checks; also a gun owner who emphasizes Second Amendment rights.",
+          "source_url": "https://ballotpedia.org/Ruben_Gallego",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 2,
+          "summary": "Supports funding police alongside accountability measures.",
+          "source_url": "https://ballotpedia.org/Ruben_Gallego",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "khanna",
+      "name": "Ro Khanna",
+      "party": "Democratic",
+      "current_role": "U.S. Representative from California",
+      "birth_date": "1976-09-13",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has made frequent early-state visits; has not announced plans for 2028.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former Commerce Department official and lawyer representing part of Silicon Valley since 2017.",
+      "background": {
+        "executive_experience": "Deputy Assistant Secretary of Commerce, 2009-2011.",
+        "legislative_experience": "U.S. Representative since 2017."
+      },
+      "profile_url": "https://ballotpedia.org/Ro_Khanna",
+      "positions": {
+        "abortion": {
+          "value": 0,
+          "summary": "Supports federal legislation guaranteeing abortion access.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2022",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 1,
+          "summary": "Supports a path to citizenship and expanded legal immigration.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 1,
+          "summary": "Has called for limiting offensive weapons sales to Israel and supported recognizing a Palestinian state.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": 0,
+          "summary": "Co-led a bipartisan House resolution in June 2025 to bar military action against Iran without congressional approval.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025-06",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Voted for the 2024 Ukraine aid package while urging a diplomatic path to end the war.",
+          "source_url": "https://www.congress.gov/bill/118th-congress/house-bill/8035",
+          "source_label": "Congress.gov: H.R. 8035 (2024), Ukraine supplemental",
+          "source_date": "2024-04",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 2,
+          "summary": "Supports rebuilding U.S. manufacturing and some tariffs on China, while criticizing broad tariffs.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": 0,
+          "summary": "Supports substantially higher taxes on the very wealthy.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 0,
+          "summary": "Supports Medicare for All.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 1,
+          "summary": "Supports universal background checks and an assault-weapons ban.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2022",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": 1,
+          "summary": "Supports aggressive clean-energy investment.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 1,
+          "summary": "Supports more public-school funding and student-debt relief.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 1,
+          "summary": "Supports police-accountability reforms and reducing incarceration for nonviolent offenses.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": 1,
+          "summary": "Introduced legislation for 18-year terms for Supreme Court justices.",
+          "source_url": "https://ballotpedia.org/Ro_Khanna",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2022",
+          "provenance": "Record",
+          "needs_verification": true
+        }
+      }
+    },
+    {
+      "id": "emanuel",
+      "name": "Rahm Emanuel",
+      "party": "Democratic",
+      "current_role": "Former U.S. Ambassador to Japan",
+      "birth_date": "1959-11-29",
+      "status": "Undecided",
+      "status_date": "2025",
+      "status_note": "Has said publicly he is considering a 2028 run.",
+      "status_source_url": "https://ballotpedia.org/Presidential_election,_2028",
+      "status_needs_verification": true,
+      "bio": "Former congressman, White House chief of staff and two-term mayor of Chicago.",
+      "background": {
+        "executive_experience": "Mayor of Chicago, 2011-2019; White House Chief of Staff, 2009-2010; Ambassador to Japan, 2022-2025.",
+        "legislative_experience": "U.S. Representative, 2003-2009."
+      },
+      "profile_url": "https://ballotpedia.org/Rahm_Emanuel",
+      "positions": {
+        "abortion": {
+          "value": 1,
+          "summary": "Supports abortion rights; has urged Democrats to emphasize other issues.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "immigration": {
+          "value": 2,
+          "summary": "Has argued Democrats must prioritize border security before broader reform.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "israel": {
+          "value": 2,
+          "summary": "Supports Israel and a two-state solution.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "iran": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ukraine": {
+          "value": 3,
+          "summary": "Supports continued aid to Ukraine.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "china_trade": {
+          "value": 2,
+          "summary": "Pressed for a tough line on China as ambassador to Japan; favors coordination with allies over broad tariffs.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "taxes": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "healthcare": {
+          "value": 2,
+          "summary": "Helped pass the Affordable Care Act as White House chief of staff and supports building on it.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2010-03",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "guns": {
+          "value": 1,
+          "summary": "Helped pass the 1994 assault-weapons ban as a White House aide and supports reinstating it.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2024",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "energy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "ai": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        },
+        "education": {
+          "value": 2,
+          "summary": "As mayor expanded charter schools and lengthened the school day; has called for a focus on student achievement.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "crime": {
+          "value": 2,
+          "summary": "Supports funding police along with accountability measures.",
+          "source_url": "https://ballotpedia.org/Rahm_Emanuel",
+          "source_label": "Ballotpedia profile (secondary summary)",
+          "source_date": "2025",
+          "provenance": "Record",
+          "needs_verification": true
+        },
+        "democracy": {
+          "value": null,
+          "summary": "No clear public position found in the seed research.",
+          "source_url": null,
+          "source_label": null,
+          "source_date": null,
+          "provenance": null,
+          "needs_verification": true
+        }
+      }
+    }
+  ]
+}
