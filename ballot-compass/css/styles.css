@@ -379,6 +379,7 @@ table.data tr.row-flagged th[scope="row"], table.data tr.row-flagged td { backgr
 .importance-note { display: block; font-size: 0.82rem; color: var(--ink-2); margin-top: 4px; font-weight: 400; font-family: var(--sans); }
 
 @media (max-width: 759px) {
+  table.data.stack caption { display: block; width: 100%; }
   table.data.stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   table.data.stack, table.data.stack tbody, table.data.stack tr, table.data.stack th, table.data.stack td { display: block; width: 100%; }
   table.data.stack tr { padding: 14px 0; border-bottom: 1px solid var(--rule); }
