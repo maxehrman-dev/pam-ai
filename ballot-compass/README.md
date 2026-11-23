@@ -78,6 +78,25 @@ Known gaps to address before anyone relies on it:
 3. **Many sources are secondary.** Where no specific bill or vote page was on hand, positions link to the candidate's Ballotpedia profile, or a Wikipedia summary for Harris. These should be replaced with primary sources: floor votes, official statements, interview transcripts.
 4. **Coverage is uneven.** Governors and House members have fewer coded positions, especially on foreign policy. Because scores are averages over covered issues, a candidate with few known positions can rank high from a small number of matches. The UI flags this with a coverage count and a "Limited data" note.
 
+## Prediction markets (Kalshi)
+
+Candidate pages, and a collapsed panel on the results page, show Kalshi's last traded prices for the 2028 Republican nomination, Democratic nomination and presidency markets. They are labeled "not part of your score" and never enter alignment. The app has no affiliate link and no "trade" prompts.
+
+Prices come from a **snapshot file**, `data/markets.json`, not a live feed. This keeps the no-third-party-requests promise, since the reader's browser never contacts Kalshi. It also avoids a technical block: Kalshi's API rejects browser-origin requests and rate-limits callers. To refresh the snapshot:
+
+```bash
+cd ballot-compass
+node scripts/fetch-markets.mjs          # behind a proxy: NODE_USE_ENV_PROXY=1 node scripts/fetch-markets.mjs
+```
+
+The script uses Kalshi's public, read-only API, with no key. It matches markets to candidates by name; if a name differs, add `"market_name": "Name As Kalshi Writes It"` to that candidate. The results page warns when the snapshot is more than 7 days old. It also lists anyone Kalshi prices at 2¢ or more who isn't in `candidates.json`, which is a quick way to spot people missing from the field.
+
+For a live feed instead, add a small server endpoint that runs the same script on a schedule. Don't call Kalshi from the page.
+
+## Websites
+
+Each candidate has `links.official_url` (their current office) and `links.campaign_url`. `campaign_url` stays `null` until the candidate declares and launches a campaign site. Former officials have no office site. Both URLs are flagged for verification.
+
 ## Privacy
 
 There are no accounts, cookies, analytics or network requests beyond the app's own files. Answers are kept in `localStorage` under `ballot-compass:v1`, and "Clear my answers" removes them. PDF export uses the browser's print dialog.

@@ -353,6 +353,7 @@ select {
 .issue-chips .chip-level { color: var(--ink-2); font-size: 0.85rem; white-space: nowrap; }
 .flags-line { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .card-actions { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; font-size: 0.95rem; }
+.card-actions a { display: inline-flex; align-items: center; min-height: 44px; }
 .caution { font-size: 0.9rem; color: var(--flag); margin: 8px 0 0; }
 
 /* Tables */
@@ -379,7 +380,7 @@ table.data tr.row-flagged th[scope="row"], table.data tr.row-flagged td { backgr
 .importance-note { display: block; font-size: 0.82rem; color: var(--ink-2); margin-top: 4px; font-weight: 400; font-family: var(--sans); }
 
 @media (max-width: 759px) {
-  table.data.stack caption { display: block; width: 100%; }
+  table.data.stack caption:not(.sr-only) { display: block; width: 100%; }
   table.data.stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   table.data.stack, table.data.stack tbody, table.data.stack tr, table.data.stack th, table.data.stack td { display: block; width: 100%; }
   table.data.stack tr { padding: 14px 0; border-bottom: 1px solid var(--rule); }
@@ -395,7 +396,7 @@ table.data tr.row-flagged th[scope="row"], table.data tr.row-flagged td { backgr
 /* Candidate profile */
 .profile-head { display: grid; gap: 8px; margin-bottom: 24px; }
 .profile-facts { display: grid; gap: 0 24px; margin: 0 0 16px; padding: 0; border-top: 1px solid var(--rule); }
-@media (min-width: 640px) { .profile-facts { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 640px) { .profile-facts { grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); } }
 .profile-facts div { padding: 10px 0; border-bottom: 1px solid var(--rule); }
 .profile-facts dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); font-weight: 600; }
 .profile-facts dd { margin: 2px 0 0; }
@@ -446,3 +447,18 @@ table.data tr.row-flagged th[scope="row"], table.data tr.row-flagged td { backgr
 .section-gap { margin-top: 48px; }
 .actions-inline { margin: 0; }
 .h3 { font-family: var(--serif); font-size: 1.15rem; font-weight: 600; }
+
+/* Websites */
+.link-stack { display: grid; gap: 4px; }
+
+/* Prediction markets panel */
+details.markets-panel { border-top: 2px solid var(--rule-strong); border-bottom: 1px solid var(--rule); }
+details.markets-panel > summary {
+  cursor: pointer; padding: 14px 0; list-style-position: outside; min-height: 44px;
+  display: flex; align-items: baseline; gap: 10px;
+}
+details.markets-panel > summary::-webkit-details-marker { display: none; }
+details.markets-panel > summary::before { content: "+"; font-family: var(--serif); font-size: 1.4rem; width: 1rem; color: var(--accent); }
+details.markets-panel[open] > summary::before { content: "\2212"; }
+details.markets-panel > summary h2 { display: inline; margin: 0; }
+details.markets-panel[open] > summary { border-bottom: 1px solid var(--rule); margin-bottom: 14px; }

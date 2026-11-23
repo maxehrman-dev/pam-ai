@@ -1,0 +1,334 @@
+{
+  "source": "Kalshi",
+  "source_url": "https://kalshi.com",
+  "fetched_at": "2026-11-23T23:53:15.820Z",
+  "note": "Prices are the last traded price of a contract that pays $1 if the outcome happens. They reflect what traders were willing to pay at the time of the snapshot; they are not polls, endorsements or Ballot Compass forecasts, and they are never used in alignment scores.",
+  "events": {
+    "nomination_republican": {
+      "ticker": "KXPRESNOMR-28",
+      "title": "2028 Republican presidential nominee",
+      "url": "https://kalshi.com/markets/kxpresnomr"
+    },
+    "nomination_democratic": {
+      "ticker": "KXPRESNOMD-28",
+      "title": "2028 Democratic presidential nominee",
+      "url": "https://kalshi.com/markets/kxpresnomd"
+    },
+    "presidency": {
+      "ticker": "KXPRESPERSON-28",
+      "title": "2028 U.S. Presidential Election winner?",
+      "url": "https://kalshi.com/markets/kxpresperson"
+    }
+  },
+  "candidates": {
+    "youngkin": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-GY",
+        "last": 0.025,
+        "bid": 0.024,
+        "ask": 0.025
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-GYOU",
+        "last": 0.006,
+        "bid": 0.005,
+        "ask": 0.006
+      }
+    },
+    "kemp": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-BK",
+        "last": 0.018,
+        "bid": 0.017,
+        "ask": 0.018
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-BKEM",
+        "last": 0.006,
+        "bid": 0.005,
+        "ask": 0.006
+      }
+    },
+    "rubio": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-MR",
+        "last": 0.24,
+        "bid": 0.23,
+        "ask": 0.24
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-MRUB",
+        "last": 0.094,
+        "bid": 0.094,
+        "ask": 0.095
+      }
+    },
+    "vance": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-JDV",
+        "last": 0.31,
+        "bid": 0.3,
+        "ask": 0.31
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-JVAN",
+        "last": 0.12,
+        "bid": 0.12,
+        "ask": 0.13
+      }
+    },
+    "hawley": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-JH",
+        "last": 0.011,
+        "bid": 0.011,
+        "ask": 0.012
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-JHAW",
+        "last": 0.003,
+        "bid": 0.003,
+        "ask": 0.004
+      }
+    },
+    "cruz": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-TC",
+        "last": 0.025,
+        "bid": 0.024,
+        "ask": 0.025
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-TCRU",
+        "last": 0.01,
+        "bid": 0.009,
+        "ask": 0.01
+      }
+    },
+    "paul": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-RPAU",
+        "last": 0.006,
+        "bid": 0.005,
+        "ask": 0.006
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-RPAU",
+        "last": 0.001,
+        "bid": 0.001,
+        "ask": 0.002
+      }
+    },
+    "desantis": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-RDS",
+        "last": 0.16,
+        "bid": 0.15,
+        "ask": 0.16
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-RDES",
+        "last": 0.053,
+        "bid": 0.053,
+        "ask": 0.056
+      }
+    },
+    "huckabee-sanders": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMR-28-SHS",
+        "last": 0.009,
+        "bid": 0.008,
+        "ask": 0.009
+      }
+    },
+    "harris": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-KH",
+        "last": 0.05,
+        "bid": 0.049,
+        "ask": 0.05
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-KHAR",
+        "last": 0.032,
+        "bid": 0.032,
+        "ask": 0.034
+      }
+    },
+    "buttigieg": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-PB",
+        "last": 0.055,
+        "bid": 0.055,
+        "ask": 0.056
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-PBUT",
+        "last": 0.029,
+        "bid": 0.029,
+        "ask": 0.03
+      }
+    },
+    "ossoff": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-JOSS",
+        "last": 0.23,
+        "bid": 0.22,
+        "ask": 0.23
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-JOSS",
+        "last": 0.17,
+        "bid": 0.17,
+        "ask": 0.18
+      }
+    },
+    "gallego": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-RGAL",
+        "last": 0.007,
+        "bid": 0.006,
+        "ask": 0.007
+      }
+    },
+    "kelly": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-MK",
+        "last": 0.029,
+        "bid": 0.028,
+        "ask": 0.029
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-MKEL",
+        "last": 0.023,
+        "bid": 0.02,
+        "ask": 0.022
+      }
+    },
+    "pritzker": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-JBP",
+        "last": 0.03,
+        "bid": 0.03,
+        "ask": 0.031
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-JPRI",
+        "last": 0.02,
+        "bid": 0.019,
+        "ask": 0.02
+      }
+    },
+    "emanuel": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-REMA",
+        "last": 0.023,
+        "bid": 0.022,
+        "ask": 0.023
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-REMA",
+        "last": 0.013,
+        "bid": 0.012,
+        "ask": 0.013
+      }
+    },
+    "beshear": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-AB",
+        "last": 0.038,
+        "bid": 0.037,
+        "ask": 0.038
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-ABES",
+        "last": 0.028,
+        "bid": 0.027,
+        "ask": 0.028
+      }
+    },
+    "ocasio-cortez": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-AOC",
+        "last": 0.17,
+        "bid": 0.16,
+        "ask": 0.17
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-AOCA",
+        "last": 0.1,
+        "bid": 0.1,
+        "ask": 0.11
+      }
+    },
+    "shapiro": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-JS",
+        "last": 0.048,
+        "bid": 0.048,
+        "ask": 0.049
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-JSHA",
+        "last": 0.027,
+        "bid": 0.027,
+        "ask": 0.028
+      }
+    },
+    "khanna": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-RKHA",
+        "last": 0.016,
+        "bid": 0.015,
+        "ask": 0.016
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-RKHA",
+        "last": 0.009,
+        "bid": 0.009,
+        "ask": 0.01
+      }
+    },
+    "newsom": {
+      "nomination": {
+        "market_ticker": "KXPRESNOMD-28-GN",
+        "last": 0.099,
+        "bid": 0.099,
+        "ask": 0.1
+      },
+      "presidency": {
+        "market_ticker": "KXPRESPERSON-28-GNEWS",
+        "last": 0.073,
+        "bid": 0.073,
+        "ask": 0.074
+      }
+    }
+  },
+  "uncovered": [
+    {
+      "name": "Raphael Warnock",
+      "market": "nomination_democratic",
+      "last": 0.038
+    },
+    {
+      "name": "Tucker Carlson",
+      "market": "nomination_republican",
+      "last": 0.032
+    },
+    {
+      "name": "John McEntee",
+      "market": "nomination_republican",
+      "last": 0.03
+    },
+    {
+      "name": "Wes Moore",
+      "market": "nomination_democratic",
+      "last": 0.024
+    },
+    {
+      "name": "Raphael Warnock",
+      "market": "presidency",
+      "last": 0.022
+    }
+  ]
+}

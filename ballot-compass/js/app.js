@@ -25,6 +25,7 @@ const state = {
   traits: [],
   candidates: [],
   meta: {},
+  markets: null,
   scaleNote: '',
   answers: {},
   leadership: { ranking: null, skipped: false },
@@ -123,6 +124,113 @@ function sourceCell(pos) {
   if (pos.needs_verification) tags.push(verifyTag());
   const date = pos.source_date ? `<span class="cell-sub">${esc(fmtDate(pos.source_date))}</span>` : '';
   return `${link}${date}${tags.length ? `<span class="source-tags">${tags.join('')}</span>` : ''}`;
+}
+
+function externalLink(url, label) {
+  const u = safeUrl(url);
+  return u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(label)}<span class="sr-only"> (opens in a new tab)</span></a>` : '';
+}
+
+/* ---------- links and prediction markets ---------- */
+
+function websiteLinks(c) {
+  const l = c.links || {};
+  const official = l.official_url
+    ? externalLink(l.official_url, `Official website${l.official_label ? `: ${l.official_label}` : ''}`)
+    : '<span class="muted">No current office website</span>';
+  const campaign = l.campaign_url
+    ? externalLink(l.campaign_url, 'Campaign website')
+    : `<span class="muted">No campaign website${c.status === 'Declared' ? ' listed' : ' (not a declared candidate)'}</span>`;
+  return `<span class="link-stack">${official}${campaign}</span>`;
+}
+
+const MARKET_LABELS = {
+  nomination_republican: 'Republican nomination',
+  nomination_democratic: 'Democratic nomination',
+  presidency: 'Presidency',
+};
+
+function fmtCents(p) {
+  if (p === null || p === undefined) return 'No trades';
+  const c = p * 100;
+  return `${c >= 10 ? Math.round(c) : Math.round(c * 10) / 10}¢`;
+}
+
+function fmtTimestamp(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'an unknown time';
+  return d.toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+}
+
+function marketsIntro() {
+  const m = state.markets;
+  const days = Math.floor((Date.now() - new Date(m.fetched_at).getTime()) / 86400000);
+  return `<p class="small muted">${esc(m.note)} Prices from <a href="${esc(safeUrl(m.source_url) || '#')}" target="_blank" rel="noopener noreferrer">${esc(m.source)}<span class="sr-only"> (opens in a new tab)</span></a>, snapshot taken ${esc(fmtTimestamp(m.fetched_at))}.</p>
+    ${days >= 7 ? `<p class="caution">These prices are ${days} days old and may have moved.</p>` : ''}`;
+}
+
+function nominationKey(c) {
+  return c.party === 'Republican' ? 'nomination_republican' : 'nomination_democratic';
+}
+
+function candidateMarketSection(c) {
+  const m = state.markets;
+  if (!m) return '';
+  const entry = m.candidates[c.id] || {};
+  const rows = [[nominationKey(c), entry.nomination], ['presidency', entry.presidency]]
+    .filter(([key]) => m.events[key])
+    .map(([key, e]) => {
+      const ev = m.events[key];
+      return `<tr>
+        <th scope="row">${esc(ev.title)}</th>
+        <td data-label="Last price">${e ? fmtCents(e.last) : '<span class="muted">Not listed</span>'}</td>
+        <td data-label="Bid / ask">${e && e.bid !== null && e.ask !== null ? `${fmtCents(e.bid)} / ${fmtCents(e.ask)}` : '<span class="muted">None</span>'}</td>
+        <td data-label="Market">${externalLink(ev.url, 'View market on Kalshi')}</td>
+      </tr>`;
+    }).join('');
+  return `<section class="section-gap" aria-labelledby="mkt-h">
+    <h2 id="mkt-h">Prediction markets <span class="muted">(not part of your score)</span></h2>
+    ${marketsIntro()}
+    <div class="table-wrap"><table class="data stack">
+      <caption class="sr-only">Kalshi prices for ${esc(c.name)}</caption>
+      <thead><tr><th scope="col">Market</th><th scope="col">Last price</th><th scope="col">Bid / ask</th><th scope="col">Link</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </section>`;
+}
+
+function marketsPanel() {
+  const m = state.markets;
+  if (!m) return '';
+  const rows = state.candidates.slice()
+    .sort((a, b) => a.party.localeCompare(b.party)
+      || (((m.candidates[b.id] || {}).nomination || {}).last ?? -1) - (((m.candidates[a.id] || {}).nomination || {}).last ?? -1)
+      || a.name.localeCompare(b.name))
+    .map((c) => {
+      const e = m.candidates[c.id] || {};
+      return `<tr>
+        <th scope="row"><a href="#/candidate/${esc(c.id)}">${esc(c.name)}</a></th>
+        <td data-label="Party">${partyTag(c.party)}</td>
+        <td data-label="Party nomination">${e.nomination ? fmtCents(e.nomination.last) : '<span class="muted">Not listed</span>'}</td>
+        <td data-label="Presidency">${e.presidency ? fmtCents(e.presidency.last) : '<span class="muted">Not listed</span>'}</td>
+      </tr>`;
+    }).join('');
+  const others = (m.uncovered || []).map((u) => `${esc(u.name)} (${esc(MARKET_LABELS[u.market] || u.market)}, ${fmtCents(u.last)})`);
+  const eventLinks = Object.keys(MARKET_LABELS).filter((k) => m.events[k])
+    .map((k) => externalLink(m.events[k].url, m.events[k].title)).join(' &middot; ');
+  return `<section class="section-gap no-print" aria-labelledby="mkts-h">
+    <details class="markets-panel">
+      <summary><h2 id="mkts-h">Prediction market prices <span class="muted">(not part of your score)</span></h2></summary>
+      ${marketsIntro()}
+      <div class="table-wrap"><table class="data stack">
+        <caption class="sr-only">Kalshi last traded prices by candidate, grouped by party</caption>
+        <thead><tr><th scope="col">Candidate</th><th scope="col">Party</th><th scope="col">Party nomination</th><th scope="col">Presidency</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      ${others.length ? `<p class="small">Also traded on Kalshi at 2&cent; or more, but not covered by Ballot Compass: ${others.join('; ')}.</p>` : ''}
+      <p class="small">Markets: ${eventLinks}</p>
+    </details>
+  </section>`;
 }
 
 function answeredCount() {
@@ -492,6 +600,8 @@ function resultCard(entry, rank) {
         <div class="card-actions">
           <a href="#/candidate/${esc(c.id)}">Issue-by-issue table for ${esc(c.name)}</a>
           <a href="#/compare?a=${esc(c.id)}">Compare with another candidate</a>
+          ${c.links && c.links.campaign_url ? externalLink(c.links.campaign_url, 'Campaign website') : ''}
+          ${c.links && c.links.official_url ? externalLink(c.links.official_url, 'Official website') : ''}
         </div>
       </div>
     </div>
@@ -613,6 +723,7 @@ function viewResults() {
       </label>
     </div>
     <div id="result-region">${resultsListHtml(ranked)}</div>
+    ${marketsPanel()}
     ${leadershipSection()}
     ${answersAppendix()}`,
     after: () => wireResults(ranked),
@@ -681,7 +792,8 @@ function viewCandidate(id) {
     <dl class="profile-facts">
       <div><dt>Age</dt><dd>${age === null ? 'Unknown' : age}</dd></div>
       <div><dt>2028 status</dt><dd>${statusText(c)}<span class="cell-sub">${esc(c.status_note || '')}</span>${c.status_needs_verification ? `<span class="source-tags">${verifyTag()}</span>` : ''}</dd></div>
-      <div><dt>Sources</dt><dd>${profileUrl ? `<a href="${esc(profileUrl)}" target="_blank" rel="noopener noreferrer">Profile<span class="sr-only"> (opens in a new tab)</span></a>` : ''}${statusUrl ? ` &middot; <a href="${esc(statusUrl)}" target="_blank" rel="noopener noreferrer">2028 field<span class="sr-only"> (opens in a new tab)</span></a>` : ''}</dd></div>
+      <div><dt>Websites</dt><dd>${websiteLinks(c)}</dd></div>
+      <div><dt>Background sources</dt><dd>${profileUrl ? `<a href="${esc(profileUrl)}" target="_blank" rel="noopener noreferrer">Profile<span class="sr-only"> (opens in a new tab)</span></a>` : ''}${statusUrl ? ` &middot; <a href="${esc(statusUrl)}" target="_blank" rel="noopener noreferrer">2028 field<span class="sr-only"> (opens in a new tab)</span></a>` : ''}</dd></div>
     </dl>
     <div class="score-summary">${summary}</div>
     ${r.dealbreakers.length ? `<div class="notice notice-flag"><p>${dealbreakerFlag('Dealbreaker conflict')} ${esc(c.name)}'s position is two or more steps from yours on an issue you marked as a dealbreaker: ${r.dealbreakers.map((d) => esc(issueById(d).title)).join(', ')}.</p></div>` : ''}
@@ -695,6 +807,7 @@ function viewCandidate(id) {
       </table>
     </div>
     <p class="small muted">Match levels: Agree means the same position; Partial means one step apart; Disagree means two or more steps apart; Unknown means no clear position, so the issue is not scored.</p>
+    ${candidateMarketSection(c)}
     <div class="actions no-print"><a class="btn" href="#/compare?a=${esc(c.id)}">Compare with another candidate</a><a href="#/results">Back to all results</a></div>`,
   };
 }
@@ -822,6 +935,7 @@ function viewMethodology() {
         <li><a href="#m-leadership" data-anchor>Leadership style</a></li>
         <li><a href="#m-data" data-anchor>Data and updates</a></li>
         <li><a href="#m-limits" data-anchor>Limitations</a></li>
+        <li><a href="#m-markets" data-anchor>Prediction markets and links</a></li>
         <li><a href="#m-privacy" data-anchor>Privacy</a></li>
       </ol></nav>
 
@@ -894,6 +1008,11 @@ opposite ends        &rarr; 0.00  (Disagree)</p>
         <li>The seed data has not yet been verified by a human editor and may contain errors.</li>
       </ul>
       <p><strong>Alignment reflects only the issues you answered and weighted. It is not a prediction or an endorsement.</strong></p>
+
+      <h2 id="m-markets" tabindex="-1">Prediction markets and links</h2>
+      <p>Candidate pages and the results page can show prices from Kalshi, a regulated prediction-market exchange. A price is what traders last paid for a contract that pays $1 if the candidate wins that market, so 23&cent; roughly means traders put the chance near 23 percent. Market prices measure expectations about who will win, not agreement with your views. They are shown separately and never enter an alignment score, and Ballot Compass has no relationship with Kalshi.</p>
+      <p>${state.markets ? `The prices are a snapshot taken ${esc(fmtTimestamp(state.markets.fetched_at))}, not a live feed.` : 'No market snapshot is loaded right now.'} A snapshot keeps the promise below: your browser never contacts Kalshi or any other outside service. Editors refresh it by running <code>scripts/fetch-markets.mjs</code>.</p>
+      <p>Each candidate page links to their official office website where one exists. Campaign websites are listed only once a candidate has declared and launched one.</p>
 
       <h2 id="m-privacy" tabindex="-1">Privacy</h2>
       <p>There are no accounts, cookies, analytics or third-party requests. Your answers are saved in your browser's local storage so you can come back to them, and are never sent anywhere. "Clear my answers" at the bottom of every page deletes them. "Export as PDF" uses your browser's own print dialog.</p>
@@ -1002,6 +1121,14 @@ async function boot() {
     state.scaleNote = issuesData.scale_note || '';
     state.candidates = candData.candidates;
     state.meta = candData.meta || {};
+    // Market prices are an optional, same-origin snapshot. The app works without them.
+    try {
+      const mRes = await fetch('data/markets.json');
+      if (mRes.ok) {
+        const m = await mRes.json();
+        if (m && m.candidates && m.events && m.fetched_at) state.markets = m;
+      }
+    } catch { /* no market snapshot: the section is simply hidden */ }
   } catch {
     main.innerHTML = `<div class="wrap measure"><h1>Data could not be loaded</h1>
       <p>Ballot Compass loads its candidate data from files next to this page. If you opened <code>index.html</code> directly from disk, serve the folder over HTTP instead, for example with <code>python3 -m http.server</code>, and open the address it prints.</p></div>`;

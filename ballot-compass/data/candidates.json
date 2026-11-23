@@ -164,6 +164,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.whitehouse.gov/administration/jd-vance/",
+        "official_label": "Office of the Vice President",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -310,6 +316,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.state.gov/",
+        "official_label": "U.S. Department of State",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -456,6 +468,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.flgov.com/",
+        "official_label": "Office of the Governor of Florida",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -602,6 +620,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.cruz.senate.gov/",
+        "official_label": "Senate office",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -748,6 +772,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.paul.senate.gov/",
+        "official_label": "Senate office",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -894,6 +924,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://gov.georgia.gov/",
+        "official_label": "Office of the Governor of Georgia",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -1040,6 +1076,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": null,
+        "official_label": null,
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -1186,6 +1228,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://governor.arkansas.gov/",
+        "official_label": "Office of the Governor of Arkansas",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -1332,6 +1380,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.hawley.senate.gov/",
+        "official_label": "Senate office",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -1478,6 +1532,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": null,
+        "official_label": null,
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -1624,6 +1684,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.ossoff.senate.gov/",
+        "official_label": "Senate office",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -1770,6 +1836,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": null,
+        "official_label": null,
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -1916,6 +1988,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://ocasio-cortez.house.gov/",
+        "official_label": "House office",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -2062,6 +2140,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.gov.ca.gov/",
+        "official_label": "Office of the Governor of California",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -2208,6 +2292,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.governor.pa.gov/",
+        "official_label": "Office of the Governor of Pennsylvania",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -2354,6 +2444,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://governor.ky.gov/",
+        "official_label": "Office of the Governor of Kentucky",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -2500,6 +2596,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://gov.illinois.gov/",
+        "official_label": "Office of the Governor of Illinois",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -2646,6 +2748,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.kelly.senate.gov/",
+        "official_label": "Senate office",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -2792,6 +2900,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://www.gallego.senate.gov/",
+        "official_label": "Senate office",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -2938,6 +3052,12 @@
           "provenance": "Record",
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": "https://khanna.house.gov/",
+        "official_label": "House office",
+        "campaign_url": null,
+        "needs_verification": true
       }
     },
     {
@@ -3084,6 +3204,12 @@
           "provenance": null,
           "needs_verification": true
         }
+      },
+      "links": {
+        "official_url": null,
+        "official_label": null,
+        "campaign_url": null,
+        "needs_verification": true
       }
     }
   ]
