@@ -68,6 +68,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -518,3 +519,11 @@ input[type="email"] {
   .results-sub { margin-bottom: 10px; }
   .note-line { margin-bottom: 12px; }
 }
+
+/* Confirmation dialog */
+.confirm-dialog {
+  border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); color: var(--ink);
+  padding: 20px; width: min(26rem, calc(100vw - 32px));
+}
+.confirm-dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+.confirm-dialog .actions { margin-top: 12px; justify-content: flex-end; }

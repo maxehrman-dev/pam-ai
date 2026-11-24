@@ -16,12 +16,12 @@
 
   <header class="site-header">
     <div class="wrap header-inner">
-      <a class="wordmark" href="#/">Ballot Compass</a>
+      <a class="wordmark" href="#start">Ballot Compass</a>
       <nav aria-label="Main">
         <ul class="nav-list">
-          <li><a href="#/results" data-nav="results">Results</a></li>
-          <li><a href="#/compare" data-nav="compare">Compare</a></li>
-          <li><a href="#/methodology" data-nav="methodology">How it works</a></li>
+          <li><a href="#results" data-nav="results">Results</a></li>
+          <li><a href="#compare" data-nav="compare">Compare</a></li>
+          <li><a href="#how-it-works" data-nav="how-it-works">How it works</a></li>
         </ul>
       </nav>
     </div>
@@ -42,10 +42,22 @@
       <p class="footer-privacy">No account. No tracking cookies. Answers stay in your browser unless you choose to share them.</p>
       <div class="footer-actions">
         <button type="button" class="btn btn-quiet" data-clear>Clear my answers</button>
-        <a href="#/methodology">How it works</a>
+        <a href="#how-it-works">How it works</a>
       </div>
     </div>
   </footer>
+
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title">
+    <form method="dialog">
+      <h2 id="confirm-title" class="h3" data-confirm-title></h2>
+      <p data-confirm-body></p>
+      <p class="form-error" data-confirm-error></p>
+      <div class="actions">
+        <button class="btn" value="no" autofocus>Cancel</button>
+        <button class="btn btn-primary" value="yes" data-confirm-yes></button>
+      </div>
+    </form>
+  </dialog>
 
   <noscript>
     <div class="wrap"><p>Ballot Compass needs JavaScript to compare your answers. Nothing you enter is sent to a server.</p></div>

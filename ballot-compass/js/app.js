@@ -18,6 +18,8 @@ import {
 } from './survey.js';
 
 const STORAGE_KEY = 'ballot-compass:v1';
+// Preview mode (e.g. a hosted demo with no server): no sharing, sign-up or print, and the page says so.
+const PREVIEW = document.querySelector('meta[name="bc-mode"][content="preview"]') !== null;
 const STATUSES = ['Declared', 'Exploring', 'Undecided', 'Says not running', 'Declined'];
 const PARTIES = ['Republican', 'Democratic'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -220,7 +222,7 @@ function marketsPanel() {
     .map((c) => {
       const e = m.candidates[c.id] || {};
       return `<tr>
-        <th scope="row"><a href="#/candidate/${esc(c.id)}">${esc(c.name)}</a> ${partyTag(c.party)}</th>
+        <th scope="row"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a> ${partyTag(c.party)}</th>
         <td data-label="Nomination">${e.nomination ? esc(fmtOdds(e.nomination.last)) : '<span class="muted">&ndash;</span>'}</td>
         <td data-label="Presidency">${e.presidency ? esc(fmtOdds(e.presidency.last)) : '<span class="muted">&ndash;</span>'}</td>
       </tr>`;
@@ -371,11 +373,11 @@ function viewIntro() {
   const started = Object.keys(state.answers).length > 0;
   let primary;
   if (!started) {
-    primary = '<a class="btn btn-primary" href="#/q/1">Start</a>';
+    primary = '<a class="btn btn-primary" href="#q-1">Start</a>';
   } else if (next === -1) {
-    primary = '<a class="btn btn-primary" href="#/results">View your results</a><button type="button" class="btn" data-start-over>Start over</button>';
+    primary = '<a class="btn btn-primary" href="#results">View your results</a><button type="button" class="btn" data-start-over>Start over</button>';
   } else {
-    primary = `<a class="btn btn-primary" href="#/q/${next + 1}">Continue (${next + 1} of ${total})</a><button type="button" class="btn" data-start-over>Start over</button>`;
+    primary = `<a class="btn btn-primary" href="#q-${next + 1}">Continue (${next + 1} of ${total})</a><button type="button" class="btn" data-start-over>Start over</button>`;
   }
 
   return {
@@ -390,7 +392,7 @@ function viewIntro() {
         <li>Skip anything</li>
         <li>No account</li>
       </ul>
-      <div class="actions">${primary}<a href="#/methodology">How scoring works</a></div>
+      <div class="actions">${primary}<a href="#how-it-works">How scoring works</a></div>
       ${seedNotice()}
     </div>`,
   };
@@ -417,7 +419,7 @@ function viewQuestion(n) {
     html: `
     <div class="measure">
       <div class="progress">
-        <div class="progress-label"><span>${n} of ${total}</span><a href="#/review">All issues</a></div>
+        <div class="progress-label"><span>${n} of ${total}</span><a href="#review">All issues</a></div>
         <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-width="${pct}"></div></div>
       </div>
       <form id="q-form" data-issue="${esc(issue.id)}" data-n="${n}" novalidate>
@@ -491,7 +493,7 @@ function wireQuestion() {
   form.querySelector('[data-q-back]').addEventListener('click', () => {
     const a = readQuestionForm(form);
     if (a) { state.answers[issueId] = a; save(); }
-    location.hash = n > 1 ? `#/q/${n - 1}` : '#/';
+    location.hash = n > 1 ? `#q-${n - 1}` : '#start';
   });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -503,7 +505,7 @@ function wireQuestion() {
     }
     state.answers[issueId] = a;
     save();
-    location.hash = n < state.issues.length ? `#/q/${n + 1}` : '#/leadership';
+    location.hash = n < state.issues.length ? `#q-${n + 1}` : '#leadership';
   });
 }
 
@@ -570,16 +572,16 @@ function wireLeadership() {
     const t = state.traits.find((x) => x.id === id);
     announce(`${t.label} moved to position ${j + 1} of ${ranking.length}.`);
   });
-  document.querySelector('[data-l-back]').addEventListener('click', () => { location.hash = `#/q/${state.issues.length}`; });
+  document.querySelector('[data-l-back]').addEventListener('click', () => { location.hash = `#q-${state.issues.length}`; });
   document.querySelector('[data-l-skip]').addEventListener('click', () => {
     state.leadership = { ranking: null, skipped: true };
     save();
-    location.hash = '#/about-you';
+    location.hash = '#about-you';
   });
   document.querySelector('[data-l-save]').addEventListener('click', () => {
     state.leadership = { ranking: ranking.slice(), skipped: false };
     save();
-    location.hash = '#/about-you';
+    location.hash = '#about-you';
   });
 }
 
@@ -596,7 +598,7 @@ function viewAboutYou() {
         <option value="${PREFER_NOT.value}" ${p[f.id] === PREFER_NOT.value ? 'selected' : ''}>${PREFER_NOT.label}</option>
       </select>
     </div>`).join('');
-  const email = state.signedUp
+  const email = state.signedUp || PREVIEW
     ? ''
     : `<div class="field">
         <label for="d-email">Email for updates <span class="muted">(optional)</span></label>
@@ -613,6 +615,7 @@ function viewAboutYou() {
       </div>
       <h1 tabindex="-1">A few questions about you</h1>
       <p class="question-text">Share anonymously to help show what voters want. You'll see results either way.</p>
+      ${PREVIEW ? '<p class="draft-note"><strong>Preview.</strong> Sharing is off here, so nothing is sent.</p>' : ''}
       ${state.share ? `<p class="small muted">Shared ${esc(fmtDate(state.share.sharedOn))}. Sharing again updates it.</p>` : ''}
       <form id="about-form" novalidate>
         <p class="form-error" id="a-error" role="alert"></p>
@@ -621,15 +624,15 @@ function viewAboutYou() {
           <div class="field-grid">${fields}</div>
         </fieldset>
         ${email}
-        <label class="consent">
+        <label class="consent" ${PREVIEW ? 'hidden' : ''}>
           <input type="checkbox" id="d-consent" ${state.share ? 'checked' : ''}>
-          <span>Share my answers anonymously. We publish totals only and never sell responses. <a href="#/methodology">Details</a></span>
+          <span>Share my answers anonymously. We publish totals only and never sell responses. <a href="#how-it-works">Details</a></span>
         </label>
         <div class="actions actions-split">
           <button type="button" class="btn" data-a-back>Back</button>
           <span class="actions actions-inline">
             <button type="button" class="btn" data-a-skip>Skip</button>
-            <button type="submit" class="btn btn-primary" data-a-share>Share and see results</button>
+            <button type="submit" class="btn btn-primary" data-a-share>${PREVIEW ? 'See results' : 'Share and see results'}</button>
           </span>
         </div>
       </form>
@@ -648,14 +651,19 @@ function wireAboutYou() {
       save();
     }
   });
-  form.querySelector('[data-a-back]').addEventListener('click', () => { location.hash = '#/leadership'; });
+  form.querySelector('[data-a-back]').addEventListener('click', () => { location.hash = '#leadership'; });
   form.querySelector('[data-a-skip]').addEventListener('click', () => {
     state.flash = null;
-    location.hash = '#/results';
+    location.hash = '#results';
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     error.textContent = '';
+    if (PREVIEW) {
+      state.flash = { kind: 'warn', text: 'Preview: nothing was sent.' };
+      location.hash = '#results';
+      return;
+    }
     const consent = form.querySelector('#d-consent');
     const emailInput = form.querySelector('#d-email');
     const email = emailInput ? emailInput.value.trim() : '';
@@ -704,15 +712,15 @@ function wireAboutYou() {
     }
     state.flash = { kind, text: messages.join(' ') };
     save();
-    location.hash = '#/results';
+    location.hash = '#results';
   });
 }
 
 function engageBox() {
   const share = state.share
-    ? `<p class="small muted">Shared ${esc(fmtDate(state.share.sharedOn))}. <a href="#/about-you">Update</a></p>`
-    : '<p><a class="btn" href="#/about-you">Add your answers to the public tally</a> <span class="small muted">Anonymous, optional</span></p>';
-  const signup = state.signedUp ? '' : `
+    ? `<p class="small muted">Shared ${esc(fmtDate(state.share.sharedOn))}. <a href="#about-you">Update</a></p>`
+    : '<p><a class="btn" href="#about-you">Add your answers to the public tally</a> <span class="small muted">Anonymous, optional</span></p>';
+  const signup = state.signedUp || PREVIEW ? '' : `
     <form id="su-form" class="inline-form" novalidate>
       <label for="su-email" class="sr-only">Email address for updates</label>
       <input type="email" id="su-email" autocomplete="email" inputmode="email" spellcheck="false" placeholder="Email for updates">
@@ -782,7 +790,7 @@ function resultCard(entry) {
   return `<li class="result-card">
     <div class="rc-head">
       <div>
-        <h3 class="result-name"><a href="#/candidate/${esc(c.id)}">${esc(c.name)}</a></h3>
+        <h3 class="result-name"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a></h3>
         <p class="result-meta">${partyTag(c.party)} ${esc(c.status)} <span class="muted">&middot; ${esc(fmtDate(c.status_date))}</span></p>
       </div>
       <div class="result-score">${score}</div>
@@ -816,7 +824,7 @@ function leadershipSection() {
   const traitLabel = (id) => state.traits.find((t) => t.id === id).label;
   const mine = state.leadership.ranking
     ? `<p>Your priorities: ${state.leadership.ranking.map((id, i) => `${i + 1}. ${esc(traitLabel(id))}`).join(' &middot; ')}</p>`
-    : '<p class="muted">Not ranked. <a href="#/leadership">Rank them</a></p>';
+    : '<p class="muted">Not ranked. <a href="#leadership">Rank them</a></p>';
   const rows = state.candidates.slice().sort((a, b) => a.name.localeCompare(b.name)).map((c) => `
     <tr>
       <th scope="row">${esc(c.name)}</th>
@@ -861,14 +869,14 @@ function viewResults() {
       html: `<div class="measure">
         <h1 tabindex="-1">Your results</h1>
         <p>Answer at least one issue to see results.</p>
-        <div class="actions"><a class="btn btn-primary" href="#/q/1">Start</a></div>
+        <div class="actions"><a class="btn btn-primary" href="#q-1">Start</a></div>
       </div>`,
     };
   }
   const ranked = rankedNow();
   const bestR = bestByParty(ranked, 'Republican');
   const bestD = bestByParty(ranked, 'Democratic');
-  const partyCell = (label, e) => `<div><dt>${esc(label)}</dt><dd>${e ? `<a href="#/candidate/${esc(e.candidate.id)}">${esc(e.candidate.name)}</a> ${e.result.alignment}%` : '<span class="muted">Not enough data</span>'}</dd></div>`;
+  const partyCell = (label, e) => `<div><dt>${esc(label)}</dt><dd>${e ? `<a href="#candidate-${esc(e.candidate.id)}">${esc(e.candidate.name)}</a> ${e.result.alignment}%` : '<span class="muted">Not enough data</span>'}</dd></div>`;
   const flash = state.flash;
   state.flash = null;
   const flashHtml = flash ? `<p class="flash ${flash.kind === 'warn' ? 'flash-warn' : ''}" role="status">${esc(flash.text)}</p>` : '';
@@ -884,7 +892,7 @@ function viewResults() {
     </div>
     <div class="results-head">
       <h1 tabindex="-1">Your results</h1>
-      <p class="results-sub">${answered} of ${state.issues.length} issues &middot; <a href="#/review" class="no-print">Edit answers</a></p>
+      <p class="results-sub">${answered} of ${state.issues.length} issues &middot; <a href="#review" class="no-print">Edit answers</a></p>
     </div>
     ${flashHtml}
     <p class="note-line">Alignment reflects only the issues you answered and weighted. It is not a prediction or an endorsement.${state.meta.last_reviewed ? '' : ' <span class="draft-inline">Draft data, not yet verified.</span>'}</p>
@@ -897,7 +905,7 @@ function viewResults() {
       ${select('f-party', 'Party', [['all', 'All'], ...PARTIES.map((p) => [p, p])], state.filters.party)}
       ${select('f-status', 'Status', [['all', 'All'], ...STATUSES.map((s) => [s, s])], state.filters.status)}
       ${select('f-sort', 'Sort by', [['alignment', 'Alignment'], ['coverage', 'Issues covered']], state.filters.sort)}
-      <span class="filter-links"><a href="#/compare">Compare two</a><button type="button" class="btn-link" data-print>Save as PDF</button></span>
+      <span class="filter-links"><a href="#compare">Compare two</a>${PREVIEW ? '' : '<button type="button" class="btn-link" data-print>Save as PDF</button>'}</span>
     </div>
     <div id="result-region">${resultsListHtml()}</div>
     ${engageBox()}
@@ -918,7 +926,8 @@ function wireResults() {
   document.getElementById('f-party').addEventListener('change', (e) => { state.filters.party = e.target.value; update(); });
   document.getElementById('f-status').addEventListener('change', (e) => { state.filters.status = e.target.value; update(); });
   document.getElementById('f-sort').addEventListener('change', (e) => { state.filters.sort = e.target.value; update(); });
-  document.querySelector('[data-print]').addEventListener('click', () => window.print());
+  const printBtn = document.querySelector('[data-print]');
+  if (printBtn) printBtn.addEventListener('click', () => window.print());
   wireSignup();
 }
 
@@ -930,7 +939,7 @@ function viewReview() {
     const pos = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : esc(positionLabel(issue, a.value));
     const imp = a && a.value !== null ? `<span class="tag tag-prov">${esc(importanceLabel(a.importance))}</span>` : '';
     return `<li class="review-row">
-      <a href="#/q/${i + 1}" class="review-link">
+      <a href="#q-${i + 1}" class="review-link">
         <span class="review-title">${esc(issue.title)} ${imp}</span>
         <span class="review-pos">${pos}</span>
       </a>
@@ -942,7 +951,7 @@ function viewReview() {
       <h1 tabindex="-1">Your answers</h1>
       <p class="muted">Tap an issue to change it.</p>
       <ul class="review-list">${rows}</ul>
-      <div class="actions"><a class="btn btn-primary" href="#/results">See results</a></div>
+      <div class="actions"><a class="btn btn-primary" href="#results">See results</a></div>
     </div>`,
   };
 }
@@ -958,7 +967,7 @@ function viewCandidate(id) {
   const statusUrl = safeUrl(c.status_source_url);
 
   const summary = r.answered === 0
-    ? '<p class="tight"><a href="#/q/1">Answer the issues</a> to see your match.</p>'
+    ? '<p class="tight"><a href="#q-1">Answer the issues</a> to see your match.</p>'
     : r.alignment === null
       ? '<p class="tight">No score: no known positions on the issues you answered.</p>'
       : `<p class="tight"><span class="score-num">${r.alignment}%</span> <span class="muted">${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}</span></p>`;
@@ -982,7 +991,7 @@ function viewCandidate(id) {
   return {
     title: c.name,
     html: `
-    <a class="back-link no-print" href="#/results">&larr; Results</a>
+    <a class="back-link no-print" href="#results">&larr; Results</a>
     <div class="profile-head">
       <h1 tabindex="-1">${esc(c.name)}</h1>
       <p class="result-meta">${partyTag(c.party)} ${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
@@ -1003,7 +1012,7 @@ function viewCandidate(id) {
     </div>
     ${candidateMarketSection(c)}
     <p class="small muted">Background: ${profileUrl ? externalLink(profileUrl, 'profile') : ''}${statusUrl ? ` &middot; ${externalLink(statusUrl, '2028 field')}` : ''}</p>
-    <div class="actions no-print"><a class="btn" href="#/compare?a=${esc(c.id)}">Compare</a></div>`,
+    <div class="actions no-print"><a class="btn" href="#compare-${esc(c.id)}">Compare</a></div>`,
   };
 }
 
@@ -1032,9 +1041,9 @@ function candidateOptions(selectedId) {
     .map((c) => `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
 }
 
-function viewCompare(params) {
-  let aId = params.get('a');
-  let bId = params.get('b');
+function viewCompare(aParam, bParam) {
+  let aId = aParam || null;
+  let bId = bParam || null;
   if (!candidateById(aId) || !candidateById(bId) || aId === bId) {
     const d = defaultCompare(aId);
     aId = d.a;
@@ -1047,7 +1056,7 @@ function viewCompare(params) {
   const any = hasAnyAnswers();
 
   const scoreCell = (c, r) => `<div>
-    <p class="tight h3"><a href="#/candidate/${esc(c.id)}">${esc(c.name)}</a> ${partyTag(c.party)}</p>
+    <p class="tight h3"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a> ${partyTag(c.party)}</p>
     <p class="tight small muted">${esc(c.status)} (${esc(fmtDate(c.status_date))})</p>
     ${any ? (r.alignment === null ? '<p class="tight mt-xs muted">No overlap with your answers</p>'
       : `<p class="tight mt-xs"><span class="score-num">${r.alignment}%</span> <span class="small muted">${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}</span></p>${r.dealbreakers.length ? `<p class="tight">${dealbreakerFlag(`Dealbreaker: ${r.dealbreakers.map((d) => issueById(d).title).join(', ')}`)}</p>` : ''}`)
@@ -1079,7 +1088,7 @@ function viewCompare(params) {
     title: `Compare ${A.name} and ${B.name}`,
     html: `
     <h1 tabindex="-1">Compare</h1>
-    ${any ? '' : '<p class="muted"><a href="#/q/1">Answer the issues</a> to see how each matches you.</p>'}
+    ${any ? '' : '<p class="muted"><a href="#q-1">Answer the issues</a> to see how each matches you.</p>'}
     <div class="compare-pickers no-print">
       <label for="cmp-a">Candidate 1<select id="cmp-a">${candidateOptions(A.id)}</select></label>
       <label for="cmp-b">Candidate 2<select id="cmp-b">${candidateOptions(B.id)}</select></label>
@@ -1098,7 +1107,7 @@ function viewCompare(params) {
         const next = { a: A.id, b: B.id, [which]: value };
         if (next.a === next.b) next[which === 'a' ? 'b' : 'a'] = which === 'a' ? A.id : B.id;
         keepFocusSelector = `#cmp-${which}`;
-        location.hash = `#/compare?a=${encodeURIComponent(next.a)}&b=${encodeURIComponent(next.b)}`;
+        location.hash = `#compare-${next.a}--${next.b}`;
       };
       document.getElementById('cmp-a').addEventListener('change', (e) => go('a', e.target.value));
       document.getElementById('cmp-b').addEventListener('change', (e) => go('b', e.target.value));
@@ -1171,16 +1180,36 @@ alignment = &Sigma;(weight &times; match) &divide; &Sigma;(weight)</p>
 function viewNotFound() {
   return {
     title: 'Page not found',
-    html: '<div class="measure"><h1 tabindex="-1">Page not found</h1><p>That page does not exist. <a href="#/">Go to the start</a> or <a href="#/results">view your results</a>.</p></div>',
+    html: '<div class="measure"><h1 tabindex="-1">Page not found</h1><p>That page does not exist. <a href="#start">Go to the start</a> or <a href="#results">view your results</a>.</p></div>',
   };
 }
 
 /* ---------- router ---------- */
 
+/**
+ * Routes are plain hash names (#results, #q-3, #candidate-ossoff, #compare-vance--harris)
+ * so links survive being shared from hosts that only pass simple #names.
+ * Older #/path links still resolve.
+ */
 function parseRoute() {
-  const raw = location.hash.replace(/^#\/?/, '');
-  const [path, query = ''] = raw.split('?');
-  return { parts: path.split('/').filter(Boolean).map(decodeURIComponent), params: new URLSearchParams(query) };
+  let raw = '';
+  try { raw = decodeURIComponent(location.hash.replace(/^#/, '')); } catch { raw = ''; }
+  if (raw.startsWith('/')) {
+    const [path, query = ''] = raw.slice(1).split('?');
+    const [head, arg] = path.split('/').filter(Boolean);
+    const params = new URLSearchParams(query);
+    if (head === 'compare') return { head, a: params.get('a'), b: params.get('b') };
+    return { head: head === 'methodology' ? 'how-it-works' : head, arg };
+  }
+  if (!raw || raw === 'start') return { head: undefined };
+  if (raw.startsWith('m-')) return { head: 'how-it-works', anchor: raw };
+  const m = /^(q|candidate|compare)-(.+)$/.exec(raw);
+  if (m && m[1] === 'compare') {
+    const [a, b] = m[2].split('--');
+    return { head: 'compare', a, b };
+  }
+  if (m) return { head: m[1], arg: m[2] };
+  return { head: raw };
 }
 
 function applyWidths(root = main) {
@@ -1197,8 +1226,7 @@ function updateNav(head) {
 }
 
 function render() {
-  const { parts, params } = parseRoute();
-  const [head, arg] = parts;
+  const { head, arg, a, b } = parseRoute();
   let view;
   switch (head) {
     case undefined: view = viewIntro(); break;
@@ -1208,8 +1236,8 @@ function render() {
     case 'review': view = viewReview(); break;
     case 'results': view = viewResults(); break;
     case 'candidate': view = viewCandidate(arg); break;
-    case 'compare': view = viewCompare(params); break;
-    case 'methodology': view = viewMethodology(); break;
+    case 'compare': view = viewCompare(a, b); break;
+    case 'how-it-works': view = viewMethodology(); break;
     default: view = viewNotFound();
   }
   main.innerHTML = `<div class="wrap">${view.html}</div>`;
@@ -1233,33 +1261,60 @@ function render() {
 
 /* ---------- global events ---------- */
 
-document.addEventListener('click', (e) => {
+/** In-page confirmation. Native confirm() and alert() are blocked in some hosts, so never use them. */
+function askConfirm({ title, body, confirmLabel }) {
+  const dlg = document.getElementById('confirm-dialog');
+  dlg.querySelector('[data-confirm-title]').textContent = title;
+  dlg.querySelector('[data-confirm-body]').textContent = body;
+  dlg.querySelector('[data-confirm-yes]').textContent = confirmLabel;
+  dlg.querySelector('[data-confirm-error]').textContent = '';
+  dlg.returnValue = '';
+  dlg.showModal();
+  return new Promise((resolve) => {
+    dlg.addEventListener('close', () => resolve(dlg.returnValue === 'yes'), { once: true });
+  });
+}
+
+document.addEventListener('click', async (e) => {
+  if (e.target.closest('.skip-link')) {
+    e.preventDefault();
+    main.focus();
+    return;
+  }
   if (e.target.closest('[data-clear]')) clearAnswers();
   if (e.target.closest('[data-start-over]')) {
-    if (window.confirm('Start over? This clears the answers saved in this browser.')) {
+    const ok = await askConfirm({ title: 'Start over?', body: 'This clears the answers saved in this browser.', confirmLabel: 'Start over' });
+    if (ok) {
       // Keep the share code so sharing again replaces the earlier copy instead of adding a duplicate.
       clearAll({ keepShareId: true });
-      location.hash = '#/q/1';
+      location.hash = '#q-1';
     }
   }
 });
 
 async function clearAnswers() {
   const shared = state.share;
-  const question = shared
-    ? 'Clear all your answers from this browser and delete the anonymous copy you shared? This cannot be undone.'
-    : 'Clear all your answers from this browser? This cannot be undone.';
-  if (!window.confirm(question)) return;
+  const ok = await askConfirm({
+    title: 'Clear your answers?',
+    body: shared ? 'This removes them from this browser and deletes the anonymous copy you shared.' : 'This removes them from this browser.',
+    confirmLabel: 'Clear answers',
+  });
+  if (!ok) return;
   if (shared) {
     const r = await postJson('api/responses', { submission_id: shared.id }, 'DELETE');
     if (!r.ok) {
-      window.alert('Your shared copy could not be deleted right now, so nothing was cleared. Please try again later.');
+      announce('Your shared copy could not be deleted right now, so nothing was cleared. Try again later.');
+      const flash = document.createElement('p');
+      flash.className = 'flash flash-warn';
+      flash.setAttribute('role', 'alert');
+      flash.textContent = 'Your shared copy could not be deleted right now, so nothing was cleared. Try again later.';
+      main.querySelector('.wrap').prepend(flash);
       return;
     }
   }
   clearAll();
   state.filters = { party: 'all', status: 'all', sort: 'alignment' };
-  if (location.hash === '' || location.hash === '#/') render(); else location.hash = '#/';
+  if (!parseRoute().head) render(); else location.hash = '#start';
   announce(shared ? 'Your answers and your shared copy were deleted.' : 'Your answers were cleared.');
 }
 
