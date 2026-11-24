@@ -259,6 +259,34 @@ function hasAnyAnswers() {
   return answeredCount() > 0;
 }
 
+/** Results unlock only once every issue has been answered or skipped (and at least one answered). */
+function surveyComplete() {
+  return state.issues.length > 0 && firstUnvisitedIndex() === -1 && answeredCount() > 0;
+}
+
+function continueHref() {
+  const next = firstUnvisitedIndex();
+  return next === -1 ? '#review' : `#q-${next + 1}`;
+}
+
+function viewLocked(title) {
+  const total = state.issues.length;
+  const visited = total - state.issues.filter((i) => !(i.id in state.answers)).length;
+  const next = firstUnvisitedIndex();
+  return {
+    title,
+    html: `<div class="measure">
+      <div class="progress">
+        <div class="progress-label"><span>${visited} of ${total} issues done</span></div>
+        <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-width="${Math.round((visited / total) * 100)}"></div></div>
+      </div>
+      <h1 tabindex="-1">Finish the issues first</h1>
+      <p class="question-text">Your results appear once you've answered or skipped all ${total} issues, so the match reflects everything you care about.</p>
+      <div class="actions"><a class="btn btn-primary" href="${continueHref()}">${next === -1 ? 'Review your answers' : `Continue with issue ${next + 1}`}</a></div>
+    </div>`,
+  };
+}
+
 function firstUnvisitedIndex() {
   return state.issues.findIndex((i) => !(i.id in state.answers));
 }
@@ -1028,17 +1056,8 @@ function fullListHtml() {
 }
 
 function viewResults() {
+  if (!surveyComplete()) return viewLocked('Your results');
   const answered = answeredCount();
-  if (!answered) {
-    return {
-      title: 'Your results',
-      html: `<div class="measure">
-        <h1 tabindex="-1">Your results</h1>
-        <p>Answer at least one issue to see results.</p>
-        <div class="actions"><a class="btn btn-primary" href="#profile">Start</a></div>
-      </div>`,
-    };
-  }
   const ranked = rankedByAlignment();
   const scored = ranked.filter((e) => e.result.alignment !== null);
   const top = scored.slice(0, 3);
@@ -1162,10 +1181,12 @@ function layoutSpectrum(spec) {
 /* ----- tie-breaker ----- */
 
 function nextAfterAbout() {
+  if (!surveyComplete()) return continueHref();
   return closeContest(rankedByAlignment()) && !state.tiebreakSeen ? '#sharpen' : '#results';
 }
 
 function viewSharpen() {
+  if (!surveyComplete()) return viewLocked('Break the tie');
   state.tiebreakSeen = true;
   save();
   const pair = closeContest(rankedByAlignment());
@@ -1308,7 +1329,9 @@ function viewReview() {
       <h1 tabindex="-1">Your answers</h1>
       <p class="muted">Tap an issue to change it.</p>
       <ul class="review-list">${rows}</ul>
-      <div class="actions"><a class="btn btn-primary" href="#results">See results</a></div>
+      <div class="actions">${surveyComplete()
+    ? '<a class="btn btn-primary" href="#results">See results</a>'
+    : `<a class="btn btn-primary" href="${continueHref()}">Continue with issue ${firstUnvisitedIndex() + 1}</a>`}</div>
     </div>`,
   };
 }
@@ -1318,13 +1341,14 @@ function viewReview() {
 function viewCandidate(id) {
   const c = candidateById(id);
   if (!c) return viewNotFound();
-  const r = scoreCandidate(state.answers, c, state.issues);
+  const done = surveyComplete();
+  const r = scoreCandidate(done ? state.answers : {}, c, state.issues);
   const age = ageFrom(c.birth_date);
   const profileUrl = safeUrl(c.profile_url);
   const statusUrl = safeUrl(c.status_source_url);
 
-  const summary = r.answered === 0
-    ? '<p class="tight"><a href="#q-1">Answer the issues</a> to see your match.</p>'
+  const summary = !done
+    ? `<p class="tight muted">Your match with ${esc(c.name)} appears when you <a href="${continueHref()}">finish the issues</a>.</p>`
     : r.alignment === null
       ? '<p class="tight">No score: no known positions on the issues you answered.</p>'
       : `<p class="tight"><span class="score-num">${r.alignment}%</span> <span class="muted">${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}</span></p>`;
@@ -1341,14 +1365,14 @@ function viewCandidate(id) {
       <td data-label="You">${yours}</td>
       <td data-label="${esc(c.name)}">${theirs}</td>
       <td data-label="Source" class="source-cell">${sourceCell(pos)}</td>
-      <td data-label="Match">${matchBadge(row.level)}${row.dealbreaker ? `<span class="cell-sub">${dealbreakerFlag('Dealbreaker')}</span>` : ''}</td>
+      ${done ? `<td data-label="Match">${matchBadge(row.level)}${row.dealbreaker ? `<span class="cell-sub">${dealbreakerFlag('Dealbreaker')}</span>` : ''}</td>` : ''}
     </tr>`;
   }).join('');
 
   return {
     title: c.name,
     html: `
-    <a class="back-link no-print" href="#results">&larr; Results</a>
+    ${done ? '<a class="back-link no-print" href="#results">&larr; Results</a>' : `<a class="back-link no-print" href="${continueHref()}">&larr; Back to the issues</a>`}
     <div class="profile-head">
       <h1 tabindex="-1">${esc(c.name)}</h1>
       <p class="result-meta">${partyTag(c.party)} ${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
@@ -1362,7 +1386,7 @@ function viewCandidate(id) {
       <table class="data stack">
         <caption class="sr-only">Issue by issue: you and ${esc(c.name)}</caption>
         <thead><tr>
-          <th scope="col">Issue</th><th scope="col">You</th><th scope="col">${esc(c.name)}</th><th scope="col">Source</th><th scope="col">Match</th>
+          <th scope="col">Issue</th><th scope="col">You</th><th scope="col">${esc(c.name)}</th><th scope="col">Source</th>${done ? '<th scope="col">Match</th>' : ''}
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -1376,7 +1400,7 @@ function viewCandidate(id) {
 /* ----- compare ----- */
 
 function defaultCompare(aId) {
-  const ranked = hasAnyAnswers() ? rankCandidates(state.answers, state.candidates, state.issues) : null;
+  const ranked = surveyComplete() ? rankCandidates(state.answers, state.candidates, state.issues) : null;
   const pick = (party, exclude) => {
     if (ranked) {
       const e = ranked.find((x) => x.candidate.party === party && x.candidate.id !== exclude && x.result.alignment !== null);
@@ -1408,9 +1432,9 @@ function viewCompare(aParam, bParam) {
   }
   const A = candidateById(aId);
   const B = candidateById(bId);
-  const ra = scoreCandidate(state.answers, A, state.issues);
-  const rb = scoreCandidate(state.answers, B, state.issues);
-  const any = hasAnyAnswers();
+  const any = surveyComplete();
+  const ra = scoreCandidate(any ? state.answers : {}, A, state.issues);
+  const rb = scoreCandidate(any ? state.answers : {}, B, state.issues);
 
   const scoreCell = (c, r) => `<div>
     <p class="tight h3"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a> ${partyTag(c.party)}</p>
@@ -1445,7 +1469,7 @@ function viewCompare(aParam, bParam) {
     title: `Compare ${A.name} and ${B.name}`,
     html: `
     <h1 tabindex="-1">Compare</h1>
-    ${any ? '' : '<p class="muted"><a href="#q-1">Answer the issues</a> to see how each matches you.</p>'}
+    ${any ? '' : `<p class="muted">Match scores appear when you <a href="${continueHref()}">finish the issues</a>.</p>`}
     <div class="compare-pickers no-print">
       <label for="cmp-a">Candidate 1<select id="cmp-a">${candidateOptions(A.id)}</select></label>
       <label for="cmp-b">Candidate 2<select id="cmp-b">${candidateOptions(B.id)}</select></label>
@@ -1583,6 +1607,8 @@ function applyWidths(root = main) {
 }
 
 function updateNav(head) {
+  const results = document.querySelector('[data-nav="results"]');
+  if (results) results.parentElement.hidden = !surveyComplete();
   document.querySelectorAll('[data-nav]').forEach((a) => {
     if (a.dataset.nav === head) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
