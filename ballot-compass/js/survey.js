@@ -1,13 +1,36 @@
 // Optional "about you" questions and the consent wording version.
 // Shared by the browser (to render) and the server (to validate).
 
-export const CONSENT_VERSION = '2026-11-23';
+export const CONSENT_VERSION = '2026-11-24';
 
 export const PREFER_NOT = { value: 'na', label: 'Prefer not to say' };
 
+const STATES = [
+  ['AL', 'Alabama'], ['AK', 'Alaska'], ['AZ', 'Arizona'], ['AR', 'Arkansas'], ['CA', 'California'],
+  ['CO', 'Colorado'], ['CT', 'Connecticut'], ['DE', 'Delaware'], ['DC', 'District of Columbia'],
+  ['FL', 'Florida'], ['GA', 'Georgia'], ['HI', 'Hawaii'], ['ID', 'Idaho'], ['IL', 'Illinois'],
+  ['IN', 'Indiana'], ['IA', 'Iowa'], ['KS', 'Kansas'], ['KY', 'Kentucky'], ['LA', 'Louisiana'],
+  ['ME', 'Maine'], ['MD', 'Maryland'], ['MA', 'Massachusetts'], ['MI', 'Michigan'], ['MN', 'Minnesota'],
+  ['MS', 'Mississippi'], ['MO', 'Missouri'], ['MT', 'Montana'], ['NE', 'Nebraska'], ['NV', 'Nevada'],
+  ['NH', 'New Hampshire'], ['NJ', 'New Jersey'], ['NM', 'New Mexico'], ['NY', 'New York'],
+  ['NC', 'North Carolina'], ['ND', 'North Dakota'], ['OH', 'Ohio'], ['OK', 'Oklahoma'], ['OR', 'Oregon'],
+  ['PA', 'Pennsylvania'], ['RI', 'Rhode Island'], ['SC', 'South Carolina'], ['SD', 'South Dakota'],
+  ['TN', 'Tennessee'], ['TX', 'Texas'], ['UT', 'Utah'], ['VT', 'Vermont'], ['VA', 'Virginia'],
+  ['WA', 'Washington'], ['WV', 'West Virginia'], ['WI', 'Wisconsin'], ['WY', 'Wyoming'],
+  ['PR', 'Puerto Rico'], ['XX', 'Outside the U.S.'],
+];
+
+// `step`: 'start' fields are asked before the issues; 'end' fields just before results.
 export const DEMOGRAPHIC_FIELDS = [
   {
+    id: 'state',
+    step: 'start',
+    label: 'Your state',
+    options: STATES.map(([value, label]) => ({ value, label })),
+  },
+  {
     id: 'age',
+    step: 'start',
     label: 'Your age',
     options: [
       { value: '18-24', label: '18 to 24' },
@@ -19,7 +42,43 @@ export const DEMOGRAPHIC_FIELDS = [
     ],
   },
   {
+    id: 'registration',
+    step: 'end',
+    label: 'Are you registered to vote?',
+    options: [
+      { value: 'registered', label: 'Yes, registered' },
+      { value: 'not-registered', label: 'Not registered' },
+      { value: 'not-sure', label: 'Not sure' },
+      { value: 'not-eligible', label: 'Not eligible to vote' },
+    ],
+  },
+  {
+    id: 'party',
+    step: 'end',
+    label: 'Party you lean toward',
+    options: [
+      { value: 'democrat', label: 'Democrat' },
+      { value: 'republican', label: 'Republican' },
+      { value: 'independent', label: 'Independent' },
+      { value: 'other', label: 'Another party' },
+      { value: 'none', label: 'No party' },
+    ],
+  },
+  {
+    id: 'marital',
+    step: 'end',
+    label: 'Marital status',
+    options: [
+      { value: 'single', label: 'Single, never married' },
+      { value: 'married', label: 'Married' },
+      { value: 'partner', label: 'Living with a partner' },
+      { value: 'divorced', label: 'Divorced or separated' },
+      { value: 'widowed', label: 'Widowed' },
+    ],
+  },
+  {
     id: 'household',
+    step: 'end',
     label: 'People in your household, including you',
     options: [
       { value: '1', label: '1 (just me)' },
@@ -32,7 +91,8 @@ export const DEMOGRAPHIC_FIELDS = [
   },
   {
     id: 'income',
-    label: 'Total household income last year, before taxes',
+    step: 'end',
+    label: 'Household income last year, before taxes',
     options: [
       { value: 'under-25k', label: 'Under $25,000' },
       { value: '25-50k', label: '$25,000 to $49,999' },

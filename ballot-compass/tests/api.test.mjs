@@ -12,7 +12,7 @@ const good = () => ({
   consent_version: CONSENT_VERSION,
   answers: { abortion: { value: 2, importance: 4 }, guns: { value: null, importance: 2 } },
   leadership: null,
-  demographics: { age: '25-34', household: '3', income: 'na' },
+  demographics: { age: '25-34', state: 'OH', registration: 'registered', party: 'independent', marital: 'married', household: '3', income: 'na' },
 });
 
 test('valid response becomes a minimal row with date only', () => {
@@ -21,6 +21,9 @@ test('valid response becomes a minimal row with date only', () => {
   assert.equal(r.row.updated_on, '2026-11-24');
   assert.equal(r.row.age, '25-34');
   assert.equal(r.row.income, 'na');
+  assert.equal(r.row.state, 'OH');
+  assert.equal(r.row.party, 'independent');
+  assert.equal(r.row.marital, 'married');
   assert.ok(!('email' in r.row) && !('ip' in r.row) && !('created_at' in r.row));
 });
 
@@ -33,6 +36,8 @@ test('response validation rejects bad input', () => {
     [{ answers: { abortion: { value: 7, importance: 2 } } }, /Invalid position/],
     [{ answers: { abortion: { value: null, importance: 2 } } }, /at least one/],
     [{ demographics: { age: '12-17' } }, /age/],
+    [{ demographics: { state: 'ZZ' } }, /state/],
+    [{ demographics: { party: 'whig' } }, /party/],
     [{ leadership: ['executive'] }, /leadership/],
   ];
   for (const [patch, re] of cases) {

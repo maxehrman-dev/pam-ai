@@ -12,11 +12,21 @@ create table if not exists public.bc_responses (
   app_version text,
   answers jsonb not null,          -- { issueId: { "value": 0-4 | null, "importance": 1-4 } }
   leadership jsonb,                -- ordered trait ids, or null
-  age text,                        -- bracket value from js/survey.js, 'na', or null
+  -- Profile answers: values from js/survey.js, 'na' (prefer not to say), or null (skipped).
+  age text,
+  state text,                      -- two-letter code, 'XX' outside the U.S.
+  registration text,
+  party text,
+  marital text,
   household text,
   income text
 );
 alter table public.bc_responses enable row level security;
+-- Upgrades for projects created before these fields existed.
+alter table public.bc_responses add column if not exists state text;
+alter table public.bc_responses add column if not exists registration text;
+alter table public.bc_responses add column if not exists party text;
+alter table public.bc_responses add column if not exists marital text;
 
 -- Update-list signups. Never linked to responses.
 create table if not exists public.bc_signups (

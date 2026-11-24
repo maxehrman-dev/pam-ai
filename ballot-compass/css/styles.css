@@ -527,3 +527,21 @@ input[type="email"] {
 }
 .confirm-dialog::backdrop { background: rgb(0 0 0 / 0.35); }
 .confirm-dialog .actions { margin-top: 12px; justify-content: flex-end; }
+
+/* Glossary terms: dotted underline, tap to explain */
+.term {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+  text-decoration: underline dotted; text-decoration-thickness: 1.5px; text-underline-offset: 0.2em;
+  text-decoration-color: var(--accent); cursor: help; text-align: inherit; display: inline;
+}
+.term:hover, .term[aria-expanded="true"] { text-decoration-style: solid; }
+.term-card {
+  position: absolute; z-index: 30; padding: 12px 14px; font-size: 0.92rem; line-height: 1.5;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+}
+.term-card strong { display: block; font-family: var(--serif); margin-bottom: 2px; }
+.glossary { margin: 0; display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.glossary > div { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.glossary dt { font-family: var(--serif); font-weight: 600; }
+.glossary dd { margin: 2px 0 0; color: var(--ink-2); }

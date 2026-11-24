@@ -16,8 +16,13 @@ import {
   isValidEmail,
   newSubmissionId,
 } from './survey.js';
+import { buildMatchers, termify as termifyText, validTerms } from './glossary.js';
 
 const STORAGE_KEY = 'ballot-compass:v1';
+
+function emptyProfile() {
+  return Object.fromEntries(DEMOGRAPHIC_FIELDS.map((f) => [f.id, null]));
+}
 // Preview mode (e.g. a hosted demo with no server): no sharing, sign-up or print, and the page says so.
 const PREVIEW = document.querySelector('meta[name="bc-mode"][content="preview"]') !== null;
 const STATUSES = ['Declared', 'Exploring', 'Undecided', 'Says not running', 'Declined'];
@@ -36,7 +41,7 @@ const state = {
   candidates: [],
   meta: {},
   markets: null,
-  profile: { age: null, household: null, income: null },
+  profile: emptyProfile(),
   share: null, // { id, sharedOn } once answers have been shared anonymously
   signedUp: false,
   flash: null, // one-time message shown on the next results render
@@ -307,7 +312,7 @@ function clearAll({ keepShareId = false } = {}) {
   const share = keepShareId ? state.share : null;
   state.answers = {};
   state.leadership = { ranking: null, skipped: false };
-  state.profile = { age: null, household: null, income: null };
+  state.profile = emptyProfile();
   state.share = share;
   state.signedUp = false;
   state.flash = null;
@@ -365,6 +370,71 @@ function seedNotice() {
   return '<p class="draft-note"><strong>Draft data.</strong> Positions aren\'t verified yet. Check sources before relying on them.</p>';
 }
 
+/* ---------- glossary: tap a dotted term to see what it means ---------- */
+
+let glossary = [];
+let glossaryMatchers = [];
+
+function setGlossary(terms) {
+  glossary = validTerms(terms);
+  glossaryMatchers = buildMatchers(glossary);
+}
+
+function termify(text) {
+  return termifyText(text, glossaryMatchers);
+}
+
+let termCard = null;
+let termOwner = null;
+
+function closeTerm({ restoreFocus = false } = {}) {
+  if (!termCard || termCard.hidden) return;
+  termCard.hidden = true;
+  if (termOwner) {
+    termOwner.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) termOwner.focus();
+  }
+  termOwner = null;
+}
+
+function openTerm(btn) {
+  const entry = glossary.find((g) => g.id === btn.dataset.term);
+  if (!entry) return;
+  if (!termCard) {
+    termCard = document.createElement('div');
+    termCard.id = 'term-card';
+    termCard.className = 'term-card';
+    termCard.setAttribute('role', 'status');
+    termCard.hidden = true;
+    document.body.append(termCard);
+  }
+  if (termOwner) termOwner.setAttribute('aria-expanded', 'false');
+  termCard.innerHTML = `<strong>${esc(entry.term)}</strong> ${esc(entry.definition)}`;
+  termCard.hidden = false;
+  termOwner = btn;
+  btn.setAttribute('aria-expanded', 'true');
+  const r = btn.getBoundingClientRect();
+  const width = Math.min(352, document.documentElement.clientWidth - 32);
+  const left = Math.max(16, Math.min(r.left, document.documentElement.clientWidth - width - 16));
+  termCard.style.width = `${width}px`;
+  termCard.style.left = `${left + window.scrollX}px`;
+  termCard.style.top = `${r.bottom + window.scrollY + 6}px`;
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.term');
+  if (btn) {
+    e.preventDefault();
+    if (termOwner === btn) closeTerm(); else openTerm(btn);
+    return;
+  }
+  if (termCard && !termCard.hidden && !e.target.closest('#term-card')) closeTerm();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeTerm({ restoreFocus: true });
+});
+window.addEventListener('resize', () => closeTerm());
+
 /* ---------- views ---------- */
 
 function viewIntro() {
@@ -373,7 +443,7 @@ function viewIntro() {
   const started = Object.keys(state.answers).length > 0;
   let primary;
   if (!started) {
-    primary = '<a class="btn btn-primary" href="#q-1">Start</a>';
+    primary = '<a class="btn btn-primary" href="#profile">Start</a>';
   } else if (next === -1) {
     primary = '<a class="btn btn-primary" href="#results">View your results</a><button type="button" class="btn" data-start-over>Start over</button>';
   } else {
@@ -411,7 +481,7 @@ function viewQuestion(n) {
   const options = issue.positions.map((p) => `
     <label class="option">
       <input type="radio" name="position" value="${p.value}" ${selected === String(p.value) ? 'checked' : ''}>
-      <span class="option-text">${esc(p.label)}</span>
+      <span class="option-text">${termify(p.label)}</span>
     </label>`).join('');
 
   return {
@@ -425,11 +495,11 @@ function viewQuestion(n) {
       <form id="q-form" data-issue="${esc(issue.id)}" data-n="${n}" novalidate>
         <div class="question-head">
           <h1 tabindex="-1">${esc(issue.title)}</h1>
-          <p class="question-text">${esc(issue.question)}</p>
+          <p class="question-text">${termify(issue.question)}</p>
         </div>
         <details class="background">
           <summary>Background</summary>
-          <div class="bg-body">${issue.background.map((s) => `<p>${esc(s)}</p>`).join('')}</div>
+          <div class="bg-body">${issue.background.map((s) => `<p>${termify(s)}</p>`).join('')}</div>
         </details>
         <p class="form-error" id="q-error" role="alert"></p>
         <fieldset aria-describedby="q-error">
@@ -493,7 +563,7 @@ function wireQuestion() {
   form.querySelector('[data-q-back]').addEventListener('click', () => {
     const a = readQuestionForm(form);
     if (a) { state.answers[issueId] = a; save(); }
-    location.hash = n > 1 ? `#q-${n - 1}` : '#start';
+    location.hash = n > 1 ? `#q-${n - 1}` : '#profile';
   });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -585,11 +655,11 @@ function wireLeadership() {
   });
 }
 
-/* ----- optional: about you + sharing ----- */
+/* ----- optional profile: a little at the start, the rest just before results ----- */
 
-function viewAboutYou() {
+function profileFields(step) {
   const p = state.profile;
-  const fields = DEMOGRAPHIC_FIELDS.map((f) => `
+  return DEMOGRAPHIC_FIELDS.filter((f) => f.step === step).map((f) => `
     <div class="field">
       <label for="d-${f.id}">${esc(f.label)}</label>
       <select id="d-${f.id}" name="${f.id}">
@@ -598,6 +668,60 @@ function viewAboutYou() {
         <option value="${PREFER_NOT.value}" ${p[f.id] === PREFER_NOT.value ? 'selected' : ''}>${PREFER_NOT.label}</option>
       </select>
     </div>`).join('');
+}
+
+function saveProfileOnChange(form) {
+  form.addEventListener('change', (e) => {
+    if (e.target.tagName === 'SELECT' && e.target.name in state.profile) {
+      state.profile[e.target.name] = e.target.value || null;
+      save();
+    }
+  });
+}
+
+function profileSummary() {
+  const parts = DEMOGRAPHIC_FIELDS.filter((f) => f.step === 'start' && state.profile[f.id] && state.profile[f.id] !== PREFER_NOT.value)
+    .map((f) => f.options.find((o) => o.value === state.profile[f.id]).label);
+  return parts.length
+    ? `<p class="small muted">${parts.map(esc).join(' &middot; ')} &middot; <a href="#profile">Edit</a></p>`
+    : '<p class="small muted"><a href="#profile">Add your state and age</a></p>';
+}
+
+function viewProfile() {
+  return {
+    title: 'About you',
+    html: `
+    <div class="measure">
+      <div class="progress">
+        <div class="progress-label"><span>Optional</span></div>
+        <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-width="0"></div></div>
+      </div>
+      <h1 tabindex="-1">First, about you</h1>
+      <p class="question-text">Two quick questions. They stay in your browser unless you choose to share at the end.</p>
+      <form id="profile-form" novalidate>
+        <fieldset>
+          <legend class="sr-only">About you</legend>
+          <div class="field-grid">${profileFields('start')}</div>
+        </fieldset>
+        <div class="actions actions-split">
+          <a class="btn" href="#start">Back</a>
+          <span class="actions actions-inline">
+            <a class="btn" href="#q-1">Skip</a>
+            <button type="submit" class="btn btn-primary">Continue</button>
+          </span>
+        </div>
+      </form>
+    </div>`,
+    after: () => {
+      const form = document.getElementById('profile-form');
+      saveProfileOnChange(form);
+      form.addEventListener('submit', (e) => { e.preventDefault(); location.hash = '#q-1'; });
+    },
+  };
+}
+
+function viewAboutYou() {
+  const fields = profileFields('end');
   const email = state.signedUp || PREVIEW
     ? ''
     : `<div class="field">
@@ -613,8 +737,9 @@ function viewAboutYou() {
         <div class="progress-label"><span>Last step &middot; optional</span></div>
         <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-width="100"></div></div>
       </div>
-      <h1 tabindex="-1">A few questions about you</h1>
+      <h1 tabindex="-1">A few more about you</h1>
       <p class="question-text">Share anonymously to help show what voters want. You'll see results either way.</p>
+      ${profileSummary()}
       ${PREVIEW ? '<p class="draft-note"><strong>Preview.</strong> Sharing is off here, so nothing is sent.</p>' : ''}
       ${state.share ? `<p class="small muted">Shared ${esc(fmtDate(state.share.sharedOn))}. Sharing again updates it.</p>` : ''}
       <form id="about-form" novalidate>
@@ -645,12 +770,7 @@ function wireAboutYou() {
   const form = document.getElementById('about-form');
   const error = document.getElementById('a-error');
   const shareBtn = form.querySelector('[data-a-share]');
-  form.addEventListener('change', (e) => {
-    if (e.target.tagName === 'SELECT') {
-      state.profile[e.target.name] = e.target.value || null;
-      save();
-    }
-  });
+  saveProfileOnChange(form);
   form.querySelector('[data-a-back]').addEventListener('click', () => { location.hash = '#leadership'; });
   form.querySelector('[data-a-skip]').addEventListener('click', () => {
     state.flash = null;
@@ -976,9 +1096,9 @@ function viewCandidate(id) {
     const issue = issueById(row.issueId);
     const pos = c.positions[row.issueId];
     const a = state.answers[row.issueId];
-    const yours = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : esc(positionLabel(issue, a.value));
+    const yours = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : termify(positionLabel(issue, a.value));
     const impNote = a && a.value !== null && a.importance >= 3 ? `<span class="importance-note">${esc(importanceLabel(a.importance))}</span>` : '';
-    const theirs = esc(pos ? pos.summary : 'No clear public position.');
+    const theirs = termify(pos ? pos.summary : 'No clear public position.');
     return `<tr class="${row.dealbreaker ? 'row-flagged' : ''}">
       <th scope="row">${esc(issue.title)}${impNote}</th>
       <td data-label="You">${yours}</td>
@@ -1068,12 +1188,12 @@ function viewCompare(aParam, bParam) {
     const url = pos ? safeUrl(pos.source_url) : null;
     const src = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(fmtDate(pos.source_date))}<span class="sr-only"> source (opens in a new tab)</span></a>` : '';
     const badge = any ? `${matchBadge(row.level)}${row.dealbreaker ? ` ${dealbreakerFlag('Dealbreaker')}` : ''} ` : '';
-    return `${esc(pos ? pos.summary : 'No clear public position.')}<span class="cell-sub">${badge}${src}</span>`;
+    return `${termify(pos ? pos.summary : 'No clear public position.')}<span class="cell-sub">${badge}${src}</span>`;
   };
 
   const rows = state.issues.map((issue, i) => {
     const a = state.answers[issue.id];
-    const yours = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : esc(positionLabel(issue, a.value));
+    const yours = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : termify(positionLabel(issue, a.value));
     const rowA = ra.rows[i];
     const rowB = rb.rows[i];
     return `<tr class="${rowA.dealbreaker || rowB.dealbreaker ? 'row-flagged' : ''}">
@@ -1123,7 +1243,10 @@ function viewMethodology() {
   const sections = [
     ['m-score', 'Scoring'], ['m-coding', 'How positions are coded'], ['m-status', 'Status'],
     ['m-limits', 'Limitations'], ['m-markets', 'Market odds'], ['m-privacy', 'Privacy and sharing'],
+    ...(glossary.length ? [['m-terms', 'Terms explained']] : []),
   ];
+  const terms = glossary.slice().sort((x, y) => x.term.localeCompare(y.term))
+    .map((g) => `<div><dt>${esc(g.term)}</dt><dd>${esc(g.definition)}</dd></div>`).join('');
   return {
     title: 'Methodology',
     html: `
@@ -1163,9 +1286,12 @@ alignment = &Sigma;(weight &times; match) &divide; &Sigma;(weight)</p>
 
       <h2 id="m-privacy" tabindex="-1">Privacy and sharing</h2>
       <p>No accounts, tracking cookies or analytics. Your answers stay in this browser unless you choose to share them.</p>
-      <p><strong>Sharing is optional.</strong> You can share your answers, plus your age range, household size and income range. Each question can be skipped, and you see your results either way. Shared answers are stored without your name, email, IP address or exact time, under a random code only your browser keeps. We publish only totals and never sell or share individual responses.</p>
+      <p><strong>Sharing is optional.</strong> You can share your answers, plus any profile questions you answered: state, age range, voter registration, party leaning, marital status, household size and income range. Each one can be skipped, and you see your results either way. Shared answers are stored without your name, email, IP address or exact time, under a random code only your browser keeps. We publish only totals and never sell or share individual responses.</p>
       <p><strong>Updates list.</strong> Your email is kept on a separate list, never linked to your answers. Unsubscribe anytime.</p>
       <p><strong>Deleting.</strong> "Clear my answers" removes your answers from this browser and deletes any shared copy. Our host keeps standard request logs.</p>
+      ${terms ? `<h2 id="m-terms" tabindex="-1">Terms explained</h2>
+      <p class="muted">Tap any dotted-underlined term in the questions or candidate pages to see these.</p>
+      <dl class="glossary">${terms}</dl>` : ''}
     </article>`,
     after: () => {
       main.querySelectorAll('[data-anchor]').forEach((a) => a.addEventListener('click', (e) => {
@@ -1233,6 +1359,7 @@ function render() {
     case 'q': view = viewQuestion(Number.parseInt(arg, 10)); break;
     case 'leadership': view = viewLeadership(); break;
     case 'about-you': view = viewAboutYou(); break;
+    case 'profile': view = viewProfile(); break;
     case 'review': view = viewReview(); break;
     case 'results': view = viewResults(); break;
     case 'candidate': view = viewCandidate(arg); break;
@@ -1240,6 +1367,7 @@ function render() {
     case 'how-it-works': view = viewMethodology(); break;
     default: view = viewNotFound();
   }
+  closeTerm();
   main.innerHTML = `<div class="wrap">${view.html}</div>`;
   document.title = view.title ? `${view.title} | Ballot Compass` : 'Ballot Compass';
   updateNav(head);
@@ -1331,6 +1459,10 @@ async function boot() {
     state.scaleNote = issuesData.scale_note || '';
     state.candidates = candData.candidates;
     state.meta = candData.meta || {};
+    try {
+      const gRes = await fetch('data/glossary.json');
+      if (gRes.ok) setGlossary((await gRes.json()).terms);
+    } catch { /* no glossary: terms simply aren't underlined */ }
     // Market prices are an optional, same-origin snapshot. The app works without them.
     try {
       const mRes = await fetch('data/markets.json');

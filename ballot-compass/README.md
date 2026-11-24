@@ -21,7 +21,7 @@ cd ballot-compass
 npm test
 ```
 
-There are 22 tests. They cover the scoring formula and score ranges, ranking and sorting, dealbreaker flags, the data files, the market snapshot, and the API. The API tests check validation, consent, origin checks, rate limits, the kill switch, and the exact database calls.
+There are 26 tests. They cover the scoring formula and score ranges, ranking and sorting, dealbreaker flags, glossary matching, the data files, the market snapshot, and the API. The API tests check validation, consent, origin checks, rate limits, the kill switch, and the exact database calls.
 
 ## Files
 
@@ -39,6 +39,8 @@ There are 22 tests. They cover the scoring formula and score ranges, ranking and
 | `data/issues.json` | Issues, positions (0-4), background notes, leadership traits. |
 | `data/candidates.json` | Candidates, statuses, links and coded positions. |
 | `data/markets.json` | Kalshi odds snapshot. |
+| `data/glossary.json` | Plain-English definitions for terms like Roe v. Wade or the 2017 tax cuts. The first mention in each block of text gets a dotted underline you can tap; all terms are listed under How it works. |
+| `js/glossary.js` | Term matching (pure, tested). |
 | `scripts/fetch-markets.mjs` | Refreshes the odds snapshot. |
 
 ## Scoring
@@ -51,11 +53,16 @@ There are 22 tests. They cover the scoring formula and score ranges, ranking and
 
 ## Collecting answers (optional, anonymous)
 
-After the issues, people can optionally share their answers with three more questions: age range, household size and household income range. Each question has "Prefer not to say", and results show either way. The share step is skippable, not a gate.
+The profile is split in two, and every question is optional with "Prefer not to say":
+
+- **Start** (before the issues): state and age range.
+- **End** (just before results): voter registration, party leaning, marital status, household size and household income range. Party leaning is asked last so it doesn't color the issue answers.
+
+Nothing leaves the browser until the person ticks the consent box and shares. The share step is skippable, not a gate. Profile questions live in `js/survey.js` (`step: 'start'` or `'end'`); the server validates against the same list. Adding a field also needs a column in `supabase/schema.sql`.
 
 How the data is kept apart:
 
-- **Responses** (`bc_responses`) are keyed by a random UUID that only the person's browser keeps. They store answers, leadership ranking, the three demographics and a **date only**, with no timestamp, name, email or IP address. Sharing again updates the same row. "Clear my answers" deletes it.
+- **Responses** (`bc_responses`) are keyed by a random UUID that only the person's browser keeps. They store answers, leadership ranking, the profile answers and a **date only**, with no timestamp, name, email or IP address. Sharing again updates the same row. "Clear my answers" deletes it.
 - **Signups** (`bc_signups`) are a separate table with only email and consent version. They are never sent in the same request as answers and never linked to them. Because responses store only a date, the two can't be matched by time.
 - Rate-limit keys use a salted hash of the IP that changes daily; raw IPs are never stored.
 - Every table has row-level security on and no policies, so only the server's service key can touch them. `bc_issue_totals` is an aggregate view to start analysis from.
