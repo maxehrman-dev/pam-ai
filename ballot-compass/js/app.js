@@ -48,6 +48,7 @@ const state = {
   share: null, // { id, sharedOn } once answers have been shared anonymously
   signedUp: false,
   tiebreakSeen: false,
+  openCard: null, // id of the expanded card on the results screen (not saved)
   flash: null, // one-time message shown on the next results render
   scaleNote: '',
   answers: {},
@@ -958,34 +959,123 @@ function tradingCard(entry, { rank = null, label = null, scope = 'card' } = {}) 
   const odds = oddsFor(c);
   const age = ageFrom(c.birth_date);
   const uid = `${scope}-${esc(c.id)}`;
-  return `<article class="tcard" id="${uid}" tabindex="-1" aria-labelledby="${uid}-name">
-    <div class="tcard-top">
-      <span class="tcard-rank">${rank ? `#${rank}` : ''}</span>
-      ${label ? `<span class="tcard-label">${esc(label)}</span>` : ''}
-      ${partyTag(c.party)}
+  // In the grid the card opens in place; elsewhere (hero row) it opens the grid copy.
+  const toggleAttrs = scope === 'card'
+    ? `aria-expanded="false" aria-controls="${uid}-more"`
+    : `data-open-card="${esc(c.id)}"`;
+  return `<article class="tcard" id="${uid}" data-cand="${esc(c.id)}" tabindex="-1" aria-labelledby="${uid}-name">
+    <div class="tcard-front">
+      <div class="tcard-top">
+        <span class="tcard-rank">${rank ? `#${rank}` : ''}</span>
+        ${label ? `<span class="tcard-label">${esc(label)}</span>` : ''}
+        ${partyTag(c.party)}
+      </div>
+      <div class="tcard-id">
+        ${monogram(c)}
+        <h3 id="${uid}-name" class="tcard-name"><button type="button" class="tcard-toggle stretch" ${toggleAttrs}>${esc(c.name)}</button></h3>
+        <p class="tcard-role">${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
+      </div>
+      <div class="tcard-match">
+        <span class="tcard-pct">${r.alignment === null ? '&ndash;' : `${r.alignment}<small>%</small>`}</span>
+        <span class="tcard-pct-l">${r.alignment === null ? 'no overlap' : 'your match'}</span>
+      </div>
+      ${scoreBar(r)}
+      <p class="tcard-basis">${r.alignment === null ? 'No known positions on your issues' : `${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}`}</p>
+      <div class="stats stats-3">
+        ${stat('Agree', r.counts.Agree)}
+        ${stat('Differ', r.counts.Disagree + r.counts.Partial)}
+        ${stat('Nom. odds', odds && odds.nom !== null ? esc(fmtOdds(odds.nom)) : '&ndash;')}
+      </div>
+      <ul class="tcard-lines">
+        ${cardLines(agree, '+', 'agree', 2)}
+        ${cardLines(differ, '&minus;', 'differ', 2)}
+      </ul>
+      <p class="tcard-foot"><span>${esc(c.status)} <span class="muted">&middot; ${esc(fmtDate(c.status_date))}</span></span><span class="tcard-hint" aria-hidden="true">Details</span></p>
     </div>
-    <div class="tcard-id">
-      ${monogram(c)}
-      <h3 id="${uid}-name" class="tcard-name"><a href="#candidate-${esc(c.id)}" class="stretch">${esc(c.name)}</a></h3>
-      <p class="tcard-role">${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
-    </div>
-    <div class="tcard-match">
-      <span class="tcard-pct">${r.alignment === null ? '&ndash;' : `${r.alignment}<small>%</small>`}</span>
-      <span class="tcard-pct-l">${r.alignment === null ? 'no overlap' : 'your match'}</span>
-    </div>
-    ${scoreBar(r)}
-    <p class="tcard-basis">${r.alignment === null ? 'No known positions on your issues' : `${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}`}</p>
-    <div class="stats stats-3">
-      ${stat('Agree', r.counts.Agree)}
-      ${stat('Differ', r.counts.Disagree + r.counts.Partial)}
-      ${stat('Nom. odds', odds && odds.nom !== null ? esc(fmtOdds(odds.nom)) : '&ndash;')}
-    </div>
-    <ul class="tcard-lines">
-      ${cardLines(agree, '+', 'agree', 2)}
-      ${cardLines(differ, '&minus;', 'differ', 2)}
-    </ul>
-    <p class="tcard-foot">${esc(c.status)} <span class="muted">&middot; ${esc(fmtDate(c.status_date))}</span></p>
+    ${scope === 'card' ? `<div class="tcard-more" id="${uid}-more" hidden></div>` : ''}
   </article>`;
+}
+
+/** The expanded half of a card: everything about this candidate, next to the card itself. */
+function cardDetails(c) {
+  const r = scoreCandidate(state.answers, c, state.issues);
+  const { agree, differ } = splitRows(r);
+  const odds = oddsFor(c);
+  const ranked = rankedByAlignment();
+  const top = ranked.find((e) => e.result.alignment !== null && e.candidate.id !== c.id);
+  const issues = r.rows.map((row) => {
+    const issue = issueById(row.issueId);
+    const pos = c.positions[row.issueId];
+    const url = pos ? safeUrl(pos.source_url) : null;
+    return `<li class="tm-issue${row.dealbreaker ? ' is-flagged' : ''}">
+      <div class="tm-issue-head"><strong>${esc(issue.title)}</strong>${matchBadge(row.level)}${row.dealbreaker ? dealbreakerFlag('Dealbreaker') : ''}</div>
+      <p>${termify(pos ? pos.summary : 'No clear public position.')}</p>
+      ${url ? `<p class="tm-src">${externalLink(url, `${pos.source_label || 'Source'}, ${fmtDate(pos.source_date)}`)}${pos.provenance ? ` <span class="tag tag-prov">${esc(pos.provenance)}</span>` : ''}${pos.needs_verification ? ` ${verifyTag()}` : ''}</p>` : ''}
+    </li>`;
+  }).join('');
+  return `<div class="tm-head">
+      <p class="fcard-why">${esc(matchSentence(r))}</p>
+      <button type="button" class="btn btn-small tm-close">Close</button>
+    </div>
+    <div class="stats stats-4">
+      ${stat('Agree', r.counts.Agree)}${stat('Close', r.counts.Partial)}${stat('Differ', r.counts.Disagree)}${stat('Unknown', r.counts.Unknown)}
+    </div>
+    <div class="fcard-cols">
+      <div><h4 class="mini-h">Where you agree</h4><ul class="tcard-lines">${cardLines(agree, '+', 'agree', 14) || '<li class="muted">None</li>'}</ul></div>
+      <div><h4 class="mini-h">Where you differ</h4><ul class="tcard-lines">${cardLines(differ, '&minus;', 'differ', 14) || '<li class="muted">None</li>'}</ul></div>
+    </div>
+    <div class="stats stats-2">
+      ${stat('Nomination odds', odds && odds.nom !== null ? esc(fmtOdds(odds.nom)) : '&ndash;')}
+      ${stat('Presidency odds', odds && odds.pres !== null ? esc(fmtOdds(odds.pres)) : '&ndash;')}
+    </div>
+    <dl class="fcard-exp">
+      <div><dt>2028 status</dt><dd>${esc(c.status)} (${esc(fmtDate(c.status_date))}). ${esc(c.status_note || '')}</dd></div>
+      <div><dt>Executive</dt><dd>${esc((c.background && c.background.executive_experience) || 'None in executive office')}</dd></div>
+      <div><dt>Legislative</dt><dd>${esc((c.background && c.background.legislative_experience) || 'None')}</dd></div>
+      <div><dt>About</dt><dd>${esc(c.bio)}</dd></div>
+    </dl>
+    <div>
+      <h4 class="mini-h">Issue by issue</h4>
+      <ul class="tm-issues">${issues}</ul>
+    </div>
+    <p class="fcard-actions">
+      ${top ? `<a class="btn" href="#compare-${esc(c.id)}--${esc(top.candidate.id)}">Compare with ${esc(top.candidate.name)}</a>` : ''}
+      <a class="btn" href="#candidate-${esc(c.id)}">Open full page</a>
+      ${c.links && c.links.campaign_url ? externalLink(c.links.campaign_url, 'Campaign site') : ''}
+      ${c.links && c.links.official_url ? externalLink(c.links.official_url, 'Official site') : ''}
+    </p>`;
+}
+
+function collapseCard(card, { focus = false } = {}) {
+  if (!card) return;
+  const toggle = card.querySelector('.tcard-toggle');
+  const more = card.querySelector('.tcard-more');
+  card.classList.remove('is-open');
+  if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  if (more) { more.hidden = true; more.innerHTML = ''; }
+  const hint = card.querySelector('.tcard-hint');
+  if (hint) hint.textContent = 'Details';
+  if (state.openCard === card.dataset.cand) state.openCard = null;
+  if (focus && toggle) toggle.focus();
+}
+
+function expandCard(card, { scroll = true } = {}) {
+  if (!card) return;
+  main.querySelectorAll('.card-grid .tcard.is-open').forEach((other) => { if (other !== card) collapseCard(other); });
+  const c = candidateById(card.dataset.cand);
+  const more = card.querySelector('.tcard-more');
+  more.innerHTML = cardDetails(c);
+  more.hidden = false;
+  card.classList.add('is-open');
+  card.querySelector('.tcard-toggle').setAttribute('aria-expanded', 'true');
+  const hint = card.querySelector('.tcard-hint');
+  if (hint) hint.textContent = 'Close';
+  applyWidths(card);
+  state.openCard = c.id;
+  if (scroll) {
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
+  }
 }
 
 function featuredCard(entry, runnerUp) {
@@ -1161,7 +1251,48 @@ function wireResults() {
     region.innerHTML = cardGridHtml();
     applyWidths(region);
     announce(document.getElementById('result-count').textContent);
+    if (state.openCard) {
+      const again = document.getElementById(`card-${state.openCard}`);
+      if (again) expandCard(again, { scroll: false }); else state.openCard = null;
+    }
   };
+  const openGridCard = (id) => {
+    let card = document.getElementById(`card-${id}`);
+    if (!card) {
+      // Hidden by a filter: show everyone first.
+      state.filters.party = 'all';
+      state.filters.status = 'all';
+      main.querySelectorAll('.fchip').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.party === 'all')));
+      const st = document.getElementById('f-status');
+      if (st) st.value = 'all';
+      update();
+      card = document.getElementById(`card-${id}`);
+    }
+    if (!card) return;
+    expandCard(card);
+    card.querySelector('.tcard-toggle').focus({ preventScroll: true });
+  };
+  const root = main.querySelector('.wrap');
+  root.addEventListener('click', (e) => {
+    const jump = e.target.closest('[data-open-card]');
+    if (jump) { openGridCard(jump.dataset.openCard); return; }
+    const close = e.target.closest('.tm-close');
+    if (close) { collapseCard(close.closest('.tcard'), { focus: true }); return; }
+    const toggle = e.target.closest('.card-grid .tcard-toggle');
+    if (toggle) {
+      const card = toggle.closest('.tcard');
+      if (card.classList.contains('is-open')) collapseCard(card); else expandCard(card);
+    }
+  });
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const open = e.target.closest && e.target.closest('.tcard.is-open');
+    if (open) collapseCard(open, { focus: true });
+  });
+  if (state.openCard) {
+    const again = document.getElementById(`card-${state.openCard}`);
+    if (again) expandCard(again, { scroll: false });
+  }
   main.querySelectorAll('.fchip').forEach((b) => b.addEventListener('click', () => {
     state.filters.party = b.dataset.party;
     main.querySelectorAll('.fchip').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
@@ -1180,25 +1311,7 @@ function wireResults() {
     window.addEventListener('resize', () => { if (spec.isConnected) layoutSpectrum(spec); });
     spec.addEventListener('click', (e) => {
       const dot = e.target.closest('.spec-dot');
-      if (!dot) return;
-      const find = () => document.getElementById(`card-${dot.dataset.cand}`);
-      let card = find();
-      if (!card) {
-        // Hidden by a filter: show everyone, then jump.
-        state.filters.party = 'all';
-        state.filters.status = 'all';
-        main.querySelectorAll('.fchip').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.party === 'all')));
-        const statusSel2 = document.getElementById('f-status');
-        if (statusSel2) statusSel2.value = 'all';
-        update();
-        card = find();
-      }
-      if (!card) return;
-      card.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-      card.focus({ preventScroll: true });
-      card.classList.remove('is-pinged');
-      void card.offsetWidth;
-      card.classList.add('is-pinged');
+      if (dot) openGridCard(dot.dataset.cand);
     });
   }
   wireSignup();
