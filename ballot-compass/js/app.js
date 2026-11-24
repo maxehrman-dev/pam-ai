@@ -171,12 +171,6 @@ function websiteLinks(c) {
   return links.join(' &middot; ');
 }
 
-const MARKET_LABELS = {
-  nomination_republican: 'Republican nomination',
-  nomination_democratic: 'Democratic nomination',
-  presidency: 'Presidency',
-};
-
 /** Kalshi prices are dollars on a $1 contract, so a price reads directly as a percentage chance. */
 function fmtOdds(p) {
   if (p === null || p === undefined) return 'No trades';
@@ -191,64 +185,8 @@ function fmtTimestamp(iso) {
   return d.toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
 }
 
-function marketsIntro() {
-  const m = state.markets;
-  const days = Math.floor((Date.now() - new Date(m.fetched_at).getTime()) / 86400000);
-  const when = new Date(m.fetched_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  return `<p class="small muted">What ${externalLink(m.source_url, m.source)} traders think will happen, as of ${esc(when)}${days >= 7 ? ` (${days} days old)` : ''}. Not polls, not endorsements, not part of your score.</p>`;
-}
-
 function nominationKey(c) {
   return c.party === 'Republican' ? 'nomination_republican' : 'nomination_democratic';
-}
-
-function candidateMarketSection(c) {
-  const m = state.markets;
-  if (!m) return '';
-  const entry = m.candidates[c.id] || {};
-  const parts = [];
-  if (entry.nomination && m.events[nominationKey(c)]) {
-    parts.push(`<strong>${esc(fmtOdds(entry.nomination.last))}</strong> to win the ${esc(MARKET_LABELS[nominationKey(c)])} (${externalLink(m.events[nominationKey(c)].url, 'market')})`);
-  }
-  if (entry.presidency && m.events.presidency) {
-    parts.push(`<strong>${esc(fmtOdds(entry.presidency.last))}</strong> to win the presidency (${externalLink(m.events.presidency.url, 'market')})`);
-  }
-  if (!parts.length) return '';
-  return `<section class="section-gap" aria-labelledby="mkt-h">
-    <h2 id="mkt-h" class="h3">Market odds <span class="muted">(not scored)</span></h2>
-    <p class="tight">${parts.join(' &middot; ')}</p>
-    ${marketsIntro()}
-  </section>`;
-}
-
-function marketsPanel() {
-  const m = state.markets;
-  if (!m) return '';
-  const rows = state.candidates.slice()
-    .sort((a, b) => a.party.localeCompare(b.party)
-      || (((m.candidates[b.id] || {}).nomination || {}).last ?? -1) - (((m.candidates[a.id] || {}).nomination || {}).last ?? -1)
-      || a.name.localeCompare(b.name))
-    .map((c) => {
-      const e = m.candidates[c.id] || {};
-      return `<tr>
-        <th scope="row"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a> ${partyTag(c.party)}</th>
-        <td data-label="Nomination">${e.nomination ? esc(fmtOdds(e.nomination.last)) : '<span class="muted">&ndash;</span>'}</td>
-        <td data-label="Presidency">${e.presidency ? esc(fmtOdds(e.presidency.last)) : '<span class="muted">&ndash;</span>'}</td>
-      </tr>`;
-    }).join('');
-  const others = (m.uncovered || []).filter((u) => u.market !== 'presidency').map((u) => `${esc(u.name)} ${esc(fmtOdds(u.last))}`);
-  return `<section class="section-gap no-print">
-    <details class="fold">
-      <summary><h2 id="mkts-h">Market odds <span class="muted">(not scored)</span></h2></summary>
-      ${marketsIntro()}
-      <div class="table-wrap"><table class="data stack odds-table">
-        <caption class="sr-only">Kalshi odds by candidate, grouped by party</caption>
-        <thead><tr><th scope="col">Candidate</th><th scope="col">Nomination</th><th scope="col">Presidency</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>
-      ${others.length ? `<p class="small muted">Also on Kalshi, not covered here: ${others.join(', ')}.</p>` : ''}
-    </details>
-  </section>`;
 }
 
 function answeredCount() {
@@ -976,31 +914,125 @@ function scoreBar(r) {
     </div>`;
 }
 
-function matchCard(entry, { rank = null, label = null, compact = false } = {}) {
-  const { candidate: c, result: r } = entry;
+/* ----- trading cards ----- */
+
+function initials(name) {
+  const parts = String(name).replace(/\./g, '').split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return `${parts[0][0]}${parts.length > 1 ? parts[parts.length - 1][0] : ''}`.toUpperCase();
+}
+
+function monogram(c, size = '') {
+  return `<span class="mono mono-${shortParty(c.party).toLowerCase()} ${size}" aria-hidden="true">${esc(initials(c.name))}</span>`;
+}
+
+function oddsFor(c) {
+  const m = state.markets;
+  if (!m) return null;
+  const e = m.candidates[c.id] || {};
+  return { nom: e.nomination ? e.nomination.last : null, pres: e.presidency ? e.presidency.last : null };
+}
+
+function splitRows(r) {
   const agree = r.rows.filter((x) => x.level === 'Agree').sort((a, b) => b.weight - a.weight);
   const differ = r.rows.filter((x) => x.level === 'Partial' || x.level === 'Disagree')
     .sort((a, b) => (Number(b.dealbreaker) - Number(a.dealbreaker)) || (b.gap - a.gap) || (b.weight - a.weight));
-  const max = compact ? 3 : 4;
-  return `<article class="mcard ${rank === 1 ? 'match-lead' : ''} ${compact ? 'match-compact' : ''}" aria-labelledby="m-${esc(c.id)}">
-    <div class="match-top">
-      ${rank ? `<span class="match-rank" aria-hidden="true">${rank}</span>` : ''}
-      <div class="match-id">
-        ${label ? `<p class="match-label">${esc(label)}</p>` : ''}
-        <h3 id="m-${esc(c.id)}" class="match-name"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a></h3>
-        <p class="match-meta">${partyTag(c.party)} <span>${esc(c.status)}</span></p>
-      </div>
-      <div class="match-score">
-        <span class="match-pct">${r.alignment === null ? '&ndash;' : `${r.alignment}%`}</span>
-        <span class="match-basis">${r.alignment === null ? 'no overlap' : `${r.scored} of ${r.answered} issues`}</span>
-      </div>
+  return { agree, differ };
+}
+
+function stat(label, value, extra = '') {
+  return `<div class="stat ${extra}"><span class="stat-v">${value}</span><span class="stat-l">${label}</span></div>`;
+}
+
+function cardLines(rows, sign, kind, max) {
+  return rows.slice(0, max).map((x) => {
+    const t = esc(issueById(x.issueId).title);
+    const note = x.dealbreaker ? '<span class="sr-only"> (dealbreaker)</span>' : x.level === 'Partial' ? ' <span class="muted">(close)</span>' : '';
+    return `<li class="ln-${kind}${x.dealbreaker ? ' is-flag' : ''}"><span class="ln-sign" aria-hidden="true">${sign}</span><span class="ln-text">${t}${note}</span></li>`;
+  }).join('');
+}
+
+function tradingCard(entry, { rank = null, label = null, scope = 'card' } = {}) {
+  const { candidate: c, result: r } = entry;
+  const { agree, differ } = splitRows(r);
+  const odds = oddsFor(c);
+  const age = ageFrom(c.birth_date);
+  const uid = `${scope}-${esc(c.id)}`;
+  return `<article class="tcard" id="${uid}" tabindex="-1" aria-labelledby="${uid}-name">
+    <div class="tcard-top">
+      <span class="tcard-rank">${rank ? `#${rank}` : ''}</span>
+      ${label ? `<span class="tcard-label">${esc(label)}</span>` : ''}
+      ${partyTag(c.party)}
+    </div>
+    <div class="tcard-id">
+      ${monogram(c)}
+      <h3 id="${uid}-name" class="tcard-name"><a href="#candidate-${esc(c.id)}" class="stretch">${esc(c.name)}</a></h3>
+      <p class="tcard-role">${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
+    </div>
+    <div class="tcard-match">
+      <span class="tcard-pct">${r.alignment === null ? '&ndash;' : `${r.alignment}<small>%</small>`}</span>
+      <span class="tcard-pct-l">${r.alignment === null ? 'no overlap' : 'your match'}</span>
     </div>
     ${scoreBar(r)}
-    ${r.range ? `<p class="match-range">Could be ${r.range.low}&ndash;${r.range.high}% once unknown positions are filled in.</p>` : ''}
-    <p class="match-why">${esc(matchSentence(r))}</p>
-    <div class="match-chips">
-      <div><span class="chips-label">Agree</span>${chipList(agree, 'agree', max)}</div>
-      <div><span class="chips-label">Differ</span>${chipList(differ, 'differ', max)}</div>
+    <p class="tcard-basis">${r.alignment === null ? 'No known positions on your issues' : `${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}`}</p>
+    <div class="stats stats-3">
+      ${stat('Agree', r.counts.Agree)}
+      ${stat('Differ', r.counts.Disagree + r.counts.Partial)}
+      ${stat('Nom. odds', odds && odds.nom !== null ? esc(fmtOdds(odds.nom)) : '&ndash;')}
+    </div>
+    <ul class="tcard-lines">
+      ${cardLines(agree, '+', 'agree', 2)}
+      ${cardLines(differ, '&minus;', 'differ', 2)}
+    </ul>
+    <p class="tcard-foot">${esc(c.status)} <span class="muted">&middot; ${esc(fmtDate(c.status_date))}</span></p>
+  </article>`;
+}
+
+function featuredCard(entry, runnerUp) {
+  const { candidate: c, result: r } = entry;
+  const { agree, differ } = splitRows(r);
+  const odds = oddsFor(c);
+  const age = ageFrom(c.birth_date);
+  const exec = c.background && c.background.executive_experience;
+  const leg = c.background && c.background.legislative_experience;
+  return `<article class="fcard" id="card-feature" aria-labelledby="fc-name">
+    <div class="fcard-front">
+      <div class="tcard-top"><span class="tcard-rank">#1</span><span class="tcard-label">Top match</span>${partyTag(c.party)}</div>
+      ${monogram(c, 'mono-lg')}
+      <h2 id="fc-name" class="fcard-name"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a></h2>
+      <p class="tcard-role">${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
+      <div class="tcard-match fcard-match">
+        <span class="tcard-pct">${r.alignment}<small>%</small></span>
+        <span class="tcard-pct-l">your match</span>
+      </div>
+      ${scoreBar(r)}
+      <p class="tcard-basis">${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}</p>
+      <p class="tcard-foot">${esc(c.status)} <span class="muted">&middot; ${esc(fmtDate(c.status_date))}</span></p>
+    </div>
+    <div class="fcard-back">
+      <p class="fcard-why">${esc(matchSentence(r))}</p>
+      <div class="stats stats-4">
+        ${stat('Agree', r.counts.Agree)}
+        ${stat('Close', r.counts.Partial)}
+        ${stat('Differ', r.counts.Disagree)}
+        ${stat('Unknown', r.counts.Unknown)}
+      </div>
+      <div class="fcard-cols">
+        <div><h3 class="mini-h">Where you agree</h3><ul class="tcard-lines">${cardLines(agree, '+', 'agree', 5) || '<li class="muted">None</li>'}</ul></div>
+        <div><h3 class="mini-h">Where you differ</h3><ul class="tcard-lines">${cardLines(differ, '&minus;', 'differ', 5) || '<li class="muted">None</li>'}</ul></div>
+      </div>
+      <div class="stats stats-2">
+        ${stat('Nomination odds', odds && odds.nom !== null ? esc(fmtOdds(odds.nom)) : '&ndash;')}
+        ${stat('Presidency odds', odds && odds.pres !== null ? esc(fmtOdds(odds.pres)) : '&ndash;')}
+      </div>
+      <dl class="fcard-exp">
+        <div><dt>Executive</dt><dd>${esc(exec || 'None in executive office')}</dd></div>
+        <div><dt>Legislative</dt><dd>${esc(leg || 'None')}</dd></div>
+      </dl>
+      <p class="fcard-actions">
+        <a class="btn btn-primary" href="#candidate-${esc(c.id)}">Full issue breakdown</a>
+        ${runnerUp ? `<a class="btn" href="#compare-${esc(c.id)}--${esc(runnerUp.candidate.id)}">Compare with ${esc(runnerUp.candidate.name)}</a>` : ''}
+      </p>
     </div>
   </article>`;
 }
@@ -1011,22 +1043,15 @@ function spectrum(ranked, highlights) {
     const h = highlights.get(c.id);
     const text = h && h.rank ? String(h.rank) : shortParty(c.party);
     const cls = ['spec-dot', `party-${shortParty(c.party).toLowerCase()}`, h ? 'is-key' : '', h && h.rank ? 'is-top' : ''].join(' ');
-    return `<button type="button" class="${cls}" data-left="${r.alignment}" data-cand="${esc(c.id)}" aria-label="${esc(c.name)}, ${esc(c.party)}, ${r.alignment}%">${text}</button>`;
-  }).join('');
-  const legend = [...highlights.entries()].map(([id, h]) => {
-    const e = scored.find((x) => x.candidate.id === id);
-    if (!e) return '';
-    return `<li>${h.rank ? `<span class="legend-num">${h.rank}</span>` : `<span class="legend-num legend-alt">${shortParty(e.candidate.party)}</span>`}<a href="#candidate-${esc(id)}">${esc(e.candidate.name)}</a> ${e.result.alignment}%${h.note ? ` <span class="muted">${esc(h.note)}</span>` : ''}</li>`;
+    return `<button type="button" class="${cls}" data-left="${r.alignment}" data-cand="${esc(c.id)}" aria-label="${esc(c.name)}, ${esc(c.party)}, ${r.alignment}%. Show card">${text}</button>`;
   }).join('');
   const missing = ranked.length - scored.length;
   return `<section class="field-chart" aria-labelledby="chart-h">
-    <h2 id="chart-h">Where the whole field lands</h2>
+    <div class="section-head"><h2 id="chart-h">Where the whole field lands</h2><p class="small muted">Tap a dot to jump to that card.</p></div>
     <div class="spectrum">
       <div class="spec-plot">${marks}</div>
       <div class="spec-axis" aria-hidden="true"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
     </div>
-    <p class="spec-pick" id="spec-pick" role="status">Tap a dot to see who it is.</p>
-    <ul class="spec-legend">${legend}</ul>
     ${missing ? `<p class="small muted">${missing} candidate${missing === 1 ? ' has' : 's have'} no known position on your issues.</p>` : ''}
   </section>`;
 }
@@ -1036,23 +1061,26 @@ function filtered(ranked) {
     && (state.filters.status === 'all' || e.candidate.status === state.filters.status));
 }
 
-function fullListHtml() {
-  const ranked = rankedNow();
-  const list = filtered(ranked);
-  const count = `<p class="sr-only" id="result-count">Showing ${list.length} of ${ranked.length} candidates.</p>`;
+function cardGridHtml() {
+  const rankOf = new Map(rankedByAlignment().map((e, i) => [e.candidate.id, i + 1]));
+  const list = filtered(rankedNow());
+  const count = `<p class="sr-only" id="result-count">Showing ${list.length} of ${state.candidates.length} candidates.</p>`;
   if (!list.length) return `${count}<p>No candidates match.</p>`;
-  const rows = list.map((e) => {
-    const { candidate: c, result: r } = e;
-    const conflicts = r.dealbreakers.length ? ` <span class="flag-inline"><span class="sr-only">Dealbreaker conflict</span></span>` : '';
-    return `<li class="row">
-      <a class="row-name" href="#candidate-${esc(c.id)}">${esc(c.name)}</a>${conflicts}
-      <span class="row-party">${partyTag(c.party)}</span>
-      <span class="row-bar">${scoreBar(r)}</span>
-      <span class="row-pct">${r.alignment === null ? '&ndash;' : `${r.alignment}%`}</span>
-      <span class="row-basis">${r.alignment === null ? 'no overlap' : `${r.scored}/${r.answered}`}</span>
-    </li>`;
-  }).join('');
-  return `${count}<ol class="full-list" aria-label="All candidates">${rows}</ol>`;
+  return `${count}<div class="card-grid">${list.map((e) => tradingCard(e, { rank: rankOf.get(e.candidate.id) })).join('')}</div>`;
+}
+
+function leadershipLine() {
+  if (!state.leadership.ranking) return '';
+  const label = (id) => state.traits.find((t) => t.id === id).label;
+  return `<p class="lead-line"><strong>Your leadership priorities:</strong> ${state.leadership.ranking.map((id, i) => `${i + 1}. ${esc(label(id))}`).join(' &middot; ')}. <span class="muted">Not scored; each candidate's page lists their experience.</span></p>`;
+}
+
+function oddsNote() {
+  const m = state.markets;
+  if (!m) return '';
+  const when = new Date(m.fetched_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const others = (m.uncovered || []).filter((u) => u.market !== 'presidency').map((u) => `${esc(u.name)} ${esc(fmtOdds(u.last))}`);
+  return `<p class="small muted">Odds: ${externalLink(m.source_url, m.source)} traders, ${esc(when)}. Not part of your score.${others.length ? ` Also trading for a nomination but not covered here: ${others.join(', ')}.` : ''}</p>`;
 }
 
 function viewResults() {
@@ -1060,34 +1088,27 @@ function viewResults() {
   const answered = answeredCount();
   const ranked = rankedByAlignment();
   const scored = ranked.filter((e) => e.result.alignment !== null);
-  const top = scored.slice(0, 3);
-  const lead = top[0];
+  const lead = scored[0];
   const otherParty = lead ? (lead.candidate.party === 'Republican' ? 'Democratic' : 'Republican') : null;
   const bestOther = otherParty ? bestByParty(ranked, otherParty) : null;
-  const otherInTop = bestOther && top.some((e) => e.candidate.id === bestOther.candidate.id);
   const tie = closeContest(ranked);
+  const statuses = [...new Set(state.candidates.map((c) => c.status))];
 
-  const highlights = new Map(top.map((e, i) => [e.candidate.id, { rank: i + 1 }]));
-  if (bestOther && !otherInTop) highlights.set(bestOther.candidate.id, { note: `closest ${otherParty === 'Republican' ? 'Republican' : 'Democrat'}` });
+  const highlights = new Map(scored.slice(0, 3).map((e, i) => [e.candidate.id, { rank: i + 1 }]));
+  if (bestOther && !highlights.has(bestOther.candidate.id)) highlights.set(bestOther.candidate.id, {});
 
   const flash = state.flash;
   state.flash = null;
   const flashHtml = flash ? `<p class="flash ${flash.kind === 'warn' ? 'flash-warn' : ''}" role="status">${esc(flash.text)}</p>` : '';
-  const select = (id, label, options, current) => `<label>${label}
-      <select id="${id}">${options.map(([v, t]) => `<option value="${esc(v)}" ${current === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
-    </label>`;
 
-  const headline = lead
-    ? `Your closest match is <span class="hl-name">${esc(lead.candidate.name)}</span>`
-    : 'No candidate has known positions on your issues yet';
   const gap = tie ? tie[0].result.alignment - tie[1].result.alignment : 0;
   const tieText = tie ? `${esc(tie[0].candidate.name)} and ${esc(tie[1].candidate.name)} are ${gap === 0 ? 'tied' : `${gap} point${gap === 1 ? '' : 's'} apart`}.` : '';
   const tieNote = !tie ? '' : state.tiebreakSeen
-    ? `<div class="tie-note no-print"><p><strong>Still close.</strong> ${tieText} See where they differ, side by side.</p><a class="btn" href="#compare-${esc(tie[0].candidate.id)}--${esc(tie[1].candidate.id)}">Compare them</a></div>`
+    ? `<div class="tie-note no-print"><p><strong>Still close.</strong> ${tieText}</p><a class="btn" href="#compare-${esc(tie[0].candidate.id)}--${esc(tie[1].candidate.id)}">Compare them</a></div>`
     : `<div class="tie-note no-print"><p><strong>${tieText}</strong> A few quick questions can separate them.</p><a class="btn btn-primary" href="#sharpen">Break the tie</a></div>`;
-  const otherCard = bestOther && !otherInTop
-    ? matchCard(bestOther, { label: `Closest ${otherParty === 'Republican' ? 'Republican' : 'Democrat'}`, compact: true })
-    : '';
+
+  const partyChip = (value, text) => `<button type="button" class="fchip" data-party="${value}" aria-pressed="${state.filters.party === value}">${text}</button>`;
+  const otherLabel = `Closest ${otherParty === 'Republican' ? 'Republican' : 'Democrat'}`;
 
   return {
     title: 'Your results',
@@ -1097,31 +1118,38 @@ function viewResults() {
     </div>
     <header class="res-head">
       <p class="kicker">Your results &middot; ${answered} of ${state.issues.length} issues &middot; <a href="#review" class="no-print">Edit answers</a></p>
-      <h1 tabindex="-1">${headline}</h1>
+      <h1 tabindex="-1">${lead ? `Your closest match is <span class="hl-name">${esc(lead.candidate.name)}</span>` : 'No candidate has known positions on your issues yet'}</h1>
     </header>
     ${flashHtml}
     ${tieNote}
-    <section class="top3" aria-label="Your top matches">
-      <div class="top3-col">${top[0] ? matchCard(top[0], { rank: 1 }) : ''}${otherCard}</div>
-      <div class="top3-col">${top.slice(1).map((e, i) => matchCard(e, { rank: i + 2, compact: true })).join('')}</div>
-    </section>
-    ${spectrum(ranked, highlights)}
+    ${lead ? `<section class="hero-row" aria-label="Your closest matches">
+      ${featuredCard(lead, scored[1] || null)}
+      ${bestOther ? `<div class="hero-side">${tradingCard(bestOther, { rank: ranked.indexOf(bestOther) + 1, label: otherLabel, scope: 'hero' })}</div>` : ''}
+    </section>` : ''}
     <p class="note-line">Alignment reflects only the issues you answered and weighted. It is not a prediction or an endorsement.${state.meta.last_reviewed ? '' : ' <span class="draft-inline">Draft data, not yet verified.</span>'}</p>
-    <section class="section-gap">
-      <details class="fold" id="all-fold">
-        <summary><h2 id="ranked-h">All ${state.candidates.length} candidates</h2></summary>
-        <div class="filters">
-          ${select('f-party', 'Party', [['all', 'All'], ...PARTIES.map((p) => [p, p])], state.filters.party)}
-          ${select('f-status', 'Status', [['all', 'All'], ...STATUSES.map((s) => [s, s])], state.filters.status)}
-          ${select('f-sort', 'Sort by', [['alignment', 'Alignment'], ['coverage', 'Issues covered']], state.filters.sort)}
+    ${spectrum(ranked, highlights)}
+    <section class="deck" aria-labelledby="ranked-h">
+      <div class="section-head">
+        <h2 id="ranked-h">All ${state.candidates.length} candidates</h2>
+        <div class="deck-controls no-print">
+          <div class="fchips" role="group" aria-label="Party">${partyChip('all', 'All')}${partyChip('Democratic', 'Democrats')}${partyChip('Republican', 'Republicans')}</div>
+          <label class="sort">Sort
+            <select id="f-sort">
+              <option value="alignment" ${state.filters.sort === 'alignment' ? 'selected' : ''}>Best match</option>
+              <option value="coverage" ${state.filters.sort === 'coverage' ? 'selected' : ''}>Most issues covered</option>
+            </select>
+          </label>
+          ${statuses.length > 1 ? `<label class="sort">Status
+            <select id="f-status"><option value="all">All</option>${statuses.map((s) => `<option value="${esc(s)}" ${state.filters.status === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+          </label>` : ''}
         </div>
-        <div id="result-region">${fullListHtml()}</div>
-      </details>
+      </div>
+      <div id="result-region">${cardGridHtml()}</div>
+      ${oddsNote()}
     </section>
+    ${leadershipLine()}
     ${engageBox()}
-    ${marketsPanel()}
-    ${leadershipSection()}
-    <p class="more-links no-print"><a href="#compare">Compare two candidates</a>${PREVIEW ? '' : '<button type="button" class="btn-link" data-print>Save as PDF</button>'}</p>
+    <p class="more-links no-print"><a href="#compare">Compare any two candidates</a>${PREVIEW ? '' : '<button type="button" class="btn-link" data-print>Save as PDF</button>'}</p>
     ${answersAppendix()}`,
     after: wireResults,
   };
@@ -1130,30 +1158,47 @@ function viewResults() {
 function wireResults() {
   const region = document.getElementById('result-region');
   const update = () => {
-    region.innerHTML = fullListHtml();
+    region.innerHTML = cardGridHtml();
     applyWidths(region);
     announce(document.getElementById('result-count').textContent);
   };
-  document.getElementById('f-party').addEventListener('change', (e) => { state.filters.party = e.target.value; update(); });
-  document.getElementById('f-status').addEventListener('change', (e) => { state.filters.status = e.target.value; update(); });
+  main.querySelectorAll('.fchip').forEach((b) => b.addEventListener('click', () => {
+    state.filters.party = b.dataset.party;
+    main.querySelectorAll('.fchip').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    update();
+  }));
   document.getElementById('f-sort').addEventListener('change', (e) => { state.filters.sort = e.target.value; update(); });
+  const statusSel = document.getElementById('f-status');
+  if (statusSel) statusSel.addEventListener('change', (e) => { state.filters.status = e.target.value; update(); });
   const printBtn = document.querySelector('[data-print]');
   if (printBtn) printBtn.addEventListener('click', () => window.print());
 
-  // Spectrum: stack rows, and tapping a dot names it.
+  // Spectrum: stack dots by real width; tapping a dot jumps to that candidate's card.
   const spec = main.querySelector('.spectrum');
   if (spec) {
     layoutSpectrum(spec);
     window.addEventListener('resize', () => { if (spec.isConnected) layoutSpectrum(spec); });
-    const pick = document.getElementById('spec-pick');
     spec.addEventListener('click', (e) => {
       const dot = e.target.closest('.spec-dot');
       if (!dot) return;
-      spec.querySelectorAll('.spec-dot[aria-pressed="true"]').forEach((d) => d.setAttribute('aria-pressed', 'false'));
-      dot.setAttribute('aria-pressed', 'true');
-      const c = candidateById(dot.dataset.cand);
-      const r = scoreCandidate(state.answers, c, state.issues);
-      pick.innerHTML = `${partyTag(c.party)} <a href="#candidate-${esc(c.id)}">${esc(c.name)}</a> <strong>${r.alignment}%</strong> <span class="muted">${r.scored} of ${r.answered} issues</span>`;
+      const find = () => document.getElementById(`card-${dot.dataset.cand}`);
+      let card = find();
+      if (!card) {
+        // Hidden by a filter: show everyone, then jump.
+        state.filters.party = 'all';
+        state.filters.status = 'all';
+        main.querySelectorAll('.fchip').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.party === 'all')));
+        const statusSel2 = document.getElementById('f-status');
+        if (statusSel2) statusSel2.value = 'all';
+        update();
+        card = find();
+      }
+      if (!card) return;
+      card.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      card.focus({ preventScroll: true });
+      card.classList.remove('is-pinged');
+      void card.offsetWidth;
+      card.classList.add('is-pinged');
     });
   }
   wireSignup();
@@ -1268,31 +1313,6 @@ function viewSharpen() {
   };
 }
 
-function leadershipSection() {
-  const traitLabel = (id) => state.traits.find((t) => t.id === id).label;
-  const mine = state.leadership.ranking
-    ? `<p>Your priorities: ${state.leadership.ranking.map((id, i) => `${i + 1}. ${esc(traitLabel(id))}`).join(' &middot; ')}</p>`
-    : '<p class="muted">Not ranked. <a href="#leadership">Rank them</a></p>';
-  const rows = state.candidates.slice().sort((a, b) => a.name.localeCompare(b.name)).map((c) => `
-    <tr>
-      <th scope="row">${esc(c.name)}</th>
-      <td data-label="Executive">${esc(c.background.executive_experience || 'None')}</td>
-      <td data-label="Legislative">${esc(c.background.legislative_experience || 'None')}</td>
-    </tr>`).join('');
-  return `<section class="section-gap no-print">
-    <details class="fold">
-      <summary><h2 id="lead-h">Leadership style <span class="muted">(not scored)</span></h2></summary>
-      ${mine}
-      <p class="small muted">We list experience only. The rest is your call.</p>
-      <div class="table-wrap"><table class="data stack">
-        <caption class="sr-only">Experience by candidate</caption>
-        <thead><tr><th scope="col">Candidate</th><th scope="col">Executive</th><th scope="col">Legislative</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>
-    </details>
-  </section>`;
-}
-
 function answersAppendix() {
   const rows = state.issues.map((issue) => {
     const a = state.answers[issue.id];
@@ -1346,54 +1366,79 @@ function viewCandidate(id) {
   const age = ageFrom(c.birth_date);
   const profileUrl = safeUrl(c.profile_url);
   const statusUrl = safeUrl(c.status_source_url);
+  const odds = oddsFor(c);
+  const known = state.issues.filter((i) => c.positions[i.id] && isValidValue(c.positions[i.id].value)).length;
+  const m = state.markets;
+  const marketLinks = m ? [[nominationKey(c), 'Nomination market'], ['presidency', 'Presidency market']]
+    .filter(([k]) => m.events[k]).map(([k, t]) => externalLink(m.events[k].url, t)).join(' &middot; ') : '';
+  const scored = done && r.alignment !== null;
 
-  const summary = !done
-    ? `<p class="tight muted">Your match with ${esc(c.name)} appears when you <a href="${continueHref()}">finish the issues</a>.</p>`
+  const matchBlock = !done
+    ? `<div class="pc-match pc-locked"><p>Your match with ${esc(c.name)} appears when you <a href="${continueHref()}">finish the issues</a>.</p></div>`
     : r.alignment === null
-      ? '<p class="tight">No score: no known positions on the issues you answered.</p>'
-      : `<p class="tight"><span class="score-num">${r.alignment}%</span> <span class="muted">${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}</span></p>`;
+      ? '<div class="pc-match pc-locked"><p>No known positions on the issues you answered.</p></div>'
+      : `<div class="pc-match">
+          <div class="tcard-match"><span class="tcard-pct">${r.alignment}<small>%</small></span><span class="tcard-pct-l">your match</span></div>
+          ${scoreBar(r)}
+          <p class="tcard-basis">${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}</p>
+          <p class="fcard-why">${esc(matchSentence(r))}</p>
+        </div>`;
 
-  const rows = r.rows.map((row) => {
+  const issues = r.rows.map((row) => {
     const issue = issueById(row.issueId);
     const pos = c.positions[row.issueId];
     const a = state.answers[row.issueId];
     const yours = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : termify(positionLabel(issue, a.value));
-    const impNote = a && a.value !== null && a.importance >= 3 ? `<span class="importance-note">${esc(importanceLabel(a.importance))}</span>` : '';
-    const theirs = termify(pos ? pos.summary : 'No clear public position.');
-    return `<tr class="${row.dealbreaker ? 'row-flagged' : ''}">
-      <th scope="row">${esc(issue.title)}${impNote}</th>
-      <td data-label="You">${yours}</td>
-      <td data-label="${esc(c.name)}">${theirs}</td>
-      <td data-label="Source" class="source-cell">${sourceCell(pos)}</td>
-      ${done ? `<td data-label="Match">${matchBadge(row.level)}${row.dealbreaker ? `<span class="cell-sub">${dealbreakerFlag('Dealbreaker')}</span>` : ''}</td>` : ''}
-    </tr>`;
+    const imp = a && a.value !== null && a.importance >= 3 ? `<span class="tag tag-prov">${esc(importanceLabel(a.importance))}</span>` : '';
+    return `<li class="issue-row${row.dealbreaker ? ' is-flagged' : ''}">
+      <div class="ir-head">
+        <h3>${esc(issue.title)}</h3>
+        ${imp}
+        ${done ? matchBadge(row.level) : ''}
+        ${row.dealbreaker ? dealbreakerFlag('Dealbreaker') : ''}
+      </div>
+      <div class="ir-cols">
+        <div><span class="ir-l">You</span><p>${yours}</p></div>
+        <div><span class="ir-l">${esc(c.name)}</span><p>${termify(pos ? pos.summary : 'No clear public position.')}</p><div class="ir-src">${sourceCell(pos)}</div></div>
+      </div>
+    </li>`;
   }).join('');
 
   return {
     title: c.name,
     html: `
     ${done ? '<a class="back-link no-print" href="#results">&larr; Results</a>' : `<a class="back-link no-print" href="${continueHref()}">&larr; Back to the issues</a>`}
-    <div class="profile-head">
-      <h1 tabindex="-1">${esc(c.name)}</h1>
-      <p class="result-meta">${partyTag(c.party)} ${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
-      <p class="result-meta"><strong>${esc(c.status)}</strong> <span class="muted">(${esc(fmtDate(c.status_date))})</span>: ${esc(c.status_note || '')}</p>
-      <p class="result-meta link-row">${websiteLinks(c)}</p>
+    <section class="player" aria-labelledby="pc-name">
+      <div class="pc-id">
+        ${monogram(c, 'mono-lg')}
+        <div>
+          <p class="pc-tags">${partyTag(c.party)}</p>
+          <h1 id="pc-name" tabindex="-1">${esc(c.name)}</h1>
+          <p class="tcard-role">${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
+          <p class="pc-status"><strong>${esc(c.status)}</strong> <span class="muted">(${esc(fmtDate(c.status_date))})</span> ${esc(c.status_note || '')}</p>
+          <p class="pc-links">${websiteLinks(c)}</p>
+        </div>
+      </div>
+      ${matchBlock}
+    </section>
+    <div class="stats stats-wide">
+      ${scored ? `${stat('Agree', r.counts.Agree)}${stat('Close', r.counts.Partial)}${stat('Differ', r.counts.Disagree)}` : ''}
+      ${stat('Known positions', `${known}<small>/${state.issues.length}</small>`)}
+      ${stat('Nomination odds', odds && odds.nom !== null ? esc(fmtOdds(odds.nom)) : '&ndash;')}
+      ${stat('Presidency odds', odds && odds.pres !== null ? esc(fmtOdds(odds.pres)) : '&ndash;')}
     </div>
-    <div class="score-summary">${summary}
-      ${r.dealbreakers.length ? `<p class="tight">${dealbreakerFlag(`Dealbreaker conflict: ${r.dealbreakers.map((d) => issueById(d).title).join(', ')}`)}</p>` : ''}
-    </div>
-    <div class="table-wrap">
-      <table class="data stack">
-        <caption class="sr-only">Issue by issue: you and ${esc(c.name)}</caption>
-        <thead><tr>
-          <th scope="col">Issue</th><th scope="col">You</th><th scope="col">${esc(c.name)}</th><th scope="col">Source</th>${done ? '<th scope="col">Match</th>' : ''}
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-    ${candidateMarketSection(c)}
+    ${m ? `<p class="small muted">Odds from Kalshi traders, not part of your score. ${marketLinks}</p>` : ''}
+    <dl class="fcard-exp pc-exp">
+      <div><dt>Executive experience</dt><dd>${esc((c.background && c.background.executive_experience) || 'None in executive office')}</dd></div>
+      <div><dt>Legislative experience</dt><dd>${esc((c.background && c.background.legislative_experience) || 'None')}</dd></div>
+      <div><dt>About</dt><dd>${esc(c.bio)}</dd></div>
+    </dl>
+    <section aria-labelledby="ib-h">
+      <div class="section-head"><h2 id="ib-h">Issue by issue</h2>${r.dealbreakers.length ? dealbreakerFlag(`Dealbreaker conflict: ${r.dealbreakers.map((d) => issueById(d).title).join(', ')}`) : ''}</div>
+      <ol class="issue-list">${issues}</ol>
+    </section>
     <p class="small muted">Background: ${profileUrl ? externalLink(profileUrl, 'profile') : ''}${statusUrl ? ` &middot; ${externalLink(statusUrl, '2028 field')}` : ''}</p>
-    <div class="actions no-print"><a class="btn" href="#compare-${esc(c.id)}">Compare</a></div>`,
+    <div class="actions no-print"><a class="btn" href="#compare-${esc(c.id)}">Compare with someone</a></div>`,
   };
 }
 
