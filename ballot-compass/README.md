@@ -21,7 +21,7 @@ cd ballot-compass
 npm test
 ```
 
-There are 26 tests. They cover the scoring formula and score ranges, ranking and sorting, dealbreaker flags, glossary matching, the data files, the market snapshot, and the API. The API tests check validation, consent, origin checks, rate limits, the kill switch, and the exact database calls.
+There are 28 tests. They cover the scoring formula and score ranges, ranking and sorting, dealbreaker flags, glossary matching, the data files, the market snapshot, and the API. The API tests check validation, consent, origin checks, rate limits, the kill switch, and the exact database calls.
 
 ## Files
 
@@ -49,6 +49,8 @@ There are 26 tests. They cover the scoring formula and score ranges, ranking and
 - Alignment = `Σ(weight × match) / Σ(weight)` over issues the user answered and the candidate has a known position on.
 - **Range**: when a candidate has unknown positions on issues the user answered, the card shows "could be X–Y%". X assumes every unknown is a full disagreement and Y a full agreement. The bar is solid to X, shaded to Y, with a tick at the score.
 - Sort by alignment (default) or by issues covered.
+- **Results screen**: the headline names your closest match, with the closest candidate from the other party shown beside it. The top 3 each get a card with a one-line "why" and Agree / Differ chips. A spectrum chart places all candidates on one 0-100% line (numbered dots for the top 3; tap any dot to name it). The full ranked list, market odds and leadership are folded closed.
+- **Tie-breakers** (`#sharpen`): when the top two are within 5 points (`TIE_THRESHOLD` in `js/scoring.js`), people are offered up to 3 questions on the issues where those two differ most, with the stances shown unnamed. A pick replaces their answer on that issue, and they can re-weight it too. After that the results page links to a side-by-side comparison instead of repeating the questions.
 - Dealbreaker flag: importance Dealbreaker and a gap of 2+ steps.
 
 ## Collecting answers (optional, anonymous)

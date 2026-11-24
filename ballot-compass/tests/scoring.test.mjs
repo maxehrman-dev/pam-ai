@@ -108,3 +108,24 @@ test('seed data is well formed', () => {
   }
   assert.deepEqual([...parties].sort(), ['Democratic', 'Republican']);
 });
+
+import { closeContest, separatingIssues } from '../js/scoring.js';
+
+test('closeContest finds a near-tie at the top', () => {
+  const answers = { a: { value: 0, importance: 2 }, b: { value: 0, importance: 2 }, c: { value: 0, importance: 2 } };
+  // x: 100%, y: 92% (one partial on 3 issues -> (2+2+1.5)/6 = 0.9167), z far behind
+  const ranked = rankCandidates(answers, [cand('x', 0, 0, 0), cand('y', 0, 0, 1), cand('z', 4, 4, 4)], issues);
+  assert.equal(closeContest(ranked, 5), null);
+  const pair = closeContest(ranked, 10);
+  assert.deepEqual(pair.map((e) => e.candidate.id), ['x', 'y']);
+});
+
+test('separatingIssues picks known, differing positions, biggest gaps first', () => {
+  const answers = { a: { value: 1, importance: 4 } };
+  const A = cand('A', 0, 2, null);
+  const B = cand('B', 4, 3, 1);
+  const s = separatingIssues(answers, A, B, issues, 3);
+  assert.deepEqual(s.map((x) => x.issueId), ['a', 'b']); // c is unknown for A
+  assert.equal(s[0].gap, 4);
+  assert.equal(separatingIssues(answers, A, A, issues).length, 0);
+});

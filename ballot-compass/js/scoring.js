@@ -129,3 +129,33 @@ export function rankCandidates(answers, candidates, issues, sort = 'alignment') 
 export function countAnswered(answers, issues) {
   return issues.filter((i) => answers[i.id] && isValidValue(answers[i.id].value)).length;
 }
+
+/* ---------- tie-breakers ---------- */
+
+export const TIE_THRESHOLD = 5;
+
+/** The two highest-scoring candidates when they are within `threshold` points, else null. */
+export function closeContest(ranked, threshold = TIE_THRESHOLD) {
+  const scored = ranked.filter((e) => e.result.alignment !== null);
+  if (scored.length < 2) return null;
+  const [a, b] = scored;
+  return a.result.alignment - b.result.alignment <= threshold ? [a, b] : null;
+}
+
+/**
+ * Issues that can separate two candidates: both have a known position and the positions differ.
+ * Biggest gaps first, then the issues the user weights most. Returns up to `max`.
+ */
+export function separatingIssues(answers, candA, candB, issues, max = 3) {
+  return issues
+    .map((issue) => {
+      const a = candA.positions[issue.id];
+      const b = candB.positions[issue.id];
+      if (!a || !b || !isValidValue(a.value) || !isValidValue(b.value) || a.value === b.value) return null;
+      const ans = answers[issue.id];
+      return { issueId: issue.id, aValue: a.value, bValue: b.value, gap: Math.abs(a.value - b.value), weight: ans ? ans.importance : DEFAULT_IMPORTANCE };
+    })
+    .filter(Boolean)
+    .sort((x, y) => (y.gap - x.gap) || (y.weight - x.weight))
+    .slice(0, max);
+}

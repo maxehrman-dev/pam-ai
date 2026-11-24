@@ -7,6 +7,9 @@ import {
   rankCandidates,
   scoreCandidate,
   countAnswered,
+  closeContest,
+  separatingIssues,
+  TIE_THRESHOLD,
 } from './scoring.js';
 import {
   CONSENT_VERSION,
@@ -44,6 +47,7 @@ const state = {
   profile: emptyProfile(),
   share: null, // { id, sharedOn } once answers have been shared anonymously
   signedUp: false,
+  tiebreakSeen: false,
   flash: null, // one-time message shown on the next results render
   scaleNote: '',
   answers: {},
@@ -295,6 +299,7 @@ function loadSaved() {
     const sh = data.share;
     state.share = sh && typeof sh.id === 'string' && /^[0-9a-f-]{36}$/i.test(sh.id) ? { id: sh.id, sharedOn: String(sh.sharedOn || '') } : null;
     state.signedUp = data.signedUp === true;
+    state.tiebreakSeen = data.tiebreakSeen === true;
   } catch {
     /* storage unavailable or corrupt: start fresh */
   }
@@ -302,7 +307,7 @@ function loadSaved() {
 
 function save() {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers: state.answers, leadership: state.leadership, profile: state.profile, share: state.share, signedUp: state.signedUp }));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers: state.answers, leadership: state.leadership, profile: state.profile, share: state.share, signedUp: state.signedUp, tiebreakSeen: state.tiebreakSeen }));
   } catch {
     /* storage unavailable: answers live only for this page view */
   }
@@ -315,6 +320,7 @@ function clearAll({ keepShareId = false } = {}) {
   state.profile = emptyProfile();
   state.share = share;
   state.signedUp = false;
+  state.tiebreakSeen = false;
   state.flash = null;
   try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   if (share) save();
@@ -774,14 +780,14 @@ function wireAboutYou() {
   form.querySelector('[data-a-back]').addEventListener('click', () => { location.hash = '#leadership'; });
   form.querySelector('[data-a-skip]').addEventListener('click', () => {
     state.flash = null;
-    location.hash = '#results';
+    location.hash = nextAfterAbout();
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     error.textContent = '';
     if (PREVIEW) {
       state.flash = { kind: 'warn', text: 'Preview: nothing was sent.' };
-      location.hash = '#results';
+      location.hash = nextAfterAbout();
       return;
     }
     const consent = form.querySelector('#d-consent');
@@ -832,7 +838,7 @@ function wireAboutYou() {
     }
     state.flash = { kind, text: messages.join(' ') };
     save();
-    location.hash = '#results';
+    location.hash = nextAfterAbout();
   });
 }
 
@@ -884,43 +890,117 @@ function bestByParty(ranked, party) {
   return ranked.find((r) => r.candidate.party === party && r.result.alignment !== null) || null;
 }
 
-function issueNames(rows) {
-  return rows.map((r) => {
-    const title = esc(issueById(r.issueId).title);
-    if (r.dealbreaker) return `<span class="flag-inline">${title}<span class="sr-only"> (dealbreaker)</span></span>`;
-    return r.level === 'Partial' ? `${title} <span class="muted">(partial)</span>` : title;
-  }).join(', ');
+function rankedNow() {
+  return rankCandidates(state.answers, state.candidates, state.issues, state.filters.sort);
 }
 
-function resultCard(entry) {
-  const { candidate: c, result: r } = entry;
-  const agree = r.rows.filter((x) => x.level === 'Agree').sort((a, b) => b.weight - a.weight);
-  const differ = r.rows
-    .filter((x) => x.level === 'Partial' || x.level === 'Disagree')
-    .sort((a, b) => (Number(b.dealbreaker) - Number(a.dealbreaker)) || (b.gap - a.gap) || (b.weight - a.weight));
-  const score = r.alignment === null
-    ? '<p class="score-num" aria-label="No score">&ndash;</p><p class="score-basis">No overlap</p>'
-    : `<p class="score-num">${r.alignment}%<span class="sr-only"> alignment</span></p>
-       <p class="score-basis">${r.scored} of ${r.answered} issues${r.range ? `<br><span class="range-note">could be ${r.range.low}&ndash;${r.range.high}%</span>` : ''}</p>`;
-  // Solid to the lowest possible score, a light band up to the highest, a tick at the current score.
-  const bar = r.alignment === null ? '' : `<div class="score-bar" aria-hidden="true">
+/** Results ranked by alignment regardless of the list's sort setting. */
+function rankedByAlignment() {
+  return rankCandidates(state.answers, state.candidates, state.issues, 'alignment');
+}
+
+function shortParty(party) {
+  return party === 'Republican' ? 'R' : party === 'Democratic' ? 'D' : '?';
+}
+
+function listNames(rows, max = 2) {
+  const names = rows.slice(0, max).map((r) => issueById(r.issueId).title);
+  const extra = rows.length - names.length;
+  if (extra > 0) return `${names.join(', ')} and ${extra} more`;
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** One or two plain sentences explaining a match, built only from the scored rows. */
+function matchSentence(r) {
+  if (r.alignment === null) return 'No known positions on the issues you answered.';
+  const agree = r.rows.filter((x) => x.level === 'Agree');
+  const partial = r.rows.filter((x) => x.level === 'Partial');
+  const n = `${r.scored} issue${r.scored === 1 ? '' : 's'} with a known stance`;
+  let s;
+  if (agree.length === r.scored) s = `Same position as you on all ${n}.`;
+  else if (agree.length === 0) s = `No exact matches on the ${n}${partial.length ? `, but close on ${partial.length}` : ''}.`;
+  else s = `Same position as you on ${agree.length} of ${n}${partial.length ? `, close on ${partial.length} more` : ''}.`;
+  const conflicts = r.rows.filter((x) => x.dealbreaker);
+  const keyAgree = agree.filter((x) => x.weight >= 3).sort((a, b) => b.weight - a.weight);
+  if (conflicts.length) s += ` Differs on ${listNames(conflicts)}, ${conflicts.length === 1 ? 'a dealbreaker' : 'dealbreakers'} for you.`;
+  else if (keyAgree.length) s += ` That includes ${listNames(keyAgree)}, which you rated High or above.`;
+  return s;
+}
+
+function chipList(rows, kind, max) {
+  if (!rows.length) return '<span class="muted small">None</span>';
+  const chips = rows.slice(0, max).map((x) => {
+    const title = esc(issueById(x.issueId).title);
+    if (x.dealbreaker) return `<li class="chip chip-flag">${title}<span class="sr-only"> (dealbreaker)</span></li>`;
+    return `<li class="chip chip-${kind}">${title}${x.level === 'Partial' ? '<span class="chip-note"> close</span>' : ''}</li>`;
+  });
+  if (rows.length > max) chips.push(`<li class="chip chip-more">+${rows.length - max}</li>`);
+  return `<ul class="chips">${chips.join('')}</ul>`;
+}
+
+function scoreBar(r) {
+  if (r.alignment === null) return '';
+  // Solid to the lowest possible score, shaded to the highest, a tick at the score itself.
+  return `<div class="score-bar" aria-hidden="true">
       <span class="bar-fill" data-width="${r.range ? r.range.low : r.alignment}"></span>
       ${r.range ? `<span class="bar-range" data-left="${r.range.low}" data-width="${r.range.high - r.range.low}"></span><span class="bar-tick" data-left="${r.alignment}"></span>` : ''}
     </div>`;
-  return `<li class="result-card">
-    <div class="rc-head">
-      <div>
-        <h3 class="result-name"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a></h3>
-        <p class="result-meta">${partyTag(c.party)} ${esc(c.status)} <span class="muted">&middot; ${esc(fmtDate(c.status_date))}</span></p>
+}
+
+function matchCard(entry, { rank = null, label = null, compact = false } = {}) {
+  const { candidate: c, result: r } = entry;
+  const agree = r.rows.filter((x) => x.level === 'Agree').sort((a, b) => b.weight - a.weight);
+  const differ = r.rows.filter((x) => x.level === 'Partial' || x.level === 'Disagree')
+    .sort((a, b) => (Number(b.dealbreaker) - Number(a.dealbreaker)) || (b.gap - a.gap) || (b.weight - a.weight));
+  const max = compact ? 3 : 4;
+  return `<article class="mcard ${rank === 1 ? 'match-lead' : ''} ${compact ? 'match-compact' : ''}" aria-labelledby="m-${esc(c.id)}">
+    <div class="match-top">
+      ${rank ? `<span class="match-rank" aria-hidden="true">${rank}</span>` : ''}
+      <div class="match-id">
+        ${label ? `<p class="match-label">${esc(label)}</p>` : ''}
+        <h3 id="m-${esc(c.id)}" class="match-name"><a href="#candidate-${esc(c.id)}">${esc(c.name)}</a></h3>
+        <p class="match-meta">${partyTag(c.party)} <span>${esc(c.status)}</span></p>
       </div>
-      <div class="result-score">${score}</div>
+      <div class="match-score">
+        <span class="match-pct">${r.alignment === null ? '&ndash;' : `${r.alignment}%`}</span>
+        <span class="match-basis">${r.alignment === null ? 'no overlap' : `${r.scored} of ${r.answered} issues`}</span>
+      </div>
     </div>
-    ${bar}
-    <dl class="ad-lines">
-      <div><dt>Agree</dt><dd>${agree.length ? issueNames(agree) : '<span class="muted">None</span>'}</dd></div>
-      <div><dt>Differ</dt><dd>${differ.length ? issueNames(differ) : '<span class="muted">None</span>'}</dd></div>
-    </dl>
-  </li>`;
+    ${scoreBar(r)}
+    ${r.range ? `<p class="match-range">Could be ${r.range.low}&ndash;${r.range.high}% once unknown positions are filled in.</p>` : ''}
+    <p class="match-why">${esc(matchSentence(r))}</p>
+    <div class="match-chips">
+      <div><span class="chips-label">Agree</span>${chipList(agree, 'agree', max)}</div>
+      <div><span class="chips-label">Differ</span>${chipList(differ, 'differ', max)}</div>
+    </div>
+  </article>`;
+}
+
+function spectrum(ranked, highlights) {
+  const scored = ranked.filter((e) => e.result.alignment !== null);
+  const marks = scored.map(({ candidate: c, result: r }) => {
+    const h = highlights.get(c.id);
+    const text = h && h.rank ? String(h.rank) : shortParty(c.party);
+    const cls = ['spec-dot', `party-${shortParty(c.party).toLowerCase()}`, h ? 'is-key' : '', h && h.rank ? 'is-top' : ''].join(' ');
+    return `<button type="button" class="${cls}" data-left="${r.alignment}" data-cand="${esc(c.id)}" aria-label="${esc(c.name)}, ${esc(c.party)}, ${r.alignment}%">${text}</button>`;
+  }).join('');
+  const legend = [...highlights.entries()].map(([id, h]) => {
+    const e = scored.find((x) => x.candidate.id === id);
+    if (!e) return '';
+    return `<li>${h.rank ? `<span class="legend-num">${h.rank}</span>` : `<span class="legend-num legend-alt">${shortParty(e.candidate.party)}</span>`}<a href="#candidate-${esc(id)}">${esc(e.candidate.name)}</a> ${e.result.alignment}%${h.note ? ` <span class="muted">${esc(h.note)}</span>` : ''}</li>`;
+  }).join('');
+  const missing = ranked.length - scored.length;
+  return `<section class="field-chart" aria-labelledby="chart-h">
+    <h2 id="chart-h">Where the whole field lands</h2>
+    <div class="spectrum">
+      <div class="spec-plot">${marks}</div>
+      <div class="spec-axis" aria-hidden="true"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+    </div>
+    <p class="spec-pick" id="spec-pick" role="status">Tap a dot to see who it is.</p>
+    <ul class="spec-legend">${legend}</ul>
+    ${missing ? `<p class="small muted">${missing} candidate${missing === 1 ? ' has' : 's have'} no known position on your issues.</p>` : ''}
+  </section>`;
 }
 
 function filtered(ranked) {
@@ -928,16 +1008,243 @@ function filtered(ranked) {
     && (state.filters.status === 'all' || e.candidate.status === state.filters.status));
 }
 
-function rankedNow() {
-  return rankCandidates(state.answers, state.candidates, state.issues, state.filters.sort);
-}
-
-function resultsListHtml() {
+function fullListHtml() {
   const ranked = rankedNow();
   const list = filtered(ranked);
   const count = `<p class="sr-only" id="result-count">Showing ${list.length} of ${ranked.length} candidates.</p>`;
   if (!list.length) return `${count}<p>No candidates match.</p>`;
-  return `${count}<ol class="result-list" aria-labelledby="ranked-h">${list.map((e) => resultCard(e)).join('')}</ol>`;
+  const rows = list.map((e) => {
+    const { candidate: c, result: r } = e;
+    const conflicts = r.dealbreakers.length ? ` <span class="flag-inline"><span class="sr-only">Dealbreaker conflict</span></span>` : '';
+    return `<li class="row">
+      <a class="row-name" href="#candidate-${esc(c.id)}">${esc(c.name)}</a>${conflicts}
+      <span class="row-party">${partyTag(c.party)}</span>
+      <span class="row-bar">${scoreBar(r)}</span>
+      <span class="row-pct">${r.alignment === null ? '&ndash;' : `${r.alignment}%`}</span>
+      <span class="row-basis">${r.alignment === null ? 'no overlap' : `${r.scored}/${r.answered}`}</span>
+    </li>`;
+  }).join('');
+  return `${count}<ol class="full-list" aria-label="All candidates">${rows}</ol>`;
+}
+
+function viewResults() {
+  const answered = answeredCount();
+  if (!answered) {
+    return {
+      title: 'Your results',
+      html: `<div class="measure">
+        <h1 tabindex="-1">Your results</h1>
+        <p>Answer at least one issue to see results.</p>
+        <div class="actions"><a class="btn btn-primary" href="#profile">Start</a></div>
+      </div>`,
+    };
+  }
+  const ranked = rankedByAlignment();
+  const scored = ranked.filter((e) => e.result.alignment !== null);
+  const top = scored.slice(0, 3);
+  const lead = top[0];
+  const otherParty = lead ? (lead.candidate.party === 'Republican' ? 'Democratic' : 'Republican') : null;
+  const bestOther = otherParty ? bestByParty(ranked, otherParty) : null;
+  const otherInTop = bestOther && top.some((e) => e.candidate.id === bestOther.candidate.id);
+  const tie = closeContest(ranked);
+
+  const highlights = new Map(top.map((e, i) => [e.candidate.id, { rank: i + 1 }]));
+  if (bestOther && !otherInTop) highlights.set(bestOther.candidate.id, { note: `closest ${otherParty === 'Republican' ? 'Republican' : 'Democrat'}` });
+
+  const flash = state.flash;
+  state.flash = null;
+  const flashHtml = flash ? `<p class="flash ${flash.kind === 'warn' ? 'flash-warn' : ''}" role="status">${esc(flash.text)}</p>` : '';
+  const select = (id, label, options, current) => `<label>${label}
+      <select id="${id}">${options.map(([v, t]) => `<option value="${esc(v)}" ${current === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    </label>`;
+
+  const headline = lead
+    ? `Your closest match is <span class="hl-name">${esc(lead.candidate.name)}</span>`
+    : 'No candidate has known positions on your issues yet';
+  const gap = tie ? tie[0].result.alignment - tie[1].result.alignment : 0;
+  const tieText = tie ? `${esc(tie[0].candidate.name)} and ${esc(tie[1].candidate.name)} are ${gap === 0 ? 'tied' : `${gap} point${gap === 1 ? '' : 's'} apart`}.` : '';
+  const tieNote = !tie ? '' : state.tiebreakSeen
+    ? `<div class="tie-note no-print"><p><strong>Still close.</strong> ${tieText} See where they differ, side by side.</p><a class="btn" href="#compare-${esc(tie[0].candidate.id)}--${esc(tie[1].candidate.id)}">Compare them</a></div>`
+    : `<div class="tie-note no-print"><p><strong>${tieText}</strong> A few quick questions can separate them.</p><a class="btn btn-primary" href="#sharpen">Break the tie</a></div>`;
+  const otherCard = bestOther && !otherInTop
+    ? matchCard(bestOther, { label: `Closest ${otherParty === 'Republican' ? 'Republican' : 'Democrat'}`, compact: true })
+    : '';
+
+  return {
+    title: 'Your results',
+    html: `
+    <div class="print-only">
+      <p><strong>Ballot Compass</strong>, ${esc(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))}</p>
+    </div>
+    <header class="res-head">
+      <p class="kicker">Your results &middot; ${answered} of ${state.issues.length} issues &middot; <a href="#review" class="no-print">Edit answers</a></p>
+      <h1 tabindex="-1">${headline}</h1>
+    </header>
+    ${flashHtml}
+    ${tieNote}
+    <section class="top3" aria-label="Your top matches">
+      <div class="top3-col">${top[0] ? matchCard(top[0], { rank: 1 }) : ''}${otherCard}</div>
+      <div class="top3-col">${top.slice(1).map((e, i) => matchCard(e, { rank: i + 2, compact: true })).join('')}</div>
+    </section>
+    ${spectrum(ranked, highlights)}
+    <p class="note-line">Alignment reflects only the issues you answered and weighted. It is not a prediction or an endorsement.${state.meta.last_reviewed ? '' : ' <span class="draft-inline">Draft data, not yet verified.</span>'}</p>
+    <section class="section-gap">
+      <details class="fold" id="all-fold">
+        <summary><h2 id="ranked-h">All ${state.candidates.length} candidates</h2></summary>
+        <div class="filters">
+          ${select('f-party', 'Party', [['all', 'All'], ...PARTIES.map((p) => [p, p])], state.filters.party)}
+          ${select('f-status', 'Status', [['all', 'All'], ...STATUSES.map((s) => [s, s])], state.filters.status)}
+          ${select('f-sort', 'Sort by', [['alignment', 'Alignment'], ['coverage', 'Issues covered']], state.filters.sort)}
+        </div>
+        <div id="result-region">${fullListHtml()}</div>
+      </details>
+    </section>
+    ${engageBox()}
+    ${marketsPanel()}
+    ${leadershipSection()}
+    <p class="more-links no-print"><a href="#compare">Compare two candidates</a>${PREVIEW ? '' : '<button type="button" class="btn-link" data-print>Save as PDF</button>'}</p>
+    ${answersAppendix()}`,
+    after: wireResults,
+  };
+}
+
+function wireResults() {
+  const region = document.getElementById('result-region');
+  const update = () => {
+    region.innerHTML = fullListHtml();
+    applyWidths(region);
+    announce(document.getElementById('result-count').textContent);
+  };
+  document.getElementById('f-party').addEventListener('change', (e) => { state.filters.party = e.target.value; update(); });
+  document.getElementById('f-status').addEventListener('change', (e) => { state.filters.status = e.target.value; update(); });
+  document.getElementById('f-sort').addEventListener('change', (e) => { state.filters.sort = e.target.value; update(); });
+  const printBtn = document.querySelector('[data-print]');
+  if (printBtn) printBtn.addEventListener('click', () => window.print());
+
+  // Spectrum: stack rows, and tapping a dot names it.
+  const spec = main.querySelector('.spectrum');
+  if (spec) {
+    layoutSpectrum(spec);
+    window.addEventListener('resize', () => { if (spec.isConnected) layoutSpectrum(spec); });
+    const pick = document.getElementById('spec-pick');
+    spec.addEventListener('click', (e) => {
+      const dot = e.target.closest('.spec-dot');
+      if (!dot) return;
+      spec.querySelectorAll('.spec-dot[aria-pressed="true"]').forEach((d) => d.setAttribute('aria-pressed', 'false'));
+      dot.setAttribute('aria-pressed', 'true');
+      const c = candidateById(dot.dataset.cand);
+      const r = scoreCandidate(state.answers, c, state.issues);
+      pick.innerHTML = `${partyTag(c.party)} <a href="#candidate-${esc(c.id)}">${esc(c.name)}</a> <strong>${r.alignment}%</strong> <span class="muted">${r.scored} of ${r.answered} issues</span>`;
+    });
+  }
+  wireSignup();
+}
+
+/** Stack dots into rows using the plot's real width so no two dots overlap at any screen size. */
+function layoutSpectrum(spec) {
+  const plot = spec.querySelector('.spec-plot');
+  const dots = [...spec.querySelectorAll('.spec-dot')];
+  const width = plot.clientWidth || 1;
+  const rows = [];
+  dots
+    .map((d) => ({ d, x: Number(d.dataset.left), size: d.offsetWidth || 26 }))
+    .sort((a, b) => (b.d.classList.contains('is-top') - a.d.classList.contains('is-top')) || (b.x - a.x))
+    .forEach(({ d, x, size }) => {
+      const minGap = ((size + 4) / width) * 100;
+      let row = 0;
+      while (rows[row] && rows[row].some((v) => Math.abs(v - x) < minGap)) row += 1;
+      (rows[row] = rows[row] || []).push(x);
+      d.style.setProperty('--row', row);
+    });
+  spec.style.setProperty('--rows', Math.max(1, rows.length));
+}
+
+/* ----- tie-breaker ----- */
+
+function nextAfterAbout() {
+  return closeContest(rankedByAlignment()) && !state.tiebreakSeen ? '#sharpen' : '#results';
+}
+
+function viewSharpen() {
+  state.tiebreakSeen = true;
+  save();
+  const pair = closeContest(rankedByAlignment());
+  if (!pair) {
+    return {
+      title: 'Break the tie',
+      html: `<div class="measure"><h1 tabindex="-1">No tie to break</h1><p>Your top match is more than ${TIE_THRESHOLD} points ahead.</p>
+        <div class="actions"><a class="btn btn-primary" href="#results">See results</a></div></div>`,
+    };
+  }
+  const [A, B] = pair;
+  const items = separatingIssues(state.answers, A.candidate, B.candidate, state.issues, 3);
+  if (!items.length) {
+    return {
+      title: 'Break the tie',
+      html: `<div class="measure"><h1 tabindex="-1">Too close to separate</h1><p>${esc(A.candidate.name)} and ${esc(B.candidate.name)} take the same known position on every issue, so more questions won't change the result.</p>
+        <div class="actions"><a class="btn btn-primary" href="#results">See results</a></div></div>`,
+    };
+  }
+  const fieldsets = items.map((it, i) => {
+    const issue = issueById(it.issueId);
+    // Alternate which candidate's stance is shown first so order gives nothing away.
+    const stances = i % 2 === 0 ? [it.aValue, it.bValue] : [it.bValue, it.aValue];
+    const ans = state.answers[it.issueId];
+    const current = ans && ans.value !== null ? positionLabel(issue, ans.value) : null;
+    const imp = ans ? ans.importance : DEFAULT_IMPORTANCE;
+    return `<fieldset class="tb" data-issue="${esc(it.issueId)}">
+      <legend>${items.length > 1 ? `<span class="tb-num">${i + 1} of ${items.length}</span>` : ''}${esc(issue.title)}</legend>
+      ${current ? `<p class="small muted">Your answer: ${termify(current)}</p>` : '<p class="small muted">You skipped this one.</p>'}
+      <div class="options">
+        ${stances.map((v, j) => `<label class="option"><input type="radio" name="tb-${esc(it.issueId)}" value="${v}"><span class="option-text"><span class="tb-tag">Stance ${'AB'[j]}</span> ${termify(positionLabel(issue, v))}</span></label>`).join('')}
+        <label class="option option-skip"><input type="radio" name="tb-${esc(it.issueId)}" value="keep" checked><span class="option-text">Neither / keep my answer</span></label>
+      </div>
+      <div class="tb-imp" role="radiogroup" aria-label="How much ${esc(issue.title)} matters">
+        <span class="tb-imp-label">Matters</span>
+        ${IMPORTANCE.map((o) => `<label class="seg"><input type="radio" name="imp-${esc(it.issueId)}" value="${o.value}" ${imp === o.value ? 'checked' : ''}><span>${o.label}</span></label>`).join('')}
+      </div>
+    </fieldset>`;
+  }).join('');
+  const gap = A.result.alignment - B.result.alignment;
+  return {
+    title: 'Break the tie',
+    html: `<div class="measure">
+      <div class="progress"><div class="progress-label"><span>Tie-breaker &middot; optional</span></div>
+        <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-width="100"></div></div></div>
+      <h1 tabindex="-1">Break the tie</h1>
+      <p class="question-text">${esc(A.candidate.name)} and ${esc(B.candidate.name)} are ${gap === 0 ? 'tied' : `${gap} point${gap === 1 ? '' : 's'} apart`}. Here's where they differ most. Names are hidden, so judge the stances on their own.</p>
+      <form id="tb-form" novalidate>
+        ${fieldsets}
+        <div class="actions actions-split">
+          <a class="btn" href="#results">Skip</a>
+          <button type="submit" class="btn btn-primary">Update my results</button>
+        </div>
+      </form>
+    </div>`,
+    after: () => {
+      const form = document.getElementById('tb-form');
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        let changed = 0;
+        form.querySelectorAll('fieldset.tb').forEach((fs) => {
+          const id = fs.dataset.issue;
+          const pick = fs.querySelector(`input[name="tb-${CSS.escape(id)}"]:checked`).value;
+          const imp = Number(fs.querySelector(`input[name="imp-${CSS.escape(id)}"]:checked`).value);
+          const prev = state.answers[id];
+          if (pick !== 'keep') {
+            state.answers[id] = { value: Number(pick), importance: imp };
+            if (!prev || prev.value !== Number(pick) || prev.importance !== imp) changed += 1;
+          } else if (prev && prev.value !== null && prev.importance !== imp) {
+            state.answers[id] = { ...prev, importance: imp };
+            changed += 1;
+          }
+        });
+        save();
+        state.flash = { kind: 'ok', text: changed ? `Updated ${changed} answer${changed === 1 ? '' : 's'}.` : 'No changes. Your results are the same.' };
+        location.hash = '#results';
+      });
+    },
+  };
 }
 
 function leadershipSection() {
@@ -979,76 +1286,6 @@ function answersAppendix() {
       <tbody>${rows}</tbody>
     </table>
   </section>`;
-}
-
-function viewResults() {
-  const answered = answeredCount();
-  if (!answered) {
-    return {
-      title: 'Your results',
-      html: `<div class="measure">
-        <h1 tabindex="-1">Your results</h1>
-        <p>Answer at least one issue to see results.</p>
-        <div class="actions"><a class="btn btn-primary" href="#q-1">Start</a></div>
-      </div>`,
-    };
-  }
-  const ranked = rankedNow();
-  const bestR = bestByParty(ranked, 'Republican');
-  const bestD = bestByParty(ranked, 'Democratic');
-  const partyCell = (label, e) => `<div><dt>${esc(label)}</dt><dd>${e ? `<a href="#candidate-${esc(e.candidate.id)}">${esc(e.candidate.name)}</a> ${e.result.alignment}%` : '<span class="muted">Not enough data</span>'}</dd></div>`;
-  const flash = state.flash;
-  state.flash = null;
-  const flashHtml = flash ? `<p class="flash ${flash.kind === 'warn' ? 'flash-warn' : ''}" role="status">${esc(flash.text)}</p>` : '';
-  const select = (id, label, options, current) => `<label>${label}
-      <select id="${id}">${options.map(([v, t]) => `<option value="${esc(v)}" ${current === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
-    </label>`;
-
-  return {
-    title: 'Your results',
-    html: `
-    <div class="print-only">
-      <p><strong>Ballot Compass</strong>, ${esc(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))}</p>
-    </div>
-    <div class="results-head">
-      <h1 tabindex="-1">Your results</h1>
-      <p class="results-sub">${answered} of ${state.issues.length} issues &middot; <a href="#review" class="no-print">Edit answers</a></p>
-    </div>
-    ${flashHtml}
-    <p class="note-line">Alignment reflects only the issues you answered and weighted. It is not a prediction or an endorsement.${state.meta.last_reviewed ? '' : ' <span class="draft-inline">Draft data, not yet verified.</span>'}</p>
-    <dl class="party-summary" aria-label="Closest candidate in each party">
-      ${partyCell('Closest Republican', bestR)}
-      ${partyCell('Closest Democrat', bestD)}
-    </dl>
-    <h2 id="ranked-h" class="sr-only">All candidates</h2>
-    <div class="filters">
-      ${select('f-party', 'Party', [['all', 'All'], ...PARTIES.map((p) => [p, p])], state.filters.party)}
-      ${select('f-status', 'Status', [['all', 'All'], ...STATUSES.map((s) => [s, s])], state.filters.status)}
-      ${select('f-sort', 'Sort by', [['alignment', 'Alignment'], ['coverage', 'Issues covered']], state.filters.sort)}
-      <span class="filter-links"><a href="#compare">Compare two</a>${PREVIEW ? '' : '<button type="button" class="btn-link" data-print>Save as PDF</button>'}</span>
-    </div>
-    <div id="result-region">${resultsListHtml()}</div>
-    ${engageBox()}
-    ${marketsPanel()}
-    ${leadershipSection()}
-    ${answersAppendix()}`,
-    after: wireResults,
-  };
-}
-
-function wireResults() {
-  const region = document.getElementById('result-region');
-  const update = () => {
-    region.innerHTML = resultsListHtml();
-    applyWidths(region);
-    announce(document.getElementById('result-count').textContent);
-  };
-  document.getElementById('f-party').addEventListener('change', (e) => { state.filters.party = e.target.value; update(); });
-  document.getElementById('f-status').addEventListener('change', (e) => { state.filters.status = e.target.value; update(); });
-  document.getElementById('f-sort').addEventListener('change', (e) => { state.filters.sort = e.target.value; update(); });
-  const printBtn = document.querySelector('[data-print]');
-  if (printBtn) printBtn.addEventListener('click', () => window.print());
-  wireSignup();
 }
 
 /* ----- review all answers ----- */
@@ -1262,6 +1499,7 @@ alignment = &Sigma;(weight &times; match) &divide; &Sigma;(weight)</p>
       <p>Same position is <strong>Agree</strong>, one step apart is <strong>Partial</strong>, two or more is <strong>Disagree</strong>.</p>
       <p>Skipped issues, and issues where a candidate has no clear position, are left out. Each score says how many issues it covers. <strong>"Could be"</strong> shows the range the score could move to if those unknown positions were filled in, from all disagree to all agree.</p>
       <p>Example: you agree on a High issue (3 &times; 1.0) and are two steps apart on a Low one (1 &times; 0.5). (3 + 0.5) &divide; 4 = 88%.</p>
+      <p><strong>Tie-breakers.</strong> When your top two are within ${TIE_THRESHOLD} points, you can answer up to three questions on the issues where they differ most. Their stances are shown without names. Your pick replaces your answer on that issue, and you can also change how much it matters.</p>
 
       <h2 id="m-coding" tabindex="-1">How positions are coded</h2>
       <p>Each position has a one-line summary, a source and a date. <strong>Record</strong> means past votes, laws or older statements; <strong>Stated 2026</strong> means a 2026 statement. <strong>Unverified</strong> means no editor has checked the source yet. <strong>Older record</strong> marks sources more than ${OLD_SOURCE_YEARS} years old.</p>
@@ -1360,6 +1598,7 @@ function render() {
     case 'leadership': view = viewLeadership(); break;
     case 'about-you': view = viewAboutYou(); break;
     case 'profile': view = viewProfile(); break;
+    case 'sharpen': view = viewSharpen(); break;
     case 'review': view = viewReview(); break;
     case 'results': view = viewResults(); break;
     case 'candidate': view = viewCandidate(arg); break;
