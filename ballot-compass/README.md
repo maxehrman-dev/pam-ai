@@ -1,18 +1,18 @@
 # Ballot Compass
 
-A nonpartisan tool that lets a voter compare their own policy views with possible 2028 U.S. presidential candidates in both parties. Every comparison is issue by issue and sourced. The tool shows where each candidate agrees and differs with the user; it never recommends a candidate.
+A nonpartisan tool for comparing your own policy views with possible 2028 U.S. presidential candidates in both parties, issue by issue, with sources. It shows where each candidate agrees and differs with you; it never recommends a candidate.
 
-This is a standalone static app, separate from PAM AI. It is listed in the repo's `.vercelignore` so it is never deployed to pamadvisor.com by accident. Move it to its own repository before publishing it.
+This is a standalone app, separate from PAM AI. It is listed in the repo's `.vercelignore` so it never ships to pamadvisor.com by accident. Move it to its own repository and Vercel project before launch.
 
 ## Run it
 
 ```bash
 cd ballot-compass
-python3 -m http.server 8080      # or: npm start
-open http://127.0.0.1:8080/
+python3 -m http.server 8080      # static only; sharing shows "not available"
+npx vercel dev                   # static + the /api routes
 ```
 
-Don't open `index.html` from disk (`file://`): the browser will block it from loading the data files.
+Don't open `index.html` from disk (`file://`).
 
 ## Test
 
@@ -21,82 +21,96 @@ cd ballot-compass
 npm test
 ```
 
-The tests cover the scoring formula, match levels, dealbreaker flags, ranking and tie-breaks, and check that the seed data is well formed. The data check fails if any position is not flagged for verification while the data is unreviewed.
+There are 22 tests. They cover the scoring formula and score ranges, ranking and sorting, dealbreaker flags, the data files, the market snapshot, and the API. The API tests check validation, consent, origin checks, rate limits, the kill switch, and the exact database calls.
 
 ## Files
 
 | Path | Purpose |
 | --- | --- |
-| `index.html` | App shell. Strict Content-Security-Policy: no third-party scripts, fonts or requests. |
-| `css/styles.css` | Editorial design system: light and dark themes, print/PDF styles. |
-| `js/scoring.js` | Pure scoring functions (no DOM). |
-| `js/app.js` | Hash router and views: intro, questions, leadership, results, candidate, compare, methodology. |
-| `data/issues.json` | The 14 issues: framing question, five positions (0-4), background notes, plus the leadership traits. |
-| `data/candidates.json` | Candidates, statuses and coded positions. **Edit this file to correct or update data.** |
-| `tests/scoring.test.mjs` | Node test suite. |
+| `index.html` | App shell. Strict Content-Security-Policy; no third-party requests. |
+| `editor.html` | Data review tool (not linked from the app). Check and correct entries, then download `candidates.json`. |
+| `js/app.js` | Views: intro, questions, review, leadership, about you, results, candidate, compare, how it works. |
+| `js/scoring.js` | Pure scoring functions. |
+| `js/survey.js` | The optional "about you" questions and the consent version, shared by the browser and the server. |
+| `api/responses.js` | `POST` shares anonymous answers; `DELETE` removes them. |
+| `api/signup.js` | `POST` adds an email to the updates list. |
+| `api/_lib/` | Validation, rate limits, kill switch, Supabase calls. |
+| `supabase/schema.sql` | Tables, rate-limit function and an aggregate view. |
+| `data/issues.json` | Issues, positions (0-4), background notes, leadership traits. |
+| `data/candidates.json` | Candidates, statuses, links and coded positions. |
+| `data/markets.json` | Kalshi odds snapshot. |
+| `scripts/fetch-markets.mjs` | Refreshes the odds snapshot. |
 
 ## Scoring
 
-- Per-issue match = `1 - |user - candidate| / 4`
-- Weights: Low 1, Medium 2, High 3, Dealbreaker 4
-- Alignment = `Σ(weight × match) / Σ(weight)`, shown as a percentage
-- An issue is left out of the score when the user skipped it or the candidate's position is unknown (`value: null`). Every score shows its coverage, for example "Based on 9 of the 13 issues you answered".
-- Dealbreaker flag: the issue is marked Dealbreaker and the gap is 2 or more steps.
-- Match levels: Agree (gap 0), Partial (gap 1), Disagree (gap 2+), Unknown.
+- Per-issue match = `1 - |user - candidate| / 4`. Weights: Low 1, Medium 2, High 3, Dealbreaker 4.
+- Alignment = `Σ(weight × match) / Σ(weight)` over issues the user answered and the candidate has a known position on.
+- **Range**: when a candidate has unknown positions on issues the user answered, the card shows "could be X–Y%". X assumes every unknown is a full disagreement and Y a full agreement. The bar is solid to X, shaded to Y, with a tick at the score.
+- Sort by alignment (default) or by issues covered.
+- Dealbreaker flag: importance Dealbreaker and a gap of 2+ steps.
+
+## Collecting answers (optional, anonymous)
+
+After the issues, people can optionally share their answers with three more questions: age range, household size and household income range. Each question has "Prefer not to say", and results show either way. The share step is skippable, not a gate.
+
+How the data is kept apart:
+
+- **Responses** (`bc_responses`) are keyed by a random UUID that only the person's browser keeps. They store answers, leadership ranking, the three demographics and a **date only**, with no timestamp, name, email or IP address. Sharing again updates the same row. "Clear my answers" deletes it.
+- **Signups** (`bc_signups`) are a separate table with only email and consent version. They are never sent in the same request as answers and never linked to them. Because responses store only a date, the two can't be matched by time.
+- Rate-limit keys use a salted hash of the IP that changes daily; raw IPs are never stored.
+- Every table has row-level security on and no policies, so only the server's service key can touch them. `bc_issue_totals` is an aggregate view to start analysis from.
+
+The site's copy promises that we publish totals only and never sell or share individual responses. Keep that promise, or change the copy (and bump `CONSENT_VERSION` in `js/survey.js`) before changing what you do with the data.
+
+### Going live
+
+1. Create a **new** Supabase project, separate from PAM AI's, and run `supabase/schema.sql` in its SQL editor.
+2. Create a Vercel project rooted at `ballot-compass/` and set these environment variables:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY` (server-only, never in the browser)
+   - `BC_RATE_LIMIT_SALT` (any long random string)
+   - Optional: `BC_COLLECTION=off` (kill switch), `BC_RESPONSES_GLOBAL_DAILY`, `BC_SIGNUP_GLOBAL_DAILY`, `BC_RESPONSES_IP_DAILY`, `BC_SIGNUP_IP_DAILY`.
+3. Deploy. Without the Supabase variables, sharing replies "not set up yet" and nothing is sent.
+
+### Cost
+
+Per-visitor cost is close to zero:
+
+- Pages, data and odds are static files served from a CDN.
+- A visitor who doesn't share makes no server calls at all.
+- A visitor who shares makes one small database write; joining the email list is a second.
+- Market odds are a snapshot an editor refreshes, not a call per visitor.
+
+Free tiers of Vercel and Supabase cover a lot of traffic, and the global daily caps stop a bot from running up a bill.
 
 ## Editing candidate data
 
-Each position in `data/candidates.json` looks like this:
+Use `editor.html` (serve the folder, then open `/editor.html`). It lists every unchecked position and status. Fix anything wrong, tick **Checked**, then download `candidates.json` and commit it. Tick "Set Data last reviewed to today" on the final pass. Edits are saved in that browser as you go.
 
-```json
-"abortion": {
-  "value": 2,
-  "summary": "One plain-English sentence on what they said or did.",
-  "source_url": "https://...",
-  "source_label": "Who published it and what it is",
-  "source_date": "2025-06",
-  "provenance": "Record",
-  "needs_verification": true
-}
-```
+Field reference:
 
-- `value`: 0-4 on that issue's scale (see `data/issues.json`), or `null` if there is no clear position. A `null` value is not scored; use `summary` to explain why.
-- `source_date`: `YYYY`, `YYYY-MM` or `YYYY-MM-DD`. Use only the precision you can source.
-- `provenance`: `"Stated 2026"` for a 2026 statement, otherwise `"Record"`.
-- After checking a source, set `needs_verification` to `false`. When a full review pass is done, set `meta.last_reviewed` (and `meta.reviewed_by`). The "Data last reviewed" stamp on every page reads from that field.
-- Candidate `status` must be one of `Declared`, `Exploring`, `Undecided`, `Says not running` or `Declined`, with `status_date` set to the date of the latest statement.
-- Ages are calculated from `birth_date`, so they don't go stale.
+- `value`: 0-4 on the issue's scale, or `null` when there is no clear position (not scored; explain in `summary`).
+- `source_date`: `YYYY`, `YYYY-MM` or `YYYY-MM-DD`. Sources older than 4 years show an "Older record" tag.
+- `provenance`: `"Stated 2026"` or `"Record"`.
+- `needs_verification`: shows an "Unverified" tag until set to `false`.
+- `status`: `Declared`, `Exploring`, `Undecided`, `Says not running` or `Declined`, with `status_date`.
+- `links.official_url`, `links.campaign_url` (`null` until a campaign site exists).
 
-## Status of the seed data
+## Known data gaps
 
-The seed data was compiled from public records and reporting available through mid-2026. **No human has verified it yet**, and every position and status is flagged for verification.
+The draft data runs through mid-2026 and **no human has checked it**.
 
-Known gaps to address before anyone relies on it:
+1. The November 2026 elections aren't reflected. Every status is "Undecided". Kalshi has Jon Ossoff at 23% for the Democratic nomination, which suggests news the data is missing.
+2. There are no "Stated 2026" entries yet.
+3. Many sources are secondary (Ballotpedia profiles) and should be replaced with primary sources.
+4. Coverage is uneven. The score range makes this visible.
 
-1. **The November 2026 elections are not reflected.** Several candidates were on the 2026 ballot (Ossoff, Shapiro, Pritzker, Huckabee Sanders), and roles or statuses may have changed. Every status is set to "Undecided".
-2. **No "Stated 2026" entries yet.** Every coded position is tagged "Record" because the seed research did not cover 2026 statements in depth.
-3. **Many sources are secondary.** Where no specific bill or vote page was on hand, positions link to the candidate's Ballotpedia profile, or a Wikipedia summary for Harris. These should be replaced with primary sources: floor votes, official statements, interview transcripts.
-4. **Coverage is uneven.** Governors and House members have fewer coded positions, especially on foreign policy. Because scores are averages over covered issues, a candidate with few known positions can rank high from a small number of matches. The UI flags this with a coverage count and a "Limited data" note.
+## Market odds (Kalshi)
 
-## Prediction markets (Kalshi)
-
-Candidate pages, and a collapsed panel on the results page, show Kalshi's last traded prices for the 2028 Republican nomination, Democratic nomination and presidency markets. They are labeled "not part of your score" and never enter alignment. The app has no affiliate link and no "trade" prompts.
-
-Prices come from a **snapshot file**, `data/markets.json`, not a live feed. This keeps the no-third-party-requests promise, since the reader's browser never contacts Kalshi. It also avoids a technical block: Kalshi's API rejects browser-origin requests and rate-limits callers. To refresh the snapshot:
+Shown as percentages (a 23¢ contract is shown as 23%), on candidate pages and in a collapsed panel on results. They are never part of the score. The odds come from a snapshot file (`data/markets.json`), so visitors' browsers never contact Kalshi. Refresh with:
 
 ```bash
-cd ballot-compass
-node scripts/fetch-markets.mjs          # behind a proxy: NODE_USE_ENV_PROXY=1 node scripts/fetch-markets.mjs
+NODE_USE_ENV_PROXY=1 node scripts/fetch-markets.mjs
 ```
 
-The script uses Kalshi's public, read-only API, with no key. It matches markets to candidates by name; if a name differs, add `"market_name": "Name As Kalshi Writes It"` to that candidate. The results page warns when the snapshot is more than 7 days old. It also lists anyone Kalshi prices at 2¢ or more who isn't in `candidates.json`, which is a quick way to spot people missing from the field.
-
-For a live feed instead, add a small server endpoint that runs the same script on a schedule. Don't call Kalshi from the page.
-
-## Websites
-
-Each candidate has `links.official_url` (their current office) and `links.campaign_url`. `campaign_url` stays `null` until the candidate declares and launches a campaign site. Former officials have no office site. Both URLs are flagged for verification.
-
-## Privacy
-
-There are no accounts, cookies, analytics or network requests beyond the app's own files. Answers are kept in `localStorage` under `ballot-compass:v1`, and "Clear my answers" removes them. PDF export uses the browser's print dialog.
+Names are matched automatically; add `"market_name"` to a candidate if Kalshi spells it differently. People Kalshi prices at 2% or more who aren't in the data are listed under the table.

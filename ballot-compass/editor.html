@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Data review | Ballot Compass</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/editor.css">
+  <script type="module" src="js/editor.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="wordmark" href="index.html">Ballot Compass</a>
+      <span class="muted">Data review</span>
+    </div>
+  </header>
+  <main id="main" class="site-main">
+    <div class="wrap">
+      <h1>Review candidate data</h1>
+      <p class="muted">Check each source, fix anything wrong, tick <strong>Checked</strong>, then download and commit <code>data/candidates.json</code>. Work is saved in this browser as you go.</p>
+      <div class="ed-toolbar">
+        <label>Candidate <select id="ed-cand"></select></label>
+        <label>Show <select id="ed-show"><option value="todo">Unchecked only</option><option value="all">Everything</option></select></label>
+        <p class="ed-progress" id="ed-progress" role="status"></p>
+      </div>
+      <div id="ed-list"></div>
+      <div class="ed-footer">
+        <label class="consent"><input type="checkbox" id="ed-stamp"> <span>Set "Data last reviewed" to today</span></label>
+        <label class="ed-reviewer">Reviewed by <input type="text" id="ed-reviewer" autocomplete="name"></label>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="ed-download">Download candidates.json</button>
+          <button type="button" class="btn" id="ed-reset">Discard my edits</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

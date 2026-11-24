@@ -64,7 +64,7 @@ export function buildSnapshot(candidates, fetched, fetchedAt) {
     source: 'Kalshi',
     source_url: 'https://kalshi.com',
     fetched_at: fetchedAt,
-    note: 'Prices are the last traded price of a contract that pays $1 if the outcome happens. They reflect what traders were willing to pay at the time of the snapshot; they are not polls, endorsements or Ballot Compass forecasts, and they are never used in alignment scores.',
+    note: 'Odds are the last traded price of a $1 contract, read as a percentage chance. They show what traders expect; they are not polls, endorsements or Ballot Compass forecasts, and never enter alignment scores.',
     events: {},
     candidates: {},
     uncovered: [],

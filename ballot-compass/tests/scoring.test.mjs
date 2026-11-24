@@ -54,6 +54,22 @@ test('no overlap yields a null alignment, ranked last', () => {
   assert.equal(ranked[2].result.alignment, null);
 });
 
+test('range shows how far unknown positions could move the score', () => {
+  // a: agree (w2, match 1). c: unknown (w2). b: skipped.
+  const answers = { a: { value: 1, importance: 2 }, b: { value: null, importance: 2 }, c: { value: 3, importance: 2 } };
+  const r = scoreCandidate(answers, cand('x', 1, 2, null), issues);
+  assert.equal(r.alignment, 100);
+  assert.deepEqual(r.range, { low: 50, high: 100 });
+  const full = scoreCandidate(answers, cand('y', 1, 2, 3), issues);
+  assert.equal(full.range, null);
+});
+
+test('coverage sort puts better-documented candidates first', () => {
+  const answers = { a: { value: 0, importance: 2 }, b: { value: 0, importance: 2 } };
+  const ranked = rankCandidates(answers, [cand('sparse', 0, null, 0), cand('full', 1, 1, 0)], issues, 'coverage');
+  assert.deepEqual(ranked.map((e) => e.candidate.id), ['full', 'sparse']);
+});
+
 test('ties break on coverage', () => {
   const answers = { a: { value: 0, importance: 2 }, b: { value: 0, importance: 2 } };
   const ranked = rankCandidates(answers, [cand('one', 0, null, 0), cand('two', 0, 0, 0)], issues);

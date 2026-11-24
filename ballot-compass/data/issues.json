@@ -6,11 +6,26 @@
       "title": "Abortion",
       "question": "How should the law treat abortion?",
       "positions": [
-        { "value": 0, "label": "Abortion should be legal in all or nearly all cases, with a federal law guaranteeing access nationwide." },
-        { "value": 1, "label": "Restore protections similar to Roe v. Wade: legal until viability, and later when the patient's life or health is at risk." },
-        { "value": 2, "label": "Leave abortion law to each state, with no new federal law in either direction." },
-        { "value": 3, "label": "Set a national limit at around 15 weeks, with exceptions for rape, incest and the life of the mother." },
-        { "value": 4, "label": "Prohibit abortion in nearly all cases, with an exception to save the mother's life." }
+        {
+          "value": 0,
+          "label": "Legal in all or nearly all cases, guaranteed by federal law."
+        },
+        {
+          "value": 1,
+          "label": "Restore Roe: legal until viability, later if the patient's health is at risk."
+        },
+        {
+          "value": 2,
+          "label": "Leave it to each state. No federal law either way."
+        },
+        {
+          "value": 3,
+          "label": "A national limit around 15 weeks, with exceptions for rape, incest and the mother's life."
+        },
+        {
+          "value": 4,
+          "label": "Ban nearly all abortions, except to save the mother's life."
+        }
       ],
       "background": [
         "The Supreme Court's 2022 decision in Dobbs v. Jackson Women's Health Organization ended the federal constitutional right to abortion recognized in Roe v. Wade and returned the question to states and Congress.",
@@ -23,11 +38,26 @@
       "title": "Immigration and the border",
       "question": "What should U.S. policy be on border enforcement and people living in the country without legal status?",
       "positions": [
-        { "value": 0, "label": "Offer a path to citizenship for most undocumented immigrants, expand legal immigration, and limit deportations to people with serious criminal records." },
-        { "value": 1, "label": "Pass a comprehensive bill that pairs stronger border security with a path to citizenship for Dreamers and long-term residents." },
-        { "value": 2, "label": "Secure the border and tighten asylum rules first; consider legal status for Dreamers only after that." },
-        { "value": 3, "label": "Secure the border, end most releases of asylum seekers, and deport people here illegally, starting with those who commit crimes. No path to citizenship." },
-        { "value": 4, "label": "Carry out large-scale deportation of people here illegally and substantially reduce legal immigration." }
+        {
+          "value": 0,
+          "label": "Path to citizenship for most, more legal immigration, deport only serious criminals."
+        },
+        {
+          "value": 1,
+          "label": "Stronger border security plus a path to citizenship for Dreamers and long-time residents."
+        },
+        {
+          "value": 2,
+          "label": "Secure the border and tighten asylum first; consider Dreamers later."
+        },
+        {
+          "value": 3,
+          "label": "Deport people here illegally, criminals first. No path to citizenship."
+        },
+        {
+          "value": 4,
+          "label": "Large-scale deportation and much lower legal immigration."
+        }
       ],
       "background": [
         "An estimated 11 to 14 million people live in the U.S. without legal status, according to government and independent estimates.",
@@ -40,11 +70,26 @@
       "title": "Israel and the Middle East",
       "question": "What should U.S. policy be toward Israel and the conflict in Gaza?",
       "positions": [
-        { "value": 0, "label": "Suspend U.S. military aid to Israel until there is accountability for the conduct of the war in Gaza, and support a Palestinian state." },
-        { "value": 1, "label": "Keep defensive aid such as missile defense, but put conditions on offensive weapons and press firmly for a two-state solution." },
-        { "value": 2, "label": "Continue military aid while pressing Israel on humanitarian access and pursuing a negotiated two-state outcome." },
-        { "value": 3, "label": "Continue full military aid without new conditions, and build regional peace through normalization agreements like the Abraham Accords." },
-        { "value": 4, "label": "Support Israel without conditions, including its decisions on the West Bank, and oppose pressure to create a Palestinian state." }
+        {
+          "value": 0,
+          "label": "Suspend military aid to Israel over Gaza; support a Palestinian state."
+        },
+        {
+          "value": 1,
+          "label": "Keep defensive aid, put conditions on offensive weapons, push for two states."
+        },
+        {
+          "value": 2,
+          "label": "Continue aid while pressing for humanitarian access and two states."
+        },
+        {
+          "value": 3,
+          "label": "Full aid with no new conditions; build peace through Abraham Accords-style deals."
+        },
+        {
+          "value": 4,
+          "label": "Back Israel without conditions, including on the West Bank; oppose a Palestinian state."
+        }
       ],
       "background": [
         "Under a 2016 agreement the U.S. provides Israel about $3.8 billion a year in military aid.",
@@ -57,11 +102,26 @@
       "title": "Iran and military force",
       "question": "How should the U.S. deal with Iran's nuclear program, and when should a president use military force?",
       "positions": [
-        { "value": 0, "label": "Oppose military strikes on Iran, rely on diplomacy, and require a vote of Congress before any use of force." },
-        { "value": 1, "label": "Seek a negotiated nuclear agreement; use force only as a last resort and with Congress's approval." },
-        { "value": 2, "label": "Combine sanctions and diplomacy with a credible threat of force; limited strikes are acceptable to stop Iran from building a weapon." },
-        { "value": 3, "label": "Apply maximum pressure and be ready to strike nuclear sites, as in June 2025, without waiting for Congress." },
-        { "value": 4, "label": "Use whatever military force is needed to end Iran's nuclear program, and support a change of government in Iran." }
+        {
+          "value": 0,
+          "label": "No strikes. Diplomacy only, and Congress must approve any force."
+        },
+        {
+          "value": 1,
+          "label": "Negotiate a nuclear deal; force only as a last resort, with Congress's approval."
+        },
+        {
+          "value": 2,
+          "label": "Sanctions and diplomacy backed by a credible threat; limited strikes if needed."
+        },
+        {
+          "value": 3,
+          "label": "Maximum pressure; strike nuclear sites without waiting for Congress, as in June 2025."
+        },
+        {
+          "value": 4,
+          "label": "Use whatever force it takes to end the program; support regime change."
+        }
       ],
       "background": [
         "Iran's nuclear program has been the subject of sanctions and negotiations for two decades; the U.S. withdrew from the 2015 nuclear agreement in 2018.",
@@ -74,11 +134,26 @@
       "title": "Ukraine and Russia",
       "question": "What should the U.S. do about Russia's war in Ukraine?",
       "positions": [
-        { "value": 0, "label": "End U.S. support for Ukraine and push for an immediate settlement, even if Ukraine gives up territory." },
-        { "value": 1, "label": "Stop new U.S.-funded aid, let Europe lead, and press both sides toward a negotiated deal." },
-        { "value": 2, "label": "Provide limited support, such as intelligence and weapons sold through European allies, while pursuing a ceasefire." },
-        { "value": 3, "label": "Continue substantial military aid and sanctions on Russia so Ukraine can negotiate from strength." },
-        { "value": 4, "label": "Significantly expand military aid and sanctions, with the goal of Ukraine restoring its borders and joining NATO." }
+        {
+          "value": 0,
+          "label": "End U.S. support and settle now, even if Ukraine gives up land."
+        },
+        {
+          "value": 1,
+          "label": "Stop U.S.-funded aid; let Europe lead and push for a deal."
+        },
+        {
+          "value": 2,
+          "label": "Limited help, like intelligence and weapons sold through Europe, while seeking a ceasefire."
+        },
+        {
+          "value": 3,
+          "label": "Keep substantial aid and sanctions so Ukraine can negotiate from strength."
+        },
+        {
+          "value": 4,
+          "label": "Expand aid and sanctions until Ukraine restores its borders and joins NATO."
+        }
       ],
       "background": [
         "Russia launched a full-scale invasion of Ukraine in February 2022.",
@@ -91,11 +166,26 @@
       "title": "China, trade and tariffs",
       "question": "How should the U.S. use tariffs and trade policy, especially toward China?",
       "positions": [
-        { "value": 0, "label": "Lower tariffs broadly, and compete with China through trade agreements and alliances." },
-        { "value": 1, "label": "Use targeted tariffs and export controls in strategic sectors like chips and electric vehicles, but avoid broad tariffs." },
-        { "value": 2, "label": "Keep significant tariffs on China and invest in U.S. manufacturing, but avoid tariffs on allies." },
-        { "value": 3, "label": "Impose broad tariffs on China and use tariffs on other countries as leverage for better trade deals." },
-        { "value": 4, "label": "Impose high tariffs on most imports and pursue economic separation from China." }
+        {
+          "value": 0,
+          "label": "Lower tariffs; compete with China through trade deals and allies."
+        },
+        {
+          "value": 1,
+          "label": "Targeted tariffs and export controls on chips and EVs, not broad tariffs."
+        },
+        {
+          "value": 2,
+          "label": "Keep big tariffs on China and invest at home, but spare allies."
+        },
+        {
+          "value": 3,
+          "label": "Broad tariffs on China, and tariffs on others as leverage for better deals."
+        },
+        {
+          "value": 4,
+          "label": "High tariffs on most imports; separate our economy from China's."
+        }
       ],
       "background": [
         "Tariffs are taxes on imported goods, paid initially by the importing business.",
@@ -108,11 +198,26 @@
       "title": "Taxes and spending",
       "question": "How should the federal government handle taxes, spending and the deficit?",
       "positions": [
-        { "value": 0, "label": "Raise taxes substantially on high earners and corporations to fund expanded social programs." },
-        { "value": 1, "label": "Raise taxes on income above about $400,000 and on corporations to fund priorities and reduce deficits, while protecting middle-class tax cuts." },
-        { "value": 2, "label": "Keep most current rates, close loopholes, and combine modest spending restraint with new revenue to reduce deficits." },
-        { "value": 3, "label": "Keep the 2017 tax cuts permanent, as the 2025 budget law did, and cut federal spending to reduce deficits." },
-        { "value": 4, "label": "Cut taxes further across the board and make deep reductions in federal spending and agencies." }
+        {
+          "value": 0,
+          "label": "Raise taxes a lot on high earners and corporations to expand programs."
+        },
+        {
+          "value": 1,
+          "label": "Raise taxes above about $400,000 and on corporations; protect middle-class cuts."
+        },
+        {
+          "value": 2,
+          "label": "Keep most rates, close loopholes, and mix spending restraint with revenue."
+        },
+        {
+          "value": 3,
+          "label": "Keep the 2017 tax cuts permanent and cut spending."
+        },
+        {
+          "value": 4,
+          "label": "Cut taxes further and make deep cuts to spending and agencies."
+        }
       ],
       "background": [
         "The 2025 budget law, known as the One Big Beautiful Bill Act, made most of the 2017 individual tax cuts permanent and added new deductions, while reducing projected spending on Medicaid and food assistance.",
@@ -125,11 +230,26 @@
       "title": "Healthcare",
       "question": "What should the federal government's role be in health insurance?",
       "positions": [
-        { "value": 0, "label": "Create a single government health plan, Medicare for All, that replaces private insurance." },
-        { "value": 1, "label": "Add a government-run public option and expand subsidies and Medicaid to move toward universal coverage." },
-        { "value": 2, "label": "Keep the Affordable Care Act framework, extend its enhanced subsidies, and focus on lowering drug prices." },
-        { "value": 3, "label": "Reduce the federal role: allow lower-cost plans outside ACA rules, add Medicaid work requirements, and control costs." },
-        { "value": 4, "label": "Repeal the Affordable Care Act and move to market-based insurance, with Medicaid funded through fixed block grants to states." }
+        {
+          "value": 0,
+          "label": "Medicare for All: one government plan replacing private insurance."
+        },
+        {
+          "value": 1,
+          "label": "Add a public option and expand subsidies and Medicaid toward universal coverage."
+        },
+        {
+          "value": 2,
+          "label": "Keep the ACA, extend its subsidies, and lower drug prices."
+        },
+        {
+          "value": 3,
+          "label": "Shrink the federal role: cheaper non-ACA plans and Medicaid work requirements."
+        },
+        {
+          "value": 4,
+          "label": "Repeal the ACA; market-based insurance and Medicaid block grants."
+        }
       ],
       "background": [
         "About 8 percent of Americans were uninsured in recent years, according to federal surveys.",
@@ -142,11 +262,26 @@
       "title": "Guns",
       "question": "How should federal law regulate firearms?",
       "positions": [
-        { "value": 0, "label": "Enact broad limits, including licensing and registration, and a ban and buyback of assault-style weapons." },
-        { "value": 1, "label": "Require background checks on all sales, fund red-flag laws, and ban assault-style weapons and high-capacity magazines." },
-        { "value": 2, "label": "Require background checks on all sales and support red-flag laws, but no bans on categories of firearms." },
-        { "value": 3, "label": "Keep current federal gun laws and focus on enforcing them, mental health and school security." },
-        { "value": 4, "label": "Loosen federal gun laws, for example by making concealed-carry permits valid in every state, and oppose red-flag laws." }
+        {
+          "value": 0,
+          "label": "Licensing, registration, and an assault-weapons ban with a buyback."
+        },
+        {
+          "value": 1,
+          "label": "Universal background checks, red-flag laws and an assault-weapons ban."
+        },
+        {
+          "value": 2,
+          "label": "Universal background checks and red-flag laws, but no bans."
+        },
+        {
+          "value": 3,
+          "label": "Keep current laws; focus on enforcement, mental health and school security."
+        },
+        {
+          "value": 4,
+          "label": "Loosen laws, like national concealed carry, and oppose red-flag laws."
+        }
       ],
       "background": [
         "The Supreme Court held in 2008 that the Second Amendment protects an individual right to keep and bear arms, and expanded that ruling in 2022.",
@@ -159,11 +294,26 @@
       "title": "Energy and climate",
       "question": "How should the U.S. balance energy production, prices and climate change?",
       "positions": [
-        { "value": 0, "label": "Phase out fossil fuels quickly with major federal investment, aiming for net-zero emissions well before 2050." },
-        { "value": 1, "label": "Keep and expand clean-energy incentives and regulate emissions on a path to net-zero by 2050." },
-        { "value": 2, "label": "Pursue an all-of-the-above approach: support U.S. oil and gas alongside clean-energy investment, with moderate emissions rules." },
-        { "value": 3, "label": "Prioritize U.S. fossil-fuel production and lower energy costs; scale back clean-energy subsidies and emissions rules." },
-        { "value": 4, "label": "Maximize oil, gas and coal production, repeal climate regulations and stay out of international climate agreements." }
+        {
+          "value": 0,
+          "label": "Phase out fossil fuels fast; net-zero well before 2050."
+        },
+        {
+          "value": 1,
+          "label": "Expand clean-energy incentives and emissions rules toward net-zero by 2050."
+        },
+        {
+          "value": 2,
+          "label": "All of the above: oil and gas plus clean energy, with moderate rules."
+        },
+        {
+          "value": 3,
+          "label": "Prioritize oil, gas and low prices; scale back clean-energy subsidies and rules."
+        },
+        {
+          "value": 4,
+          "label": "Maximize oil, gas and coal; repeal climate rules and skip climate agreements."
+        }
       ],
       "background": [
         "The U.S. is the world's largest producer of oil and natural gas and its second-largest emitter of greenhouse gases.",
@@ -176,11 +326,26 @@
       "title": "AI and data centers",
       "question": "How should government approach artificial intelligence and the data centers that power it?",
       "positions": [
-        { "value": 0, "label": "Require licenses for the most powerful AI systems, and pause new large data centers until energy, water and community impacts are addressed." },
-        { "value": 1, "label": "Pass enforceable federal safety and consumer-protection rules for AI, and make data centers pay for their own grid and water costs." },
-        { "value": 2, "label": "Set targeted rules for specific harms such as deepfakes and risks to children, while promoting U.S. AI development." },
-        { "value": 3, "label": "Take a light-touch federal approach, override conflicting state AI laws, and speed permits for data centers and power plants." },
-        { "value": 4, "label": "Keep regulation minimal, treat leading China in AI as a national priority, and fast-track data centers and energy supply." }
+        {
+          "value": 0,
+          "label": "License the most powerful AI; pause big data centers until their impacts are addressed."
+        },
+        {
+          "value": 1,
+          "label": "Enforceable federal AI safety rules; data centers pay their own grid and water costs."
+        },
+        {
+          "value": 2,
+          "label": "Target specific harms like deepfakes and risks to kids; otherwise promote AI."
+        },
+        {
+          "value": 3,
+          "label": "Light-touch rules, override state AI laws, and speed data-center permits."
+        },
+        {
+          "value": 4,
+          "label": "Minimal regulation; beat China in AI and fast-track data centers."
+        }
       ],
       "background": [
         "Rapid advances in AI have raised questions about safety, jobs, children's online protection and copyright.",
@@ -193,11 +358,26 @@
       "title": "Education",
       "question": "What role should the federal government play in education?",
       "positions": [
-        { "value": 0, "label": "Greatly increase federal school funding, make public college tuition-free, and broadly cancel student debt." },
-        { "value": 1, "label": "Increase federal funding for public schools, expand targeted student-debt relief, and offer free community college." },
-        { "value": 2, "label": "Keep the Department of Education and current funding, and allow some school-choice options such as charter schools." },
-        { "value": 3, "label": "Expand school choice nationally through vouchers or tax credits, and shift more control to states." },
-        { "value": 4, "label": "Close the federal Department of Education and return education fully to states and parents, with universal school choice." }
+        {
+          "value": 0,
+          "label": "Much more school funding, free public college, and broad student-debt cancellation."
+        },
+        {
+          "value": 1,
+          "label": "More public-school funding, targeted debt relief, and free community college."
+        },
+        {
+          "value": 2,
+          "label": "Keep the Education Department and current funding; allow charter schools."
+        },
+        {
+          "value": 3,
+          "label": "Expand school choice nationally with vouchers; give states more control."
+        },
+        {
+          "value": 4,
+          "label": "Close the Education Department; universal school choice run by states."
+        }
       ],
       "background": [
         "States and local districts provide about 90 percent of public K-12 funding; federal money mainly supports low-income students and students with disabilities.",
@@ -210,11 +390,26 @@
       "title": "Crime and policing",
       "question": "What approach should government take to crime and policing?",
       "positions": [
-        { "value": 0, "label": "Move funding from police toward social services and community safety programs, end cash bail, and reduce incarceration." },
-        { "value": 1, "label": "Adopt national police-accountability standards, such as limits on use of force, while keeping police funding and reducing prison terms for nonviolent offenses." },
-        { "value": 2, "label": "Fund and hire more police, paired with accountability measures and violence-prevention programs." },
-        { "value": 3, "label": "Increase police funding, toughen penalties for violent and repeat offenders, and oppose most bail reform." },
-        { "value": 4, "label": "Take an assertive federal role, including sending the National Guard or federal agents into high-crime cities, and expand the death penalty." }
+        {
+          "value": 0,
+          "label": "Shift money from police to social services, end cash bail, and imprison fewer people."
+        },
+        {
+          "value": 1,
+          "label": "National police-accountability standards; shorter sentences for nonviolent crimes."
+        },
+        {
+          "value": 2,
+          "label": "Hire more police, paired with accountability and prevention programs."
+        },
+        {
+          "value": 3,
+          "label": "More police funding and tougher sentences for violent and repeat offenders."
+        },
+        {
+          "value": 4,
+          "label": "Send the Guard or federal agents into high-crime cities; expand the death penalty."
+        }
       ],
       "background": [
         "Violent crime rose in 2020 and 2021 and has fallen since, according to FBI and independent data.",
@@ -227,11 +422,26 @@
       "title": "Democracy and the courts",
       "question": "Should the Supreme Court, Senate rules or election rules be changed?",
       "positions": [
-        { "value": 0, "label": "Add seats to the Supreme Court, impose term limits, and end the Senate filibuster to pass voting-rights laws." },
-        { "value": 1, "label": "Impose Supreme Court term limits and an enforceable ethics code, and strengthen federal voting-rights protections." },
-        { "value": 2, "label": "Adopt a binding Supreme Court ethics code, but keep nine justices with life tenure and keep the filibuster." },
-        { "value": 3, "label": "Oppose structural changes to the Court, and require voter ID and tighter election rules nationwide." },
-        { "value": 4, "label": "Oppose Court changes, strengthen the president's control of the executive branch, and require proof of citizenship to register to vote." }
+        {
+          "value": 0,
+          "label": "Add Supreme Court seats, set term limits, and end the filibuster for voting rights."
+        },
+        {
+          "value": 1,
+          "label": "Court term limits and an enforceable ethics code; stronger voting rights."
+        },
+        {
+          "value": 2,
+          "label": "A binding Court ethics code, but keep nine justices and the filibuster."
+        },
+        {
+          "value": 3,
+          "label": "No Court changes; require voter ID and tighter election rules."
+        },
+        {
+          "value": 4,
+          "label": "No Court changes; more presidential control of agencies; proof of citizenship to register."
+        }
       ],
       "background": [
         "Supreme Court justices serve for life, and Congress sets the number of seats, which has been nine since 1869.",
@@ -241,10 +451,25 @@
     }
   ],
   "leadership_traits": [
-    { "id": "policy_depth", "label": "Depth of policy knowledge" },
-    { "id": "executive", "label": "Executive experience (running a state, city or federal agency)" },
-    { "id": "bipartisan", "label": "Record of working across party lines" },
-    { "id": "independence", "label": "Willingness to break with their own party" },
-    { "id": "communication", "label": "Communication style" }
+    {
+      "id": "policy_depth",
+      "label": "Policy knowledge"
+    },
+    {
+      "id": "executive",
+      "label": "Executive experience"
+    },
+    {
+      "id": "bipartisan",
+      "label": "Works across party lines"
+    },
+    {
+      "id": "independence",
+      "label": "Breaks with own party"
+    },
+    {
+      "id": "communication",
+      "label": "Communication style"
+    }
   ]
 }

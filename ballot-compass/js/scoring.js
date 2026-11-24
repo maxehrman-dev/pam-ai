@@ -78,9 +78,20 @@ export function scoreCandidate(answers, candidate, issues) {
   const scored = rows.filter((r) => r.match !== null).length;
   const alignment = totalWeight > 0 ? Math.round((weighted / totalWeight) * 100) : null;
 
+  // How far the score could move if the candidate's unknown positions were known:
+  // every unknown a full disagreement (low) or a full agreement (high).
+  const unknownWeight = rows.filter((r) => r.level === 'Unknown').reduce((sum, r) => sum + r.weight, 0);
+  const range = alignment !== null && unknownWeight > 0
+    ? {
+      low: Math.round((weighted / (totalWeight + unknownWeight)) * 100),
+      high: Math.round(((weighted + unknownWeight) / (totalWeight + unknownWeight)) * 100),
+    }
+    : null;
+
   return {
     candidateId: candidate.id,
     alignment,
+    range,
     scored,
     answered,
     counts,
@@ -89,8 +100,12 @@ export function scoreCandidate(answers, candidate, issues) {
   };
 }
 
-/** Rank by alignment (desc), then coverage (desc), then name. Candidates with no scored issues go last. */
-export function rankCandidates(answers, candidates, issues) {
+/**
+ * Rank candidates. Candidates with no scored issues always go last.
+ * sort 'alignment' (default): alignment desc, then coverage desc, then name.
+ * sort 'coverage': issues covered desc, then alignment desc, then name.
+ */
+export function rankCandidates(answers, candidates, issues, sort = 'alignment') {
   return candidates
     .map((c) => ({ candidate: c, result: scoreCandidate(answers, c, issues) }))
     .sort((a, b) => {
@@ -98,8 +113,15 @@ export function rankCandidates(answers, candidates, issues) {
       const ba = b.result.alignment;
       if (aa === null && ba !== null) return 1;
       if (ba === null && aa !== null) return -1;
-      if (aa !== ba) return (ba ?? 0) - (aa ?? 0);
-      if (a.result.scored !== b.result.scored) return b.result.scored - a.result.scored;
+      const byAlign = (ba ?? 0) - (aa ?? 0);
+      const byCoverage = b.result.scored - a.result.scored;
+      if (sort === 'coverage') {
+        if (byCoverage) return byCoverage;
+        if (byAlign) return byAlign;
+      } else {
+        if (byAlign) return byAlign;
+        if (byCoverage) return byCoverage;
+      }
       return a.candidate.name.localeCompare(b.candidate.name);
     });
 }

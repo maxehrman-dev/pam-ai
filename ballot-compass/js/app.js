@@ -8,16 +8,24 @@ import {
   scoreCandidate,
   countAnswered,
 } from './scoring.js';
+import {
+  CONSENT_VERSION,
+  DEMOGRAPHIC_FIELDS,
+  PREFER_NOT,
+  isValidDemographic,
+  isValidEmail,
+  newSubmissionId,
+} from './survey.js';
 
 const STORAGE_KEY = 'ballot-compass:v1';
 const STATUSES = ['Declared', 'Exploring', 'Undecided', 'Says not running', 'Declined'];
 const PARTIES = ['Republican', 'Democratic'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const IMPORTANCE_HINTS = {
-  1: 'Counts once in the weighted average.',
-  2: 'Counts twice in the weighted average.',
-  3: 'Counts three times in the weighted average.',
-  4: 'Counts four times, and any candidate two or more steps away from your position is flagged.',
+  1: '',
+  2: '',
+  3: '',
+  4: 'Candidates 2+ steps away get flagged.',
 };
 
 const state = {
@@ -26,10 +34,14 @@ const state = {
   candidates: [],
   meta: {},
   markets: null,
+  profile: { age: null, household: null, income: null },
+  share: null, // { id, sharedOn } once answers have been shared anonymously
+  signedUp: false,
+  flash: null, // one-time message shown on the next results render
   scaleNote: '',
   answers: {},
   leadership: { ranking: null, skipped: false },
-  filters: { party: 'all', status: 'all' },
+  filters: { party: 'all', status: 'all', sort: 'alignment' },
 };
 
 const main = document.getElementById('main');
@@ -109,18 +121,24 @@ function dealbreakerFlag(text = 'Dealbreaker conflict') {
 }
 
 function verifyTag() {
-  return '<span class="tag tag-verify">Needs verification</span>';
+  return '<span class="tag tag-verify">Unverified</span>';
+}
+
+const OLD_SOURCE_YEARS = 4;
+
+function isOldSource(date) {
+  const year = Number(String(date || '').slice(0, 4));
+  return Number.isFinite(year) && year > 0 && new Date().getFullYear() - year > OLD_SOURCE_YEARS;
 }
 
 function sourceCell(pos) {
-  if (!pos || (!pos.source_url && !pos.source_label)) {
-    return `<span class="muted">No source: position not on record</span>${pos && pos.needs_verification ? `<span class="source-tags">${verifyTag()}</span>` : ''}`;
-  }
+  if (!pos || (!pos.source_url && !pos.source_label)) return '<span class="muted">None on record</span>';
   const url = safeUrl(pos.source_url);
   const label = esc(pos.source_label || 'Source');
   const link = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label}<span class="sr-only"> (opens in a new tab)</span></a>` : `<span class="muted">${label || 'No source'}</span>`;
   const tags = [];
   if (pos.provenance) tags.push(`<span class="tag tag-prov">${esc(pos.provenance)}</span>`);
+  if (isOldSource(pos.source_date)) tags.push('<span class="tag tag-old">Older record</span>');
   if (pos.needs_verification) tags.push(verifyTag());
   const date = pos.source_date ? `<span class="cell-sub">${esc(fmtDate(pos.source_date))}</span>` : '';
   return `${link}${date}${tags.length ? `<span class="source-tags">${tags.join('')}</span>` : ''}`;
@@ -135,13 +153,11 @@ function externalLink(url, label) {
 
 function websiteLinks(c) {
   const l = c.links || {};
-  const official = l.official_url
-    ? externalLink(l.official_url, `Official website${l.official_label ? `: ${l.official_label}` : ''}`)
-    : '<span class="muted">No current office website</span>';
-  const campaign = l.campaign_url
-    ? externalLink(l.campaign_url, 'Campaign website')
-    : `<span class="muted">No campaign website${c.status === 'Declared' ? ' listed' : ' (not a declared candidate)'}</span>`;
-  return `<span class="link-stack">${official}${campaign}</span>`;
+  const links = [];
+  if (l.campaign_url) links.push(externalLink(l.campaign_url, 'Campaign site'));
+  if (l.official_url) links.push(externalLink(l.official_url, 'Official site'));
+  if (!l.campaign_url) links.push('<span class="muted">No campaign site yet</span>');
+  return links.join(' &middot; ');
 }
 
 const MARKET_LABELS = {
@@ -150,10 +166,12 @@ const MARKET_LABELS = {
   presidency: 'Presidency',
 };
 
-function fmtCents(p) {
+/** Kalshi prices are dollars on a $1 contract, so a price reads directly as a percentage chance. */
+function fmtOdds(p) {
   if (p === null || p === undefined) return 'No trades';
-  const c = p * 100;
-  return `${c >= 10 ? Math.round(c) : Math.round(c * 10) / 10}¢`;
+  const pct = p * 100;
+  if (pct > 0 && pct < 1) return '<1%';
+  return `${pct >= 10 ? Math.round(pct) : Math.round(pct * 10) / 10}%`;
 }
 
 function fmtTimestamp(iso) {
@@ -165,8 +183,8 @@ function fmtTimestamp(iso) {
 function marketsIntro() {
   const m = state.markets;
   const days = Math.floor((Date.now() - new Date(m.fetched_at).getTime()) / 86400000);
-  return `<p class="small muted">${esc(m.note)} Prices from <a href="${esc(safeUrl(m.source_url) || '#')}" target="_blank" rel="noopener noreferrer">${esc(m.source)}<span class="sr-only"> (opens in a new tab)</span></a>, snapshot taken ${esc(fmtTimestamp(m.fetched_at))}.</p>
-    ${days >= 7 ? `<p class="caution">These prices are ${days} days old and may have moved.</p>` : ''}`;
+  const when = new Date(m.fetched_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `<p class="small muted">What ${externalLink(m.source_url, m.source)} traders think will happen, as of ${esc(when)}${days >= 7 ? ` (${days} days old)` : ''}. Not polls, not endorsements, not part of your score.</p>`;
 }
 
 function nominationKey(c) {
@@ -177,25 +195,18 @@ function candidateMarketSection(c) {
   const m = state.markets;
   if (!m) return '';
   const entry = m.candidates[c.id] || {};
-  const rows = [[nominationKey(c), entry.nomination], ['presidency', entry.presidency]]
-    .filter(([key]) => m.events[key])
-    .map(([key, e]) => {
-      const ev = m.events[key];
-      return `<tr>
-        <th scope="row">${esc(ev.title)}</th>
-        <td data-label="Last price">${e ? fmtCents(e.last) : '<span class="muted">Not listed</span>'}</td>
-        <td data-label="Bid / ask">${e && e.bid !== null && e.ask !== null ? `${fmtCents(e.bid)} / ${fmtCents(e.ask)}` : '<span class="muted">None</span>'}</td>
-        <td data-label="Market">${externalLink(ev.url, 'View market on Kalshi')}</td>
-      </tr>`;
-    }).join('');
+  const parts = [];
+  if (entry.nomination && m.events[nominationKey(c)]) {
+    parts.push(`<strong>${esc(fmtOdds(entry.nomination.last))}</strong> to win the ${esc(MARKET_LABELS[nominationKey(c)])} (${externalLink(m.events[nominationKey(c)].url, 'market')})`);
+  }
+  if (entry.presidency && m.events.presidency) {
+    parts.push(`<strong>${esc(fmtOdds(entry.presidency.last))}</strong> to win the presidency (${externalLink(m.events.presidency.url, 'market')})`);
+  }
+  if (!parts.length) return '';
   return `<section class="section-gap" aria-labelledby="mkt-h">
-    <h2 id="mkt-h">Prediction markets <span class="muted">(not part of your score)</span></h2>
+    <h2 id="mkt-h" class="h3">Market odds <span class="muted">(not scored)</span></h2>
+    <p class="tight">${parts.join(' &middot; ')}</p>
     ${marketsIntro()}
-    <div class="table-wrap"><table class="data stack">
-      <caption class="sr-only">Kalshi prices for ${esc(c.name)}</caption>
-      <thead><tr><th scope="col">Market</th><th scope="col">Last price</th><th scope="col">Bid / ask</th><th scope="col">Link</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
   </section>`;
 }
 
@@ -209,26 +220,22 @@ function marketsPanel() {
     .map((c) => {
       const e = m.candidates[c.id] || {};
       return `<tr>
-        <th scope="row"><a href="#/candidate/${esc(c.id)}">${esc(c.name)}</a></th>
-        <td data-label="Party">${partyTag(c.party)}</td>
-        <td data-label="Party nomination">${e.nomination ? fmtCents(e.nomination.last) : '<span class="muted">Not listed</span>'}</td>
-        <td data-label="Presidency">${e.presidency ? fmtCents(e.presidency.last) : '<span class="muted">Not listed</span>'}</td>
+        <th scope="row"><a href="#/candidate/${esc(c.id)}">${esc(c.name)}</a> ${partyTag(c.party)}</th>
+        <td data-label="Nomination">${e.nomination ? esc(fmtOdds(e.nomination.last)) : '<span class="muted">&ndash;</span>'}</td>
+        <td data-label="Presidency">${e.presidency ? esc(fmtOdds(e.presidency.last)) : '<span class="muted">&ndash;</span>'}</td>
       </tr>`;
     }).join('');
-  const others = (m.uncovered || []).map((u) => `${esc(u.name)} (${esc(MARKET_LABELS[u.market] || u.market)}, ${fmtCents(u.last)})`);
-  const eventLinks = Object.keys(MARKET_LABELS).filter((k) => m.events[k])
-    .map((k) => externalLink(m.events[k].url, m.events[k].title)).join(' &middot; ');
-  return `<section class="section-gap no-print" aria-labelledby="mkts-h">
-    <details class="markets-panel">
-      <summary><h2 id="mkts-h">Prediction market prices <span class="muted">(not part of your score)</span></h2></summary>
+  const others = (m.uncovered || []).filter((u) => u.market !== 'presidency').map((u) => `${esc(u.name)} ${esc(fmtOdds(u.last))}`);
+  return `<section class="section-gap no-print">
+    <details class="fold">
+      <summary><h2 id="mkts-h">Market odds <span class="muted">(not scored)</span></h2></summary>
       ${marketsIntro()}
-      <div class="table-wrap"><table class="data stack">
-        <caption class="sr-only">Kalshi last traded prices by candidate, grouped by party</caption>
-        <thead><tr><th scope="col">Candidate</th><th scope="col">Party</th><th scope="col">Party nomination</th><th scope="col">Presidency</th></tr></thead>
+      <div class="table-wrap"><table class="data stack odds-table">
+        <caption class="sr-only">Kalshi odds by candidate, grouped by party</caption>
+        <thead><tr><th scope="col">Candidate</th><th scope="col">Nomination</th><th scope="col">Presidency</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
-      ${others.length ? `<p class="small">Also traded on Kalshi at 2&cent; or more, but not covered by Ballot Compass: ${others.join('; ')}.</p>` : ''}
-      <p class="small">Markets: ${eventLinks}</p>
+      ${others.length ? `<p class="small muted">Also on Kalshi, not covered here: ${others.join(', ')}.</p>` : ''}
     </details>
   </section>`;
 }
@@ -276,6 +283,11 @@ function loadSaved() {
     const data = JSON.parse(raw);
     state.answers = sanitizeAnswers(data.answers);
     state.leadership = sanitizeLeadership(data.leadership);
+    const prof = data.profile && typeof data.profile === 'object' ? data.profile : {};
+    for (const f of DEMOGRAPHIC_FIELDS) state.profile[f.id] = isValidDemographic(f.id, prof[f.id]) && prof[f.id] ? prof[f.id] : null;
+    const sh = data.share;
+    state.share = sh && typeof sh.id === 'string' && /^[0-9a-f-]{36}$/i.test(sh.id) ? { id: sh.id, sharedOn: String(sh.sharedOn || '') } : null;
+    state.signedUp = data.signedUp === true;
   } catch {
     /* storage unavailable or corrupt: start fresh */
   }
@@ -283,16 +295,57 @@ function loadSaved() {
 
 function save() {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers: state.answers, leadership: state.leadership }));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers: state.answers, leadership: state.leadership, profile: state.profile, share: state.share, signedUp: state.signedUp }));
   } catch {
     /* storage unavailable: answers live only for this page view */
   }
 }
 
-function clearAll() {
+function clearAll({ keepShareId = false } = {}) {
+  const share = keepShareId ? state.share : null;
   state.answers = {};
   state.leadership = { ranking: null, skipped: false };
+  state.profile = { age: null, household: null, income: null };
+  state.share = share;
+  state.signedUp = false;
+  state.flash = null;
   try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  if (share) save();
+}
+
+/* ---------- optional sharing (same-origin API; see api/) ---------- */
+
+async function postJson(path, body, method = 'POST') {
+  const ctrl = new AbortController();
+  const timer = window.setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(path, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+      credentials: 'omit',
+    });
+    let data = null;
+    try { data = await res.json(); } catch { /* non-JSON reply, e.g. a static host with no API */ }
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: null };
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function shareFailureText(r) {
+  if (r.data && r.data.code === 'not_configured') return 'Sharing is not switched on yet, so nothing was sent.';
+  if (r.data && r.data.code === 'disabled') return 'Sharing is paused right now, so nothing was sent.';
+  if (r.status === 0 || r.status === 404 || r.status === 405 || r.status === 501) return 'Sharing is not available on this copy of Ballot Compass, so nothing was sent.';
+  if (r.data && r.data.error) return `${r.data.error} Nothing was sent.`;
+  return 'Your answers could not be shared right now. Nothing was sent.';
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 /* ---------- data stamp ---------- */
@@ -300,16 +353,14 @@ function clearAll() {
 function renderStamp() {
   const m = state.meta;
   const html = m.last_reviewed
-    ? `Data last reviewed: <strong>${esc(fmtDate(m.last_reviewed))}</strong>${m.reviewed_by ? ` by ${esc(m.reviewed_by)}` : ''}.`
-    : `Data last reviewed: <strong>Not yet reviewed</strong>. Seed data compiled ${esc(fmtDate(m.seeded))}; every position needs verification.`;
+    ? `Data last reviewed: <strong>${esc(fmtDate(m.last_reviewed))}</strong>`
+    : 'Data last reviewed: <strong>not yet</strong> (draft)';
   document.querySelectorAll('[data-stamp]').forEach((el) => { el.innerHTML = html; });
 }
 
 function seedNotice() {
   if (state.meta.last_reviewed) return '';
-  return `<div class="notice notice-flag">
-    <p><strong>Positions are not yet verified.</strong> This seed data covers public records and statements through mid-2026, before the November 2026 elections, and has not been checked by an editor. Check the source links before relying on any position.</p>
-  </div>`;
+  return '<p class="draft-note"><strong>Draft data.</strong> Positions aren\'t verified yet. Check sources before relying on them.</p>';
 }
 
 /* ---------- views ---------- */
@@ -324,30 +375,24 @@ function viewIntro() {
   } else if (next === -1) {
     primary = '<a class="btn btn-primary" href="#/results">View your results</a><button type="button" class="btn" data-start-over>Start over</button>';
   } else {
-    primary = `<a class="btn btn-primary" href="#/q/${next + 1}">Continue with issue ${next + 1} of ${total}</a><button type="button" class="btn" data-start-over>Start over</button>`;
+    primary = `<a class="btn btn-primary" href="#/q/${next + 1}">Continue (${next + 1} of ${total})</a><button type="button" class="btn" data-start-over>Start over</button>`;
   }
 
   return {
     title: null,
     html: `
-    <div class="intro">
-      <div>
-        <p class="kicker">2028 presidential field &middot; issue comparison</p>
-        <h1 tabindex="-1">Compare your views with the 2028 presidential contenders</h1>
-        <p class="lede">Ballot Compass asks where you stand on ${total} policy issues and how much each one matters to you, then compares your answers with the public records and statements of ${state.candidates.length} possible candidates from both parties. Each candidate's alignment score is a weighted average of how close their position is to yours on the issues you answered. Issues where a candidate's position is unknown are left out of that score, and every result says how many issues it is based on.</p>
-        <div class="actions">${primary}<a href="#/methodology">Methodology</a></div>
-      </div>
-      <aside aria-labelledby="before-h">
-        <h2 id="before-h" class="h3">Before you begin</h2>
-        <ul class="fact-list">
-          <li><strong>About 10 minutes.</strong> One issue per screen. You can skip any issue.</li>
-          <li><strong>Sourced.</strong> Each candidate position has a plain-English summary, a source link, a date, and a note on whether it comes from a recent statement or the record.</li>
-          <li><strong>Private.</strong> No account and no tracking. Your answers stay in this browser.</li>
-          <li><strong>Not an endorsement.</strong> The tool shows where each candidate agrees and differs with you. The decision is yours.</li>
-        </ul>
-      </aside>
-    </div>
-    <div class="measure mt-lg">${seedNotice()}</div>`,
+    <div class="intro measure">
+      <p class="kicker">2028 presidential field</p>
+      <h1 tabindex="-1">See where the 2028 contenders stand on what matters to you</h1>
+      <p class="lede">Answer ${total} issues. Compare yourself with ${state.candidates.length} possible candidates from both parties, issue by issue, with sources.</p>
+      <ul class="meta-row">
+        <li>About 8 minutes</li>
+        <li>Skip anything</li>
+        <li>No account</li>
+      </ul>
+      <div class="actions">${primary}<a href="#/methodology">How scoring works</a></div>
+      ${seedNotice()}
+    </div>`,
   };
 }
 
@@ -372,7 +417,7 @@ function viewQuestion(n) {
     html: `
     <div class="measure">
       <div class="progress">
-        <div class="progress-label"><span>Issue ${n} of ${total}</span><span>${answeredCount()} answered</span></div>
+        <div class="progress-label"><span>${n} of ${total}</span><a href="#/review">All issues</a></div>
         <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-width="${pct}"></div></div>
       </div>
       <form id="q-form" data-issue="${esc(issue.id)}" data-n="${n}" novalidate>
@@ -386,24 +431,21 @@ function viewQuestion(n) {
         </details>
         <p class="form-error" id="q-error" role="alert"></p>
         <fieldset aria-describedby="q-error">
-          <legend>Which position is closest to yours?</legend>
+          <legend class="sr-only">Which position is closest to yours?</legend>
           <div class="options">
             ${options}
             <label class="option option-skip">
               <input type="radio" name="position" value="skip" ${isSkip ? 'checked' : ''}>
-              <span class="option-text">No opinion / skip this issue</span>
+              <span class="option-text">No opinion / skip</span>
             </label>
           </div>
         </fieldset>
         <fieldset class="importance" id="imp-fs" ${isSkip ? 'disabled' : ''}>
-          <legend>How much does this issue matter to you?</legend>
-          <div class="importance-row">
-            <label for="imp">Importance</label>
-            <output id="imp-out" for="imp" class="importance-value">${importanceLabel(imp)}</output>
-          </div>
-          <input type="range" id="imp" name="importance" min="1" max="4" step="1" value="${imp}" aria-valuetext="${importanceLabel(imp)}" aria-describedby="imp-hint">
+          <legend id="imp-legend">How much does it matter?</legend>
+          <output id="imp-out" for="imp" class="importance-value">${importanceLabel(imp)}</output>
+          <input type="range" id="imp" name="importance" min="1" max="4" step="1" value="${imp}" aria-labelledby="imp-legend" aria-valuetext="${importanceLabel(imp)}" aria-describedby="imp-hint">
           <div class="importance-scale" aria-hidden="true"><span>Low</span><span>Medium</span><span>High</span><span>Dealbreaker</span></div>
-          <p class="importance-hint" id="imp-hint">${isSkip ? 'Not used for skipped issues.' : IMPORTANCE_HINTS[imp]}</p>
+          <p class="importance-hint" id="imp-hint">${isSkip ? '' : IMPORTANCE_HINTS[imp]}</p>
         </fieldset>
         <div class="actions actions-split">
           <button type="button" class="btn" data-q-back>Back</button>
@@ -437,7 +479,7 @@ function wireQuestion() {
       error.textContent = '';
       const skip = e.target.value === 'skip';
       impFs.disabled = skip;
-      hint.textContent = skip ? 'Not used for skipped issues.' : IMPORTANCE_HINTS[Number(range.value)];
+      hint.textContent = skip ? '' : IMPORTANCE_HINTS[Number(range.value)];
     }
   });
   range.addEventListener('input', () => {
@@ -491,19 +533,17 @@ function viewLeadership() {
     html: `
     <div class="measure">
       <div class="progress">
-        <div class="progress-label"><span>Optional section</span><span>${answeredCount()} of ${state.issues.length} issues answered</span></div>
+        <div class="progress-label"><span>Optional</span></div>
         <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-width="100"></div></div>
       </div>
-      <h1 tabindex="-1">Leadership style <span class="muted">(optional)</span></h1>
-      <p class="question-text">Rank these qualities from most to least important to you.</p>
-      <p class="muted">Your ranking appears as a separate section of your results. It never changes any candidate's policy alignment score, and Ballot Compass does not rate candidates on these qualities.</p>
+      <h1 tabindex="-1">Leadership style</h1>
+      <p class="question-text">Rank what matters most to you. Not scored.</p>
       <ol class="rank-list" id="rank-list" aria-label="Leadership qualities, most important first">${rankListHtml(ranking)}</ol>
-      <p class="small muted">Use the arrow buttons to reorder. Position 1 is most important.</p>
       <div class="actions actions-split">
         <button type="button" class="btn" data-l-back>Back</button>
         <span class="actions actions-inline">
-          <button type="button" class="btn" data-l-skip>Skip this section</button>
-          <button type="button" class="btn btn-primary" data-l-save>Save ranking and see results</button>
+          <button type="button" class="btn" data-l-skip>Skip</button>
+          <button type="button" class="btn btn-primary" data-l-save>Continue</button>
         </span>
       </div>
     </div>`,
@@ -534,12 +574,179 @@ function wireLeadership() {
   document.querySelector('[data-l-skip]').addEventListener('click', () => {
     state.leadership = { ranking: null, skipped: true };
     save();
-    location.hash = '#/results';
+    location.hash = '#/about-you';
   });
   document.querySelector('[data-l-save]').addEventListener('click', () => {
     state.leadership = { ranking: ranking.slice(), skipped: false };
     save();
+    location.hash = '#/about-you';
+  });
+}
+
+/* ----- optional: about you + sharing ----- */
+
+function viewAboutYou() {
+  const p = state.profile;
+  const fields = DEMOGRAPHIC_FIELDS.map((f) => `
+    <div class="field">
+      <label for="d-${f.id}">${esc(f.label)}</label>
+      <select id="d-${f.id}" name="${f.id}">
+        <option value="">Choose</option>
+        ${f.options.map((o) => `<option value="${esc(o.value)}" ${p[f.id] === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+        <option value="${PREFER_NOT.value}" ${p[f.id] === PREFER_NOT.value ? 'selected' : ''}>${PREFER_NOT.label}</option>
+      </select>
+    </div>`).join('');
+  const email = state.signedUp
+    ? ''
+    : `<div class="field">
+        <label for="d-email">Email for updates <span class="muted">(optional)</span></label>
+        <input type="email" id="d-email" name="email" autocomplete="email" inputmode="email" spellcheck="false" aria-describedby="email-hint">
+        <p class="field-hint" id="email-hint">Kept apart from your answers. Unsubscribe anytime.</p>
+      </div>`;
+  return {
+    title: 'About you (optional)',
+    html: `
+    <div class="measure">
+      <div class="progress">
+        <div class="progress-label"><span>Last step &middot; optional</span></div>
+        <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-width="100"></div></div>
+      </div>
+      <h1 tabindex="-1">A few questions about you</h1>
+      <p class="question-text">Share anonymously to help show what voters want. You'll see results either way.</p>
+      ${state.share ? `<p class="small muted">Shared ${esc(fmtDate(state.share.sharedOn))}. Sharing again updates it.</p>` : ''}
+      <form id="about-form" novalidate>
+        <p class="form-error" id="a-error" role="alert"></p>
+        <fieldset>
+          <legend class="sr-only">About you</legend>
+          <div class="field-grid">${fields}</div>
+        </fieldset>
+        ${email}
+        <label class="consent">
+          <input type="checkbox" id="d-consent" ${state.share ? 'checked' : ''}>
+          <span>Share my answers anonymously. We publish totals only and never sell responses. <a href="#/methodology">Details</a></span>
+        </label>
+        <div class="actions actions-split">
+          <button type="button" class="btn" data-a-back>Back</button>
+          <span class="actions actions-inline">
+            <button type="button" class="btn" data-a-skip>Skip</button>
+            <button type="submit" class="btn btn-primary" data-a-share>Share and see results</button>
+          </span>
+        </div>
+      </form>
+    </div>`,
+    after: wireAboutYou,
+  };
+}
+
+function wireAboutYou() {
+  const form = document.getElementById('about-form');
+  const error = document.getElementById('a-error');
+  const shareBtn = form.querySelector('[data-a-share]');
+  form.addEventListener('change', (e) => {
+    if (e.target.tagName === 'SELECT') {
+      state.profile[e.target.name] = e.target.value || null;
+      save();
+    }
+  });
+  form.querySelector('[data-a-back]').addEventListener('click', () => { location.hash = '#/leadership'; });
+  form.querySelector('[data-a-skip]').addEventListener('click', () => {
+    state.flash = null;
     location.hash = '#/results';
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    error.textContent = '';
+    const consent = form.querySelector('#d-consent');
+    const emailInput = form.querySelector('#d-email');
+    const email = emailInput ? emailInput.value.trim() : '';
+    if (!consent.checked) {
+      error.textContent = 'Tick the box to share, or choose Skip.';
+      consent.focus();
+      return;
+    }
+    if (email && !isValidEmail(email)) {
+      error.textContent = 'Check that email address, or leave it blank.';
+      emailInput.focus();
+      return;
+    }
+    if (answeredCount() === 0) {
+      error.textContent = 'Answer at least one issue before sharing.';
+      return;
+    }
+    shareBtn.disabled = true;
+    shareBtn.textContent = 'Sharing...';
+    form.setAttribute('aria-busy', 'true');
+
+    const id = state.share ? state.share.id : newSubmissionId();
+    const r = await postJson('api/responses', {
+      submission_id: id,
+      consent: true,
+      consent_version: CONSENT_VERSION,
+      answers: state.answers,
+      leadership: state.leadership.ranking,
+      demographics: state.profile,
+    });
+    const messages = [];
+    let kind = 'ok';
+    if (r.ok) {
+      state.share = { id, sharedOn: todayIso() };
+      messages.push('Thanks. Shared anonymously.');
+    } else {
+      kind = 'warn';
+      messages.push(shareFailureText(r));
+    }
+    if (email) {
+      const s = await postJson('api/signup', { email, consent: true });
+      if (s.ok) { state.signedUp = true; messages.push('You\'re on the updates list.'); } else if (r.ok) {
+        kind = 'warn';
+        messages.push('Your email couldn\'t be saved right now.');
+      }
+    }
+    state.flash = { kind, text: messages.join(' ') };
+    save();
+    location.hash = '#/results';
+  });
+}
+
+function engageBox() {
+  const share = state.share
+    ? `<p class="small muted">Shared ${esc(fmtDate(state.share.sharedOn))}. <a href="#/about-you">Update</a></p>`
+    : '<p><a class="btn" href="#/about-you">Add your answers to the public tally</a> <span class="small muted">Anonymous, optional</span></p>';
+  const signup = state.signedUp ? '' : `
+    <form id="su-form" class="inline-form" novalidate>
+      <label for="su-email" class="sr-only">Email address for updates</label>
+      <input type="email" id="su-email" autocomplete="email" inputmode="email" spellcheck="false" placeholder="Email for updates">
+      <button class="btn btn-primary" type="submit">Get updates</button>
+    </form>
+    <p class="form-status" id="su-status" role="status"></p>`;
+  return `<section class="engage-box no-print" aria-label="Share and get updates">${share}${signup}</section>`;
+}
+
+function wireSignup() {
+  const form = document.getElementById('su-form');
+  if (!form) return;
+  const status = document.getElementById('su-status');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = form.querySelector('#su-email');
+    const email = input.value.trim();
+    if (!isValidEmail(email)) {
+      status.textContent = 'Enter a valid email address.';
+      input.focus();
+      return;
+    }
+    const btn = form.querySelector('button');
+    btn.disabled = true;
+    const r = await postJson('api/signup', { email, consent: true });
+    btn.disabled = false;
+    if (r.ok) {
+      state.signedUp = true;
+      save();
+      form.remove();
+      status.textContent = 'You\'re on the updates list.';
+    } else {
+      status.textContent = shareFailureText(r).replace('so nothing was sent.', 'so your email wasn\'t saved.').replace('Nothing was sent.', 'Your email wasn\'t saved.');
+    }
   });
 }
 
@@ -549,62 +756,42 @@ function bestByParty(ranked, party) {
   return ranked.find((r) => r.candidate.party === party && r.result.alignment !== null) || null;
 }
 
-function basisText(result) {
-  return `Based on ${result.scored} of the ${result.answered} issue${result.answered === 1 ? '' : 's'} you answered`;
-}
-
-function issueListItems(rows, emptyText) {
-  if (!rows.length) return `<li class="muted">${esc(emptyText)}</li>`;
+function issueNames(rows) {
   return rows.map((r) => {
-    const issue = issueById(r.issueId);
-    const extra = r.dealbreaker ? ' &middot; Dealbreaker' : '';
-    return `<li><span>${esc(issue.title)}</span><span class="chip-level">${esc(r.level)}${extra}</span></li>`;
-  }).join('');
+    const title = esc(issueById(r.issueId).title);
+    if (r.dealbreaker) return `<span class="flag-inline">${title}<span class="sr-only"> (dealbreaker)</span></span>`;
+    return r.level === 'Partial' ? `${title} <span class="muted">(partial)</span>` : title;
+  }).join(', ');
 }
 
-function resultCard(entry, rank) {
+function resultCard(entry) {
   const { candidate: c, result: r } = entry;
   const agree = r.rows.filter((x) => x.level === 'Agree').sort((a, b) => b.weight - a.weight);
   const differ = r.rows
     .filter((x) => x.level === 'Partial' || x.level === 'Disagree')
-    .sort((a, b) => (b.gap - a.gap) || (b.weight - a.weight));
-  const unknown = r.rows.filter((x) => x.level === 'Unknown');
-  const scoreBlock = r.alignment === null
-    ? `<p class="score-num" aria-label="No alignment score">&mdash;</p><p class="score-basis">Not enough data: none of your answered issues has a known position for this candidate.</p>`
+    .sort((a, b) => (Number(b.dealbreaker) - Number(a.dealbreaker)) || (b.gap - a.gap) || (b.weight - a.weight));
+  const score = r.alignment === null
+    ? '<p class="score-num" aria-label="No score">&ndash;</p><p class="score-basis">No overlap</p>'
     : `<p class="score-num">${r.alignment}%<span class="sr-only"> alignment</span></p>
-       <div class="score-bar" aria-hidden="true"><span data-width="${r.alignment}"></span></div>
-       <p class="score-basis">${basisText(r)}</p>`;
-  const lowCoverage = r.alignment !== null && r.scored < Math.ceil(r.answered / 2)
-    ? '<p class="caution">Limited data: this score covers fewer than half of the issues you answered.</p>' : '';
-  const flags = r.dealbreakers.length
-    ? `<p class="flags-line">${r.dealbreakers.map((id) => dealbreakerFlag(`Dealbreaker conflict: ${issueById(id).title}`)).join('')}</p>` : '';
-
+       <p class="score-basis">${r.scored} of ${r.answered} issues${r.range ? `<br><span class="range-note">could be ${r.range.low}&ndash;${r.range.high}%</span>` : ''}</p>`;
+  // Solid to the lowest possible score, a light band up to the highest, a tick at the current score.
+  const bar = r.alignment === null ? '' : `<div class="score-bar" aria-hidden="true">
+      <span class="bar-fill" data-width="${r.range ? r.range.low : r.alignment}"></span>
+      ${r.range ? `<span class="bar-range" data-left="${r.range.low}" data-width="${r.range.high - r.range.low}"></span><span class="bar-tick" data-left="${r.alignment}"></span>` : ''}
+    </div>`;
   return `<li class="result-card">
-    <div class="result-top">
-      <span class="result-rank" aria-hidden="true">${rank}</span>
+    <div class="rc-head">
       <div>
         <h3 class="result-name"><a href="#/candidate/${esc(c.id)}">${esc(c.name)}</a></h3>
-        <p class="result-meta">${partyTag(c.party)} ${esc(c.current_role)}</p>
-        <p class="result-meta">Status: ${statusText(c)}</p>
+        <p class="result-meta">${partyTag(c.party)} ${esc(c.status)} <span class="muted">&middot; ${esc(fmtDate(c.status_date))}</span></p>
       </div>
-      <div class="result-score">${scoreBlock}</div>
-      <div class="result-body">
-        <p class="tally"><span>Agree: <strong>${r.counts.Agree}</strong></span><span>Partial: <strong>${r.counts.Partial}</strong></span><span>Disagree: <strong>${r.counts.Disagree}</strong></span><span>Unknown: <strong>${r.counts.Unknown}</strong></span></p>
-        <div class="agree-differ">
-          <div><h4>Where you agree</h4><ul class="issue-chips">${issueListItems(agree, 'No exact matches among scored issues')}</ul></div>
-          <div><h4>Where you differ</h4><ul class="issue-chips">${issueListItems(differ, 'No differences among scored issues')}</ul></div>
-        </div>
-        ${flags}
-        ${lowCoverage}
-        ${unknown.length ? `<p class="small muted mt-sm">No known position on: ${unknown.map((u) => esc(issueById(u.issueId).title)).join(', ')}.</p>` : ''}
-        <div class="card-actions">
-          <a href="#/candidate/${esc(c.id)}">Issue-by-issue table for ${esc(c.name)}</a>
-          <a href="#/compare?a=${esc(c.id)}">Compare with another candidate</a>
-          ${c.links && c.links.campaign_url ? externalLink(c.links.campaign_url, 'Campaign website') : ''}
-          ${c.links && c.links.official_url ? externalLink(c.links.official_url, 'Official website') : ''}
-        </div>
-      </div>
+      <div class="result-score">${score}</div>
     </div>
+    ${bar}
+    <dl class="ad-lines">
+      <div><dt>Agree</dt><dd>${agree.length ? issueNames(agree) : '<span class="muted">None</span>'}</dd></div>
+      <div><dt>Differ</dt><dd>${differ.length ? issueNames(differ) : '<span class="muted">None</span>'}</dd></div>
+    </dl>
   </li>`;
 }
 
@@ -613,39 +800,40 @@ function filtered(ranked) {
     && (state.filters.status === 'all' || e.candidate.status === state.filters.status));
 }
 
-function resultsListHtml(ranked) {
+function rankedNow() {
+  return rankCandidates(state.answers, state.candidates, state.issues, state.filters.sort);
+}
+
+function resultsListHtml() {
+  const ranked = rankedNow();
   const list = filtered(ranked);
-  const count = `<p class="result-count" id="result-count">Showing ${list.length} of ${ranked.length} candidates, ranked by alignment.</p>`;
-  if (!list.length) return `${count}<p>No candidates match these filters.</p>`;
-  return `${count}<ol class="result-list" aria-labelledby="ranked-h">${list.map((e) => resultCard(e, ranked.indexOf(e) + 1)).join('')}</ol>`;
+  const count = `<p class="sr-only" id="result-count">Showing ${list.length} of ${ranked.length} candidates.</p>`;
+  if (!list.length) return `${count}<p>No candidates match.</p>`;
+  return `${count}<ol class="result-list" aria-labelledby="ranked-h">${list.map((e) => resultCard(e)).join('')}</ol>`;
 }
 
 function leadershipSection() {
   const traitLabel = (id) => state.traits.find((t) => t.id === id).label;
-  let intro;
-  if (state.leadership.ranking) {
-    intro = `<p>Your ranking, most important first:</p>
-      <ol>${state.leadership.ranking.map((id) => `<li>${esc(traitLabel(id))}</li>`).join('')}</ol>`;
-  } else {
-    intro = `<p class="muted">${state.leadership.skipped ? 'You skipped this section.' : 'You have not ranked leadership qualities.'} <a href="#/leadership" class="no-print">Rank them now</a></p>`;
-  }
+  const mine = state.leadership.ranking
+    ? `<p>Your priorities: ${state.leadership.ranking.map((id, i) => `${i + 1}. ${esc(traitLabel(id))}`).join(' &middot; ')}</p>`
+    : '<p class="muted">Not ranked. <a href="#/leadership">Rank them</a></p>';
   const rows = state.candidates.slice().sort((a, b) => a.name.localeCompare(b.name)).map((c) => `
     <tr>
-      <th scope="row">${esc(c.name)} <span class="cell-sub">${partyTag(c.party)}</span></th>
-      <td data-label="Executive experience">${esc(c.background.executive_experience || 'None in elected or appointed executive office')}</td>
-      <td data-label="Legislative experience">${esc(c.background.legislative_experience || 'None')}</td>
+      <th scope="row">${esc(c.name)}</th>
+      <td data-label="Executive">${esc(c.background.executive_experience || 'None')}</td>
+      <td data-label="Legislative">${esc(c.background.legislative_experience || 'None')}</td>
     </tr>`).join('');
-  return `<section aria-labelledby="lead-h" class="section-gap">
-    <h2 id="lead-h">Leadership style <span class="muted">(not scored)</span></h2>
-    <p>This section is separate from the policy comparison above and does not affect any alignment score. Ballot Compass does not rate candidates on leadership qualities. Bipartisan record, independence from party and communication style are judgments for you to make; the table lists only factual experience.</p>
-    ${intro}
-    <div class="table-wrap">
-      <table class="data stack">
-        <caption>Experience, by candidate (alphabetical)</caption>
-        <thead><tr><th scope="col">Candidate</th><th scope="col">Executive experience</th><th scope="col">Legislative experience</th></tr></thead>
+  return `<section class="section-gap no-print">
+    <details class="fold">
+      <summary><h2 id="lead-h">Leadership style <span class="muted">(not scored)</span></h2></summary>
+      ${mine}
+      <p class="small muted">We list experience only. The rest is your call.</p>
+      <div class="table-wrap"><table class="data stack">
+        <caption class="sr-only">Experience by candidate</caption>
+        <thead><tr><th scope="col">Candidate</th><th scope="col">Executive</th><th scope="col">Legislative</th></tr></thead>
         <tbody>${rows}</tbody>
-      </table>
-    </div>
+      </table></div>
+    </details>
   </section>`;
 }
 
@@ -654,14 +842,14 @@ function answersAppendix() {
     const a = state.answers[issue.id];
     const label = a ? (a.value === null ? 'Skipped' : positionLabel(issue, a.value)) : 'Not answered';
     const imp = a && a.value !== null ? importanceLabel(a.importance) : '';
-    return `<tr><th scope="row">${esc(issue.title)}</th><td data-label="Your position">${esc(label)}</td><td data-label="Importance">${esc(imp)}</td></tr>`;
+    return `<tr><th scope="row">${esc(issue.title)}</th><td>${esc(label)}</td><td>${esc(imp)}</td></tr>`;
   }).join('');
-  return `<section aria-labelledby="your-answers-h" class="section-gap">
-    <h2 id="your-answers-h">Your answers</h2>
-    <div class="table-wrap"><table class="data stack">
+  return `<section class="print-only section-gap">
+    <h2>Your answers</h2>
+    <table class="data">
       <thead><tr><th scope="col">Issue</th><th scope="col">Your position</th><th scope="col">Importance</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table></div>
+    </table>
   </section>`;
 }
 
@@ -672,74 +860,91 @@ function viewResults() {
       title: 'Your results',
       html: `<div class="measure">
         <h1 tabindex="-1">Your results</h1>
-        <p>You have not answered any issues yet, so there is nothing to compare. Answer at least one issue to see how each candidate's positions line up with yours.</p>
-        <div class="actions"><a class="btn btn-primary" href="#/q/1">Start</a><a href="#/methodology">Methodology</a></div>
+        <p>Answer at least one issue to see results.</p>
+        <div class="actions"><a class="btn btn-primary" href="#/q/1">Start</a></div>
       </div>`,
     };
   }
-  const ranked = rankCandidates(state.answers, state.candidates, state.issues);
+  const ranked = rankedNow();
   const bestR = bestByParty(ranked, 'Republican');
   const bestD = bestByParty(ranked, 'Democratic');
-  const partyCell = (label, e) => `<div><dt>${esc(label)}</dt><dd>${e ? `<a href="#/candidate/${esc(e.candidate.id)}">${esc(e.candidate.name)}</a>, ${e.result.alignment}% <span class="small muted">(${e.result.scored} of ${e.result.answered} issues)</span>` : '<span class="muted">Not enough data</span>'}</dd></div>`;
-  const dealbreakers = state.issues.filter((i) => state.answers[i.id] && state.answers[i.id].value !== null && state.answers[i.id].importance === DEALBREAKER).length;
-  const total = state.issues.length;
+  const partyCell = (label, e) => `<div><dt>${esc(label)}</dt><dd>${e ? `<a href="#/candidate/${esc(e.candidate.id)}">${esc(e.candidate.name)}</a> ${e.result.alignment}%` : '<span class="muted">Not enough data</span>'}</dd></div>`;
+  const flash = state.flash;
+  state.flash = null;
+  const flashHtml = flash ? `<p class="flash ${flash.kind === 'warn' ? 'flash-warn' : ''}" role="status">${esc(flash.text)}</p>` : '';
+  const select = (id, label, options, current) => `<label>${label}
+      <select id="${id}">${options.map(([v, t]) => `<option value="${esc(v)}" ${current === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    </label>`;
 
   return {
     title: 'Your results',
     html: `
     <div class="print-only">
-      <p><strong>Ballot Compass: your results</strong>, generated ${esc(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))}. For your own reference.</p>
+      <p><strong>Ballot Compass</strong>, ${esc(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))}</p>
     </div>
     <div class="results-head">
-      <div>
-        <h1 tabindex="-1">Your results</h1>
-        <p>You answered ${answered} of ${total} issues${dealbreakers ? ` and marked ${dealbreakers} as a dealbreaker` : ''}. <a href="#/q/1" class="no-print">Edit my answers</a></p>
-      </div>
+      <h1 tabindex="-1">Your results</h1>
+      <p class="results-sub">${answered} of ${state.issues.length} issues &middot; <a href="#/review" class="no-print">Edit answers</a></p>
     </div>
-    <div class="notice"><p><strong>Alignment reflects only the issues you answered and weighted. It is not a prediction or an endorsement.</strong></p></div>
-    ${seedNotice()}
-    <div class="toolbar">
-      <a class="btn" href="#/compare">Compare two candidates</a>
-      <button type="button" class="btn" data-print>Export as PDF</button>
-      <span class="small muted">Opens your browser's print dialog; choose "Save as PDF".</span>
-    </div>
-    <dl class="party-summary" aria-label="Highest alignment in each party">
-      ${partyCell('Highest alignment among Republicans', bestR)}
-      ${partyCell('Highest alignment among Democrats', bestD)}
+    ${flashHtml}
+    <p class="note-line">Alignment reflects only the issues you answered and weighted. It is not a prediction or an endorsement.${state.meta.last_reviewed ? '' : ' <span class="draft-inline">Draft data, not yet verified.</span>'}</p>
+    <dl class="party-summary" aria-label="Closest candidate in each party">
+      ${partyCell('Closest Republican', bestR)}
+      ${partyCell('Closest Democrat', bestD)}
     </dl>
-    <h2 id="ranked-h">All candidates</h2>
+    <h2 id="ranked-h" class="sr-only">All candidates</h2>
     <div class="filters">
-      <label>Party
-        <select id="f-party">
-          <option value="all">All parties</option>
-          ${PARTIES.map((p) => `<option value="${p}" ${state.filters.party === p ? 'selected' : ''}>${p}</option>`).join('')}
-        </select>
-      </label>
-      <label>Status
-        <select id="f-status">
-          <option value="all">All statuses</option>
-          ${STATUSES.map((s) => `<option value="${s}" ${state.filters.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </label>
+      ${select('f-party', 'Party', [['all', 'All'], ...PARTIES.map((p) => [p, p])], state.filters.party)}
+      ${select('f-status', 'Status', [['all', 'All'], ...STATUSES.map((s) => [s, s])], state.filters.status)}
+      ${select('f-sort', 'Sort by', [['alignment', 'Alignment'], ['coverage', 'Issues covered']], state.filters.sort)}
+      <span class="filter-links"><a href="#/compare">Compare two</a><button type="button" class="btn-link" data-print>Save as PDF</button></span>
     </div>
-    <div id="result-region">${resultsListHtml(ranked)}</div>
+    <div id="result-region">${resultsListHtml()}</div>
+    ${engageBox()}
     ${marketsPanel()}
     ${leadershipSection()}
     ${answersAppendix()}`,
-    after: () => wireResults(ranked),
+    after: wireResults,
   };
 }
 
-function wireResults(ranked) {
+function wireResults() {
   const region = document.getElementById('result-region');
   const update = () => {
-    region.innerHTML = resultsListHtml(ranked);
+    region.innerHTML = resultsListHtml();
     applyWidths(region);
     announce(document.getElementById('result-count').textContent);
   };
   document.getElementById('f-party').addEventListener('change', (e) => { state.filters.party = e.target.value; update(); });
   document.getElementById('f-status').addEventListener('change', (e) => { state.filters.status = e.target.value; update(); });
+  document.getElementById('f-sort').addEventListener('change', (e) => { state.filters.sort = e.target.value; update(); });
   document.querySelector('[data-print]').addEventListener('click', () => window.print());
+  wireSignup();
+}
+
+/* ----- review all answers ----- */
+
+function viewReview() {
+  const rows = state.issues.map((issue, i) => {
+    const a = state.answers[issue.id];
+    const pos = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : esc(positionLabel(issue, a.value));
+    const imp = a && a.value !== null ? `<span class="tag tag-prov">${esc(importanceLabel(a.importance))}</span>` : '';
+    return `<li class="review-row">
+      <a href="#/q/${i + 1}" class="review-link">
+        <span class="review-title">${esc(issue.title)} ${imp}</span>
+        <span class="review-pos">${pos}</span>
+      </a>
+    </li>`;
+  }).join('');
+  return {
+    title: 'Your answers',
+    html: `<div class="measure">
+      <h1 tabindex="-1">Your answers</h1>
+      <p class="muted">Tap an issue to change it.</p>
+      <ul class="review-list">${rows}</ul>
+      <div class="actions"><a class="btn btn-primary" href="#/results">See results</a></div>
+    </div>`,
+  };
 }
 
 /* ----- candidate detail ----- */
@@ -753,27 +958,22 @@ function viewCandidate(id) {
   const statusUrl = safeUrl(c.status_source_url);
 
   const summary = r.answered === 0
-    ? '<p>Answer the issue questions to see your alignment with this candidate. <a href="#/q/1">Start</a></p>'
+    ? '<p class="tight"><a href="#/q/1">Answer the issues</a> to see your match.</p>'
     : r.alignment === null
-      ? `<p><strong>No alignment score.</strong> None of the ${r.answered} issues you answered has a known position for ${esc(c.name)}.</p>`
-      : `<p class="tight"><span class="score-num">${r.alignment}%</span> alignment</p>
-         <p class="tight">${basisText(r)}</p>
-         <p class="tight muted">Agree ${r.counts.Agree} &middot; Partial ${r.counts.Partial} &middot; Disagree ${r.counts.Disagree} &middot; Unknown ${r.counts.Unknown}</p>`;
+      ? '<p class="tight">No score: no known positions on the issues you answered.</p>'
+      : `<p class="tight"><span class="score-num">${r.alignment}%</span> <span class="muted">${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}</span></p>`;
 
   const rows = r.rows.map((row) => {
     const issue = issueById(row.issueId);
     const pos = c.positions[row.issueId];
     const a = state.answers[row.issueId];
     const yours = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : esc(positionLabel(issue, a.value));
-    const impNote = a && a.value !== null ? `<span class="importance-note">Importance: ${esc(importanceLabel(a.importance))}</span>` : '';
-    const coded = isValidValue(pos && pos.value)
-      ? `<span class="cell-sub">Coded as: ${esc(positionLabel(issue, pos.value))}</span>`
-      : '<span class="cell-sub">Not scored for this candidate.</span>';
-    const theirs = `${esc(pos ? pos.summary : 'No clear public position found.')}${coded}`;
+    const impNote = a && a.value !== null && a.importance >= 3 ? `<span class="importance-note">${esc(importanceLabel(a.importance))}</span>` : '';
+    const theirs = esc(pos ? pos.summary : 'No clear public position.');
     return `<tr class="${row.dealbreaker ? 'row-flagged' : ''}">
       <th scope="row">${esc(issue.title)}${impNote}</th>
-      <td data-label="Your position">${yours}</td>
-      <td data-label="Their position">${theirs}</td>
+      <td data-label="You">${yours}</td>
+      <td data-label="${esc(c.name)}">${theirs}</td>
       <td data-label="Source" class="source-cell">${sourceCell(pos)}</td>
       <td data-label="Match">${matchBadge(row.level)}${row.dealbreaker ? `<span class="cell-sub">${dealbreakerFlag('Dealbreaker')}</span>` : ''}</td>
     </tr>`;
@@ -782,33 +982,28 @@ function viewCandidate(id) {
   return {
     title: c.name,
     html: `
-    <a class="back-link no-print" href="#/results">&larr; Back to all results</a>
+    <a class="back-link no-print" href="#/results">&larr; Results</a>
     <div class="profile-head">
-      <p class="kicker">Candidate</p>
       <h1 tabindex="-1">${esc(c.name)}</h1>
-      <p class="result-meta">${partyTag(c.party)} ${esc(c.current_role)}</p>
+      <p class="result-meta">${partyTag(c.party)} ${esc(c.current_role)}${age === null ? '' : ` &middot; ${age}`}</p>
+      <p class="result-meta"><strong>${esc(c.status)}</strong> <span class="muted">(${esc(fmtDate(c.status_date))})</span>: ${esc(c.status_note || '')}</p>
+      <p class="result-meta link-row">${websiteLinks(c)}</p>
     </div>
-    <div class="measure"><p>${esc(c.bio)}</p></div>
-    <dl class="profile-facts">
-      <div><dt>Age</dt><dd>${age === null ? 'Unknown' : age}</dd></div>
-      <div><dt>2028 status</dt><dd>${statusText(c)}<span class="cell-sub">${esc(c.status_note || '')}</span>${c.status_needs_verification ? `<span class="source-tags">${verifyTag()}</span>` : ''}</dd></div>
-      <div><dt>Websites</dt><dd>${websiteLinks(c)}</dd></div>
-      <div><dt>Background sources</dt><dd>${profileUrl ? `<a href="${esc(profileUrl)}" target="_blank" rel="noopener noreferrer">Profile<span class="sr-only"> (opens in a new tab)</span></a>` : ''}${statusUrl ? ` &middot; <a href="${esc(statusUrl)}" target="_blank" rel="noopener noreferrer">2028 field<span class="sr-only"> (opens in a new tab)</span></a>` : ''}</dd></div>
-    </dl>
-    <div class="score-summary">${summary}</div>
-    ${r.dealbreakers.length ? `<div class="notice notice-flag"><p>${dealbreakerFlag('Dealbreaker conflict')} ${esc(c.name)}'s position is two or more steps from yours on an issue you marked as a dealbreaker: ${r.dealbreakers.map((d) => esc(issueById(d).title)).join(', ')}.</p></div>` : ''}
+    <div class="score-summary">${summary}
+      ${r.dealbreakers.length ? `<p class="tight">${dealbreakerFlag(`Dealbreaker conflict: ${r.dealbreakers.map((d) => issueById(d).title).join(', ')}`)}</p>` : ''}
+    </div>
     <div class="table-wrap">
       <table class="data stack">
-        <caption>Issue by issue: you and ${esc(c.name)}</caption>
+        <caption class="sr-only">Issue by issue: you and ${esc(c.name)}</caption>
         <thead><tr>
-          <th scope="col">Issue</th><th scope="col">Your position</th><th scope="col">Their position</th><th scope="col">Source</th><th scope="col">Match</th>
+          <th scope="col">Issue</th><th scope="col">You</th><th scope="col">${esc(c.name)}</th><th scope="col">Source</th><th scope="col">Match</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p class="small muted">Match levels: Agree means the same position; Partial means one step apart; Disagree means two or more steps apart; Unknown means no clear position, so the issue is not scored.</p>
     ${candidateMarketSection(c)}
-    <div class="actions no-print"><a class="btn" href="#/compare?a=${esc(c.id)}">Compare with another candidate</a><a href="#/results">Back to all results</a></div>`,
+    <p class="small muted">Background: ${profileUrl ? externalLink(profileUrl, 'profile') : ''}${statusUrl ? ` &middot; ${externalLink(statusUrl, '2028 field')}` : ''}</p>
+    <div class="actions no-print"><a class="btn" href="#/compare?a=${esc(c.id)}">Compare</a></div>`,
   };
 }
 
@@ -853,29 +1048,28 @@ function viewCompare(params) {
 
   const scoreCell = (c, r) => `<div>
     <p class="tight h3"><a href="#/candidate/${esc(c.id)}">${esc(c.name)}</a> ${partyTag(c.party)}</p>
-    <p class="tight small muted">Status: ${statusText(c)}</p>
-    ${any ? (r.alignment === null ? '<p class="tight mt-xs">No alignment score: no overlap with your answers.</p>'
-      : `<p class="tight mt-xs"><span class="score-num">${r.alignment}%</span> alignment</p><p class="tight small muted">${basisText(r)}${r.dealbreakers.length ? ` &middot; ${r.dealbreakers.length} dealbreaker conflict${r.dealbreakers.length > 1 ? 's' : ''}` : ''}</p>`)
+    <p class="tight small muted">${esc(c.status)} (${esc(fmtDate(c.status_date))})</p>
+    ${any ? (r.alignment === null ? '<p class="tight mt-xs muted">No overlap with your answers</p>'
+      : `<p class="tight mt-xs"><span class="score-num">${r.alignment}%</span> <span class="small muted">${r.scored} of ${r.answered} issues${r.range ? ` &middot; could be ${r.range.low}&ndash;${r.range.high}%` : ''}</span></p>${r.dealbreakers.length ? `<p class="tight">${dealbreakerFlag(`Dealbreaker: ${r.dealbreakers.map((d) => issueById(d).title).join(', ')}`)}</p>` : ''}`)
     : ''}
   </div>`;
 
   const posCell = (c, row) => {
     const pos = c.positions[row.issueId];
-    const known = pos && isValidValue(pos.value);
     const url = pos ? safeUrl(pos.source_url) : null;
-    const src = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Source, ${esc(fmtDate(pos.source_date))}<span class="sr-only"> (opens in a new tab)</span></a>` : '';
-    const badge = any ? `<span class="cell-sub">${matchBadge(row.level)}${row.dealbreaker ? ` ${dealbreakerFlag('Dealbreaker')}` : ''}</span>` : '';
-    return `${esc(pos ? pos.summary : 'No clear public position found.')}${known ? '' : '<span class="cell-sub">Not scored.</span>'}${badge}<span class="cell-sub">${src}${pos && pos.provenance ? ` &middot; ${esc(pos.provenance)}` : ''}</span>`;
+    const src = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(fmtDate(pos.source_date))}<span class="sr-only"> source (opens in a new tab)</span></a>` : '';
+    const badge = any ? `${matchBadge(row.level)}${row.dealbreaker ? ` ${dealbreakerFlag('Dealbreaker')}` : ''} ` : '';
+    return `${esc(pos ? pos.summary : 'No clear public position.')}<span class="cell-sub">${badge}${src}</span>`;
   };
 
   const rows = state.issues.map((issue, i) => {
     const a = state.answers[issue.id];
-    const yours = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : `${esc(positionLabel(issue, a.value))}<span class="importance-note">Importance: ${esc(importanceLabel(a.importance))}</span>`;
+    const yours = !a ? '<span class="muted">Not answered</span>' : a.value === null ? '<span class="muted">Skipped</span>' : esc(positionLabel(issue, a.value));
     const rowA = ra.rows[i];
     const rowB = rb.rows[i];
     return `<tr class="${rowA.dealbreaker || rowB.dealbreaker ? 'row-flagged' : ''}">
       <th scope="row">${esc(issue.title)}</th>
-      <td data-label="Your position">${yours}</td>
+      <td data-label="You">${yours}</td>
       <td data-label="${esc(A.name)}">${posCell(A, rowA)}</td>
       <td data-label="${esc(B.name)}">${posCell(B, rowB)}</td>
     </tr>`;
@@ -884,21 +1078,21 @@ function viewCompare(params) {
   return {
     title: `Compare ${A.name} and ${B.name}`,
     html: `
-    <h1 tabindex="-1">Compare two candidates</h1>
-    ${any ? '' : '<p class="muted">You have not answered any issues, so only the candidates\' positions are shown. <a href="#/q/1">Answer the issues</a> to see match levels.</p>'}
+    <h1 tabindex="-1">Compare</h1>
+    ${any ? '' : '<p class="muted"><a href="#/q/1">Answer the issues</a> to see how each matches you.</p>'}
     <div class="compare-pickers no-print">
-      <label for="cmp-a">First candidate<select id="cmp-a">${candidateOptions(A.id)}</select></label>
-      <label for="cmp-b">Second candidate<select id="cmp-b">${candidateOptions(B.id)}</select></label>
+      <label for="cmp-a">Candidate 1<select id="cmp-a">${candidateOptions(A.id)}</select></label>
+      <label for="cmp-b">Candidate 2<select id="cmp-b">${candidateOptions(B.id)}</select></label>
     </div>
     <div class="compare-scores">${scoreCell(A, ra)}${scoreCell(B, rb)}</div>
     <div class="table-wrap">
       <table class="data stack">
-        <caption>${esc(A.name)} and ${esc(B.name)}, issue by issue</caption>
-        <thead><tr><th scope="col">Issue</th><th scope="col">Your position</th><th scope="col">${esc(A.name)}</th><th scope="col">${esc(B.name)}</th></tr></thead>
+        <caption class="sr-only">${esc(A.name)} and ${esc(B.name)}, issue by issue</caption>
+        <thead><tr><th scope="col">Issue</th><th scope="col">You</th><th scope="col">${esc(A.name)}</th><th scope="col">${esc(B.name)}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p class="small muted">All seeded positions need verification. Follow the source links before relying on any of them.</p>`,
+    ${seedNotice()}`,
     after: () => {
       const go = (which, value) => {
         const next = { a: A.id, b: B.id, [which]: value };
@@ -916,106 +1110,53 @@ function viewCompare(params) {
 
 function viewMethodology() {
   const m = state.meta;
-  const reviewed = m.last_reviewed ? fmtDate(m.last_reviewed) : 'Not yet reviewed by a human editor';
-  const issueList = state.issues.map((i) => `<li>${esc(i.title)}</li>`).join('');
+  const reviewed = m.last_reviewed ? fmtDate(m.last_reviewed) : 'not yet';
+  const sections = [
+    ['m-score', 'Scoring'], ['m-coding', 'How positions are coded'], ['m-status', 'Status'],
+    ['m-limits', 'Limitations'], ['m-markets', 'Market odds'], ['m-privacy', 'Privacy and sharing'],
+  ];
   return {
     title: 'Methodology',
     html: `
     <article class="prose">
-      <p class="kicker">How Ballot Compass works</p>
-      <h1 tabindex="-1">Methodology</h1>
-      <p class="lede">Ballot Compass compares your stated positions with each candidate's coded positions, issue by issue. This page explains the formula, the weighting, how positions were coded, and what the tool cannot tell you.</p>
-      <nav class="toc" aria-label="On this page"><ol>
-        <li><a href="#m-scale" data-anchor>The issue scales</a></li>
-        <li><a href="#m-formula" data-anchor>Scoring formula</a></li>
-        <li><a href="#m-weight" data-anchor>Weighting and dealbreakers</a></li>
-        <li><a href="#m-coverage" data-anchor>Coverage and unknowns</a></li>
-        <li><a href="#m-coding" data-anchor>How positions were coded</a></li>
-        <li><a href="#m-status" data-anchor>Candidate status</a></li>
-        <li><a href="#m-leadership" data-anchor>Leadership style</a></li>
-        <li><a href="#m-data" data-anchor>Data and updates</a></li>
-        <li><a href="#m-limits" data-anchor>Limitations</a></li>
-        <li><a href="#m-markets" data-anchor>Prediction markets and links</a></li>
-        <li><a href="#m-privacy" data-anchor>Privacy</a></li>
-      </ol></nav>
+      <h1 tabindex="-1">How it works</h1>
+      <nav class="toc" aria-label="On this page"><ol>${sections.map(([id, t]) => `<li><a href="#${id}" data-anchor>${t}</a></li>`).join('')}</ol></nav>
 
-      <h2 id="m-scale" tabindex="-1">The issue scales</h2>
-      <p>Each of the ${state.issues.length} issues has five positions arranged along a single policy spectrum, numbered 0 to 4. ${esc(state.scaleNote)} Each position is written so that people who hold it would accept the wording. You can also choose "No opinion / skip" on any issue.</p>
-      <ol>${issueList}</ol>
+      <h2 id="m-score" tabindex="-1">Scoring</h2>
+      <p>Each issue has five positions, numbered 0 to 4 along one spectrum. The numbers order positions; they don't mean left or right.</p>
+      <p class="formula">match     = 1 &minus; |you &minus; candidate| &divide; 4
+alignment = &Sigma;(weight &times; match) &divide; &Sigma;(weight)</p>
+      <p>Weights: Low 1, Medium 2, High 3, Dealbreaker 4. On a Dealbreaker issue, any candidate 2 or more steps away is flagged.</p>
+      <p>Same position is <strong>Agree</strong>, one step apart is <strong>Partial</strong>, two or more is <strong>Disagree</strong>.</p>
+      <p>Skipped issues, and issues where a candidate has no clear position, are left out. Each score says how many issues it covers. <strong>"Could be"</strong> shows the range the score could move to if those unknown positions were filled in, from all disagree to all agree.</p>
+      <p>Example: you agree on a High issue (3 &times; 1.0) and are two steps apart on a Low one (1 &times; 0.5). (3 + 0.5) &divide; 4 = 88%.</p>
 
-      <h2 id="m-formula" tabindex="-1">Scoring formula</h2>
-      <p>For each issue, the match between you and a candidate depends on how many steps apart your positions are:</p>
-      <p class="formula">match = 1 &minus; |your position &minus; candidate position| &divide; 4
+      <h2 id="m-coding" tabindex="-1">How positions are coded</h2>
+      <p>Each position has a one-line summary, a source and a date. <strong>Record</strong> means past votes, laws or older statements; <strong>Stated 2026</strong> means a 2026 statement. <strong>Unverified</strong> means no editor has checked the source yet. <strong>Older record</strong> marks sources more than ${OLD_SOURCE_YEARS} years old.</p>
+      <p>If a view doesn't fit the scale, it's left unscored and the summary explains why. Governors are often coded from state laws they signed, which may not predict what they'd do as president.</p>
+      <p>Data last reviewed: <strong>${esc(reviewed)}</strong>. Draft compiled ${esc(fmtDate(m.seeded))}, from records through mid-2026.</p>
 
-same position        &rarr; 1.00  (Agree)
-one step apart       &rarr; 0.75  (Partial)
-two steps apart      &rarr; 0.50  (Disagree)
-three steps apart    &rarr; 0.25  (Disagree)
-opposite ends        &rarr; 0.00  (Disagree)</p>
-      <p>A candidate's alignment is the weighted average of those matches across the issues that can be scored, shown as a percentage:</p>
-      <p class="formula">alignment = &Sigma;(weight &times; match) &divide; &Sigma;(weight)</p>
-      <p><strong>Example.</strong> You answer two issues: one High (weight 3) where you and a candidate agree (match 1.00), and one Low (weight 1) where you are two steps apart (match 0.50). Alignment = (3 &times; 1.00 + 1 &times; 0.50) &divide; (3 + 1) = 0.875, shown as 88%.</p>
-
-      <h2 id="m-weight" tabindex="-1">Weighting and dealbreakers</h2>
-      <ul>
-        <li>Low = weight 1</li>
-        <li>Medium = weight 2 (the default)</li>
-        <li>High = weight 3</li>
-        <li>Dealbreaker = weight 4, plus a visible flag on any candidate whose position is two or more steps from yours on that issue</li>
-      </ul>
-      <p>A dealbreaker flag does not remove a candidate from the list or change the ranking beyond its weight. It is there so a conflict on an issue you care most about is never hidden inside an average.</p>
-
-      <h2 id="m-coverage" tabindex="-1">Coverage and unknowns</h2>
-      <p>Two kinds of issues are left out of a candidate's score: issues you skipped, and issues where the candidate has no clear public position. Ballot Compass does not guess. Every score shows its coverage, for example "Based on 9 of the 14 issues you answered". Scores based on fewer than half of your answered issues carry a "Limited data" note. Candidates with less public record, such as governors with little foreign-policy history, will have lower coverage, and their scores should be read with that in mind.</p>
-      <p>Candidates are ranked by alignment, then by coverage, then alphabetically. The results page always shows the highest-aligned candidate in each party, and both parties appear in the full list unless you filter them out.</p>
-
-      <h2 id="m-coding" tabindex="-1">How positions were coded</h2>
-      <p>For each candidate and issue, a researcher reads the candidate's statements, votes, signed laws and official actions, writes a one-sentence plain-English summary, and assigns the closest of the five positions. Each coded position records:</p>
-      <ul>
-        <li>a summary of what the candidate said or did;</li>
-        <li>a source link and the date of the statement or action;</li>
-        <li>a provenance tag: <strong>Stated 2026</strong> for a statement made in 2026, or <strong>Record</strong> for past votes, laws, official actions or older statements;</li>
-        <li>a <strong>Needs verification</strong> tag until a human editor has checked the source.</li>
-      </ul>
-      <p>When a candidate's view does not fit the scale (for example, a senator who supports Israel but opposes all foreign aid on principle), the issue is marked unknown and explained in the summary rather than forced onto the scale. Where a candidate's record and recent statements conflict, the summary says so, and the more recent statement is coded.</p>
-      <p>Governors' positions are often coded from state laws they signed. A state law is evidence of a candidate's views, but a governor's state record does not always say what they would do as president.</p>
-
-      <h2 id="m-status" tabindex="-1">Candidate status</h2>
-      <p>Each candidate has one of five statuses, with the date of the most recent statement it is based on:</p>
-      <ul>
-        <li><strong>Declared</strong>: has formally announced a campaign.</li>
-        <li><strong>Exploring</strong>: has formed an exploratory committee or said they are actively preparing a run.</li>
-        <li><strong>Undecided</strong>: has not announced a decision either way.</li>
-        <li><strong>Says not running</strong>: has said they do not plan to run, without ruling it out entirely.</li>
-        <li><strong>Declined</strong>: has definitively ruled out a run.</li>
-      </ul>
-
-      <h2 id="m-leadership" tabindex="-1">Leadership style</h2>
-      <p>The optional leadership question asks you to rank five qualities. Your ranking is shown in its own section of the results and is never mixed into the policy score. Ballot Compass does not rate candidates on these qualities; it lists only factual executive and legislative experience.</p>
-
-      <h2 id="m-data" tabindex="-1">Data and updates</h2>
-      <p><strong>Data last reviewed:</strong> ${esc(reviewed)}.<br><strong>Seed data compiled:</strong> ${esc(fmtDate(m.seeded))}.</p>
-      <p>${esc(m.coverage_note || '')}</p>
-      <p>Candidate data is kept in a single editable file, <code>data/candidates.json</code>, separate from the application code. Corrections are made by editing that file, checking the source, setting the entry's verification flag to false, and updating the review date.</p>
+      <h2 id="m-status" tabindex="-1">Status</h2>
+      <p><strong>Declared</strong> (announced), <strong>Exploring</strong> (actively preparing), <strong>Undecided</strong>, <strong>Says not running</strong> (not ruled out) or <strong>Declined</strong> (ruled out), each dated to the latest statement.</p>
 
       <h2 id="m-limits" tabindex="-1">Limitations</h2>
       <ul>
-        <li>Five positions cannot capture every nuance. Two people coded the same may still disagree on details.</li>
-        <li>Some issues mix more than one question (for example, how strict abortion law should be and whether states or Congress should decide). The scale orders the most common combinations, but your view may not fit neatly.</li>
-        <li>Candidates change positions, and statements made as a senator, governor or cabinet member may not predict what they would do as president.</li>
-        <li>Coverage differs across candidates. A high score based on few issues is less informative than a moderate score based on many.</li>
-        <li>Alignment measures stated policy agreement only. It does not measure competence, character, electability or likelihood of keeping promises.</li>
-        <li>The seed data has not yet been verified by a human editor and may contain errors.</li>
+        <li>Five positions can't capture every nuance.</li>
+        <li>Candidates change positions, and past roles may not predict a presidency.</li>
+        <li>Some candidates have far less public record, so their scores rest on fewer issues.</li>
+        <li>Alignment measures policy agreement only: not competence, character or electability.</li>
+        <li>Leadership style is never scored.</li>
       </ul>
       <p><strong>Alignment reflects only the issues you answered and weighted. It is not a prediction or an endorsement.</strong></p>
 
-      <h2 id="m-markets" tabindex="-1">Prediction markets and links</h2>
-      <p>Candidate pages and the results page can show prices from Kalshi, a regulated prediction-market exchange. A price is what traders last paid for a contract that pays $1 if the candidate wins that market, so 23&cent; roughly means traders put the chance near 23 percent. Market prices measure expectations about who will win, not agreement with your views. They are shown separately and never enter an alignment score, and Ballot Compass has no relationship with Kalshi.</p>
-      <p>${state.markets ? `The prices are a snapshot taken ${esc(fmtTimestamp(state.markets.fetched_at))}, not a live feed.` : 'No market snapshot is loaded right now.'} A snapshot keeps the promise below: your browser never contacts Kalshi or any other outside service. Editors refresh it by running <code>scripts/fetch-markets.mjs</code>.</p>
-      <p>Each candidate page links to their official office website where one exists. Campaign websites are listed only once a candidate has declared and launched one.</p>
+      <h2 id="m-markets" tabindex="-1">Market odds</h2>
+      <p>Odds come from Kalshi, a regulated prediction market. A contract pays $1 if the outcome happens, so a 23-cent price reads as a 23% chance. They show what traders expect, not what you agree with, and are never part of your score. Ballot Compass has no relationship with Kalshi.${state.markets ? ` Snapshot taken ${esc(fmtTimestamp(state.markets.fetched_at))}.` : ''}</p>
 
-      <h2 id="m-privacy" tabindex="-1">Privacy</h2>
-      <p>There are no accounts, cookies, analytics or third-party requests. Your answers are saved in your browser's local storage so you can come back to them, and are never sent anywhere. "Clear my answers" at the bottom of every page deletes them. "Export as PDF" uses your browser's own print dialog.</p>
+      <h2 id="m-privacy" tabindex="-1">Privacy and sharing</h2>
+      <p>No accounts, tracking cookies or analytics. Your answers stay in this browser unless you choose to share them.</p>
+      <p><strong>Sharing is optional.</strong> You can share your answers, plus your age range, household size and income range. Each question can be skipped, and you see your results either way. Shared answers are stored without your name, email, IP address or exact time, under a random code only your browser keeps. We publish only totals and never sell or share individual responses.</p>
+      <p><strong>Updates list.</strong> Your email is kept on a separate list, never linked to your answers. Unsubscribe anytime.</p>
+      <p><strong>Deleting.</strong> "Clear my answers" removes your answers from this browser and deletes any shared copy. Our host keeps standard request logs.</p>
     </article>`,
     after: () => {
       main.querySelectorAll('[data-anchor]').forEach((a) => a.addEventListener('click', (e) => {
@@ -1043,10 +1184,9 @@ function parseRoute() {
 }
 
 function applyWidths(root = main) {
-  root.querySelectorAll('[data-width]').forEach((el) => {
-    const w = Math.max(0, Math.min(100, Number(el.dataset.width) || 0));
-    el.style.width = `${w}%`;
-  });
+  const pct = (v) => `${Math.max(0, Math.min(100, Number(v) || 0))}%`;
+  root.querySelectorAll('[data-width]').forEach((el) => { el.style.width = pct(el.dataset.width); });
+  root.querySelectorAll('[data-left]').forEach((el) => { el.style.left = pct(el.dataset.left); });
 }
 
 function updateNav(head) {
@@ -1064,6 +1204,8 @@ function render() {
     case undefined: view = viewIntro(); break;
     case 'q': view = viewQuestion(Number.parseInt(arg, 10)); break;
     case 'leadership': view = viewLeadership(); break;
+    case 'about-you': view = viewAboutYou(); break;
+    case 'review': view = viewReview(); break;
     case 'results': view = viewResults(); break;
     case 'candidate': view = viewCandidate(arg); break;
     case 'compare': view = viewCompare(params); break;
@@ -1092,21 +1234,34 @@ function render() {
 /* ---------- global events ---------- */
 
 document.addEventListener('click', (e) => {
-  if (e.target.closest('[data-clear]')) {
-    if (window.confirm('Clear all your answers from this browser? This cannot be undone.')) {
-      clearAll();
-      state.filters = { party: 'all', status: 'all' };
-      if (location.hash === '' || location.hash === '#/') render(); else location.hash = '#/';
-      announce('Your answers were cleared.');
-    }
-  }
+  if (e.target.closest('[data-clear]')) clearAnswers();
   if (e.target.closest('[data-start-over]')) {
     if (window.confirm('Start over? This clears the answers saved in this browser.')) {
-      clearAll();
+      // Keep the share code so sharing again replaces the earlier copy instead of adding a duplicate.
+      clearAll({ keepShareId: true });
       location.hash = '#/q/1';
     }
   }
 });
+
+async function clearAnswers() {
+  const shared = state.share;
+  const question = shared
+    ? 'Clear all your answers from this browser and delete the anonymous copy you shared? This cannot be undone.'
+    : 'Clear all your answers from this browser? This cannot be undone.';
+  if (!window.confirm(question)) return;
+  if (shared) {
+    const r = await postJson('api/responses', { submission_id: shared.id }, 'DELETE');
+    if (!r.ok) {
+      window.alert('Your shared copy could not be deleted right now, so nothing was cleared. Please try again later.');
+      return;
+    }
+  }
+  clearAll();
+  state.filters = { party: 'all', status: 'all', sort: 'alignment' };
+  if (location.hash === '' || location.hash === '#/') render(); else location.hash = '#/';
+  announce(shared ? 'Your answers and your shared copy were deleted.' : 'Your answers were cleared.');
+}
 
 window.addEventListener('hashchange', render);
 
