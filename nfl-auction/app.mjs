@@ -666,6 +666,18 @@ function renderGame() {
   else renderResults(g);
 }
 
+// Average overall of the players drafted so far (null before the first pick).
+function teamAvg(p) {
+  const picks = lineupEntries(p);
+  return picks.length ? Math.round((picks.reduce((sum, e) => sum + e.ovr, 0) / picks.length) * 10) / 10 : null;
+}
+function avgHtml(g, i) {
+  const mine = teamAvg(g.players[i]);
+  const theirs = teamAvg(g.players[1 - i]);
+  const lead = mine != null && theirs != null && mine > theirs;
+  return `<div class="avg ${lead ? "lead" : ""}" title="Average overall of drafted players"><b>${mine == null ? "—" : mine.toFixed(1)}</b><span>Avg OVR</span></div>`;
+}
+
 function playersHtml(g) {
   const acting = whoActs(g);
   return g.players
@@ -682,7 +694,7 @@ function playersHtml(g) {
       }
       const you = app.role !== "local" && app.me === i ? " (you)" : "";
       return `<div class="pbox p${i} ${acting === i ? "active" : ""}">
-        <div class="top"><div class="nm">${esc(p.name)}${you}</div><div class="money">$${p.budget}</div></div>
+        <div class="top"><div class="nm">${esc(p.name)}${you}</div><div class="top-right">${avgHtml(g, i)}<div class="money">$${p.budget}</div></div></div>
         <div class="sub">${totalOpen(p) ? `<span>${totalOpen(p)} of ${TOTAL_SLOTS} open</span><span>Max bid $${maxBid(p)}</span>` : "<span>Lineup full</span>"}${g.ranked ? `<span>Legacy ${p.elo}</span>` : ""}</div>
         <div class="slots">${lineup.join("")}</div>
       </div>`;

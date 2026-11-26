@@ -313,3 +313,17 @@ ol.rules b { color: var(--text); }
 .sold-to { text-align: right; font-size: 12px; color: var(--muted); }
 .sold-to b { display: block; font-family: var(--head); color: var(--gold); font-size: 26px; }
 .choose-line { margin: 0; font-size: 16px; }
+
+/* Live team average during the draft */
+.pbox .top-right { display: flex; align-items: center; gap: 12px; flex: none; }
+.avg { text-align: center; line-height: 1; padding: 4px 8px; border-radius: 10px; background: var(--bg2); border: 1px solid var(--line); min-width: 58px; }
+.avg b { display: block; font-family: var(--head); font-size: 20px; font-variant-numeric: tabular-nums; }
+.avg span { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.avg.lead { border-color: var(--gold); }
+.avg.lead b { color: var(--gold); }
+@media (max-width: 640px) {
+  .pbox .top { flex-wrap: wrap; }
+  .pbox .top-right { gap: 8px; }
+  .avg { min-width: 48px; padding: 3px 6px; }
+  .avg b { font-size: 16px; }
+}
