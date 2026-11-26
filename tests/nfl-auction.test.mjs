@@ -133,3 +133,60 @@ test("legacy rating behaves like Elo", () => {
   assert.equal(legacyTier(1000), "Starter");
   assert.equal(legacyTier(1350), "Hall of Fame");
 });
+
+test("guest replay rebuilds the exact host game and rejects tampered moves", async () => {
+  const { replayGame } = await import("../nfl-auction/engine.mjs");
+  const host = playRandomDraft("alltime", 123);
+  const copy = replayGame(JSON.parse(JSON.stringify(host.init)), JSON.parse(JSON.stringify(host.history)));
+  assert.equal(copy.ok, true);
+  assert.deepEqual(copy.state.results, host.results);
+  assert.deepEqual(copy.state.players, host.players);
+
+  // A host that edits a bid past the budget rule gets caught.
+  const tampered = JSON.parse(JSON.stringify(host.history));
+  const i = tampered.findIndex((m) => m.type === "nominate");
+  tampered[i].bid = 21;
+  assert.equal(replayGame(host.init, tampered).ok, false);
+  // Moves made by the wrong player are rejected too.
+  const wrongActor = JSON.parse(JSON.stringify(host.history));
+  wrongActor[0].by = 1 - wrongActor[0].by;
+  assert.equal(replayGame(host.init, wrongActor).ok, false);
+  assert.equal(replayGame(null, []).ok, false);
+  assert.equal(replayGame({ mode: "nope", seed: 1, players: [{}, {}] }, []).ok, false);
+});
+
+test("names and ratings from another browser are cleaned", async () => {
+  const { createGame } = await import("../nfl-auction/engine.mjs");
+  const g = createGame({ mode: "current", seed: 3, players: [{ name: "  <b>Max</b>\u0000 ", elo: "Infinity" }, { name: "", elo: -5 }] });
+  assert.equal(g.players[0].name, "<b>Max</b>");
+  assert.equal(g.players[0].elo, 1000);
+  assert.equal(g.players[1].name, "Player 2");
+  assert.equal(g.players[1].elo, 100);
+});
+
+test("malformed player ids never crash the host", async () => {
+  const { getEntry } = await import("../nfl-auction/data.mjs");
+  const { createGame, applyAction } = await import("../nfl-auction/engine.mjs");
+  for (const bad of [undefined, null, 5, "", "x", "nope:KC:QB:0", "current:ZZZ:QB:0", "current:KC:QB:9", "a".repeat(500), {}]) {
+    assert.equal(getEntry(bad), null);
+  }
+  const g = createGame({ mode: "current", seed: 8, players: [{}, {}] });
+  applyAction(g, { type: "spin" }, g.starter);
+  assert.equal(applyAction(g, { type: "nominate", entryId: "constructor", bid: 1 }, g.starter).ok, false);
+  assert.equal(applyAction(g, null, g.starter).ok, false);
+  assert.equal(applyAction(g, { type: "spin" }, 7).ok, false);
+});
+
+test("playoffs: 7 seeds per conference, 13 games, one champion", () => {
+  const state = playRandomDraft("current", 55);
+  const res = state.results;
+  assert.equal(res.playoffGames.length, 13);
+  for (const conf of ["AFC", "NFC"]) {
+    const seeds = res.standings[conf].filter((r) => r.seed).map((r) => r.seed);
+    assert.deepEqual(seeds, [1, 2, 3, 4, 5, 6, 7]);
+    assert.equal(res.standings[conf].length, 17);
+  }
+  const sb = res.playoffGames.find((g) => g.round === 3);
+  assert.equal(sb.winner, res.champion.id);
+  for (const g of res.playoffGames) assert.notEqual(g.score[0], g.score[1], "playoff games can't tie");
+});

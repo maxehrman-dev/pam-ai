@@ -11,8 +11,13 @@ const PING_MS = 4000;
 const STALE_MS = 13000;
 
 let peerLoad = null;
+// The PeerJS browser bundle exposes the class as window.Peer and/or window.peerjs.Peer depending on version.
+function peerClass() {
+  if (typeof window === "undefined") return null;
+  return window.Peer || window.peerjs?.Peer || window.peerjs?.default || null;
+}
 function loadPeerJs() {
-  if (typeof window !== "undefined" && window.Peer) return Promise.resolve(window.Peer);
+  if (peerClass()) return Promise.resolve(peerClass());
   if (peerLoad) return peerLoad;
   peerLoad = new Promise((resolve, reject) => {
     const tryAt = (i) => {
@@ -25,7 +30,7 @@ function loadPeerJs() {
       s.src = PEER_SCRIPTS[i];
       s.async = true;
       s.crossOrigin = "anonymous";
-      s.onload = () => (window.Peer ? resolve(window.Peer) : tryAt(i + 1));
+      s.onload = () => (peerClass() ? resolve(peerClass()) : tryAt(i + 1));
       s.onerror = () => {
         s.remove();
         tryAt(i + 1);

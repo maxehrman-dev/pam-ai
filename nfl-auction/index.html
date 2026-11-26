@@ -6,15 +6,22 @@
   <title>NFL Auction Draft</title>
   <meta name="description" content="Spin an NFL team, bid on its players with $22, build a lineup, and simulate the season against a friend." />
   <meta name="theme-color" content="#0b1220" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%88%3C/text%3E%3C/svg%3E" />
   <meta property="og:title" content="NFL Auction Draft" />
   <meta property="og:description" content="Spin a team. Outbid your friend. Simulate the season." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/nfl-auction/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" />
   <link rel="stylesheet" href="/nfl-auction/styles.css" />
 </head>
 <body>
-  <main id="app" aria-live="polite"><p class="boot">Loading…</p></main>
+  <main id="app"><p class="boot">Loading…</p></main>
+  <noscript><p class="boot">This game needs JavaScript turned on.</p></noscript>
   <div id="toast" class="toast" role="status" hidden></div>
   <div id="modal" class="modal" hidden></div>
   <script type="module" src="/nfl-auction/app.mjs"></script>

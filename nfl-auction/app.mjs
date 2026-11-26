@@ -1,8 +1,8 @@
 // NFL Auction Draft — UI and game flow.
 import { TEAMS, MODES, getTeam, logoUrl, teamEntries, getEntry } from "./data.mjs";
 import {
-  createGame, applyAction, maxBid, totalOpen, openSlots, canTake, isTaken, lineupEntries,
-  eloUpdate, legacyTier, LEGACY_START, STARTING_BUDGET, SLOTS, TOTAL_SLOTS, RESPINS_PER_PLAYER
+  createGame, applyAction, replayGame, cleanName, cleanElo, maxBid, totalOpen, openSlots, canTake, isTaken,
+  eloUpdate, legacyTier, LEGACY_START, STARTING_BUDGET, TOTAL_SLOTS, RESPINS_PER_PLAYER
 } from "./engine.mjs";
 import { hostRoom, joinRoom, makeRoomId } from "./net.mjs";
 import { renderShareCard } from "./share.mjs";
@@ -44,10 +44,23 @@ const store = {
 function randomId() {
   return Array.from(crypto.getRandomValues(new Uint8Array(9)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
+function count(v) {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 99999) : 0;
+}
 function loadProfile() {
-  const p = store.get(PROFILE_KEY);
-  const base = { name: "", elo: LEGACY_START, best: LEGACY_START, played: 0, wins: 0, losses: 0, titles: 0, playoffs: 0, history: [] };
-  return p ? { ...base, ...p } : base;
+  const p = store.get(PROFILE_KEY) || {};
+  return {
+    name: typeof p.name === "string" ? p.name.slice(0, 20) : "",
+    elo: p.elo == null ? LEGACY_START : cleanElo(p.elo),
+    best: p.best == null ? LEGACY_START : cleanElo(p.best),
+    played: count(p.played),
+    wins: count(p.wins),
+    losses: count(p.losses),
+    titles: count(p.titles),
+    playoffs: count(p.playoffs),
+    history: Array.isArray(p.history) ? p.history.slice(0, 50) : []
+  };
 }
 function saveProfile() {
   store.set(PROFILE_KEY, app.profile);
@@ -150,6 +163,9 @@ function statusChip() {
     text = "Connection problem";
   } else if (s === "starting") {
     text = "Going online…";
+  } else if (s === "ended") {
+    cls = "bad";
+    text = "Game ended";
   }
   return `<span class="chip ${cls}" title="${esc(app.linkDetail)}"><span class="dot"></span>${esc(text)}</span>`;
 }
@@ -157,12 +173,13 @@ function refreshStatus() {
   const el = document.getElementById("net-status");
   if (el) el.innerHTML = statusChip();
   const detail = document.getElementById("net-detail");
-  if (detail) detail.textContent = app.linkStatus === "error" || app.linkStatus === "waiting" ? app.linkDetail : "";
+  if (detail) detail.textContent = ["error", "waiting", "ended"].includes(app.linkStatus) ? app.linkDetail : "";
 }
 
 function persistHost() {
   if (app.role !== "host") return;
-  store.set(HOST_KEY, { room: app.room, game: app.game, ts: Date.now() });
+  const game = app.game ? { init: app.game.init, history: app.game.history } : null;
+  store.set(HOST_KEY, { room: app.room, game, ts: Date.now() });
 }
 
 function connectHost() {
@@ -183,15 +200,21 @@ function hostProfileCard() {
   const p = app.profile;
   return { name: p.name, elo: p.elo, wins: p.wins, losses: p.losses, titles: p.titles };
 }
-function sanitizeGuest(msg) {
+// Everything from the other browser is untrusted: coerce it before it is stored or shown.
+function sanitizeCard(msg, fallbackName) {
   return {
-    name: String(msg.name || "Guest").slice(0, 20),
-    elo: Math.max(100, Math.min(3000, Math.round(Number(msg.elo) || LEGACY_START))),
-    wins: Math.max(0, Number(msg.wins) || 0),
-    losses: Math.max(0, Number(msg.losses) || 0),
-    titles: Math.max(0, Number(msg.titles) || 0),
-    clientId: String(msg.clientId || "").slice(0, 40)
+    name: cleanName(msg?.name, fallbackName),
+    elo: cleanElo(msg?.elo),
+    wins: count(msg?.wins),
+    losses: count(msg?.losses),
+    titles: count(msg?.titles)
   };
+}
+function sanitizeGuest(msg) {
+  return { ...sanitizeCard(msg, "Guest"), clientId: String(msg.clientId || "").slice(0, 40) };
+}
+function stateMessage() {
+  return { t: "state", init: app.game.init, history: app.game.history };
 }
 
 function onHostMessage(msg) {
@@ -206,7 +229,7 @@ function onHostMessage(msg) {
     }
     app.room.guest = guest;
     app.link.send({ t: "lobby", room: lobbyInfo() });
-    if (app.game) app.link.send({ t: "state", game: app.game });
+    if (app.game) app.link.send(stateMessage());
     persistHost();
     if (!known) toast(`${guest.name} accepted your challenge`);
     render();
@@ -219,6 +242,11 @@ function onHostMessage(msg) {
     receivePeek(msg, 1);
   } else if (msg.t === "rematch") {
     toast(`${app.room.guest?.name || "Your opponent"} wants a rematch`);
+  } else if (msg.t === "bye") {
+    app.linkStatus = "waiting";
+    app.linkDetail = `${app.room.guest?.name || "Your opponent"} left the game.`;
+    toast(app.linkDetail);
+    refreshStatus();
   }
 }
 
@@ -226,15 +254,33 @@ function onGuestMessage(msg) {
   if (!msg || typeof msg !== "object") return;
   if (msg.t === "lobby") {
     clearInterval(app.ui.helloTimer);
-    app.room = { ...msg.room };
+    const r = msg.room || {};
+    app.room = { id: app.invite?.room, mode: MODES[r.mode] ? r.mode : null, host: sanitizeCard(r.host, "Host") };
     if (!app.game) render();
   } else if (msg.t === "state") {
     clearInterval(app.ui.helloTimer);
-    setGame(msg.game);
+    // Rebuild the game from its moves rather than trusting the host's copy.
+    const result = replayGame(msg.init, msg.history);
+    if (!result.ok) {
+      app.linkStatus = "error";
+      app.linkDetail = `Game data didn't check out (${result.error}). Reopen the link to resync.`;
+      toast("Game data didn't check out. Reopen the link to resync.");
+      refreshStatus();
+      return;
+    }
+    setGame(result.state);
+  } else if (msg.t === "bye") {
+    app.linkStatus = "ended";
+    app.linkDetail = `${app.room?.host?.name || "The host"} ended the game.`;
+    const ended = app.link;
+    app.link = null;
+    ended?.close();
+    toast(app.linkDetail);
+    refreshStatus();
   } else if (msg.t === "peek") {
     receivePeek(msg, 0);
   } else if (msg.t === "error") {
-    toast(msg.error);
+    toast(String(msg.error || "That move wasn't allowed.").slice(0, 120));
   } else if (msg.t === "full") {
     clearInterval(app.ui.helloTimer);
     app.linkStatus = "error";
@@ -267,12 +313,13 @@ function sendPeek() {
 function receivePeek(msg, from) {
   const g = app.game;
   if (!g || g.phase !== "draft") return;
+  const money = (v) => (Number.isInteger(v) && v >= 1 && v <= 99 ? v : null);
   app.peek = {
     from,
     rev: Number(msg.rev),
-    sel: typeof msg.sel === "string" ? msg.sel : null,
-    bid: Number.isFinite(msg.bid) ? msg.bid : null,
-    raise: Number.isFinite(msg.raise) ? msg.raise : null
+    sel: getEntry(msg.sel) ? msg.sel : null,
+    bid: money(msg.bid),
+    raise: money(msg.raise)
   };
   if (!app.ui.spinning) renderDraftPanels(g);
 }
@@ -314,7 +361,8 @@ function resumeHost(id) {
   app.role = "host";
   app.me = 0;
   app.room = saved.room;
-  app.game = saved.game;
+  const rebuilt = saved.game ? replayGame(saved.game.init, saved.game.history) : null;
+  app.game = rebuilt && rebuilt.ok ? rebuilt.state : null;
   connectHost();
   if (app.game) {
     app.ui.shownSpin = app.game.spin.id;
@@ -387,7 +435,7 @@ function setGame(game) {
 
 function gameChanged() {
   if (app.role === "host") {
-    app.link?.send({ t: "state", game: app.game });
+    app.link?.send(stateMessage());
     persistHost();
   }
   renderGame();
@@ -407,7 +455,15 @@ function dispatch(action, actor) {
 }
 
 function leaveGame() {
-  app.link?.close();
+  try {
+    app.link?.send({ t: "bye" });
+  } catch (_e) {
+    /* ignore */
+  }
+  wheel?.destroy();
+  wheel = null;
+  const link = app.link;
+  setTimeout(() => link?.close(), 150);
   app.link = null;
   clearInterval(app.ui.helloTimer);
   if (app.role === "host") store.del(HOST_KEY);
@@ -456,7 +512,7 @@ function legacyBlock(p) {
 }
 
 function eraPicker() {
-  return `<div class="era" role="group" aria-label="Roster era">
+  return `<div class="era" role="group" aria-labelledby="era-label">
     ${Object.entries(MODES)
       .map(([key, m]) => `<button data-act="mode" data-mode="${key}" aria-pressed="${app.mode === key}"><strong>${m.label}</strong><span>${m.blurb}</span></button>`)
       .join("")}
@@ -474,7 +530,7 @@ function renderHome() {
   <div class="home-grid">
     <section class="card stack">
       <label class="field"><span>Your name</span><input class="text" id="name1" maxlength="20" autocomplete="nickname" placeholder="e.g. Max" value="${esc(p.name)}" /></label>
-      <div><div class="field"><span class="small muted" style="display:block;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:12px;margin-bottom:6px">Roster era</span></div>${eraPicker()}
+      <div><div class="label" id="era-label">Roster era</div>${eraPicker()}
         <p class="hint ${app.mode ? "" : "warn"}" id="era-hint">${app.mode ? `${MODES[app.mode].label} rosters selected.` : "Pick Current or All-Time. The game never picks for you."}</p></div>
       <button class="btn primary big block" data-act="host" ${ready ? "" : "disabled"}>Challenge a friend online</button>
       <details>
@@ -495,6 +551,7 @@ function renderHome() {
           <li>The other player <b>raises or passes</b>. Back and forth until someone lets it go.</li>
           <li>Fill <b>QB, RB, 3 WR, TE, O-Line, K and Defense</b> with $${STARTING_BUDGET}. You always keep $1 per empty slot.</li>
           <li>Then a <b>head-to-head game</b>, a <b>17-game season</b> against the real NFL, and the <b>playoffs</b>.</li>
+          <li><b>Winner:</b> whoever goes further in the playoffs. Tied? Better record, then the head-to-head.</li>
         </ol></section>
     </aside>
   </div>`;
@@ -533,7 +590,7 @@ function renderLobby() {
 function renderJoin() {
   const inv = app.invite;
   const p = app.profile;
-  const host = app.room?.host || { name: inv.from || "A friend", elo: inv.lr || LEGACY_START };
+  const host = app.room?.host || { name: inv.from, elo: inv.lr };
   const modeLabel = MODES[app.room?.mode || inv.mode]?.label || "";
   const joined = app.ui.accepted;
   root.innerHTML = `${topbar(modeLabel ? `<span class="chip">${modeLabel} rosters</span>` : "")}
@@ -568,14 +625,15 @@ function renderGame() {
   const g = app.game;
   if (!g) return;
   if (!root.querySelector("#game-root")) {
-    root.innerHTML = `<div id="game-root">${topbar(`<span class="chip">${MODES[g.mode].label} rosters</span><span class="chip">${g.ranked ? "Ranked" : "Unranked"}</span>`)}
+    root.innerHTML = `<div id="game-root">${topbar('<span id="game-chips" class="chips"></span>')}
       <section class="players" id="players"></section>
       <div id="view"></div></div>`;
+    wheel?.destroy();
     wheel = null;
-  } else {
-    const net = document.getElementById("net-status");
-    if (net) net.innerHTML = statusChip();
   }
+  document.getElementById("game-chips").innerHTML = `<span class="chip">${MODES[g.mode].label} rosters</span>${app.role === "local" ? "" : `<span class="chip">${g.ranked ? "Ranked" : "Unranked"}</span>`}`;
+  const net = document.getElementById("net-status");
+  if (net) net.innerHTML = statusChip();
   document.getElementById("players").innerHTML = playersHtml(g);
   if (g.phase === "draft") renderDraft(g);
   else renderResults(g);
@@ -598,7 +656,7 @@ function playersHtml(g) {
       const you = app.role !== "local" && app.me === i ? " (you)" : "";
       return `<div class="pbox p${i} ${acting === i ? "active" : ""}">
         <div class="top"><div class="nm">${esc(p.name)}${you}</div><div class="money">$${p.budget}</div></div>
-        <div class="sub"><span>${totalOpen(p)} of ${TOTAL_SLOTS} open</span><span>Max bid $${maxBid(p)}</span>${g.ranked ? `<span>Legacy ${p.elo}</span>` : ""}</div>
+        <div class="sub">${totalOpen(p) ? `<span>${totalOpen(p)} of ${TOTAL_SLOTS} open</span><span>Max bid $${maxBid(p)}</span>` : "<span>Lineup full</span>"}${g.ranked ? `<span>Legacy ${p.elo}</span>` : ""}</div>
         <div class="slots">${lineup.join("")}</div>
       </div>`;
     })
@@ -632,8 +690,10 @@ function renderDraft(g) {
     setHub(null);
     wheel.spinTo(g.spin.team, () => {
       app.ui.spinning = false;
-      setHub(g.spin.team);
-      renderDraftPanels(app.game);
+      if (app.game && app.game.phase === "draft" && document.getElementById("wheel")) {
+        setHub(g.spin.team);
+        renderDraft(app.game);
+      }
     });
   } else if (!app.ui.spinning) {
     setHub(g.team);
@@ -787,7 +847,7 @@ function nominatePanel(g) {
       <div class="row"><button class="btn" data-act="bid-set" data-v="1">$1</button><button class="btn" data-act="bid-set" data-v="${max}">Max $${max}</button></div>
     </div>
     <button class="btn primary big block" data-act="nominate">Open bid at $${app.ui.bid}</button>
-    <p class="hint">${oppCan ? `${esc(opp.name)} can raise up to $${maxBid(opp)}. If they can't top you, he's yours.` : `${esc(opp.name)} has no open ${e.pos} slot — he's yours at your price.`}</p>
+    <p class="hint">${oppCan ? `${esc(opp.name)} can raise up to $${maxBid(opp)}. If they can't top you, ${esc(e.name)} is yours.` : `${esc(opp.name)} has no open ${e.pos} slot, so ${esc(e.name)} is yours at your price.`}</p>
   </div>`;
 }
 
@@ -808,7 +868,7 @@ function bidPanel(g) {
         <div class="stepper"><button data-act="raise-dec" aria-label="Lower raise">−</button><output>$${app.ui.raise}</output><button data-act="raise-inc" aria-label="Increase raise">+</button></div>
         <div class="row">${quick}</div></div>
       <button class="btn primary big block" data-act="raise">Raise to $${app.ui.raise}${who}</button>
-      <button class="btn danger block" data-act="pass">Pass — ${leader} gets him for $${a.high}</button>
+      <button class="btn danger block" data-act="pass">Pass · ${leader} wins it at $${a.high}</button>
       <p class="hint">You can bid up to $${max} (you keep $1 for each other empty slot).</p>`;
   } else {
     const peek = livePeek(g, t);
@@ -841,6 +901,9 @@ class Wheel {
     this.resize();
     this.onResize = () => this.resize();
     window.addEventListener("resize", this.onResize);
+  }
+  destroy() {
+    window.removeEventListener("resize", this.onResize);
   }
   resize() {
     const size = this.c.clientWidth || 300;
@@ -980,6 +1043,7 @@ function renderResults(g) {
     app.ui.resultsKey = key;
     app.ui.stage = 0;
     app.ui.legacy = applyLegacy(g);
+    wheel?.destroy();
     wheel = null;
   }
   const stage = app.ui.stage;
@@ -1107,13 +1171,15 @@ async function openShare() {
     /* tainted canvas should not happen; logos fall back to badges */
   }
   app.ui.shareBlob = blob;
+  if (app.ui.shareUrl) URL.revokeObjectURL(app.ui.shareUrl);
+  app.ui.shareUrl = blob ? URL.createObjectURL(blob) : "";
   const file = blob ? new File([blob], "auction-draft-result.png", { type: "image/png" }) : null;
   const canShareFile = Boolean(file && navigator.canShare && navigator.canShare({ files: [file] }));
   modal.innerHTML = `<div class="sheet">
     ${url ? `<img class="preview" src="${url}" alt="Result graphic" />` : ""}
     <div class="stack">
       ${canShareFile ? `<button class="btn primary block" data-act="share-file">Share…</button>` : ""}
-      ${url ? `<a class="btn ${canShareFile ? "" : "primary"} block" style="text-align:center;text-decoration:none;display:block" href="${url}" download="auction-draft-result.png">Download image</a>` : ""}
+      ${app.ui.shareUrl ? `<a class="btn ${canShareFile ? "" : "primary"} block linkbtn" href="${app.ui.shareUrl}" download="auction-draft-result.png">Download image</a>` : ""}
       <button class="btn ghost block" data-act="close-modal">Close</button>
     </div></div>`;
 }
@@ -1275,7 +1341,7 @@ function boot() {
   const join = params.get("join");
   if (join && /^[a-z0-9]{6,16}$/.test(join)) {
     const mode = params.get("mode");
-    app.invite = { room: join, from: (params.get("from") || "").slice(0, 20), lr: Number(params.get("lr")) || LEGACY_START, mode: MODES[mode] ? mode : null };
+    app.invite = { room: join, from: cleanName(params.get("from"), "A friend"), lr: cleanElo(params.get("lr") ?? LEGACY_START), mode: MODES[mode] ? mode : null };
     app.screen = "join";
     let accepted = false;
     try {

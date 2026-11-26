@@ -60,19 +60,38 @@ export function eligibleTeams(state, idx) {
   return TEAMS.filter((t) => teamEntries(state.mode, t.id).some((e) => canTake(state, idx, e))).map((t) => t.id);
 }
 
+export function cleanName(value, fallback = "Player") {
+  const name = String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 20);
+  return name || fallback;
+}
+export function cleanElo(value) {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? Math.max(100, Math.min(3000, n)) : 1000;
+}
+
 export function createGame({ mode, players, seed = newSeed(), ranked = false }) {
   if (!MODES[mode]) throw new Error("Pick Current or All-Time rosters first.");
+  if (!Array.isArray(players) || players.length !== 2) throw new Error("A game needs exactly two players.");
+  seed = Number(seed) >>> 0;
+  const init = {
+    mode,
+    seed,
+    ranked: Boolean(ranked),
+    players: players.map((p, i) => ({ name: cleanName(p?.name, `Player ${i + 1}`), elo: cleanElo(p?.elo) }))
+  };
   const state = {
     v: 1,
     mode,
-    ranked,
+    ranked: init.ranked,
     seed,
-    rng: seed >>> 0,
+    init,
+    history: [],
+    rng: seed,
     phase: "draft",
     step: "spin",
-    players: players.map((p) => ({
-      name: String(p.name || "Player").slice(0, 20),
-      elo: Number(p.elo) || 1000,
+    players: init.players.map((p) => ({
+      name: p.name,
+      elo: p.elo,
       budget: STARTING_BUDGET,
       lineup: emptyLineup(),
       respins: RESPINS_PER_PLAYER
@@ -137,6 +156,8 @@ function award(state, idx, entry, price, note) {
 export function applyAction(state, action, actor) {
   const fail = (error) => ({ ok: false, error });
   if (state.phase !== "draft") return fail("The draft is over.");
+  if (!action || typeof action !== "object") return fail("Unknown action.");
+  if (actor !== 0 && actor !== 1) return fail("Unknown player.");
   const me = state.players[actor];
   if (!me) return fail("Unknown player.");
   const opp = 1 - actor;
@@ -196,8 +217,31 @@ export function applyAction(state, action, actor) {
     default:
       return fail("Unknown action.");
   }
+  const record = { type: action.type, by: actor };
+  if (action.type === "nominate") Object.assign(record, { entryId: String(action.entryId), bid: Math.floor(Number(action.bid)) });
+  if (action.type === "raise") record.bid = Math.floor(Number(action.bid));
+  state.history.push(record);
   state.rev += 1;
   return { ok: true };
+}
+
+// Rebuild a game from its setup and the list of moves. The online guest uses this instead of
+// trusting the host's state, so every move is re-checked against the rules on both devices.
+export function replayGame(init, history) {
+  if (!init || typeof init !== "object" || !Array.isArray(history) || history.length > 500) {
+    return { ok: false, error: "Bad game data." };
+  }
+  let state;
+  try {
+    state = createGame({ mode: init.mode, seed: init.seed, ranked: init.ranked, players: init.players });
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+  for (const move of history) {
+    const result = applyAction(state, move, move?.by);
+    if (!result.ok) return { ok: false, error: `Out of sync: ${result.error}` };
+  }
+  return { ok: true, state };
 }
 
 // ---------- Ratings ----------
@@ -298,8 +342,10 @@ function turnoverText(h, off, def) {
   return rand(h) < 0.6 && qb ? `${defUnit(def)} picks off ${last(qb.name)}` : `${defUnit(def)} forces a fumble`;
 }
 
-export function simGame(h, A, B, { allowTie = false, detail = false } = {}) {
-  const teams = [A, B];
+export const HOME_EDGE = 2.5; // offense rating bump for the home team in playoff games
+
+export function simGame(h, A, B, { allowTie = false, detail = false, homeEdge = 0 } = {}) {
+  const teams = homeEdge ? [{ ...A, off: A.off + homeEdge }, B] : [A, B];
   const score = [0, 0];
   const quarters = [[0, 0, 0, 0], [0, 0, 0, 0]];
   const plays = [];
@@ -408,7 +454,7 @@ export function simulateAll(state) {
   const playoffGames = [];
   const exitRound = {}; // id -> round index where they lost (0..3), or 4 for champion
   const playGame = (round, conf, hiId, loId) => {
-    const g = simGame(h, byId[hiId], byId[loId]);
+    const g = simGame(h, byId[hiId], byId[loId], { homeEdge: round < 3 ? HOME_EDGE : 0 });
     const winId = g.winner === 0 ? hiId : loId;
     const loseId = winId === hiId ? loId : hiId;
     exitRound[loseId] = round;
