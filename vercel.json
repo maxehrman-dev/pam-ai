@@ -57,6 +57,10 @@
     {
       "source": "/admin",
       "destination": "/admin.html"
+    },
+    {
+      "source": "/nfl-auction",
+      "destination": "/nfl-auction/index.html"
     }
   ],
   "headers": [

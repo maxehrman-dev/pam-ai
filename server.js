@@ -58,13 +58,19 @@ function sendText(res, statusCode, body, contentType = "text/plain; charset=utf-
   res.end(body);
 }
 
+const APP_CSP =
+  "default-src 'self'; script-src 'self' https://cdn.plaid.com; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-src https://cdn.plaid.com https://*.plaid.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+// The NFL Auction Draft mini-game loads PeerJS for online play, Google Fonts, and team logos.
+const GAME_CSP =
+  "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.peerjs.com wss://*.peerjs.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+const GAME_DIR = path.join(APP_DIR, "nfl-auction");
+
 function sendFile(res, filePath) {
   try {
     const stat = fs.statSync(filePath);
     const extension = path.extname(filePath).toLowerCase();
     applySecurityHeaders(res, {
-      "Content-Security-Policy":
-        "default-src 'self'; script-src 'self' https://cdn.plaid.com; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-src https://cdn.plaid.com https://*.plaid.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+      "Content-Security-Policy": filePath.startsWith(GAME_DIR) ? GAME_CSP : APP_CSP,
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Resource-Policy": "same-origin"
     });
@@ -193,6 +199,10 @@ const server = http.createServer((req, res) => {
     // Never store Plaid access tokens in localStorage.
     if (pathname.startsWith("/api/")) {
       return invokeApiHandler(req, res, pathname, requestUrl);
+    }
+
+    if (req.method === "GET" && (pathname === "/nfl-auction" || pathname === "/nfl-auction/")) {
+      return sendFile(res, path.join(GAME_DIR, "index.html"));
     }
 
     if (req.method === "GET") {
