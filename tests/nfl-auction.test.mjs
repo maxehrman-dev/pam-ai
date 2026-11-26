@@ -15,12 +15,16 @@ function playRandomDraft(mode, seed) {
     const s = state.starter;
     if (state.step === "spin") {
       assert.equal(applyAction(state, { type: "spin" }, s).ok, true);
-    } else if (state.step === "nominate") {
-      const options = teamEntries(mode, state.team).filter((e) => canTake(state, s, e));
-      assert.ok(options.length > 0, "spun team must have something the starter can take");
-      const entry = options[Math.floor(coin() * options.length)];
+    } else if (state.step === "open") {
+      assert.ok(teamEntries(mode, state.team).some((e) => canTake(state, s, e)), "spun team must have something the starter can take");
       const bid = 1 + Math.floor(coin() * Math.min(4, maxBid(state.players[s])));
-      assert.equal(applyAction(state, { type: "nominate", entryId: entry.id, bid }, s).ok, true);
+      assert.equal(applyAction(state, { type: "open", bid }, s).ok, true);
+    } else if (state.step === "choose") {
+      const who = state.pick.player;
+      const options = teamEntries(mode, state.team).filter((e) => canTake(state, who, e));
+      assert.ok(options.length > 0, "the pick winner always has someone to choose");
+      const entry = options[Math.floor(coin() * options.length)];
+      assert.equal(applyAction(state, { type: "choose", entryId: entry.id }, who).ok, true);
     } else if (state.step === "bid") {
       const a = state.auction;
       const me = state.players[a.turn];
@@ -94,14 +98,22 @@ test("bid rules: turn order, limits, and passing awards to the leader", () => {
   const o = 1 - s;
   assert.equal(applyAction(state, { type: "spin" }, o).ok, false, "only the starter spins");
   assert.equal(applyAction(state, { type: "spin" }, s).ok, true);
-  const entry = teamEntries("current", state.team).find((e) => canTake(state, s, e));
-  assert.equal(applyAction(state, { type: "nominate", entryId: entry.id, bid: 15 }, s).ok, false, "max bid keeps $1 per open slot");
+  assert.equal(applyAction(state, { type: "open", bid: 15 }, s).ok, false, "max bid keeps $1 per open slot");
   assert.equal(maxBid(state.players[s]), STARTING_BUDGET - 8);
-  assert.equal(applyAction(state, { type: "nominate", entryId: entry.id, bid: 3 }, s).ok, true);
+  assert.equal(applyAction(state, { type: "open", bid: 3 }, s).ok, true);
+  assert.equal(state.step, "bid", "bidding is on the team, no player chosen yet");
   assert.equal(applyAction(state, { type: "raise", bid: 3 }, o).ok, false, "raise must beat the high bid");
   assert.equal(applyAction(state, { type: "raise", bid: 5 }, s).ok, false, "can't bid on your own turn twice");
   assert.equal(applyAction(state, { type: "raise", bid: 5 }, o).ok, true);
   assert.equal(applyAction(state, { type: "pass" }, s).ok, true);
+  assert.equal(state.step, "choose");
+  assert.equal(state.pick.player, o, "the high bidder wins the pick");
+  assert.equal(state.players[o].budget, STARTING_BUDGET, "nothing is paid until a player is chosen");
+  const entry = teamEntries("current", state.team).find((e) => canTake(state, o, e));
+  assert.equal(applyAction(state, { type: "choose", entryId: entry.id }, s).ok, false, "only the winner chooses");
+  const otherTeam = teamEntries("current", state.team === "KC" ? "BUF" : "KC")[0];
+  assert.equal(applyAction(state, { type: "choose", entryId: otherTeam.id }, o).ok, false, "must choose from the spun team");
+  assert.equal(applyAction(state, { type: "choose", entryId: entry.id }, o).ok, true);
   assert.equal(state.players[o].budget, STARTING_BUDGET - 5);
   assert.equal(state.players[o].lineup[entry.pos].length, 1);
   assert.equal(state.starter, o, "players take turns starting the bid");
@@ -144,7 +156,7 @@ test("guest replay rebuilds the exact host game and rejects tampered moves", asy
 
   // A host that edits a bid past the budget rule gets caught.
   const tampered = JSON.parse(JSON.stringify(host.history));
-  const i = tampered.findIndex((m) => m.type === "nominate");
+  const i = tampered.findIndex((m) => m.type === "open");
   tampered[i].bid = 21;
   assert.equal(replayGame(host.init, tampered).ok, false);
   // Moves made by the wrong player are rejected too.
@@ -172,7 +184,10 @@ test("malformed player ids never crash the host", async () => {
   }
   const g = createGame({ mode: "current", seed: 8, players: [{}, {}] });
   applyAction(g, { type: "spin" }, g.starter);
-  assert.equal(applyAction(g, { type: "nominate", entryId: "constructor", bid: 1 }, g.starter).ok, false);
+  applyAction(g, { type: "open", bid: 1 }, g.starter);
+  if (g.step === "bid") applyAction(g, { type: "pass" }, 1 - g.starter);
+  assert.equal(applyAction(g, { type: "choose", entryId: "constructor" }, g.pick.player).ok, false);
+  assert.equal(applyAction(g, { type: "nominate", entryId: "x", bid: 1 }, g.pick.player).ok, false, "old move types are rejected");
   assert.equal(applyAction(g, null, g.starter).ok, false);
   assert.equal(applyAction(g, { type: "spin" }, 7).ok, false);
 });

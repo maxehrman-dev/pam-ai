@@ -1,7 +1,7 @@
 // NFL Auction Draft — UI and game flow.
 import { TEAMS, MODES, getTeam, logoUrl, teamEntries, getEntry } from "./data.mjs";
 import {
-  createGame, applyAction, replayGame, cleanName, cleanElo, maxBid, totalOpen, openSlots, canTake, isTaken, lineupEntries,
+  createGame, applyAction, replayGame, teamUseful, cleanName, cleanElo, maxBid, totalOpen, openSlots, canTake, isTaken, lineupEntries,
   eloUpdate, legacyTier, LEGACY_START, STARTING_BUDGET, TOTAL_SLOTS, RESPINS_PER_PLAYER
 } from "./engine.mjs";
 import { hostRoom, joinRoom, makeRoomId } from "./net.mjs";
@@ -156,7 +156,9 @@ function canAct(idx) {
 }
 function whoActs(g) {
   if (!g || g.phase !== "draft") return null;
-  return g.step === "bid" ? g.auction.turn : g.starter;
+  if (g.step === "bid") return g.auction.turn;
+  if (g.step === "choose") return g.pick.player;
+  return g.starter;
 }
 let toastTimer = null;
 function toast(text, ms = 2600) {
@@ -329,8 +331,8 @@ function sendPeek() {
     app.link.send({
       t: "peek",
       rev: g.rev,
-      sel: g.step === "nominate" ? app.ui.sel : null,
-      bid: g.step === "nominate" && app.ui.sel ? app.ui.bid : null,
+      sel: g.step === "choose" ? app.ui.sel : null,
+      bid: g.step === "open" && app.ui.bidTouched ? app.ui.bid : null,
       raise: g.step === "bid" && app.ui.raiseTouched ? app.ui.raise : null
     });
   }, 80);
@@ -572,8 +574,8 @@ function renderHome() {
       <section class="card"><h3 style="margin-bottom:10px">How it plays</h3>
         <ol class="rules">
           <li><b>Spin</b> the wheel to land on one of the 32 teams and see its roster with overalls.</li>
-          <li>Players <b>take turns starting the bid</b>: pick a player and an opening price.</li>
-          <li>The other player <b>raises or passes</b>. Back and forth until someone lets it go.</li>
+          <li>Players <b>take turns opening the bidding</b> for that team's pick.</li>
+          <li>The other player <b>raises or passes</b>. The winner <b>chooses any player</b> on that team who fits their lineup.</li>
           <li>Fill <b>QB, RB, 3 WR, TE, O-Line, K and Defense</b> with $${STARTING_BUDGET}. You always keep $1 per empty slot.</li>
           <li>Then a <b>head-to-head game</b>, a <b>17-game season</b> against the real NFL, and the <b>playoffs</b>.</li>
           <li><b>Winner:</b> whoever goes further in the playoffs. Tied? Better record, then the head-to-head.</li>
@@ -723,6 +725,12 @@ function renderDraft(g) {
   } else if (!app.ui.spinning) {
     setHub(g.team);
   }
+  // Pick won: tell both players who gets to choose.
+  if (g.step === "choose" && app.ui.shownPick !== g.spin.id) {
+    app.ui.shownPick = g.spin.id;
+    app.ui.sel = null;
+    toast(`${pname(g.pick.player)} won the ${getTeam(g.team).name} pick for $${g.pick.price}`);
+  }
   // Award toast
   if (g.lastAward && g.lastAward.id > app.ui.shownAward) {
     app.ui.shownAward = g.lastAward.id;
@@ -763,8 +771,8 @@ function renderDraftPanels(g) {
     actions.innerHTML = canAct(s)
       ? `<button class="btn primary big block" data-act="spin">Spin${local ? ` · ${sName}` : ""}</button>`
       : `<p class="waiting"><span class="spinner-dot"></span>Waiting for ${sName} to spin</p>`;
-  } else if (g.step === "nominate") {
-    turnLine.innerHTML = canAct(s) && !local ? "Pick a player and open the bid" : `${sName} is opening the bid`;
+  } else if (g.step === "open") {
+    turnLine.innerHTML = canAct(s) && !local ? "Open the bidding for this pick" : `${sName} is opening the bidding`;
     const left = g.players[s].respins;
     actions.innerHTML = canAct(s)
       ? `<button class="btn block" data-act="respin" ${left > 0 ? "" : "disabled"}>Re-spin · ${left} of ${RESPINS_PER_PLAYER} left</button>`
@@ -772,6 +780,10 @@ function renderDraftPanels(g) {
   } else if (g.step === "bid") {
     const t = g.auction.turn;
     turnLine.innerHTML = canAct(t) && !local ? "Your call: raise or pass" : `${esc(pname(t))}'s call: raise or pass`;
+    actions.innerHTML = "";
+  } else if (g.step === "choose") {
+    const c = g.pick.player;
+    turnLine.innerHTML = canAct(c) && !local ? "Choose your player" : `${esc(pname(c))} is choosing a player`;
     actions.innerHTML = "";
   }
 
@@ -781,7 +793,8 @@ function renderDraftPanels(g) {
   } else if (g.step === "spin") {
     panel.innerHTML = spinPanel(g);
   } else {
-    panel.innerHTML = teamHead(g.team) + (g.step === "bid" ? bidPanel(g) : nominatePanel(g)) + rosterList(g);
+    const step = g.step === "bid" ? bidPanel(g) : g.step === "choose" ? choosePanel(g) : openPanel(g);
+    panel.innerHTML = teamHead(g.team) + step + rosterList(g);
   }
   document.getElementById("log").innerHTML = g.log.slice().reverse().map((l) => `<div>${esc(l)}</div>`).join("");
 }
@@ -799,8 +812,8 @@ function spinPanel(g) {
     ${
       last
         ? `<div class="auction-card">${faceHtml(last, "lg")}<div><div class="small muted">${esc(pname(g.lastAward.player))} won</div><strong>${esc(last.name)}</strong><span class="det small muted"> · ${last.pos}</span></div><div class="${ovrClass(last.ovr)}">${last.ovr}</div></div>
-           <p class="muted small">Sold for $${g.lastAward.price}${g.lastAward.note ? ` · ${esc(g.lastAward.note)}` : ""}.</p>`
-        : `<p class="muted">Each spin lands on a team. The spinner picks a player from that roster and opens the bidding. Teams that can't help the spinner are dimmed on the wheel.</p>`
+           <p class="muted small">Chosen for $${g.lastAward.price}${g.lastAward.note ? ` · ${esc(g.lastAward.note)}` : ""}.</p>`
+        : `<p class="muted">Each spin lands on a team. Whoever spun opens the bidding for that team's pick. The winner then chooses any player on that team who fits their lineup. Teams that can't help the spinner are dimmed on the wheel.</p>`
     }
     <p class="muted small">Every lineup needs QB · RB · 3 WR · TE · OL · K · DST. Bid big where it matters — but every empty slot costs at least $1.</p>
   </div>`;
@@ -822,64 +835,86 @@ function entryStatus(g, e) {
 }
 
 function rosterList(g) {
-  const s = g.starter;
-  const selectable = g.step === "nominate" && canAct(s);
-  const nominated = g.auction?.entryId;
-  const peek = g.step === "nominate" && !canAct(s) ? livePeek(g, s) : null;
+  const chooser = g.step === "choose" ? g.pick.player : null;
+  const selectable = chooser !== null && canAct(chooser);
+  const peek = chooser !== null && !canAct(chooser) ? livePeek(g, chooser) : null;
   needFaces(teamEntries(g.mode, g.team));
   const rows = teamEntries(g.mode, g.team).map((e) => {
     const st = entryStatus(g, e);
-    const pickable = selectable && canTake(g, s, e);
-    const sel = app.ui.sel === e.id || nominated === e.id;
+    const pickable = selectable && canTake(g, chooser, e);
+    const sel = selectable && app.ui.sel === e.id;
     const dim = st.taken || (selectable && !pickable);
     const eyed = peek && peek.sel === e.id;
-    return `<button class="prow ${sel ? "sel" : ""} ${dim ? "dim" : ""} ${eyed ? `eyed p${s}` : ""}" data-act="select" data-id="${e.id}" ${pickable ? "" : "disabled"} aria-pressed="${sel}">
+    return `<button class="prow ${sel ? "sel" : ""} ${dim ? "dim" : ""} ${eyed ? `eyed p${chooser}` : ""}" data-act="select" data-id="${e.id}" ${pickable ? "" : "disabled"} aria-pressed="${sel}">
       <span class="pos">${e.pos}</span>
       <span class="who-cell">${faceHtml(e)}<span class="min0"><span class="nm">${esc(e.name)}</span>${e.detail ? `<span class="det">${esc(e.detail)}</span>` : ""}</span></span>
       <span class="${ovrClass(e.ovr)}">${e.ovr}</span>
-      <span class="st ${eyed ? `p${s}` : st.cls}">${eyed ? `👀 ${esc(pname(s))} is looking` : esc(st.text)}</span>
+      <span class="st ${eyed ? `p${chooser}` : st.cls}">${eyed ? `👀 ${esc(pname(chooser))} is looking` : esc(st.text)}</span>
     </button>`;
   });
   return `<div class="roster" style="margin-top:14px">${rows.join("")}</div>`;
+}
+
+// The thing being auctioned: the right to choose one player from this team.
+function pickCard(g, right = "") {
+  const t = getTeam(g.team);
+  const left = teamEntries(g.mode, g.team).filter((e) => !isTaken(g, e)).length;
+  return `<div class="auction-card pick-card"><div class="face lg unit">${logoImg(g.team, false)}</div><div><div class="small muted">Up for bid</div><strong style="font-size:18px">The ${esc(t.name)} pick</strong><div class="small muted">Winner chooses 1 of ${left} players left on this roster</div></div>${right}</div>`;
 }
 
 function entryCard(e, right = "") {
   return `<div class="auction-card">${faceHtml(e, "lg")}<div><div class="small muted">${POS_LABEL[e.pos]}</div><strong style="font-size:18px">${esc(e.name)}</strong>${e.detail ? `<div class="small muted">${esc(e.detail)}</div>` : ""}</div>${right || `<div class="${ovrClass(e.ovr)}">${e.ovr}</div>`}</div>`;
 }
 
-function nominatePanel(g) {
+function openPanel(g) {
   const s = g.starter;
+  const opp = 1 - s;
   if (!canAct(s)) {
     const peek = livePeek(g, s);
-    const e = peek?.sel ? getEntry(peek.sel) : null;
-    if (!e || e.team !== g.team) return `<p class="waiting"><span class="live-dot"></span>${esc(pname(s))} is looking through the ${esc(getTeam(g.team).name)} roster…</p>`;
-    return `<div class="stack live p${s}">
-      <p class="live-line"><span class="live-dot"></span>${esc(pname(s))} is looking at</p>
-      ${entryCard(e)}
-      ${peek.bid ? `<p class="live-line">Thinking about opening at <b class="amt-sm">$${peek.bid}</b></p>` : ""}
-    </div>`;
+    return `<div class="stack live p${s}">${pickCard(g)}${
+      peek?.bid
+        ? `<p class="live-line"><span class="live-dot"></span>${esc(pname(s))} is thinking about opening at <b class="amt-sm">$${peek.bid}</b></p>`
+        : `<p class="waiting"><span class="live-dot"></span>${esc(pname(s))} is sizing up the ${esc(getTeam(g.team).name)}…</p>`
+    }</div>`;
   }
-  const local = app.role === "local";
-  if (!app.ui.sel) return `<p class="muted">${local ? `<b>${esc(pname(s))}</b>: tap` : "Tap"} a player to open the bidding.</p>`;
-  const e = getEntry(app.ui.sel);
   const max = maxBid(g.players[s]);
   app.ui.bid = Math.max(1, Math.min(max, app.ui.bid || 1));
-  const opp = g.players[1 - s];
-  const oppCan = canTake(g, 1 - s, e);
+  const oppUseful = teamUseful(g, opp, g.team) && maxBid(g.players[opp]) >= 2;
+  const who = app.role === "local" ? ` (${esc(pname(s))})` : "";
   return `<div class="stack">
-    ${entryCard(e)}
+    ${pickCard(g)}
     <div class="row" style="justify-content:space-between">
       <div class="stepper"><button data-act="bid-dec" aria-label="Lower opening bid">−</button><output id="bid-out">$${app.ui.bid}</output><button data-act="bid-inc" aria-label="Raise opening bid">+</button></div>
       <div class="row"><button class="btn" data-act="bid-set" data-v="1">$1</button><button class="btn" data-act="bid-set" data-v="${max}">Max $${max}</button></div>
     </div>
-    <button class="btn primary big block" data-act="nominate">Open bid at $${app.ui.bid}</button>
-    <p class="hint">${oppCan ? `${esc(opp.name)} can raise up to $${maxBid(opp)}. If they can't top you, ${esc(e.name)} is yours.` : `${esc(opp.name)} has no open ${e.pos} slot, so ${esc(e.name)} is yours at your price.`}</p>
+    <button class="btn primary big block" data-act="open-bid">Open bidding at $${app.ui.bid}${who}</button>
+    <p class="hint">${
+      oppUseful
+        ? `${esc(pname(opp))} can raise up to $${maxBid(g.players[opp])}. Win it and you choose any player here who fits your lineup.`
+        : `${esc(pname(opp))} has no use for anyone on this team, so the pick is yours at your opening price. Open at $1.`
+    }</p>
   </div>`;
+}
+
+function choosePanel(g) {
+  const c = g.pick.player;
+  const price = g.pick.price;
+  if (!canAct(c)) {
+    const peek = livePeek(g, c);
+    const e = peek?.sel ? getEntry(peek.sel) : null;
+    if (!e || e.team !== g.team) return `<div class="stack">${pickCard(g, `<div class="sold-to">${esc(pname(c))}<b>$${price}</b></div>`)}<p class="waiting"><span class="live-dot"></span>${esc(pname(c))} is choosing a player…</p></div>`;
+    return `<div class="stack live p${c}"><p class="live-line"><span class="live-dot"></span>${esc(pname(c))} is looking at</p>${entryCard(e)}</div>`;
+  }
+  const local = app.role === "local";
+  const head = `<p class="choose-line"><b>${local ? esc(pname(c)) : "You"}</b> won the ${esc(getTeam(g.team).name)} pick for <b class="gold">$${price}</b>.</p>`;
+  if (!app.ui.sel) return `<div class="stack">${head}<p class="muted">Tap a player below to take them. Anyone who fits an open slot is fair game.</p></div>`;
+  const e = getEntry(app.ui.sel);
+  return `<div class="stack">${head}${entryCard(e)}
+    <button class="btn primary big block" data-act="choose">Take ${esc(e.name)} for $${price}</button></div>`;
 }
 
 function bidPanel(g) {
   const a = g.auction;
-  const e = getEntry(a.entryId);
   const t = a.turn;
   const leader = esc(pname(a.leader));
   const hist = a.history.map((h) => `<span class="p${h.p}">${esc(pname(h.p))} $${h.bid}</span>`).join("");
@@ -903,7 +938,7 @@ function bidPanel(g) {
       : `<p class="waiting"><span class="live-dot"></span>${esc(pname(t))} is deciding: raise or pass…</p>`;
   }
   return `<div class="stack">
-    ${entryCard(e)}
+    ${pickCard(g)}
     <div class="bidline"><span class="amt">$${a.high}</span><span class="muted">${leader} leads</span></div>
     <div class="history">${hist}</div>
     ${controls}
@@ -1282,7 +1317,6 @@ document.addEventListener("click", async (e) => {
       break;
     case "select":
       app.ui.sel = btn.dataset.id;
-      app.ui.bid = 1;
       renderDraftPanels(g);
       sendPeek();
       break;
@@ -1292,12 +1326,18 @@ document.addEventListener("click", async (e) => {
       const max = maxBid(g.players[g.starter]);
       const v = act === "bid-set" ? Number(btn.dataset.v) : app.ui.bid + (act === "bid-inc" ? 1 : -1);
       app.ui.bid = Math.max(1, Math.min(max, v));
+      app.ui.bidTouched = true;
       renderDraftPanels(g);
       sendPeek();
       break;
     }
-    case "nominate":
-      dispatch({ type: "nominate", entryId: app.ui.sel, bid: app.ui.bid }, g.starter);
+    case "open-bid":
+      dispatch({ type: "open", bid: app.ui.bid }, g.starter);
+      app.ui.bid = 1;
+      app.ui.bidTouched = false;
+      break;
+    case "choose":
+      if (app.ui.sel) dispatch({ type: "choose", entryId: app.ui.sel }, g.pick.player);
       break;
     case "raise-inc":
     case "raise-dec":

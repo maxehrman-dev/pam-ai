@@ -2,8 +2,8 @@
 
 A standalone two-player game at `/nfl-auction/`. It is separate from the PAM app and shares only the server.
 
-Spin a wheel of all 32 teams, take turns opening bids on that team's players, and fill
-QB · RB · 3 WR · TE · OL · K · DST with $22. Then the two lineups play a head-to-head game,
+Spin a wheel of all 32 teams and take turns opening the bidding for that team's pick. The winner
+then chooses any player on that team who fits their lineup. Fill QB · RB · 3 WR · TE · OL · K · DST with $22. Then the two lineups play a head-to-head game,
 a 17-game season against the real league, and the playoffs.
 
 ## Files

@@ -56,6 +56,10 @@ export function canTake(state, idx, entry) {
   const p = state.players[idx];
   return !isTaken(state, entry) && openSlots(p, entry.pos) > 0 && maxBid(p) >= 1;
 }
+// Can this player use anyone on the team? (needed to bid for that team's pick)
+export function teamUseful(state, idx, teamId) {
+  return teamEntries(state.mode, teamId).some((e) => canTake(state, idx, e));
+}
 export function eligibleTeams(state, idx) {
   return TEAMS.filter((t) => teamEntries(state.mode, t.id).some((e) => canTake(state, idx, e))).map((t) => t.id);
 }
@@ -100,6 +104,7 @@ export function createGame({ mode, players, seed = newSeed(), ranked = false }) 
     team: null,
     spin: { id: 0, team: null },
     auction: null,
+    pick: null,
     taken: {},
     takenNames: [],
     lastAward: null,
@@ -123,9 +128,18 @@ function doSpin(state, excludeTeam) {
   const team = pick(state, options);
   state.team = team;
   state.spin = { id: state.spin.id + 1, team, by: state.starter };
-  state.step = "nominate";
+  state.step = "open";
   const t = getTeam(team);
   addLog(state, `${state.players[state.starter].name} spun the ${t.city} ${t.name}.`);
+}
+
+// The bidding is for the team's pick: the winner then chooses one player from that team.
+function winPick(state, idx, price, note) {
+  const t = getTeam(state.team);
+  state.auction = null;
+  state.pick = { player: idx, price, note };
+  state.step = "choose";
+  addLog(state, `${state.players[idx].name} won the ${t.name} pick for $${price}${note ? ` · ${note}` : ""}.`);
 }
 
 function award(state, idx, entry, price, note) {
@@ -135,8 +149,9 @@ function award(state, idx, entry, price, note) {
   state.taken[entry.id] = idx + 1;
   state.takenNames.push(entry.name);
   state.auction = null;
+  state.pick = null;
   state.lastAward = { id: (state.lastAward?.id || 0) + 1, entryId: entry.id, player: idx, price, note };
-  addLog(state, `${p.name} won ${entry.name} (${entry.pos}, ${entry.ovr}) for $${price}${note ? ` · ${note}` : ""}.`);
+  addLog(state, `${p.name} chose ${entry.name} (${entry.pos}, ${entry.ovr}) for $${price}.`);
 
   const done = state.players.every((pl) => totalOpen(pl) === 0);
   if (done) {
@@ -170,25 +185,23 @@ export function applyAction(state, action, actor) {
       break;
     }
     case "respin": {
-      if (state.step !== "nominate" || actor !== state.starter) return fail("You can only re-spin before you open the bid.");
+      if (state.step !== "open" || actor !== state.starter) return fail("You can only re-spin before you open the bid.");
       if (me.respins <= 0) return fail("No re-spins left.");
       me.respins -= 1;
       doSpin(state, state.team);
       break;
     }
-    case "nominate": {
-      if (state.step !== "nominate" || actor !== state.starter) return fail("It's not your turn to open the bid.");
-      const entry = getEntry(String(action.entryId || ""));
-      if (!entry || entry.team !== state.team || !entry.id.startsWith(`${state.mode}:`)) return fail("Pick a player from this team.");
-      if (!canTake(state, actor, entry)) return fail("You can't add that player (taken or slot full).");
+    case "open": {
+      if (state.step !== "open" || actor !== state.starter) return fail("It's not your turn to open the bid.");
       const bid = Math.floor(Number(action.bid));
       if (!(bid >= 1 && bid <= maxBid(me))) return fail(`Opening bid must be $1–$${maxBid(me)}.`);
-      if (!canTake(state, opp, entry) || maxBid(state.players[opp]) < bid + 1) {
-        award(state, actor, entry, bid, "uncontested");
+      const t = getTeam(state.team);
+      if (!teamUseful(state, opp, state.team) || maxBid(state.players[opp]) < bid + 1) {
+        winPick(state, actor, bid, "uncontested");
       } else {
-        state.auction = { entryId: entry.id, high: bid, leader: actor, turn: opp, history: [{ p: actor, bid }] };
+        state.auction = { team: state.team, high: bid, leader: actor, turn: opp, history: [{ p: actor, bid }] };
         state.step = "bid";
-        addLog(state, `${me.name} opened ${entry.name} at $${bid}.`);
+        addLog(state, `${me.name} opened the bidding on the ${t.name} pick at $${bid}.`);
       }
       break;
     }
@@ -200,9 +213,8 @@ export function applyAction(state, action, actor) {
       a.high = bid;
       a.leader = actor;
       a.history.push({ p: actor, bid });
-      const entry = getEntry(a.entryId);
       if (maxBid(state.players[opp]) < bid + 1) {
-        award(state, actor, entry, bid, `${state.players[opp].name} can't go higher`);
+        winPick(state, actor, bid, `${state.players[opp].name} can't go higher`);
       } else {
         a.turn = opp;
       }
@@ -211,15 +223,24 @@ export function applyAction(state, action, actor) {
     case "pass": {
       const a = state.auction;
       if (state.step !== "bid" || !a || a.turn !== actor) return fail("It's not your call.");
-      award(state, a.leader, getEntry(a.entryId), a.high, `${me.name} let it go`);
+      winPick(state, a.leader, a.high, `${me.name} let it go`);
+      break;
+    }
+    case "choose": {
+      const pk = state.pick;
+      if (state.step !== "choose" || !pk || pk.player !== actor) return fail("It's not your pick.");
+      const entry = getEntry(String(action.entryId || ""));
+      if (!entry || entry.team !== state.team || !entry.id.startsWith(`${state.mode}:`)) return fail("Choose a player from this team.");
+      if (!canTake(state, actor, entry)) return fail("You can't add that player (taken or slot full).");
+      award(state, actor, entry, pk.price, pk.note);
       break;
     }
     default:
       return fail("Unknown action.");
   }
   const record = { type: action.type, by: actor };
-  if (action.type === "nominate") Object.assign(record, { entryId: String(action.entryId), bid: Math.floor(Number(action.bid)) });
-  if (action.type === "raise") record.bid = Math.floor(Number(action.bid));
+  if (action.type === "open" || action.type === "raise") record.bid = Math.floor(Number(action.bid));
+  if (action.type === "choose") record.entryId = String(action.entryId);
   state.history.push(record);
   state.rev += 1;
   return { ok: true };
