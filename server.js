@@ -62,7 +62,7 @@ const APP_CSP =
   "default-src 'self'; script-src 'self' https://cdn.plaid.com; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-src https://cdn.plaid.com https://*.plaid.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 // The NFL Auction Draft mini-game loads PeerJS for online play, Google Fonts, and team logos.
 const GAME_CSP =
-  "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.peerjs.com wss://*.peerjs.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+  "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.peerjs.com wss://*.peerjs.com https://site.api.espn.com https://site.web.api.espn.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 const GAME_DIR = path.join(APP_DIR, "nfl-auction");
 
 function sendFile(res, filePath) {

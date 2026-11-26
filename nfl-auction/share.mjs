@@ -1,12 +1,31 @@
 // Draws the shareable results graphic (1080x1350, Instagram portrait) on a canvas.
 import { getTeam, logoUrl } from "./data.mjs";
 import { lineupEntries } from "./engine.mjs";
+import { faceUrl, initials, teamColor } from "./faces.mjs";
 
 const W = 1080;
 const H = 1350;
 const HEAD = "'Oswald', 'Impact', 'Arial Narrow', sans-serif";
 const BODY = "'Inter', 'Helvetica Neue', Arial, sans-serif";
 const P_COLORS = ["#38bdf8", "#fb923c"];
+
+function loadImage(url) {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    const timer = setTimeout(() => resolve(null), 3000);
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(img);
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
 
 function loadLogo(teamId) {
   return new Promise((resolve) => {
@@ -73,6 +92,7 @@ export async function renderShareCard(game, { legacy = null, siteUrl = "" } = {}
   const lineups = game.players.map((p) => lineupEntries(p));
   const teamIds = [...new Set(lineups.flat().map((e) => e.team))];
   const logos = Object.fromEntries(await Promise.all(teamIds.map(async (id) => [id, await loadLogo(id)])));
+  const faces = Object.fromEntries(await Promise.all(lineups.flat().map(async (e) => [e.id, await loadImage(faceUrl(e))])));
 
   // Background: night-game field with yard lines.
   const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -160,8 +180,34 @@ export async function renderShareCard(game, { legacy = null, siteUrl = "" } = {}
     for (const e of lineups[i]) {
       const size = 40;
       const logo = logos[e.team];
-      if (logo) ctx.drawImage(logo, x + 24, ry, size, size);
-      else badge(ctx, e.team, x + 24, ry, size);
+      const face = faces[e.id];
+      const unit = e.pos === "OL" || e.pos === "DST";
+      if (unit) {
+        if (logo) ctx.drawImage(logo, x + 24, ry, size, size);
+        else badge(ctx, e.team, x + 24, ry, size);
+      } else {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x + 24 + size / 2, ry + size / 2, size / 2, 0, Math.PI * 2);
+        ctx.fillStyle = teamColor(e.team);
+        ctx.fill();
+        ctx.clip();
+        if (face) {
+          ctx.fillStyle = "#e7ecf3";
+          ctx.fill();
+          ctx.drawImage(face, x + 24 - 6, ry, size + 12, (size + 12) * (face.naturalHeight / face.naturalWidth || 0.73));
+        } else {
+          ctx.fillStyle = "#ffffff";
+          ctx.font = `700 16px ${HEAD}`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(initials(e.name), x + 24 + size / 2, ry + size / 2 + 1);
+        }
+        ctx.restore();
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+        if (logo) ctx.drawImage(logo, x + 24 + size - 14, ry + size - 14, 18, 18);
+      }
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.font = `700 17px ${BODY}`;
       ctx.fillText(e.pos, x + 76, ry + 26);

@@ -1,11 +1,12 @@
 // NFL Auction Draft — UI and game flow.
 import { TEAMS, MODES, getTeam, logoUrl, teamEntries, getEntry } from "./data.mjs";
 import {
-  createGame, applyAction, replayGame, cleanName, cleanElo, maxBid, totalOpen, openSlots, canTake, isTaken,
+  createGame, applyAction, replayGame, cleanName, cleanElo, maxBid, totalOpen, openSlots, canTake, isTaken, lineupEntries,
   eloUpdate, legacyTier, LEGACY_START, STARTING_BUDGET, TOTAL_SLOTS, RESPINS_PER_PLAYER
 } from "./engine.mjs";
 import { hostRoom, joinRoom, makeRoomId } from "./net.mjs";
 import { renderShareCard } from "./share.mjs";
+import { faceUrl, wantFaces, markBroken, initials, teamColor } from "./faces.mjs";
 
 const root = document.getElementById("app");
 const BASE = "/nfl-auction/";
@@ -105,6 +106,25 @@ function logoImg(teamId, alt = true) {
   const t = getTeam(teamId);
   return `<img src="${logoUrl(teamId)}" alt="${alt ? esc(`${t.city} ${t.name} logo`) : ""}" data-team="${t.id}" loading="lazy" decoding="async" />`;
 }
+// Player face (ESPN headshot when known, initials in team colors otherwise). Units show their team logo.
+function faceHtml(e, size = "") {
+  if (e.pos === "OL" || e.pos === "DST") return `<span class="face unit ${size}">${logoImg(e.team, false)}</span>`;
+  const url = faceUrl(e);
+  return `<span class="face ${size}" style="--tc:${teamColor(e.team)}"><span class="ini" aria-hidden="true">${esc(initials(e.name))}</span>${
+    url ? `<img src="${esc(url)}" alt="" data-face="1" loading="lazy" decoding="async" />` : ""
+  }<span class="mini-logo">${logoImg(e.team, false)}</span></span>`;
+}
+function miniLogo(teamId) {
+  return teamId && getTeam(teamId) ? `<span class="mini-logo inline">${logoImg(teamId, false)}</span>` : `<span class="mini-logo inline you"></span>`;
+}
+let faceRefresh = null;
+function needFaces(entries) {
+  if (!app.game) return;
+  wantFaces(app.game.mode, entries, () => {
+    clearTimeout(faceRefresh);
+    faceRefresh = setTimeout(() => app.game && renderGame(), 60);
+  });
+}
 function badgeHtml(teamId) {
   const t = getTeam(teamId);
   return `<div class="fallback-badge" style="background:${t.colors[0]}">${t.id}</div>`;
@@ -113,6 +133,11 @@ document.addEventListener(
   "error",
   (e) => {
     const img = e.target;
+    if (img && img.tagName === "IMG" && img.dataset.face) {
+      markBroken(img.getAttribute("src"));
+      img.remove();
+      return;
+    }
     if (img && img.tagName === "IMG" && img.dataset.team) {
       failedLogos.add(img.dataset.team);
       img.outerHTML = badgeHtml(img.dataset.team);
@@ -650,7 +675,7 @@ function playersHtml(g) {
         const slot = p.lineup[pos][k];
         if (slot) {
           const e = getEntry(slot.id);
-          lineup.push(`<div class="slot filled" title="${esc(`${e.name} · ${e.ovr} OVR · $${slot.price}`)}"><span class="pos">${pos}</span><span class="who">${esc(e.name)}</span><span class="o">${e.ovr}</span></div>`);
+          lineup.push(`<div class="slot filled" title="${esc(`${e.name} · ${e.ovr} OVR · $${slot.price}`)}"><span class="pos">${pos}</span>${miniLogo(e.team)}<span class="who">${esc(e.name)}</span><span class="o">${e.ovr}</span></div>`);
         } else lineup.push(`<div class="slot empty"><span class="pos">${pos}</span><span class="who">—</span></div>`);
       }
       const you = app.role !== "local" && app.me === i ? " (you)" : "";
@@ -773,7 +798,7 @@ function spinPanel(g) {
     <h2>${picks === 0 ? "Draft day" : `Pick ${picks + 1} of ${TOTAL_SLOTS * 2}`}</h2>
     ${
       last
-        ? `<div class="auction-card">${logoImg(last.team)}<div><div class="small muted">${esc(pname(g.lastAward.player))} won</div><strong>${esc(last.name)}</strong><span class="det small muted"> · ${last.pos}</span></div><div class="${ovrClass(last.ovr)}">${last.ovr}</div></div>
+        ? `<div class="auction-card">${faceHtml(last, "lg")}<div><div class="small muted">${esc(pname(g.lastAward.player))} won</div><strong>${esc(last.name)}</strong><span class="det small muted"> · ${last.pos}</span></div><div class="${ovrClass(last.ovr)}">${last.ovr}</div></div>
            <p class="muted small">Sold for $${g.lastAward.price}${g.lastAward.note ? ` · ${esc(g.lastAward.note)}` : ""}.</p>`
         : `<p class="muted">Each spin lands on a team. The spinner picks a player from that roster and opens the bidding. Teams that can't help the spinner are dimmed on the wheel.</p>`
     }
@@ -801,6 +826,7 @@ function rosterList(g) {
   const selectable = g.step === "nominate" && canAct(s);
   const nominated = g.auction?.entryId;
   const peek = g.step === "nominate" && !canAct(s) ? livePeek(g, s) : null;
+  needFaces(teamEntries(g.mode, g.team));
   const rows = teamEntries(g.mode, g.team).map((e) => {
     const st = entryStatus(g, e);
     const pickable = selectable && canTake(g, s, e);
@@ -809,7 +835,7 @@ function rosterList(g) {
     const eyed = peek && peek.sel === e.id;
     return `<button class="prow ${sel ? "sel" : ""} ${dim ? "dim" : ""} ${eyed ? `eyed p${s}` : ""}" data-act="select" data-id="${e.id}" ${pickable ? "" : "disabled"} aria-pressed="${sel}">
       <span class="pos">${e.pos}</span>
-      <span><span class="nm">${esc(e.name)}</span>${e.detail ? `<span class="det">${esc(e.detail)}</span>` : ""}</span>
+      <span class="who-cell">${faceHtml(e)}<span class="min0"><span class="nm">${esc(e.name)}</span>${e.detail ? `<span class="det">${esc(e.detail)}</span>` : ""}</span></span>
       <span class="${ovrClass(e.ovr)}">${e.ovr}</span>
       <span class="st ${eyed ? `p${s}` : st.cls}">${eyed ? `👀 ${esc(pname(s))} is looking` : esc(st.text)}</span>
     </button>`;
@@ -818,7 +844,7 @@ function rosterList(g) {
 }
 
 function entryCard(e, right = "") {
-  return `<div class="auction-card">${logoImg(e.team)}<div><div class="small muted">${POS_LABEL[e.pos]}</div><strong style="font-size:18px">${esc(e.name)}</strong>${e.detail ? `<div class="small muted">${esc(e.detail)}</div>` : ""}</div>${right || `<div class="${ovrClass(e.ovr)}">${e.ovr}</div>`}</div>`;
+  return `<div class="auction-card">${faceHtml(e, "lg")}<div><div class="small muted">${POS_LABEL[e.pos]}</div><strong style="font-size:18px">${esc(e.name)}</strong>${e.detail ? `<div class="small muted">${esc(e.detail)}</div>` : ""}</div>${right || `<div class="${ovrClass(e.ovr)}">${e.ovr}</div>`}</div>`;
 }
 
 function nominatePanel(g) {
@@ -1046,6 +1072,7 @@ function renderResults(g) {
     wheel?.destroy();
     wheel = null;
   }
+  needFaces(g.players.flatMap((p) => lineupEntries(p)));
   const stage = app.ui.stage;
   const steps = `<div class="steps">${[0, 1, 2].map((i) => `<span class="${i <= stage ? "on" : ""}"></span>`).join("")}</div>`;
   let body = "";
@@ -1078,7 +1105,7 @@ function showdownHtml(g, res) {
 function seasonHtml(g, res) {
   const card = (i) => {
     const s = res.seasons[i];
-    const weeks = s.games.map((w, k) => `<div class="wk ${w.res}" style="animation-delay:${k * 60}ms" title="Week ${w.week}: ${esc(w.oppName)} ${w.us}-${w.them}">${w.res}<small>${esc(w.oppName)}</small></div>`).join("");
+    const weeks = s.games.map((w, k) => `<div class="wk ${w.res}" style="animation-delay:${k * 60}ms" title="Week ${w.week}: ${esc(w.oppName)} ${w.us}-${w.them}">${miniLogo(w.opp.startsWith("U") ? null : w.opp)}${w.res}<small>${esc(w.oppName)}</small></div>`).join("");
     const fin = s.seed ? `<span class="finish in">${s.conf} #${s.seed} seed — in the playoffs</span>` : `<span class="finish out">Missed the playoffs (${s.conf} #${s.rank})</span>`;
     return `<section class="card season p${i}">
       <h3><span style="color:var(--p${i})">${esc(g.players[i].name)}</span><span class="muted small">${s.conf}</span></h3>
@@ -1090,7 +1117,7 @@ function seasonHtml(g, res) {
   const table = (conf) => {
     const rows = res.standings[conf].slice(0, 10).map((r, i) => {
       const me = r.id.startsWith("U");
-      return `<tr class="${me ? "me" : ""} ${i === 6 ? "cut" : ""}"><td>${r.seed ? r.seed : "—"}</td><td>${esc(r.name)}</td><td>${r.w}-${r.l}${r.t ? `-${r.t}` : ""}</td><td class="muted">${r.pf - r.pa >= 0 ? "+" : ""}${r.pf - r.pa}</td></tr>`;
+      return `<tr class="${me ? "me" : ""} ${i === 6 ? "cut" : ""}"><td>${r.seed ? r.seed : "—"}</td><td><span class="team-cell">${miniLogo(me ? null : r.id)}${esc(r.name)}</span></td><td>${r.w}-${r.l}${r.t ? `-${r.t}` : ""}</td><td class="muted">${r.pf - r.pa >= 0 ? "+" : ""}${r.pf - r.pa}</td></tr>`;
     });
     return `<section class="card"><h3 style="margin-bottom:8px">${conf} standings</h3><table class="standings"><tbody>${rows.join("")}</tbody></table><p class="hint" style="margin-top:6px">Top 7 make the playoffs. #1 seed gets a bye.</p></section>`;
   };
@@ -1107,7 +1134,8 @@ function finalHtml(g, res) {
         const us = pg.home === id ? pg.score[0] : pg.score[1];
         const them = pg.home === id ? pg.score[1] : pg.score[0];
         const opp = pg.home === id ? pg.awayName : pg.homeName;
-        return `<div class="pgame ${won ? "won" : "lost"}" style="animation-delay:${k * 260}ms"><div><div class="r">${pg.roundName}</div><div>vs ${esc(opp)}</div></div><div class="sc">${won ? "W" : "L"} ${us}-${them}${pg.ot ? " OT" : ""}</div></div>`;
+        const oppId = pg.home === id ? pg.away : pg.home;
+        return `<div class="pgame ${won ? "won" : "lost"}" style="animation-delay:${k * 260}ms"><div><div class="r">${pg.roundName}</div><div class="team-cell">vs ${miniLogo(oppId.startsWith("U") ? null : oppId)}${esc(opp)}</div></div><div class="sc">${won ? "W" : "L"} ${us}-${them}${pg.ot ? " OT" : ""}</div></div>`;
       })
       .join("");
     const cls = s.finishLevel === 5 ? "champ" : s.finishLevel > 0 ? "in" : "out";
