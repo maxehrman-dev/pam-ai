@@ -75,10 +75,11 @@ const app = {
   room: null,
   invite: null,
   game: null,
+  peek: null, // what the other player is doing right now (online only)
   ui: freshUi()
 };
 function freshUi() {
-  return { sel: null, bid: 1, raise: null, stage: 0, spinning: false, shownSpin: 0, shownAward: 0, legacy: null, resultsKey: null, accepted: false, helloTimer: null };
+  return { sel: null, bid: 1, raise: null, raiseTouched: false, stage: 0, spinning: false, shownSpin: 0, shownAward: 0, legacy: null, resultsKey: null, accepted: false, helloTimer: null };
 }
 
 // ---------- helpers ----------
@@ -214,6 +215,8 @@ function onHostMessage(msg) {
     const result = applyAction(app.game, msg.action, 1);
     if (!result.ok) app.link.send({ t: "error", error: result.error });
     else gameChanged();
+  } else if (msg.t === "peek") {
+    receivePeek(msg, 1);
   } else if (msg.t === "rematch") {
     toast(`${app.room.guest?.name || "Your opponent"} wants a rematch`);
   }
@@ -228,6 +231,8 @@ function onGuestMessage(msg) {
   } else if (msg.t === "state") {
     clearInterval(app.ui.helloTimer);
     setGame(msg.game);
+  } else if (msg.t === "peek") {
+    receivePeek(msg, 0);
   } else if (msg.t === "error") {
     toast(msg.error);
   } else if (msg.t === "full") {
@@ -241,6 +246,41 @@ function onGuestMessage(msg) {
 function sendHello() {
   const p = app.profile;
   app.link?.send({ t: "hello", name: p.name, elo: p.elo, wins: p.wins, losses: p.losses, titles: p.titles, clientId: clientId() });
+}
+
+// ---------- live presence: show what the other player is doing ----------
+let peekTimer = null;
+function sendPeek() {
+  if (!app.link || app.role === "local" || !app.game || app.game.phase !== "draft") return;
+  clearTimeout(peekTimer);
+  peekTimer = setTimeout(() => {
+    const g = app.game;
+    app.link.send({
+      t: "peek",
+      rev: g.rev,
+      sel: g.step === "nominate" ? app.ui.sel : null,
+      bid: g.step === "nominate" && app.ui.sel ? app.ui.bid : null,
+      raise: g.step === "bid" && app.ui.raiseTouched ? app.ui.raise : null
+    });
+  }, 80);
+}
+function receivePeek(msg, from) {
+  const g = app.game;
+  if (!g || g.phase !== "draft") return;
+  app.peek = {
+    from,
+    rev: Number(msg.rev),
+    sel: typeof msg.sel === "string" ? msg.sel : null,
+    bid: Number.isFinite(msg.bid) ? msg.bid : null,
+    raise: Number.isFinite(msg.raise) ? msg.raise : null
+  };
+  if (!app.ui.spinning) renderDraftPanels(g);
+}
+// The other player's peek only counts for the current turn.
+function livePeek(g, player) {
+  const p = app.peek;
+  if (!p || app.role === "local" || p.from !== player || p.rev !== g.rev) return null;
+  return p;
 }
 
 // ---------- flows ----------
@@ -700,16 +740,18 @@ function rosterList(g) {
   const s = g.starter;
   const selectable = g.step === "nominate" && canAct(s);
   const nominated = g.auction?.entryId;
+  const peek = g.step === "nominate" && !canAct(s) ? livePeek(g, s) : null;
   const rows = teamEntries(g.mode, g.team).map((e) => {
     const st = entryStatus(g, e);
     const pickable = selectable && canTake(g, s, e);
     const sel = app.ui.sel === e.id || nominated === e.id;
     const dim = st.taken || (selectable && !pickable);
-    return `<button class="prow ${sel ? "sel" : ""} ${dim ? "dim" : ""}" data-act="select" data-id="${e.id}" ${pickable ? "" : "disabled"} aria-pressed="${sel}">
+    const eyed = peek && peek.sel === e.id;
+    return `<button class="prow ${sel ? "sel" : ""} ${dim ? "dim" : ""} ${eyed ? `eyed p${s}` : ""}" data-act="select" data-id="${e.id}" ${pickable ? "" : "disabled"} aria-pressed="${sel}">
       <span class="pos">${e.pos}</span>
       <span><span class="nm">${esc(e.name)}</span>${e.detail ? `<span class="det">${esc(e.detail)}</span>` : ""}</span>
       <span class="${ovrClass(e.ovr)}">${e.ovr}</span>
-      <span class="st ${st.cls}">${esc(st.text)}</span>
+      <span class="st ${eyed ? `p${s}` : st.cls}">${eyed ? `👀 ${esc(pname(s))} is looking` : esc(st.text)}</span>
     </button>`;
   });
   return `<div class="roster" style="margin-top:14px">${rows.join("")}</div>`;
@@ -721,7 +763,16 @@ function entryCard(e, right = "") {
 
 function nominatePanel(g) {
   const s = g.starter;
-  if (!canAct(s)) return `<p class="waiting"><span class="spinner-dot"></span>Waiting for ${esc(pname(s))} to pick a player…</p>`;
+  if (!canAct(s)) {
+    const peek = livePeek(g, s);
+    const e = peek?.sel ? getEntry(peek.sel) : null;
+    if (!e || e.team !== g.team) return `<p class="waiting"><span class="live-dot"></span>${esc(pname(s))} is looking through the ${esc(getTeam(g.team).name)} roster…</p>`;
+    return `<div class="stack live p${s}">
+      <p class="live-line"><span class="live-dot"></span>${esc(pname(s))} is looking at</p>
+      ${entryCard(e)}
+      ${peek.bid ? `<p class="live-line">Thinking about opening at <b class="amt-sm">$${peek.bid}</b></p>` : ""}
+    </div>`;
+  }
   const local = app.role === "local";
   if (!app.ui.sel) return `<p class="muted">${local ? `<b>${esc(pname(s))}</b>: tap` : "Tap"} a player to open the bidding.</p>`;
   const e = getEntry(app.ui.sel);
@@ -760,7 +811,10 @@ function bidPanel(g) {
       <button class="btn danger block" data-act="pass">Pass — ${leader} gets him for $${a.high}</button>
       <p class="hint">You can bid up to $${max} (you keep $1 for each other empty slot).</p>`;
   } else {
-    controls = `<p class="waiting"><span class="spinner-dot"></span>Waiting for ${esc(pname(t))} to raise or pass…</p>`;
+    const peek = livePeek(g, t);
+    controls = peek?.raise
+      ? `<p class="live-line live p${t}"><span class="live-dot"></span>${esc(pname(t))} is eyeing a raise to <b class="amt-sm">$${peek.raise}</b>…</p>`
+      : `<p class="waiting"><span class="live-dot"></span>${esc(pname(t))} is deciding: raise or pass…</p>`;
   }
   return `<div class="stack">
     ${entryCard(e)}
@@ -1136,6 +1190,7 @@ document.addEventListener("click", async (e) => {
       app.ui.sel = btn.dataset.id;
       app.ui.bid = 1;
       renderDraftPanels(g);
+      sendPeek();
       break;
     case "bid-inc":
     case "bid-dec":
@@ -1144,6 +1199,7 @@ document.addEventListener("click", async (e) => {
       const v = act === "bid-set" ? Number(btn.dataset.v) : app.ui.bid + (act === "bid-inc" ? 1 : -1);
       app.ui.bid = Math.max(1, Math.min(max, v));
       renderDraftPanels(g);
+      sendPeek();
       break;
     }
     case "nominate":
@@ -1156,12 +1212,15 @@ document.addEventListener("click", async (e) => {
       const max = maxBid(g.players[a.turn]);
       const v = act === "raise-set" ? Number(btn.dataset.v) : app.ui.raise + (act === "raise-inc" ? 1 : -1);
       app.ui.raise = Math.max(a.high + 1, Math.min(max, v));
+      app.ui.raiseTouched = true;
       renderDraftPanels(g);
+      sendPeek();
       break;
     }
     case "raise":
       dispatch({ type: "raise", bid: app.ui.raise }, g.auction.turn);
       app.ui.raise = null;
+      app.ui.raiseTouched = false;
       break;
     case "pass":
       dispatch({ type: "pass" }, g.auction.turn);
